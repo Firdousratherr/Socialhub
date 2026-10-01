@@ -150,6 +150,9 @@ function CommentThread({
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
+  const [savingComment, setSavingComment] = useState(false);
 
   async function loadComments(before?: string) {
     const query = before ? `?before=${encodeURIComponent(before)}` : "";
@@ -191,6 +194,40 @@ function CommentThread({
     } finally {
       setLoadingMore(false);
     }
+  }
+
+  async function updateComment(commentId: string) {
+    if (!editingCommentText.trim() || savingComment) return;
+    setSavingComment(true);
+    try {
+      const response = await fetch(`/api/posts/${postId}/comments`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commentId, content: editingCommentText.trim() }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not edit comment.");
+      const updated = json.comment as CommentItem;
+      setComments((current) => current.map((item) => item.id === commentId ? { ...item, ...updated } : { ...item, replies: (item.replies ?? []).map((reply) => reply.id === commentId ? { ...reply, ...updated } : reply) }));
+      setEditingCommentId(null);
+      setEditingCommentText("");
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not edit comment."); }
+    finally { setSavingComment(false); }
+  }
+
+  async function deleteComment(commentId: string) {
+    if (!window.confirm("Delete this comment?")) return;
+    try {
+      const response = await fetch(`/api/posts/${postId}/comments`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commentId }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not delete comment.");
+      setComments((current) => current.filter((item) => item.id !== commentId).map((item) => ({ ...item, replies: (item.replies ?? []).filter((reply) => reply.id !== commentId) })));
+      onCountChange(-1);
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not delete comment."); }
   }
 
   async function sendComment(event: FormEvent<HTMLFormElement>) {
@@ -257,15 +294,26 @@ function CommentThread({
               <div className="flex gap-2.5">
                 <Avatar name={comment.author.name} image={comment.author.image} />
                 <div className="min-w-0 flex-1">
-                  <div className="rounded-2xl bg-white px-3 py-2.5">
-                    <p className="text-xs font-black text-gray-900">{comment.author.name}</p>
-                    <p className="mt-1 text-xs leading-5 text-gray-600">{comment.content}</p>
-                  </div>
+                  {editingCommentId === comment.id ? (
+                    <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2">
+                      <textarea value={editingCommentText} onChange={(event) => setEditingCommentText(event.target.value)} rows={2} maxLength={2000} className="w-full resize-none rounded-xl bg-gray-50 p-2 text-xs outline-none"/>
+                      <div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentText(""); }} className="text-[10px] font-black text-gray-500">Cancel</button><button type="button" onClick={() => void updateComment(comment.id)} disabled={!editingCommentText.trim() || savingComment} className="rounded-lg bg-gray-950 px-3 py-1.5 text-[10px] font-black text-white disabled:opacity-40">{savingComment ? "Saving…" : "Save"}</button></div>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl bg-white px-3 py-2.5">
+                      <p className="text-xs font-black text-gray-900">{comment.author.name}</p>
+                      <p className="mt-1 text-xs leading-5 text-gray-600">{comment.content}</p>
+                    </div>
+                  )}
                   <div className="mt-1 flex gap-3 px-1 text-[10px] font-bold text-gray-400">
                     <span>{timeLabel(comment.createdAt)}</span>
                     {session?.user ? (
                       <button type="button" onClick={() => setReplyTo(comment.id)} className="hover:text-[#5a4be8]">Reply</button>
                     ) : null}
+                    {session?.user?.id === comment.author.id ? <>
+                      <button type="button" onClick={() => { setEditingCommentId(comment.id); setEditingCommentText(comment.content); }} className="hover:text-[#5a4be8]" aria-label="Edit comment"><Pencil size={11}/></button>
+                      <button type="button" onClick={() => void deleteComment(comment.id)} className="hover:text-red-500" aria-label="Delete comment"><Trash2 size={11}/></button>
+                    </> : null}
                   </div>
                 </div>
               </div>
@@ -276,9 +324,23 @@ function CommentThread({
                     <div key={reply.id} className="flex gap-2.5">
                       <Avatar name={reply.author.name} image={reply.author.image} />
                       <div className="min-w-0 flex-1">
-                        <div className="rounded-2xl bg-white px-3 py-2.5">
-                          <p className="text-xs font-black text-gray-900">{reply.author.name}</p>
-                          <p className="mt-1 text-xs leading-5 text-gray-600">{reply.content}</p>
+                        {editingCommentId === reply.id ? (
+                          <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2">
+                            <textarea value={editingCommentText} onChange={(event) => setEditingCommentText(event.target.value)} rows={2} maxLength={2000} className="w-full resize-none rounded-xl bg-gray-50 p-2 text-xs outline-none"/>
+                            <div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentText(""); }} className="text-[10px] font-black text-gray-500">Cancel</button><button type="button" onClick={() => void updateComment(reply.id)} disabled={!editingCommentText.trim() || savingComment} className="rounded-lg bg-gray-950 px-3 py-1.5 text-[10px] font-black text-white disabled:opacity-40">{savingComment ? "Saving…" : "Save"}</button></div>
+                          </div>
+                        ) : (
+                          <div className="rounded-2xl bg-white px-3 py-2.5">
+                            <p className="text-xs font-black text-gray-900">{reply.author.name}</p>
+                            <p className="mt-1 text-xs leading-5 text-gray-600">{reply.content}</p>
+                          </div>
+                        )}
+                        <div className="mt-1 flex gap-3 px-1 text-[10px] font-bold text-gray-400">
+                          <span>{timeLabel(reply.createdAt)}</span>
+                          {session?.user?.id === reply.author.id ? <>
+                            <button type="button" onClick={() => { setEditingCommentId(reply.id); setEditingCommentText(reply.content); }} className="hover:text-[#5a4be8]" aria-label="Edit reply"><Pencil size={11}/></button>
+                            <button type="button" onClick={() => void deleteComment(reply.id)} className="hover:text-red-500" aria-label="Delete reply"><Trash2 size={11}/></button>
+                          </> : null}
                         </div>
                       </div>
                     </div>
