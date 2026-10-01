@@ -554,16 +554,283 @@ function Messages() {
     </div>
   </Page>;
 }
+type DiscoverUser = {
+  id: string;
+  name: string;
+  username: string | null;
+  image: string | null;
+  bio: string | null;
+  isPrivate?: boolean;
+  _count: { followers: number; following: number };
+};
+
 function Discover() {
-  const [q,setQ]=useState(""); const results=useMemo(()=>people.filter(p=>(p[1]+p[2]).toLowerCase().includes(q.toLowerCase())),[q]);
-  return <Page eyebrow="Discover" title="Find your next connection" subtitle="Search people, browse topics, and explore conversations worth joining."><div className="space-y-5"><Card><div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/><input value={q} onChange={e=>setQ(e.target.value)} className="h-12 w-full rounded-2xl bg-gray-50 pl-11 text-sm font-semibold outline-none focus:bg-white" placeholder="Search people and usernames…"/></div><div className="mt-4 flex gap-2"><button className="rounded-xl bg-[#eeebff] px-3.5 py-2 text-xs font-black text-[#5a4be8]">People</button>{["Posts","Topics","Communities"].map(x=><button key={x} className="rounded-xl px-3.5 py-2 text-xs font-bold text-gray-500 hover:bg-gray-50">{x}</button>)}</div></Card><div className="grid gap-5 md:grid-cols-2"><Card><div className="flex justify-between"><h2 className="text-sm font-black">Suggested people</h2><button className="text-xs font-bold text-[#5a4be8]">See all</button></div><div className="mt-4 space-y-4">{results.map((p,i)=><div key={p[2]} className="flex items-center gap-3"><Avatar initials={p[0]} color={colors[i%colors.length]}/><div className="flex-1"><p className="text-xs font-black">{p[1]}</p><p className="text-[11px] text-gray-400">{p[2]} · {p[3]}</p></div><button className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white"><UserPlus size={15}/></button></div>)}</div></Card><Card><h2 className="text-sm font-black">Trending topics</h2><div className="mt-4 space-y-2">{["#BuildInPublic","#WeekendMoments","#DesignTalk","#Creators"].map((x,i)=><Link key={x} href="#" className="flex items-center gap-3 rounded-2xl p-3 hover:bg-gray-50"><span className="grid size-9 place-items-center rounded-xl bg-gray-100 text-[10px] font-black text-gray-500">0{i+1}</span><span className="flex-1"><span className="block text-xs font-black">{x}</span><span className="text-[11px] text-gray-400">{18-i*3}.4k posts</span></span><ChevronRight size={16} className="text-gray-400"/></Link>)}</div></Card></div></div></Page>;
+  const { data: session } = authClient.useSession();
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<DiscoverUser[]>([]);
+  const [following, setFollowing] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadUsers() {
+      setLoading(true);
+      setError("");
+      try {
+        const response = await fetch("/api/users?q=" + encodeURIComponent(q) + "&take=20", { cache: "no-store" });
+        const json = await response.json();
+        if (!response.ok) throw new Error(json.error ?? "Could not search users.");
+        if (!cancelled) setResults((json.users ?? []) as DiscoverUser[]);
+      } catch (requestError) {
+        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not search users.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadUsers();
+    }, q ? 250 : 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [q]);
+
+  async function toggleFollow(user: DiscoverUser) {
+    if (!session?.user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const isFollowing = following.has(user.id);
+    const response = await fetch("/api/users/" + user.id + "/follow", {
+      method: isFollowing ? "DELETE" : "POST",
+    });
+
+    if (response.ok) {
+      setFollowing((current) => {
+        const next = new Set(current);
+        if (isFollowing) next.delete(user.id);
+        else next.add(user.id);
+        return next;
+      });
+    } else if (user.isPrivate) {
+      const friendResponse = await fetch("/api/friend-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiverId: user.id }),
+      });
+      if (!friendResponse.ok) {
+        const json = await friendResponse.json().catch(() => ({}));
+        setError(json.error ?? "Could not send friend request.");
+      }
+    }
+  }
+
+  return <Page eyebrow="Discover" title="Find your next connection" subtitle="Search people, browse topics, and explore conversations worth joining.">
+    <div className="space-y-5">
+      <Card>
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+          <input value={q} onChange={(e)=>setQ(e.target.value)} className="h-12 w-full rounded-2xl bg-gray-50 pl-11 text-sm font-semibold outline-none focus:bg-white" placeholder="Search people and usernames…"/>
+        </div>
+        <div className="mt-4 flex gap-2">
+          <button className="rounded-xl bg-[#eeebff] px-3.5 py-2 text-xs font-black text-[#5a4be8]">People</button>
+          {["Posts","Topics","Communities"].map((x)=><button key={x} className="rounded-xl px-3.5 py-2 text-xs font-bold text-gray-500 hover:bg-gray-50">{x}</button>)}
+        </div>
+      </Card>
+
+      {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <Card>
+          <div className="flex justify-between">
+            <h2 className="text-sm font-black">{q ? "Search results" : "Suggested people"}</h2>
+            <span className="text-xs font-bold text-gray-400">{results.length} people</span>
+          </div>
+          <div className="mt-4 space-y-4">
+            {loading ? [1,2,3].map((item)=><div key={item} className="flex items-center gap-3 p-2"><span className="size-10 animate-pulse rounded-full bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 w-2/3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-1/2 animate-pulse rounded bg-gray-100"/></div></div>) :
+            results.map((user, i) => {
+              const initials = user.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase();
+              const isFollowing = following.has(user.id);
+              return <div key={user.id} className="flex items-center gap-3">
+                <Link href={"/profile/" + (user.username ?? user.id)}>
+                  <Avatar initials={initials} color={colors[i % colors.length]}/>
+                </Link>
+                <div className="min-w-0 flex-1">
+                  <Link href={"/profile/" + (user.username ?? user.id)} className="block truncate text-xs font-black hover:text-[#5a4be8]">{user.name}</Link>
+                  <p className="truncate text-[11px] text-gray-400">@{user.username ?? "member"} · {user._count.followers} followers</p>
+                </div>
+                <button onClick={()=>void toggleFollow(user)} className={isFollowing ? "grid size-9 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" : "grid size-9 place-items-center rounded-xl bg-gray-950 text-white"} aria-label={isFollowing ? "Unfollow" : "Follow"}>
+                  {isFollowing ? <Check size={15}/> : <UserPlus size={15}/>}
+                </button>
+              </div>;
+            })}
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="text-sm font-black">Trending topics</h2>
+          <div className="mt-4 space-y-2">
+            {["#BuildInPublic","#WeekendMoments","#DesignTalk","#Creators"].map((x,i)=><Link key={x} href="#" className="flex items-center gap-3 rounded-2xl p-3 hover:bg-gray-50">
+              <span className="grid size-9 place-items-center rounded-xl bg-gray-100 text-[10px] font-black text-gray-500">0{i+1}</span>
+              <span className="flex-1"><span className="block text-xs font-black">{x}</span><span className="text-[11px] text-gray-400">{18-i*3}.4k posts</span></span>
+              <ChevronRight size={16} className="text-gray-400"/>
+            </Link>)}
+          </div>
+        </Card>
+      </div>
+    </div>
+  </Page>;
 }
+type FriendPerson = {
+  id: string;
+  name: string;
+  username: string | null;
+  image: string | null;
+  bio: string | null;
+};
+
+type FriendRequestData = {
+  id: string;
+  sender: FriendPerson;
+  receiver?: FriendPerson;
+};
 
 function Friends() {
-  const [tab,setTab]=useState("requests");
-  return <Page eyebrow="Friends" title="Manage your circle" subtitle="Review requests, discover people you know, and keep your connections organized."><div className="mb-5 flex gap-2 rounded-2xl border border-gray-200 bg-white p-1.5">{[["requests","Requests","4"],["suggestions","Suggestions","8"],["all","All friends","184"]].map(x=><button key={x[0]} onClick={()=>setTab(x[0])} className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-black ${tab===x[0]?"bg-[#eeebff] text-[#5a4be8]":"text-gray-500"}`}>{x[1]} <span className="ml-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px]">{x[2]}</span></button>)}</div><div className="grid gap-4 sm:grid-cols-2">{people.concat(people.slice(0,2)).map((p,i)=><Card key={p[2]+i} className="flex items-center gap-4"><Avatar initials={p[0]} color={colors[i%colors.length]} size="lg"/><div className="min-w-0 flex-1"><p className="truncate text-sm font-black">{p[1]}</p><p className="text-xs text-gray-400">{p[2]}</p><p className="mt-2 text-[10px] font-bold uppercase tracking-[.12em] text-gray-400">{p[3]}</p></div>{tab==="requests"?<div className="flex gap-2"><button className="grid size-9 place-items-center rounded-xl bg-[#6d5dfc] text-white"><Check size={15}/></button><button className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={15}/></button></div>:<button className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white"><UserPlus size={15}/></button>}</Card>)}</div></Page>;
-}
+  const { data: session } = authClient.useSession();
+  const [tab, setTab] = useState("requests");
+  const [received, setReceived] = useState<FriendRequestData[]>([]);
+  const [suggestions, setSuggestions] = useState<FriendPerson[]>([]);
+  const [friends, setFriends] = useState<FriendPerson[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      if (!session?.user) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const [requestResponse, friendResponse, userResponse] = await Promise.all([
+          fetch("/api/friend-requests", { cache: "no-store" }),
+          fetch("/api/friends", { cache: "no-store" }),
+          fetch("/api/users?take=8", { cache: "no-store" }),
+        ]);
+
+        const requestJson = await requestResponse.json();
+        const friendJson = await friendResponse.json();
+        const userJson = await userResponse.json();
+
+        if (!requestResponse.ok) throw new Error(requestJson.error ?? "Could not load friend requests.");
+        if (!friendResponse.ok) throw new Error(friendJson.error ?? "Could not load friends.");
+        if (!userResponse.ok) throw new Error(userJson.error ?? "Could not load suggestions.");
+
+        if (!cancelled) {
+          setReceived(requestJson.received ?? []);
+          setFriends(friendJson.friends ?? []);
+          setSuggestions((userJson.users ?? []).filter((user: { id: string }) => user.id !== session.user.id));
+        }
+      } catch (requestError) {
+        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load friends.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
+
+  async function respond(requestId: string, status: "ACCEPTED" | "DECLINED") {
+    const response = await fetch("/api/friend-requests/" + requestId, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+
+    if (response.ok) {
+      setReceived((items) => items.filter((item) => item.id !== requestId));
+    }
+  }
+
+  async function sendRequest(userId: string) {
+    const response = await fetch("/api/friend-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ receiverId: userId }),
+    });
+
+    if (!response.ok) {
+      const json = await response.json().catch(() => ({}));
+      setError(json.error ?? "Could not send friend request.");
+      return;
+    }
+
+    setSuggestions((items) => items.filter((user) => user.id !== userId));
+  }
+
+  const initials = (name: string) => name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase();
+
+  const requestCount = received.length;
+  const displayPeople = tab === "requests" ? received.map((item) => item.sender) : tab === "suggestions" ? suggestions : friends;
+
+  return <Page eyebrow="Friends" title="Manage your circle" subtitle="Review requests, discover people you know, and keep your connections organized.">
+    {!session?.user ? (
+      <div className="mb-5 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-4 py-3 text-xs font-semibold text-[#5a4be8]">Sign in to manage your real friendships.</div>
+    ) : null}
+    {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
+
+    <div className="mb-5 flex gap-2 rounded-2xl border border-gray-200 bg-white p-1.5">
+      {[["requests","Requests",String(requestCount)],["suggestions","Suggestions",String(suggestions.length)],["all","All friends",String(friends.length)]].map((item)=>
+        <button key={item[0]} onClick={()=>setTab(item[0])} className={\`flex-1 rounded-xl px-3 py-2.5 text-xs font-black \${tab===item[0] ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500"}\`}>
+          {item[1]} <span className="ml-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px]">{item[2]}</span>
+        </button>
+      )}
+    </div>
+
+    <div className="grid gap-4 sm:grid-cols-2">
+      {loading && session?.user ? [1,2,3,4].map((item)=><Card key={item} className="flex items-center gap-4"><span className="size-14 animate-pulse rounded-full bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 w-2/3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-1/2 animate-pulse rounded bg-gray-100"/></div></Card>) :
+      displayPeople.map((person, i) => {
+        const request = tab === "requests" ? received[i] : null;
+        return <Card key={person.id} className="flex items-center gap-4">
+          <Link href={"/profile/" + (person.username ?? person.id)}><Avatar initials={initials(person.name)} color={colors[i % colors.length]} size="lg"/></Link>
+          <div className="min-w-0 flex-1">
+            <Link href={"/profile/" + (person.username ?? person.id)} className="block truncate text-sm font-black hover:text-[#5a4be8]">{person.name}</Link>
+            <p className="text-xs text-gray-400">@{person.username ?? "member"}</p>
+            <p className="mt-2 truncate text-[11px] text-gray-400">{person.bio ?? "Socialhub member"}</p>
+          </div>
+          {tab === "requests" && request ? (
+            <div className="flex gap-2">
+              <button onClick={()=>void respond(request.id, "ACCEPTED")} className="grid size-9 place-items-center rounded-xl bg-[#6d5dfc] text-white" aria-label="Accept request"><Check size={15}/></button>
+              <button onClick={()=>void respond(request.id, "DECLINED")} className="grid size-9 place-items-center rounded-xl bg-gray-100 text-gray-600" aria-label="Decline request"><X size={15}/></button>
+            </div>
+          ) : tab === "suggestions" ? (
+            <button onClick={()=>void sendRequest(person.id)} className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white" aria-label="Send friend request"><UserPlus size={15}/></button>
+          ) : null}
+        </Card>;
+      })}
+
+      {!loading && displayPeople.length === 0 ? (
+        <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-white p-10 text-center">
+          <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Users size={20}/></span>
+          <p className="mt-3 text-sm font-black">{tab === "requests" ? "No pending requests" : tab === "suggestions" ? "No new suggestions" : "No friends yet"}</p>
+          <p className="mt-1 text-xs text-gray-400">Your next connection will appear here.</p>
+        </div>
+      ) : null}
+    </div>
+  </Page>;
+}
 type NotificationData = {
   id: string;
   type: "LIKE" | "COMMENT" | "FOLLOW" | "FRIEND_REQUEST" | "FRIEND_ACCEPTED" | "MESSAGE" | "MENTION" | "SHARE" | "SYSTEM";
