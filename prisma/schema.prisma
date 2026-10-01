@@ -266,6 +266,8 @@ model ConversationMember {
   role           ConversationRole   @default(MEMBER)
   joinedAt       DateTime           @default(now())
   lastReadAt     DateTime?
+  mutedUntil     DateTime?
+  archivedAt     DateTime?
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -282,16 +284,20 @@ model Message {
   createdAt      DateTime     @default(now())
   editedAt       DateTime?
   deletedAt      DateTime?
+  replyToId      String?
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   notifications Notification[]
   attachments MessageAttachment[]
   reactions MessageReaction[]
+  replyTo Message? @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies Message[] @relation("MessageReply")
 
   @@index([conversationId, createdAt])
   @@index([conversationId, createdAt, id])
   @@index([senderId, createdAt])
+  @@index([replyToId])
 }
 
 model MessageAttachment {
