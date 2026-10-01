@@ -59,19 +59,31 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const profile = await prisma.user.update({
-    where: { id: session.user.id },
-    data: parsed.data,
-    select: {
-      id: true, name: true, email: true, username: true, bio: true,
-      image: true, coverImage: true, website: true, location: true,
-      isPrivate: true, role: true,
-    },
-  });
+  try {
+    const profile = await prisma.user.update({
+      where: { id: session.user.id },
+      data: parsed.data,
+      select: {
+        id: true, name: true, email: true, username: true, bio: true,
+        image: true, coverImage: true, website: true, location: true,
+        isPrivate: true, role: true,
+      },
+    });
 
-  return NextResponse.json({ profile });
+    return NextResponse.json({ profile });
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: string }).code === "P2002"
+    ) {
+      return NextResponse.json({ error: "That username is already in use." }, { status: 409 });
+    }
+
+    throw error;
+  }
 }
-
 
 export async function DELETE() {
   const session = await getSession();
