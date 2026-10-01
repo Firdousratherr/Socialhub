@@ -85,7 +85,7 @@ export async function GET(request: Request) {
     prisma.report.count({ where: { status: "DISMISSED" } }),
   ]);
 
-  return NextResponse.json({ reports: page, nextBefore, counts: { pending, reviewed, resolved, dismissed } });
+  return NextResponse.json({ reports: page, nextBefore, currentAdminId: access.user.id, counts: { pending, reviewed, resolved, dismissed } });
 }
 
 export async function PATCH(request: Request) {
