@@ -86,6 +86,7 @@ model User {
   comments      Comment[]
   likes         Like[]
   postReactions PostReaction[]
+  uploadUsages UploadUsage[]
   followers     Follow[]          @relation("UserFollowers")
   following     Follow[]          @relation("UserFollowing")
   sentMessages  Message[]         @relation("MessageSender")
@@ -555,4 +556,16 @@ model AdminLoginAttempt {
   updatedAt DateTime @updatedAt
 
   @@index([resetAt])
+}
+
+
+model UploadUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  bytes     Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
