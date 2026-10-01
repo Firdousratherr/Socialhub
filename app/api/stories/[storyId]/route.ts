@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { areFriends, isBlocked } from "@/lib/social-access";
+import { safeDeleteBlob } from "@/lib/blob-cleanup";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -107,11 +108,12 @@ export async function DELETE(
   }
   const story = await prisma.story.findUnique({
     where: { id: storyId },
-    select: { authorId: true },
+    select: { authorId: true, mediaUrl: true },
   });
   if (!story) return NextResponse.json({ error: "Story not found." }, { status: 404 });
   if (story.authorId !== session.user.id) return NextResponse.json({ error: "You can only delete your own story." }, { status: 403 });
 
   await prisma.story.delete({ where: { id: storyId } });
+  void safeDeleteBlob(story.mediaUrl);
   return NextResponse.json({ success: true });
 }
