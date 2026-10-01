@@ -382,7 +382,3 @@ function ArrowRightIcon() {
 function Composer() {
   return null;
 }
-
-function ArrowRightIcon() {
-  return <Send size={15} className="-rotate-45" />;
-}
