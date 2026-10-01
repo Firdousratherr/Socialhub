@@ -28,3 +28,27 @@ export const conversationInputSchema = z.object({
 export const messageInputSchema = z.object({
   content: z.string().trim().min(1).max(5000),
 });
+
+export const commentInputSchema = z.object({
+  content: z.string().trim().min(1).max(2000),
+  parentId: z.string().min(1).nullable().optional(),
+});
+
+export const storyInputSchema = z.object({
+  mediaUrl: z.string().url().max(2048),
+  caption: z.string().trim().max(300).nullable().optional(),
+  audience: z.enum(["PUBLIC", "FRIENDS"]).default("PUBLIC"),
+  expiresAt: z.coerce.date(),
+});
+
+export const friendRequestInputSchema = z.object({
+  receiverId: z.string().min(1),
+});
+
+export const notificationUpdateSchema = z.object({
+  notificationId: z.string().min(1).optional(),
+  markAll: z.boolean().optional(),
+}).refine(
+  (value) => Boolean(value.notificationId) || value.markAll === true,
+  "Provide a notification id or markAll=true.",
+);
