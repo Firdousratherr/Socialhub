@@ -9,10 +9,6 @@ const inputSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
-const attempts = new Map<string, { count: number; resetAt: number }>();
-const WINDOW_MS = 5 * 60 * 1000;
-const MAX_ATTEMPTS = 5;
-
 function safeEqual(left: string, right: string) {
   const a = Buffer.from(left);
   const b = Buffer.from(right);
@@ -25,19 +21,28 @@ function clientKey(request: Request, email: string) {
   return `${ip}:${email}`;
 }
 
-function isRateLimited(key: string) {
-  const now = Date.now();
-  const current = attempts.get(key);
-  if (!current || current.resetAt <= now) {
-    attempts.set(key, { count: 1, resetAt: now + WINDOW_MS });
-    return false;
-  }
-  current.count += 1;
-  return current.count > MAX_ATTEMPTS;
+async function registerAttempt(key: string) {
+  const id = crypto.randomUUID();
+  const rows = await prisma.$queryRaw<Array<{ count: number }>>`
+    INSERT INTO "AdminLoginAttempt" ("id","key","count","resetAt","createdAt","updatedAt")
+    VALUES (${id}, ${key}, 1, CURRENT_TIMESTAMP + INTERVAL '5 minutes', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT ("key") DO UPDATE SET
+      "count" = CASE
+        WHEN "AdminLoginAttempt"."resetAt" <= CURRENT_TIMESTAMP THEN 1
+        ELSE "AdminLoginAttempt"."count" + 1
+      END,
+      "resetAt" = CASE
+        WHEN "AdminLoginAttempt"."resetAt" <= CURRENT_TIMESTAMP THEN CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+        ELSE "AdminLoginAttempt"."resetAt"
+      END,
+      "updatedAt" = CURRENT_TIMESTAMP
+    RETURNING "count"
+  `;
+  return (rows[0]?.count ?? 0) > 5;
 }
 
-function clearAttempts(key: string) {
-  attempts.delete(key);
+async function clearAttempts(key: string) {
+  await prisma.adminLoginAttempt.deleteMany({ where: { key } });
 }
 
 export async function POST(request: Request) {
@@ -58,7 +63,7 @@ export async function POST(request: Request) {
 
   const email = parsed.data.email.toLowerCase();
   const key = clientKey(request, email);
-  if (isRateLimited(key)) {
+  if (await registerAttempt(key)) {
     return NextResponse.json(
       { error: "Too many administrator login attempts. Try again in a few minutes." },
       { status: 429, headers: { "Retry-After": "300" } },
