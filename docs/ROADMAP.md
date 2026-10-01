@@ -40,6 +40,21 @@ Status: Complete
 - Privacy-aware profile visibility
 - Moderation audit logging
 
+## Milestone A.5 — Navigation, page shell & real-data integrity
+Status: Complete for this pass
+
+- Consistent back navigation with same-origin history fallback
+- Working mobile hamburger menu across app pages
+- Logout action inside mobile navigation
+- Working global people search from desktop/mobile header into Discover
+- Working conversation search within Messages
+- Remove demo conversation data from real message inboxes
+- Remove demo notification data from real notification views
+- Empty states for real feeds and inboxes instead of fabricated content
+- Stable `/profile/me` route for the signed-in user
+- Branded 404 page and unknown-route handling
+- Mobile/desktop navigation QA targets for 360px through wide desktop
+
 ## Milestone B — Authentication, recovery & identity
 Status: In implementation
 ### Email security
