@@ -60,12 +60,14 @@ export async function GET(
   }
 
   const friends = Boolean(session?.user && await areFriends(session.user.id, user.id));
-  const visiblePosts = isSelf || friends
-    ? user.posts
-    : user.posts.filter((post) => {
-        // Public posts are always visible; FRIENDS and PRIVATE are filtered below.
-        return true;
-      });
+  const following = Boolean(
+    session?.user &&
+      await prisma.follow.findUnique({
+        where: { followerId_followingId: { followerId: session.user.id, followingId: user.id } },
+        select: { followerId: true },
+      }),
+  );
+  const visiblePosts = user.posts;
 
   return NextResponse.json({
     profile: {
@@ -74,6 +76,8 @@ export async function GET(
       posts: user.isPrivate && !isSelf && !friends
         ? []
         : visiblePosts.filter((post) => post.visibility === "PUBLIC" || isSelf || friends),
+      isFollowing: following,
+      isFriend: friends,
     },
   });
 }
