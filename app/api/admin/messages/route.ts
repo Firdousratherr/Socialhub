@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/app/api/admin/_auth";
+import { requireAdminOnly } from "@/app/api/admin/_auth";
 
 export async function GET(request: Request) {
-  const authResult = await requireAdmin();
+  const authResult = await requireAdminOnly();
   if (authResult.response) return authResult.response;
 
   const url = new URL(request.url);
@@ -13,7 +13,14 @@ export async function GET(request: Request) {
   if (conversationId) {
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
-      include: { members: { select: { userId: true, user: { select: { id: true, name: true, username: true, image: true } } } } },
+      include: {
+        members: {
+          select: {
+            userId: true,
+            user: { select: { id: true, name: true, username: true, image: true } },
+          },
+        },
+      },
     });
     if (!conversation) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
 
@@ -38,14 +45,35 @@ export async function GET(request: Request) {
   }
 
   const conversations = await prisma.conversation.findMany({
-    where: q ? {
-      members: { some: { user: { OR: [{ name: { contains: q, mode: "insensitive" } }, { username: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }] } } },
-    } : undefined,
+    where: q
+      ? {
+          members: {
+            some: {
+              user: {
+                OR: [
+                  { name: { contains: q, mode: "insensitive" } },
+                  { username: { contains: q, mode: "insensitive" } },
+                  { email: { contains: q, mode: "insensitive" } },
+                ],
+              },
+            },
+          },
+        }
+      : undefined,
     orderBy: { updatedAt: "desc" },
     take: 100,
     include: {
-      members: { select: { userId: true, user: { select: { id: true, name: true, username: true, image: true } } } },
-      messages: { orderBy: { createdAt: "desc" }, take: 1, select: { content: true, createdAt: true, senderId: true } },
+      members: {
+        select: {
+          userId: true,
+          user: { select: { id: true, name: true, username: true, image: true } },
+        },
+      },
+      messages: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { content: true, createdAt: true, senderId: true },
+      },
     },
   });
 
