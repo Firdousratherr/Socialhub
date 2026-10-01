@@ -209,7 +209,7 @@ export default function HomeFeed() {
             <button className="social-icon-button md:hidden" aria-label="Search">
               <Search size={19} />
             </button>
-            <button className="social-icon-button" aria-label="Messages">
+            <Link href="/messages" className="social-icon-button" aria-label="Messages">
               <MessageCircle size={19} />
             </button>
             <button className="social-icon-button relative" aria-label="Notifications">
