@@ -70,6 +70,13 @@ export async function GET(request: Request) {
     }),
   ]);
 
+  const followingIds = viewerId
+    ? new Set((await prisma.follow.findMany({
+        where: { followerId: viewerId, followingId: { in: users.map((user) => user.id) } },
+        select: { followingId: true },
+      })).map((row) => row.followingId))
+    : new Set<string>();
+
   const hashtags = new Map<string, number>();
   for (const post of posts) {
     for (const match of post.content?.matchAll(/(^|\s)#([A-Za-z0-9_]{2,40})/g) ?? []) {
@@ -79,7 +86,7 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
-    users,
+    users: users.map((user) => ({ ...user, isFollowing: followingIds.has(user.id) })),
     posts,
     hashtags: [...hashtags.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
