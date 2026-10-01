@@ -23,7 +23,18 @@ export async function GET() {
   });
 
   if (!profile) return NextResponse.json({ error: "Profile not found." }, { status: 404 });
-  return NextResponse.json({ profile });
+  const override = await prisma.adminMetricOverride.findUnique({ where: { userId: profile.id } });
+  return NextResponse.json({
+    profile: {
+      ...profile,
+      metricOverrides: override,
+      visibleCounts: {
+        posts: override?.posts ?? profile._count.posts,
+        followers: override?.followers ?? profile._count.followers,
+        following: override?.following ?? profile._count.following,
+      },
+    },
+  });
 }
 
 export async function PATCH(request: Request) {
