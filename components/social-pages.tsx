@@ -262,6 +262,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [editing, setEditing] = useState(false);
   const [following, setFollowing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     name: "Firdous Rather",
@@ -322,11 +323,52 @@ function Profile({ username = "firdous" }: { username?: string }) {
     }
   }
 
+  async function uploadProfileImage(file: File, target: "avatar" | "cover") {
+    if (!session?.user || uploading) return;
+    setUploading(target);
+    setError("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const uploadResponse = await fetch("/api/uploads", {
+        method: "POST",
+        body: formData,
+      });
+      const uploadJson = await uploadResponse.json().catch(() => ({}));
+      if (!uploadResponse.ok) throw new Error(uploadJson.error ?? "Could not upload image.");
+
+      const field = target === "avatar" ? "image" : "coverImage";
+      const profileResponse = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: uploadJson.url }),
+      });
+      const profileJson = await profileResponse.json().catch(() => ({}));
+      if (!profileResponse.ok) throw new Error(profileJson.error ?? "Could not save image.");
+
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              ...(target === "avatar" ? { image: uploadJson.url } : { coverImage: uploadJson.url }),
+            }
+          : current,
+      );
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not update profile image.");
+    } finally {
+      setUploading(null);
+    }
+  }
+
   const displayName = profile?.name ?? form.name;
   const displayUsername = profile?.username ?? form.username ?? username;
   const postCount = profile?.visibleCounts?.posts ?? profile?._count.posts ?? 184;
   const followerCount = profile?.visibleCounts?.followers ?? profile?._count.followers ?? 1800;
   const followingCount = profile?.visibleCounts?.following ?? profile?._count.following ?? 426;
+  const initials = displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase() || "SH";
 
   return <Page eyebrow="Profile" title={`@${displayUsername}`} action={
     session?.user ? (
@@ -338,16 +380,71 @@ function Profile({ username = "firdous" }: { username?: string }) {
     {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
     <div className="overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)]">
-      <div className="relative h-48 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,.24),transparent_22%),linear-gradient(135deg,#5a4be8,#2e9fe9_55%,#51d3b4)]">
-        <button className="absolute right-4 top-4 grid size-10 place-items-center rounded-xl bg-black/20 text-white" aria-label="Change cover"><Camera size={17}/></button>
+      <div
+        className="relative h-48 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,.24),transparent_22%),linear-gradient(135deg,#5a4be8,#2e9fe9_55%,#51d3b4)] bg-cover bg-center"
+        style={profile?.coverImage ? { backgroundImage: `url("${profile.coverImage}")` } : undefined}
+      >
+        {session?.user ? (
+          <>
+            <input
+              id="cover-upload"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void uploadProfileImage(file, "cover");
+                event.currentTarget.value = "";
+              }}
+            />
+            <label
+              htmlFor="cover-upload"
+              className="absolute right-4 top-4 grid size-10 cursor-pointer place-items-center rounded-xl bg-black/25 text-white backdrop-blur transition hover:bg-black/40"
+              aria-label="Change cover image"
+              title={uploading === "cover" ? "Uploading…" : "Change cover image"}
+            >
+              <Camera size={17}/>
+            </label>
+            {uploading === "cover" ? <span className="absolute right-4 bottom-4 rounded-full bg-black/45 px-3 py-1.5 text-[10px] font-black text-white backdrop-blur">Uploading cover…</span> : null}
+          </>
+        ) : null}
       </div>
 
       <div className="relative px-5 pb-6 sm:px-8">
         <div className="-mt-12 flex flex-col gap-4 sm:-mt-14 sm:flex-row sm:items-end">
-          <div className="rounded-full border-4 border-white"><Avatar initials={displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase() || "FR"} size="xl"/></div>
+          <div className="relative rounded-full border-4 border-white bg-white">
+            {session?.user ? (
+              <>
+                <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void uploadProfileImage(file, "avatar");
+                    event.currentTarget.value = "";
+                  }}
+                />
+                <label htmlFor="avatar-upload" className="block cursor-pointer rounded-full" aria-label="Change profile picture">
+                  {profile?.image ? (
+                    <img src={profile.image} alt={`${displayName} profile picture`} className="size-24 rounded-full object-cover text-[10px] shadow-sm" />
+                  ) : (
+                    <Avatar initials={initials} size="xl"/>
+                  )}
+                </label>
+              </>
+            ) : profile?.image ? (
+              <img src={profile.image} alt={`${displayName} profile picture`} className="size-24 rounded-full object-cover text-[10px] shadow-sm" />
+            ) : (
+              <Avatar initials={initials} size="xl"/>
+            )}
+          </div>
           <div className="flex-1 sm:pb-2"><h2 className="text-2xl font-black tracking-[-.04em]">{displayName}</h2><p className="text-sm font-semibold text-gray-400">@{displayUsername}{profile?.location ? ` · ${profile.location}` : ""}</p></div>
           {session?.user ? <button onClick={() => setFollowing((value) => !value)} className={following ? "h-10 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700" : "h-10 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white"}>{following ? "Following" : "Follow"}</button> : null}
         </div>
+
+        {uploading === "avatar" ? <p className="mt-3 text-[11px] font-bold text-[#5a4be8]">Uploading profile picture…</p> : null}
 
         {editing ? (
           <form onSubmit={saveProfile} className="mt-6 grid gap-4 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] p-4 sm:grid-cols-2">
@@ -366,12 +463,13 @@ function Profile({ username = "firdous" }: { username?: string }) {
 
         <div className="mt-7 flex gap-6 border-b border-gray-100 pb-3 text-xs font-black"><button className="border-b-2 border-[#6d5dfc] pb-3 text-[#5a4be8]">Posts</button><button className="pb-3 text-gray-400">Photos</button><button className="pb-3 text-gray-400">Friends</button></div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          {[1,2,3,4].map((n)=><article key={n} className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><div className="flex items-center gap-3"><Avatar initials={displayName.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase() || "FR" } size="sm"/><div><p className="text-xs font-black">{displayName}</p><p className="text-[11px] text-gray-400">{n*2}h ago</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">Small wins add up. Keeping the focus on building, learning, and sharing useful things along the way.</p><div className="mt-4 h-28 rounded-xl bg-gradient-to-br from-violet-100 via-white to-sky-100"/><div className="mt-3 flex gap-5 text-xs font-semibold text-gray-400"><span className="inline-flex items-center gap-1"><Heart size={14}/> {18+n}</span><span className="inline-flex items-center gap-1"><MessageCircle size={14}/> {n+2}</span><span className="inline-flex items-center gap-1"><Bookmark size={14}/>Save</span></div></article>)}
+          {[1,2,3,4].map((n)=><article key={n} className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><div className="flex items-center gap-3">{profile?.image ? <img src={profile.image} alt="" className="size-9 rounded-full object-cover" /> : <Avatar initials={initials} size="sm" />}<div><p className="text-xs font-black">{displayName}</p><p className="text-[11px] text-gray-400">{n*2}h ago</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">Small wins add up. Keeping the focus on building, learning, and sharing useful things along the way.</p><div className="mt-4 h-28 rounded-xl bg-gradient-to-br from-violet-100 via-white to-sky-100"/><div className="mt-3 flex gap-5 text-xs font-semibold text-gray-400"><span className="inline-flex items-center gap-1"><Heart size={14}/> {18+n}</span><span className="inline-flex items-center gap-1"><MessageCircle size={14}/> {n+2}</span><span className="inline-flex items-center gap-1"><Bookmark size={14}/>Save</span></div></article>)}
         </div>
       </div>
     </div>
   </Page>;
 }
+
 type ChatMessage = {
   id: string;
   senderId: string;
