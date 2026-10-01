@@ -33,6 +33,8 @@ export async function GET(
     take: 100,
     include: {
       sender: { select: { id: true, name: true, username: true, image: true } },
+      attachments: { orderBy: { createdAt: "asc" } },
+      reactions: { include: { user: { select: { id: true, name: true, image: true } } }, orderBy: { createdAt: "asc" } },
     },
   });
 
@@ -65,9 +67,16 @@ export async function POST(
         conversationId,
         senderId: session.user.id,
         content: parsed.data.content,
+        attachments: parsed.data.attachments.length ? {
+          createMany: {
+            data: parsed.data.attachments.map((url) => ({ url, senderId: session.user.id, kind: "image" })),
+          },
+        } : undefined,
       },
       include: {
         sender: { select: { id: true, name: true, username: true, image: true } },
+        attachments: true,
+        reactions: { include: { user: { select: { id: true, name: true, image: true } } } },
       },
     });
 
