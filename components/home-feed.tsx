@@ -479,7 +479,7 @@ function PostCard({
                       <Users size={14} /> Block user
                     </button>
                   </>
-                ) : null}
+                )}
               </div>
             ) : null}
           </div>
