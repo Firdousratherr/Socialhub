@@ -1449,6 +1449,8 @@ function SettingsPage() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const [privateAccount, setPrivate] = useState(false);
+  const [privacySettings, setPrivacySettings] = useState({ showFriendsList: true, allowMessagesEveryone: true, allowFriendRequests: true });
+  const [savingPrivacySetting, setSavingPrivacySetting] = useState<string | null>(null);
   const [email, setEmail] = useState("Not loaded");
   const [username, setUsername] = useState("Not loaded");
   const [loading, setLoading] = useState(true);
@@ -1500,6 +1502,36 @@ function SettingsPage() {
       })
       .catch((requestError) => setMessage(requestError instanceof Error ? requestError.message : "Could not load notification preferences."));
   }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!session?.user) return;
+    void fetch("/api/privacy-settings", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(json.error ?? "Could not load privacy settings.");
+        setPrivacySettings(json.settings ?? privacySettings);
+      })
+      .catch((requestError) => setMessage(requestError instanceof Error ? requestError.message : "Could not load privacy settings."));
+  }, [session?.user?.id]);
+
+  async function updatePrivacySetting(key: "showFriendsList" | "allowMessagesEveryone" | "allowFriendRequests", value: boolean) {
+    if (!session?.user || savingPrivacySetting) return;
+    setSavingPrivacySetting(key);
+    try {
+      const response = await fetch("/api/privacy-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: value }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not save privacy setting.");
+      setPrivacySettings(json.settings ?? privacySettings);
+    } catch (requestError) {
+      setMessage(requestError instanceof Error ? requestError.message : "Could not save privacy setting.");
+    } finally {
+      setSavingPrivacySetting(null);
+    }
+  }
 
   async function updatePreference(key: string, value: boolean) {
     if (!session?.user || savingPreference) return;
@@ -1652,6 +1684,18 @@ function SettingsPage() {
             <div className="flex items-center gap-4 py-4">
               <div className="flex-1"><p className="text-sm font-bold">Private account</p><p className="text-xs text-gray-400">Only approved followers can see your posts.</p></div>
               <Toggle value={privateAccount} disabled={!session?.user || savingPrivacy} onChange={(value)=>void updatePrivacy(value)}/>
+            </div>
+            <div className="flex items-center gap-4 py-4">
+              <div className="flex-1"><p className="text-sm font-bold">Show friends and relationship lists</p><p className="text-xs text-gray-400">Let other people open your Friends, Followers and Following lists.</p></div>
+              <Toggle value={privacySettings.showFriendsList} disabled={!session?.user || savingPrivacySetting === "showFriendsList"} onChange={(value)=>void updatePrivacySetting("showFriendsList", value)}/>
+            </div>
+            <div className="flex items-center gap-4 py-4">
+              <div className="flex-1"><p className="text-sm font-bold">Allow messages from everyone</p><p className="text-xs text-gray-400">Turn off to limit new direct conversations to accepted friends.</p></div>
+              <Toggle value={privacySettings.allowMessagesEveryone} disabled={!session?.user || savingPrivacySetting === "allowMessagesEveryone"} onChange={(value)=>void updatePrivacySetting("allowMessagesEveryone", value)}/>
+            </div>
+            <div className="flex items-center gap-4 py-4">
+              <div className="flex-1"><p className="text-sm font-bold">Allow friend requests</p><p className="text-xs text-gray-400">Turn off to stop new people from sending friend requests.</p></div>
+              <Toggle value={privacySettings.allowFriendRequests} disabled={!session?.user || savingPrivacySetting === "allowFriendRequests"} onChange={(value)=>void updatePrivacySetting("allowFriendRequests", value)}/>
             </div>
           </div>
         </Card>
