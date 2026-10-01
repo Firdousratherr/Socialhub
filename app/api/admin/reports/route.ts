@@ -4,10 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/app/api/admin/_auth";
 
 const statusSchema = z.enum(["PENDING", "REVIEWED", "RESOLVED", "DISMISSED"]);
+const prioritySchema = z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
 
 const updateSchema = z.object({
   id: z.string().min(1),
-  status: statusSchema,
+  status: statusSchema.optional(),
+  priority: prioritySchema.optional(),
+  assignedToId: z.string().min(1).nullable().optional(),
   note: z.string().trim().max(1000).optional(),
 });
 
@@ -64,6 +67,7 @@ export async function GET(request: Request) {
     include: {
       reporter: { select: { id: true, name: true, username: true, image: true } },
       reportedUser: { select: { id: true, name: true, username: true, image: true } },
+      assignedTo: { select: { id: true, name: true, username: true } },
       post: { select: { id: true, content: true, mediaUrl: true, authorId: true } },
       comment: { select: { id: true, content: true, authorId: true, postId: true } },
     },
@@ -94,14 +98,19 @@ export async function PATCH(request: Request) {
   const existing = await prisma.report.findUnique({ where: { id: parsed.data.id } });
   if (!existing) return NextResponse.json({ error: "Report not found." }, { status: 404 });
 
-  const terminal = parsed.data.status === "RESOLVED" || parsed.data.status === "DISMISSED";
+  const nextStatus = parsed.data.status ?? existing.status;
+  const terminal = nextStatus === "RESOLVED" || nextStatus === "DISMISSED";
   const report = await prisma.report.update({
     where: { id: existing.id },
     data: {
-      status: parsed.data.status,
-      resolvedAt: terminal ? new Date() : null,
-      resolvedById: terminal ? access.user.id : null,
+      status: nextStatus,
+      ...(parsed.data.priority !== undefined ? { priority: parsed.data.priority } : {}),
+      ...(parsed.data.assignedToId !== undefined ? { assignedToId: parsed.data.assignedToId } : {}),
+      ...(parsed.data.note !== undefined ? { moderatorNote: parsed.data.note || null } : {}),
+      resolvedAt: terminal ? new Date() : nextStatus === "PENDING" || nextStatus === "REVIEWED" ? null : existing.resolvedAt,
+      resolvedById: terminal ? access.user.id : nextStatus === "PENDING" || nextStatus === "REVIEWED" ? null : existing.resolvedById,
     },
+    include: { assignedTo: { select: { id: true, name: true, username: true } } },
   });
 
   await prisma.adminAuditLog.create({
@@ -111,8 +120,8 @@ export async function PATCH(request: Request) {
       targetType: "REPORT",
       targetId: report.id,
       details: JSON.stringify({
-        before: existing.status,
-        after: report.status,
+        before: { status: existing.status, priority: existing.priority, assignedToId: existing.assignedToId, moderatorNote: existing.moderatorNote },
+        after: { status: report.status, priority: report.priority, assignedToId: report.assignedToId, moderatorNote: report.moderatorNote },
         note: parsed.data.note ?? null,
       }),
     },
