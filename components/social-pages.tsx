@@ -1026,6 +1026,7 @@ function Friends() {
   const { data: session } = authClient.useSession();
   const [tab, setTab] = useState("requests");
   const [received, setReceived] = useState<FriendRequestData[]>([]);
+  const [sent, setSent] = useState<FriendRequestData[]>([]);
   const [suggestions, setSuggestions] = useState<FriendPerson[]>([]);
   const [friends, setFriends] = useState<FriendPerson[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1057,6 +1058,7 @@ function Friends() {
 
         if (!cancelled) {
           setReceived(requestJson.received ?? []);
+          setSent(requestJson.sent ?? []);
           setFriends(friendJson.friends ?? []);
           setSuggestions((userJson.users ?? []).filter((user: { id: string }) => user.id !== session.user.id));
         }
@@ -1072,6 +1074,25 @@ function Friends() {
       cancelled = true;
     };
   }, [session?.user?.id]);
+
+  async function cancelRequest(requestId: string) {
+    const response = await fetch("/api/friend-requests/" + requestId, { method: "DELETE" });
+    if (response.ok) setSent((items) => items.filter((item) => item.id !== requestId));
+    else {
+      const json = await response.json().catch(() => ({}));
+      setError(json.error ?? "Could not cancel friend request.");
+    }
+  }
+
+  async function removeFriend(friendId: string) {
+    if (!window.confirm("Remove this friend?")) return;
+    const response = await fetch("/api/friends/" + friendId, { method: "DELETE" });
+    if (response.ok) setFriends((items) => items.filter((item) => item.id !== friendId));
+    else {
+      const json = await response.json().catch(() => ({}));
+      setError(json.error ?? "Could not remove friend.");
+    }
+  }
 
   async function respond(requestId: string, status: "ACCEPTED" | "DECLINED") {
     const response = await fetch("/api/friend-requests/" + requestId, {
@@ -1104,7 +1125,7 @@ function Friends() {
   const initials = (name: string) => name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase();
 
   const requestCount = received.length;
-  const displayPeople = tab === "requests" ? received.map((item) => item.sender) : tab === "suggestions" ? suggestions : friends;
+  const displayPeople = tab === "requests" ? received.map((item) => item.sender) : tab === "sent" ? sent.map((item) => item.receiver!).filter(Boolean) : tab === "suggestions" ? suggestions : friends;
 
   return <Page eyebrow="Friends" title="Manage your circle" subtitle="Review requests, discover people you know, and keep your connections organized.">
     {!session?.user ? (
@@ -1113,7 +1134,7 @@ function Friends() {
     {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
     <div className="mb-5 flex gap-2 rounded-2xl border border-gray-200 bg-white p-1.5">
-      {[["requests","Requests",String(requestCount)],["suggestions","Suggestions",String(suggestions.length)],["all","All friends",String(friends.length)]].map((item)=>
+      {[["requests","Requests",String(requestCount)],["sent","Sent",String(sent.length)],["suggestions","Suggestions",String(suggestions.length)],["all","All friends",String(friends.length)]].map((item)=>
         <button key={item[0]} onClick={()=>setTab(item[0])} className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-black ${tab===item[0] ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500"}`}>
           {item[1]} <span className="ml-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px]">{item[2]}</span>
         </button>
@@ -1123,7 +1144,7 @@ function Friends() {
     <div className="grid gap-4 sm:grid-cols-2">
       {loading && session?.user ? [1,2,3,4].map((item)=><Card key={item} className="flex items-center gap-4"><span className="size-14 animate-pulse rounded-full bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 w-2/3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-1/2 animate-pulse rounded bg-gray-100"/></div></Card>) :
       displayPeople.map((person, i) => {
-        const request = tab === "requests" ? received[i] : null;
+        const request = tab === "requests" ? received[i] : tab === "sent" ? sent[i] : null;
         return <Card key={person.id} className="flex items-center gap-4">
           <Link href={"/profile/" + (person.username ?? person.id)}><Avatar initials={initials(person.name)} color={colors[i % colors.length]} size="lg"/></Link>
           <div className="min-w-0 flex-1">
@@ -1136,8 +1157,12 @@ function Friends() {
               <button onClick={()=>void respond(request.id, "ACCEPTED")} className="grid size-9 place-items-center rounded-xl bg-[#6d5dfc] text-white" aria-label="Accept request"><Check size={15}/></button>
               <button onClick={()=>void respond(request.id, "DECLINED")} className="grid size-9 place-items-center rounded-xl bg-gray-100 text-gray-600" aria-label="Decline request"><X size={15}/></button>
             </div>
+          ) : tab === "sent" && request ? (
+            <button onClick={()=>void cancelRequest(request.id)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black text-gray-600" aria-label="Cancel friend request">Cancel</button>
           ) : tab === "suggestions" ? (
             <button onClick={()=>void sendRequest(person.id)} className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white" aria-label="Send friend request"><UserPlus size={15}/></button>
+          ) : tab === "all" ? (
+            <button onClick={()=>void removeFriend(person.id)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black text-red-600 hover:bg-red-50" aria-label={"Remove " + person.name}>Remove</button>
           ) : null}
         </Card>;
       })}
@@ -1145,7 +1170,7 @@ function Friends() {
       {!loading && displayPeople.length === 0 ? (
         <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-white p-10 text-center">
           <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Users size={20}/></span>
-          <p className="mt-3 text-sm font-black">{tab === "requests" ? "No pending requests" : tab === "suggestions" ? "No new suggestions" : "No friends yet"}</p>
+          <p className="mt-3 text-sm font-black">{tab === "requests" ? "No pending requests" : tab === "sent" ? "No sent requests" : tab === "suggestions" ? "No new suggestions" : "No friends yet"}</p>
           <p className="mt-1 text-xs text-gray-400">Your next connection will appear here.</p>
         </div>
       ) : null}

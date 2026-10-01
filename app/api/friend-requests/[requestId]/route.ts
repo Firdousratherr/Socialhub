@@ -113,3 +113,20 @@ export async function PATCH(
     },
   });
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ requestId: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
+  const { requestId } = await params;
+  const result = await prisma.friendRequest.updateMany({
+    where: { id: requestId, senderId: session.user.id, status: "PENDING" },
+    data: { status: "DECLINED", updatedAt: new Date() },
+  });
+
+  if (!result.count) return NextResponse.json({ error: "Sent request not found." }, { status: 404 });
+  return NextResponse.json({ success: true });
+}
