@@ -982,6 +982,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
+          {nextMessagesCursor ? <div className="flex justify-center"><button type="button" onClick={() => void loadOlderMessages()} disabled={loadingOlderMessages} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-[10px] font-black text-gray-600 shadow-sm disabled:opacity-50">{loadingOlderMessages ? "Loading older messages…" : "Load older messages"}</button></div> : null}
           {active && messages.length > 0 ? messages.map((message) => {
             const mine = message.senderId === session?.user?.id;
             return <div key={message.id} className={mine ? "flex justify-end" : "flex items-end gap-2"}>
