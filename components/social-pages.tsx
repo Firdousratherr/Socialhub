@@ -730,6 +730,8 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [conversations, setConversations] = useState<ConversationData[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [nextMessagesCursor, setNextMessagesCursor] = useState<string | null>(null);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [draft, setDraft] = useState("");
   const [messageSearch, setMessageSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -861,7 +863,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         const response = await fetch(`/api/conversations/${activeId}/messages`, { cache: "no-store" });
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not load messages.");
-        if (!cancelled) setMessages(json.messages as ChatMessage[]);
+        if (!cancelled) { setMessages(json.messages as ChatMessage[]); setNextMessagesCursor(json.nextBefore ?? null); }
         void fetch(`/api/conversations/${activeId}/messages`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -895,9 +897,25 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const activeMember = active?.members.find((member) => member.userId !== session?.user?.id)?.user;
   const activeName = active?.title ?? activeMember?.name ?? "Messages";
 
+  async function loadOlderMessages() {
+    if (!activeId || !nextMessagesCursor || loadingOlderMessages) return;
+    setLoadingOlderMessages(true);
+    try {
+      const response = await fetch(`/api/conversations/${activeId}/messages?before=${encodeURIComponent(nextMessagesCursor)}`, { cache: "no-store" });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error ?? "Could not load older messages.");
+      setMessages((current) => [...(json.messages as ChatMessage[]), ...current]);
+      setNextMessagesCursor(json.nextBefore ?? null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not load older messages.");
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }
+
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!activeId || !draft.trim() || !session?.user || sending) return;
+    if (!activeId || (!draft.trim() && !pendingAttachments.length) || !session?.user || sending) return;
 
     setSending(true);
     setError("");
