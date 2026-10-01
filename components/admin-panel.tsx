@@ -180,6 +180,8 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
   const [query,setQuery]=useState("");
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState("");
+  const [nextBefore,setNextBefore]=useState<string | null>(null);
+  const [loadingMore,setLoadingMore]=useState(false);
 
   async function load() {
     setLoading(true);
@@ -189,12 +191,27 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       const response=await fetch("/api/admin/reports?"+params.toString(),{cache:"no-store"});
       const json=await response.json();
       if(!response.ok) throw new Error(json.error??"Could not load moderation queue.");
-      setReports(json.reports??[]);setCounts(json.counts??{});
+      setReports(json.reports??[]);setCounts(json.counts??{});setNextBefore(json.nextBefore??null);
     } catch(e){onMessage(e instanceof Error?e.message:"Could not load moderation queue.");}
     finally{setLoading(false)}
   }
 
   useEffect(()=>{const timer=window.setTimeout(()=>void load(),250);return()=>window.clearTimeout(timer)},[status,query]);
+
+  async function loadMore() {
+    if (!nextBefore || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const params=new URLSearchParams({status,before:nextBefore});
+      if(query.trim()) params.set("q",query.trim());
+      const response=await fetch("/api/admin/reports?"+params.toString(),{cache:"no-store"});
+      const json=await response.json();
+      if(!response.ok) throw new Error(json.error??"Could not load more reports.");
+      setReports(items=>[...items,...(json.reports??[])]);
+      setNextBefore(json.nextBefore??null);
+    } catch(e){onMessage(e instanceof Error?e.message:"Could not load more reports.");}
+    finally{setLoadingMore(false)}
+  }
 
   async function updateReport(id:string,next:ReportRow["status"]) {
     setBusy(id);
