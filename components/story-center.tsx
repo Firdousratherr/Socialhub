@@ -29,6 +29,7 @@ export function StoryCenter({
   const [caption, setCaption] = useState("");
   const [audience, setAudience] = useState<"PUBLIC" | "FRIENDS">("PUBLIC");
   const [preview, setPreview] = useState<string | null>(null);
+  const [previewKind, setPreviewKind] = useState<"image" | "video">("image");
   const [uploading, setUploading] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
@@ -61,6 +62,7 @@ export function StoryCenter({
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error ?? "Could not upload story image.");
       setPreview(json.url);
+      setPreviewKind(file.type.startsWith("video/") ? "video" : "image");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not upload story image.");
     } finally {
@@ -89,6 +91,7 @@ export function StoryCenter({
       setComposerOpen(false);
       setCaption("");
       setPreview(null);
+      setPreviewKind("image");
       setAudience("PUBLIC");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not publish story.");
@@ -222,7 +225,7 @@ export function StoryCenter({
         <div className="fixed inset-0 z-[70] grid place-items-center bg-black/55 p-4">
           <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">
             <div className="flex items-center justify-between"><div><h2 className="text-lg font-black">Create a story</h2><p className="mt-1 text-xs text-gray-400">Your story disappears automatically after 24 hours.</p></div><button type="button" onClick={() => setComposerOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={17}/></button></div>
-            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(event) => { void pickPhoto(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" className="hidden" onChange={(event) => { void pickPhoto(event.target.files?.[0]); event.currentTarget.value = ""; }} />
             <div className="mt-5 overflow-hidden rounded-3xl bg-gray-50">
               {preview ? <div className="relative"><img src={preview} alt="Story preview" className="max-h-[430px] w-full object-cover"/><button type="button" onClick={() => setPreview(null)} className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-black/60 text-white"><X size={16}/></button></div> : <button type="button" onClick={() => fileRef.current?.click()} className="grid min-h-64 w-full place-items-center border-2 border-dashed border-gray-200 p-6 text-center"><span className="grid size-12 place-items-center rounded-2xl bg-white text-[#6d5dfc]"><ImageIcon size={21}/></span><span className="mt-3 text-sm font-black">Choose a photo</span><span className="mt-1 text-xs text-gray-400">JPG, PNG, WebP or GIF</span></button>}
             </div>
