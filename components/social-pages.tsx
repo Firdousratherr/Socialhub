@@ -879,8 +879,10 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
 
     void loadMessages();
+    const timer = window.setInterval(() => { void loadMessages(); }, 8000);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
   }, [activeId, session?.user?.id]);
 
