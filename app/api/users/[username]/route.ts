@@ -14,42 +14,9 @@ export async function GET(
   const user = await prisma.user.findUnique({
     where: { username },
     select: {
-      id: true,
-      name: true,
-      username: true,
-      email: true,
-      bio: true,
-      image: true,
-      coverImage: true,
-      website: true,
-      location: true,
-      isPrivate: true,
-      createdAt: true,
-      _count: {
-        select: {
-          posts: true,
-          followers: true,
-          following: true,
-        },
-      },
-      posts: {
-        where: { visibility: "PUBLIC" },
-        orderBy: { createdAt: "desc" },
-        take: 20,
-        select: {
-          id: true,
-          content: true,
-          mediaUrl: true,
-          visibility: true,
-          createdAt: true,
-          _count: {
-            select: {
-              likes: true,
-              comments: true,
-            },
-          },
-        },
-      },
+      id: true, name: true, username: true, email: true, bio: true, image: true,
+      coverImage: true, website: true, location: true, isPrivate: true, createdAt: true,
+      _count: { select: { posts: true, followers: true, following: true } },
     },
   });
 
@@ -68,15 +35,30 @@ export async function GET(
         select: { followerId: true },
       }),
   );
-  const visiblePosts = user.posts;
+
+  const canSeeFriendsPosts = isSelf || friends;
+  const posts = await prisma.post.findMany({
+    where: {
+      authorId: user.id,
+      OR: [
+        { visibility: "PUBLIC" },
+        ...(canSeeFriendsPosts ? [{ visibility: "FRIENDS" as const }] : []),
+        ...(isSelf ? [{ visibility: "PRIVATE" as const }] : []),
+      ],
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: 20,
+    select: {
+      id: true, content: true, mediaUrl: true, visibility: true, createdAt: true,
+      _count: { select: { likes: true, comments: true } },
+    },
+  });
 
   return NextResponse.json({
     profile: {
       ...user,
       email: isSelf ? user.email : undefined,
-      posts: user.isPrivate && !isSelf && !friends
-        ? []
-        : visiblePosts.filter((post) => post.visibility === "PUBLIC" || isSelf || friends),
+      posts: user.isPrivate && !isSelf && !friends ? [] : posts,
       isFollowing: following,
       isFriend: friends,
     },
