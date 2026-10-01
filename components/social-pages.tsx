@@ -919,6 +919,9 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
   const { data: session } = authClient.useSession();
   const [q, setQ] = useState(initialQuery);
   const [results, setResults] = useState<DiscoverUser[]>([]);
+  const [discoverPosts, setDiscoverPosts] = useState<Array<{ id: string; content: string | null; createdAt: string; author: { id: string; name: string; username: string | null; image: string | null }; _count: { likes: number; comments: number } }>>([]);
+  const [discoverHashtags, setDiscoverHashtags] = useState<Array<{ tag: string; count: number }>>([]);
+  const [discoverTab, setDiscoverTab] = useState<"people" | "posts" | "hashtags">("people");
   const [following, setFollowing] = useState<Set<string>>(new Set());
   const [trends, setTrends] = useState<Array<{ tag: string; posts: number }>>([]);
   const [loading, setLoading] = useState(true);
@@ -946,12 +949,14 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
       setLoading(true);
       setError("");
       try {
-        const response = await fetch("/api/users?q=" + encodeURIComponent(q) + "&take=20", { cache: "no-store" });
+        const response = await fetch("/api/search?q=" + encodeURIComponent(q) + "&take=20", { cache: "no-store" });
         const json = await response.json();
-        if (!response.ok) throw new Error(json.error ?? "Could not search users.");
+        if (!response.ok) throw new Error(json.error ?? "Could not search.");
         if (!cancelled) {
           const nextResults = (json.users ?? []) as DiscoverUser[];
           setResults(nextResults);
+          setDiscoverPosts(json.posts ?? []);
+          setDiscoverHashtags(json.hashtags ?? []);
           setFollowing(new Set(nextResults.filter((user) => user.isFollowing).map((user) => user.id)));
         }
       } catch (requestError) {
@@ -1010,48 +1015,44 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
           <input value={q} onChange={(e)=>setQ(e.target.value)} className="h-12 w-full rounded-2xl bg-gray-50 pl-11 text-sm font-semibold outline-none focus:bg-white" placeholder="Search people and usernames…"/>
         </div>
         <div className="mt-4 flex items-center justify-between gap-3">
-          <span className="rounded-xl bg-[#eeebff] px-3.5 py-2 text-xs font-black text-[#5a4be8]">People</span>
-          <span className="text-[11px] font-semibold text-gray-400">Posts, topics and communities will be added with their own search indexes.</span>
+          <div className="flex gap-2">
+            {([["people","People"],["posts","Posts"],["hashtags","Hashtags"]] as const).map(([value,label]) => <button key={value} type="button" onClick={() => setDiscoverTab(value)} className={"rounded-xl px-3.5 py-2 text-xs font-black " + (discoverTab === value ? "bg-[#eeebff] text-[#5a4be8]" : "bg-gray-50 text-gray-400")}>{label}</button>)}
+          </div>
+          <span className="text-[11px] font-semibold text-gray-400">Results come from real Socialhub data.</span>
         </div>
       </Card>
 
       {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
       <div className="grid gap-5 md:grid-cols-2">
-        <Card>
-          <div className="flex justify-between">
-            <h2 className="text-sm font-black">{q ? "Search results" : "Suggested people"}</h2>
-            <span className="text-xs font-bold text-gray-400">{results.length} people</span>
-          </div>
-          <div className="mt-4 space-y-4">
-            {loading ? [1,2,3].map((item)=><div key={item} className="flex items-center gap-3 p-2"><span className="size-10 animate-pulse rounded-full bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 w-2/3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-1/2 animate-pulse rounded bg-gray-100"/></div></div>) :
-            results.map((user, i) => {
-              const initials = user.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase();
-              const isFollowing = following.has(user.id);
-              return <div key={user.id} className="flex items-center gap-3">
-                <Link href={"/profile/" + (user.username ?? user.id)}>
-                  <Avatar initials={initials} color={colors[i % colors.length]}/>
-                </Link>
-                <div className="min-w-0 flex-1">
-                  <Link href={"/profile/" + (user.username ?? user.id)} className="block truncate text-xs font-black hover:text-[#5a4be8]">{user.name}</Link>
-                  <p className="truncate text-[11px] text-gray-400">@{user.username ?? "member"} · {user._count.followers} followers</p>
-                </div>
-                <button onClick={()=>void toggleFollow(user)} className={isFollowing ? "grid size-9 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" : "grid size-9 place-items-center rounded-xl bg-gray-950 text-white"} aria-label={isFollowing ? "Unfollow" : "Follow"}>
-                  {isFollowing ? <Check size={15}/> : <UserPlus size={15}/>}
-                </button>
-              </div>;
-            })}
-          </div>
-        </Card>
+        {discoverTab === "people" ? <Card>
+          <div className="flex justify-between"><h2 className="text-sm font-black">{q ? "People results" : "Suggested people"}</h2><span className="text-xs font-bold text-gray-400">{results.length} people</span></div>
+          <div className="mt-4 space-y-4">{loading ? [1,2,3].map((item)=><div key={item} className="flex items-center gap-3 p-2"><span className="size-10 animate-pulse rounded-full bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 w-2/3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-1/2 animate-pulse rounded bg-gray-100"/></div></div>) :
+          results.map((user, i) => {
+            const initials = user.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase();
+            const isFollowing = following.has(user.id);
+            return <div key={user.id} className="flex items-center gap-3">
+              <Link href={"/profile/" + (user.username ?? user.id)}><Avatar initials={initials} color={colors[i % colors.length]}/></Link>
+              <div className="min-w-0 flex-1"><Link href={"/profile/" + (user.username ?? user.id)} className="block truncate text-xs font-black hover:text-[#5a4be8]">{user.name}</Link><p className="truncate text-[11px] text-gray-400">@{user.username ?? "member"} · {user._count.followers} followers</p></div>
+              <button onClick={()=>void toggleFollow(user)} className={isFollowing ? "grid size-9 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" : "grid size-9 place-items-center rounded-xl bg-gray-950 text-white"} aria-label={isFollowing ? "Unfollow" : "Follow"}>{isFollowing ? <Check size={15}/> : <UserPlus size={15}/>}</button>
+            </div>;
+          })}</div>
+        </Card> : discoverTab === "posts" ? <Card>
+          <div className="flex justify-between"><h2 className="text-sm font-black">Post results</h2><span className="text-xs font-bold text-gray-400">{discoverPosts.length} posts</span></div>
+          <div className="mt-4 space-y-3">{discoverPosts.length ? discoverPosts.map((post) => <Link key={post.id} href={"/home#post-" + encodeURIComponent(post.id)} className="block rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><div className="flex items-center gap-3"><Avatar initials={post.author.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><div><p className="text-xs font-black">{post.author.name}</p><p className="text-[10px] text-gray-400">@{post.author.username ?? "member"} · {new Date(post.createdAt).toLocaleString()}</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">{post.content ?? "Media post"}</p><p className="mt-2 text-[10px] text-gray-400">{post._count.likes} likes · {post._count.comments} comments</p></Link>) : <p className="py-8 text-center text-xs text-gray-400">No matching posts found.</p>}</div>
+        </Card> : <Card>
+          <div className="flex justify-between"><h2 className="text-sm font-black">Hashtags</h2><span className="text-xs font-bold text-gray-400">{discoverHashtags.length} tags</span></div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">{discoverHashtags.length ? discoverHashtags.map((item) => <Link key={item.tag} href={"/discover?q=" + encodeURIComponent(item.tag)} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><span className="block text-sm font-black text-[#5a4be8]">{item.tag}</span><span className="mt-1 block text-[10px] text-gray-400">{item.count} matching posts in the current result set</span></Link>) : <p className="py-8 text-center text-xs text-gray-400">No matching hashtags found.</p>}</div>
+        </Card>}
 
         <Card>
-          <h2 className="text-sm font-black">Trending topics</h2>
+          <h2 className="text-sm font-black">Trending hashtags</h2>
           <div className="mt-4 space-y-2">
-            {["#BuildInPublic","#WeekendMoments","#DesignTalk","#Creators"].map((x,i)=><Link key={x} href="#" className="flex items-center gap-3 rounded-2xl p-3 hover:bg-gray-50">
-              <span className="grid size-9 place-items-center rounded-xl bg-gray-100 text-[10px] font-black text-gray-500">0{i+1}</span>
-              <span className="flex-1"><span className="block text-xs font-black">{x}</span><span className="text-[11px] text-gray-400">{18-i*3}.4k posts</span></span>
+            {trends.length ? trends.map((trend, i) => <Link key={trend.tag} href={"/discover?q=" + encodeURIComponent(trend.tag)} className="flex items-center gap-3 rounded-2xl p-3 hover:bg-gray-50">
+              <span className="grid size-9 place-items-center rounded-xl bg-gray-100 text-[10px] font-black text-gray-500">{String(i + 1).padStart(2, "0")}</span>
+              <span className="flex-1"><span className="block text-xs font-black">{trend.tag}</span><span className="text-[11px] text-gray-400">{trend.posts} {trend.posts === 1 ? "post" : "posts"}</span></span>
               <ChevronRight size={16} className="text-gray-400"/>
-            </Link>)}
+            </Link>) : <p className="py-4 text-xs text-gray-400">No hashtags are trending yet. Start a conversation with a hashtag.</p>}
           </div>
         </Card>
       </div>
