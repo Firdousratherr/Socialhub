@@ -22,14 +22,26 @@ export async function POST(
   });
 
   if (access.post.authorId !== session.user.id) {
-    await prisma.notification.create({
-      data: {
+    const recentNotification = await prisma.notification.findFirst({
+      where: {
         userId: access.post.authorId,
         actorId: session.user.id,
         type: "SHARE",
         postId,
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
       },
+      select: { id: true },
     });
+    if (!recentNotification) {
+      await prisma.notification.create({
+        data: {
+          userId: access.post.authorId,
+          actorId: session.user.id,
+          type: "SHARE",
+          postId,
+        },
+      });
+    }
   }
 
   return NextResponse.json({ shareCount: updated.shareCount });
