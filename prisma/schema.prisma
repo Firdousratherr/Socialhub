@@ -347,6 +347,8 @@ model UserPrivacySetting {
   id                    String   @id @default(cuid())
   userId                String   @unique
   showFriendsList       Boolean  @default(true)
+  showFollowersList     Boolean  @default(true)
+  showFollowingList     Boolean  @default(true)
   allowMessagesEveryone Boolean  @default(true)
   allowFriendRequests   Boolean  @default(true)
   createdAt             DateTime @default(now())
