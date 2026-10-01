@@ -84,6 +84,7 @@ model User {
   memberships   ConversationMember[]
   notifications Notification[]    @relation("NotificationRecipient")
   actedNotifications Notification[] @relation("NotificationActor")
+  notificationPreference NotificationPreference?
   stories       Story[]
   savedPosts    SavedPost[]
   sentFriendRequests FriendRequest[] @relation("FriendRequestSender")
@@ -296,6 +297,24 @@ model Notification {
 
   @@index([userId, readAt, createdAt])
   @@index([actorId, createdAt])
+}
+
+model NotificationPreference {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  likes            Boolean  @default(true)
+  comments         Boolean  @default(true)
+  follows          Boolean  @default(true)
+  friendRequests   Boolean  @default(true)
+  friendAccepted   Boolean  @default(true)
+  messages         Boolean  @default(true)
+  mentions         Boolean  @default(true)
+  shares           Boolean  @default(true)
+  system           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Story {
