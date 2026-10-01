@@ -38,15 +38,22 @@ export async function POST(
     );
   }
 
-  await prisma.follow.upsert({
+  const existing = await prisma.follow.findUnique({
     where: {
       followerId_followingId: {
         followerId: session.user.id,
         followingId: userId,
       },
     },
-    update: {},
-    create: {
+    select: { followerId: true },
+  });
+
+  if (existing) {
+    return NextResponse.json({ following: true, alreadyFollowing: true });
+  }
+
+  await prisma.follow.create({
+    data: {
       followerId: session.user.id,
       followingId: userId,
     },
