@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { canViewPost } from "@/lib/post-access";
 
 export async function POST(
   _request: Request,
@@ -11,8 +12,8 @@ export async function POST(
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
   const { postId } = await params;
-  const post = await prisma.post.findUnique({ where: { id: postId }, select: { id: true, authorId: true } });
-  if (!post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
+  const access = await canViewPost(postId, session.user.id);
+  if (!access.allowed || !access.post) return NextResponse.json({ error: "Post unavailable." }, { status: 404 });
 
   const updated = await prisma.post.update({
     where: { id: postId },
@@ -20,10 +21,10 @@ export async function POST(
     select: { shareCount: true },
   });
 
-  if (post.authorId !== session.user.id) {
+  if (access.post.authorId !== session.user.id) {
     await prisma.notification.create({
       data: {
-        userId: post.authorId,
+        userId: access.post.authorId,
         actorId: session.user.id,
         type: "SHARE",
         postId,
