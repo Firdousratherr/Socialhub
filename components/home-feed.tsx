@@ -148,6 +148,7 @@ function CommentThread({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextBefore, setNextBefore] = useState<string | null>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [sending, setSending] = useState(false);
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<string | null>(null);
@@ -169,6 +170,24 @@ function CommentThread({
     }
     setNextBefore(json.nextBefore ?? null);
   }
+
+  useEffect(() => {
+    if (!session?.user) {
+      setUnreadNotifications(0);
+      return;
+    }
+    let cancelled = false;
+    async function loadUnread() {
+      try {
+        const response = await fetch("/api/notifications?countOnly=true", { cache: "no-store" });
+        const json = await response.json();
+        if (response.ok && !cancelled) setUnreadNotifications(Number(json.unreadCount ?? 0));
+      } catch {}
+    }
+    void loadUnread();
+    const timer = window.setInterval(() => { void loadUnread(); }, 30000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [session?.user?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -918,7 +937,7 @@ export default function HomeFeed() {
               <nav className="mt-2 space-y-1" aria-label="Primary navigation">
                 {navItems.map(({ label, icon: Icon, active, href }) => (
                   <Link key={label} href={href} data-active={active} className="social-nav-link">
-                    <Icon size={18} strokeWidth={active ? 2.4 : 2}/><span className="text-sm">{label}</span>
+                    <Icon size={18} strokeWidth={active ? 2.4 : 2}/><span className="text-sm">{label}</span>{label === "Notifications" && unreadNotifications > 0 ? <span className="ml-auto min-w-5 rounded-full bg-[#6d5dfc] px-1.5 py-1 text-center text-[9px] font-black text-white">{unreadNotifications > 99 ? "99+" : unreadNotifications}</span> : null}
                   </Link>
                 ))}
               </nav>
