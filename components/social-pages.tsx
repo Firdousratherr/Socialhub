@@ -1140,9 +1140,14 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
   const [trends, setTrends] = useState<Array<{ tag: string; posts: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
   useEffect(() => {
     setQ(initialQuery);
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("socialhub.recentSearches") ?? "[]");
+      if (Array.isArray(saved)) setRecentSearches(saved.filter((item): item is string => typeof item === "string").slice(0, 8));
+    } catch {}
   }, [initialQuery]);
 
   useEffect(() => {
@@ -1182,6 +1187,14 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
 
     const timer = window.setTimeout(() => {
       void loadUsers();
+      const trimmed = q.trim();
+      if (trimmed) {
+        setRecentSearches((current) => {
+          const next = [trimmed, ...current.filter((item) => item.toLowerCase() !== trimmed.toLowerCase())].slice(0, 8);
+          try { window.localStorage.setItem("socialhub.recentSearches", JSON.stringify(next)); } catch {}
+          return next;
+        });
+      }
     }, q ? 250 : 0);
 
     return () => {
@@ -1227,6 +1240,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
           <input value={q} onChange={(e)=>setQ(e.target.value)} className="h-12 w-full rounded-2xl bg-gray-50 pl-11 text-sm font-semibold outline-none focus:bg-white" placeholder="Search people and usernames…"/>
+          {!q.trim() && recentSearches.length ? <div className="mt-3 flex flex-wrap gap-2"><span className="w-full text-[10px] font-black uppercase tracking-[.12em] text-gray-400">Recent searches</span>{recentSearches.map((term)=><button key={term} type="button" onClick={()=>setQ(term)} className="rounded-full bg-gray-100 px-3 py-1.5 text-[10px] font-bold text-gray-600 hover:bg-gray-200">{term}</button>)}<button type="button" onClick={()=>{setRecentSearches([]);try{window.localStorage.removeItem("socialhub.recentSearches")}catch{}}} className="rounded-full px-3 py-1.5 text-[10px] font-black text-gray-400 hover:text-gray-700">Clear</button></div> : null}
         </div>
         <div className="mt-4 flex items-center justify-between gap-3">
           <div className="flex gap-2">
