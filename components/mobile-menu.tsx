@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -53,20 +51,43 @@ export function MobileMenu() {
       >
         <span className="sr-only">Open menu</span>
         <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5">
-          <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path
+            d="M4 7h16M4 12h16M4 17h16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
         </svg>
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-[80] md:hidden" role="dialog" aria-modal="true" aria-label="Navigation menu">
-          <button type="button" onClick={close} className="absolute inset-0 bg-gray-950/35 backdrop-blur-[2px]" aria-label="Close menu" />
-          <aside className="absolute inset-y-0 right-0 flex w-[min(88vw,360px)] flex-col border-l border-gray-200 bg-white p-5 shadow-2xl">
+        <div
+          className="fixed inset-0 z-[100] md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation menu"
+        >
+          <button
+            type="button"
+            onClick={close}
+            className="absolute inset-0 bg-gray-950/45"
+            aria-label="Close menu"
+          />
+          <aside className="absolute inset-y-0 right-0 z-10 flex w-[360px] max-w-[88vw] flex-col overflow-y-auto border-l border-gray-200 bg-white p-5 opacity-100 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6d5dfc]">Socialhub</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6d5dfc]">
+                  Socialhub
+                </p>
                 <p className="mt-1 text-lg font-black tracking-[-0.03em]">Navigation</p>
               </div>
-              <button type="button" onClick={close} className="social-icon-button" aria-label="Close navigation menu">
+              <button
+                type="button"
+                onClick={close}
+                className="social-icon-button"
+                aria-label="Close navigation menu"
+              >
                 <X size={18} />
               </button>
             </div>
@@ -81,7 +102,9 @@ export function MobileMenu() {
                     onClick={close}
                     className={
                       "flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-black transition " +
-                      (active ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-600 hover:bg-gray-50")
+                      (active
+                        ? "bg-[#eeebff] text-[#5a4be8]"
+                        : "text-gray-600 hover:bg-gray-50")
                     }
                   >
                     <Icon size={18} />
@@ -94,7 +117,9 @@ export function MobileMenu() {
                 onClick={close}
                 className={
                   "flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-black transition " +
-                  (pathname.startsWith("/profile") ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-600 hover:bg-gray-50")
+                  (pathname.startsWith("/profile")
+                    ? "bg-[#eeebff] text-[#5a4be8]"
+                    : "text-gray-600 hover:bg-gray-50")
                 }
               >
                 <Users size={18} />
@@ -109,7 +134,11 @@ export function MobileMenu() {
                   <p className="mt-1 truncate text-xs text-gray-400">{session.user.email}</p>
                 </div>
               ) : (
-                <Link href="/login" onClick={close} className="mb-3 block rounded-2xl bg-[#6d5dfc] px-4 py-3 text-center text-sm font-black text-white">
+                <Link
+                  href="/login"
+                  onClick={close}
+                  className="mb-3 block rounded-2xl bg-[#6d5dfc] px-4 py-3 text-center text-sm font-black text-white"
+                >
                   Sign in
                 </Link>
               )}

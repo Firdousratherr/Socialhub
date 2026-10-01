@@ -9,10 +9,29 @@ async function getSession() {
   return auth.api.getSession({ headers: await headers() });
 }
 
+function parseCursor(value: string | null) {
+  if (!value) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
+      createdAt?: string;
+      id?: string;
+    };
+    if (!payload.createdAt || !payload.id) return null;
+    const createdAt = new Date(payload.createdAt);
+    return Number.isNaN(createdAt.getTime()) ? null : { createdAt, id: payload.id };
+  } catch {
+    return null;
+  }
+}
+
+function encodeCursor(createdAt: Date, id: string) {
+  return Buffer.from(JSON.stringify({ createdAt: createdAt.toISOString(), id }), "utf8").toString("base64url");
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const take = Math.min(Math.max(Number(url.searchParams.get("take") ?? 20), 1), 50);
-  const before = url.searchParams.get("before");
+  const cursor = parseCursor(url.searchParams.get("before"));
   const mode = url.searchParams.get("mode") ?? "FOR_YOU";
   const allowedModes = new Set(["FOR_YOU", "FOLLOWING", "FRIENDS", "LATEST", "SAVED"]);
   const feedMode = allowedModes.has(mode) ? mode : "FOR_YOU";
@@ -21,6 +40,7 @@ export async function GET(request: Request) {
   let blockedIds: string[] = [];
   let friendIds: string[] = [];
   let followingIds: string[] = [];
+
   if (session?.user) {
     blockedIds = await getBlockedUserIds(session.user.id);
     friendIds = (
@@ -41,13 +61,37 @@ export async function GET(request: Request) {
     ).map((row) => row.followingId);
   }
 
+  const visibility = [
+    { visibility: "PUBLIC" as const },
+    ...(session?.user
+      ? [
+          { authorId: session.user.id },
+          ...(friendIds.length
+            ? [{ visibility: "FRIENDS" as const, authorId: { in: friendIds } }]
+            : []),
+        ]
+      : []),
+  ];
+
   const posts = await prisma.post.findMany({
     where: {
+      AND: [
+        ...(cursor
+          ? [
+              {
+                OR: [
+                  { createdAt: { lt: cursor.createdAt } },
+                  { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+                ],
+              },
+            ]
+          : []),
+        { OR: visibility },
+      ],
       author: {
         isActive: true,
         ...(blockedIds.length ? { id: { notIn: blockedIds } } : {}),
       },
-      createdAt: before ? { lt: new Date(before) } : undefined,
       ...(feedMode === "FOLLOWING"
         ? { authorId: { in: session?.user ? followingIds : [] } }
         : {}),
@@ -55,19 +99,12 @@ export async function GET(request: Request) {
         ? { authorId: { in: session?.user ? [...friendIds, session.user.id] : [] } }
         : {}),
       ...(feedMode === "SAVED"
-        ? { savedBy: session?.user ? { some: { userId: session.user.id } } : { some: { userId: "__signed_out__" } } }
+        ? {
+            savedBy: session?.user
+              ? { some: { userId: session.user.id } }
+              : { some: { userId: "__signed_out__" } },
+          }
         : {}),
-      OR: [
-        { visibility: "PUBLIC" },
-        ...(session?.user
-          ? [
-              { authorId: session.user.id },
-              ...(friendIds.length
-                ? [{ visibility: "FRIENDS" as const, authorId: { in: friendIds } }]
-                : []),
-            ]
-          : []),
-      ],
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take,
@@ -89,32 +126,34 @@ export async function GET(request: Request) {
     },
   });
 
-  const visiblePosts = posts;
-
-  const postIds = visiblePosts.map((post) => post.id);
-  const [likedRows, savedRows] = session?.user && postIds.length
-    ? await Promise.all([
-        prisma.like.findMany({
-          where: { userId: session.user.id, postId: { in: postIds } },
-          select: { postId: true },
-        }),
-        prisma.savedPost.findMany({
-          where: { userId: session.user.id, postId: { in: postIds } },
-          select: { postId: true },
-        }),
-      ])
-    : [[], []];
+  const postIds = posts.map((post) => post.id);
+  const [likedRows, savedRows] =
+    session?.user && postIds.length
+      ? await Promise.all([
+          prisma.like.findMany({
+            where: { userId: session.user.id, postId: { in: postIds } },
+            select: { postId: true },
+          }),
+          prisma.savedPost.findMany({
+            where: { userId: session.user.id, postId: { in: postIds } },
+            select: { postId: true },
+          }),
+        ])
+      : [[], []];
 
   const likedSet = new Set(likedRows.map((row) => row.postId));
   const savedSet = new Set(savedRows.map((row) => row.postId));
 
   return NextResponse.json({
-    posts: visiblePosts.map((post) => ({
+    posts: posts.map((post) => ({
       ...post,
       liked: likedSet.has(post.id),
       saved: savedSet.has(post.id),
     })),
-    nextBefore: visiblePosts.length === take ? visiblePosts.at(-1)?.createdAt.toISOString() ?? null : null,
+    nextBefore:
+      posts.length === take
+        ? encodeCursor(posts.at(-1)!.createdAt, posts.at(-1)!.id)
+        : null,
   });
 }
 

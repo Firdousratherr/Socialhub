@@ -3,26 +3,60 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/app/api/admin/_auth";
 import * as z from "zod";
 
+function parseCursor(value: string | null) {
+  if (!value) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
+      createdAt?: string;
+      id?: string;
+    };
+    if (!payload.createdAt || !payload.id) return null;
+    const createdAt = new Date(payload.createdAt);
+    return Number.isNaN(createdAt.getTime()) ? null : { createdAt, id: payload.id };
+  } catch {
+    return null;
+  }
+}
+
+function encodeCursor(createdAt: Date, id: string) {
+  return Buffer.from(JSON.stringify({ createdAt: createdAt.toISOString(), id }), "utf8").toString("base64url");
+}
+
 export async function GET(request: Request) {
   const access = await requireAdmin();
   if (access.response) return access.response;
 
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
-  const before = url.searchParams.get("before");
+  const cursor = parseCursor(url.searchParams.get("before"));
   const take = Math.min(Math.max(Number(url.searchParams.get("take") ?? 50), 1), 100);
 
   const posts = await prisma.post.findMany({
     where: {
-      ...(before ? { createdAt: { lt: new Date(before) } } : {}),
-      ...(q ? {
-        OR: [
-          { content: { contains: q, mode: "insensitive" } },
-          { author: { name: { contains: q, mode: "insensitive" } } },
-          { author: { username: { contains: q, mode: "insensitive" } } },
-          { author: { email: { contains: q, mode: "insensitive" } } },
-        ],
-      } : {}),
+      AND: [
+        ...(cursor
+          ? [
+              {
+                OR: [
+                  { createdAt: { lt: cursor.createdAt } },
+                  { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+                ],
+              },
+            ]
+          : []),
+        ...(q
+          ? [
+              {
+                OR: [
+                  { content: { contains: q, mode: "insensitive" as const } },
+                  { author: { name: { contains: q, mode: "insensitive" as const } } },
+                  { author: { username: { contains: q, mode: "insensitive" as const } } },
+                  { author: { email: { contains: q, mode: "insensitive" as const } } },
+                ],
+              },
+            ]
+          : []),
+      ],
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take,
@@ -32,19 +66,26 @@ export async function GET(request: Request) {
     },
   });
 
-  return NextResponse.json({ posts, nextBefore: posts.length === take ? posts.at(-1)?.createdAt.toISOString() ?? null : null });
+  return NextResponse.json({
+    posts,
+    nextBefore:
+      posts.length === take
+        ? encodeCursor(posts.at(-1)!.createdAt, posts.at(-1)!.id)
+        : null,
+  });
 }
-
 
 export async function PATCH(request: Request) {
   const access = await requireAdmin();
   if (access.response) return access.response;
 
   const body = await request.json().catch(() => null);
-  const parsed = z.object({
-    id: z.string().min(1),
-    visibility: z.enum(["PUBLIC", "FRIENDS", "PRIVATE"]).optional(),
-  }).safeParse(body);
+  const parsed = z
+    .object({
+      id: z.string().min(1),
+      visibility: z.enum(["PUBLIC", "FRIENDS", "PRIVATE"]).optional(),
+    })
+    .safeParse(body);
 
   if (!parsed.success || !parsed.data.visibility) {
     return NextResponse.json({ error: "Provide a post id and visibility." }, { status: 400 });
