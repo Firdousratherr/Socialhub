@@ -50,5 +50,15 @@ export async function PATCH(request: Request) {
     },
   });
 
+  await prisma.adminAuditLog.create({
+    data: {
+      adminId: access.session?.user.id ?? "unknown",
+      action: "UPDATE_REPORT",
+      targetType: "REPORT",
+      targetId: report.id,
+      details: JSON.stringify({ status }),
+    },
+  });
+
   return NextResponse.json({ report });
 }
