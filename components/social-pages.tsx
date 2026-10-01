@@ -293,6 +293,7 @@ type ProfileData = {
     id: string;
     content: string | null;
     mediaUrl: string | null;
+    isPinned: boolean;
     createdAt: string;
     _count: { likes: number; comments: number };
   }>;
