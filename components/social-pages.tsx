@@ -1557,7 +1557,7 @@ function SettingsPage() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const [privateAccount, setPrivate] = useState(false);
-  const [privacySettings, setPrivacySettings] = useState({ showFriendsList: true, allowMessagesEveryone: true, allowFriendRequests: true });
+  const [privacySettings, setPrivacySettings] = useState({ showFriendsList: true, showFollowersList: true, showFollowingList: true, allowMessagesEveryone: true, allowFriendRequests: true });
   const [savingPrivacySetting, setSavingPrivacySetting] = useState<string | null>(null);
   const [email, setEmail] = useState("Not loaded");
   const [username, setUsername] = useState("Not loaded");
@@ -1622,7 +1622,7 @@ function SettingsPage() {
       .catch((requestError) => setMessage(requestError instanceof Error ? requestError.message : "Could not load privacy settings."));
   }, [session?.user?.id]);
 
-  async function updatePrivacySetting(key: "showFriendsList" | "allowMessagesEveryone" | "allowFriendRequests", value: boolean) {
+  async function updatePrivacySetting(key: "showFriendsList" | "showFollowersList" | "showFollowingList" | "allowMessagesEveryone" | "allowFriendRequests", value: boolean) {
     if (!session?.user || savingPrivacySetting) return;
     setSavingPrivacySetting(key);
     try {
@@ -1794,8 +1794,16 @@ function SettingsPage() {
               <Toggle value={privateAccount} disabled={!session?.user || savingPrivacy} onChange={(value)=>void updatePrivacy(value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
-              <div className="flex-1"><p className="text-sm font-bold">Show friends and relationship lists</p><p className="text-xs text-gray-400">Let other people open your Friends, Followers and Following lists.</p></div>
+              <div className="flex-1"><p className="text-sm font-bold">Show Friends / mutual list</p><p className="text-xs text-gray-400">Control whether other people can open your Friends and mutual connections list.</p></div>
               <Toggle value={privacySettings.showFriendsList} disabled={!session?.user || savingPrivacySetting === "showFriendsList"} onChange={(value)=>void updatePrivacySetting("showFriendsList", value)}/>
+            </div>
+            <div className="flex items-center gap-4 py-4">
+              <div className="flex-1"><p className="text-sm font-bold">Show followers list</p><p className="text-xs text-gray-400">Control whether other people can open your followers list.</p></div>
+              <Toggle value={privacySettings.showFollowersList} disabled={!session?.user || savingPrivacySetting === "showFollowersList"} onChange={(value)=>void updatePrivacySetting("showFollowersList", value)}/>
+            </div>
+            <div className="flex items-center gap-4 py-4">
+              <div className="flex-1"><p className="text-sm font-bold">Show following list</p><p className="text-xs text-gray-400">Control whether other people can open your following list.</p></div>
+              <Toggle value={privacySettings.showFollowingList} disabled={!session?.user || savingPrivacySetting === "showFollowingList"} onChange={(value)=>void updatePrivacySetting("showFollowingList", value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
               <div className="flex-1"><p className="text-sm font-bold">Allow messages from everyone</p><p className="text-xs text-gray-400">Turn off to limit new direct conversations to accepted friends.</p></div>
