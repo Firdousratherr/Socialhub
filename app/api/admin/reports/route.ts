@@ -11,6 +11,12 @@ const updateSchema = z.object({
   note: z.string().trim().max(1000).optional(),
 });
 
+const bulkSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1).max(100),
+  status: statusSchema,
+  note: z.string().trim().max(1000).optional(),
+});
+
 const actionSchema = z.object({
   id: z.string().min(1),
   action: z.enum(["DELETE_POST", "DELETE_COMMENT", "DISABLE_USER"]),
@@ -98,6 +104,46 @@ export async function PATCH(request: Request) {
   });
 
   return NextResponse.json({ report });
+}
+
+export async function PUT(request: Request) {
+  const access = await requireAdmin();
+  if (access.response) return access.response;
+
+  const parsed = bulkSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Invalid bulk report update." }, { status: 400 });
+
+  const terminal = parsed.data.status === "RESOLVED" || parsed.data.status === "DISMISSED";
+  const result = await prisma.$transaction(async (tx) => {
+    const reports = await tx.report.findMany({
+      where: { id: { in: parsed.data.ids } },
+      select: { id: true, status: true },
+    });
+    if (!reports.length) return 0;
+
+    const updated = await tx.report.updateMany({
+      where: { id: { in: reports.map((report) => report.id) } },
+      data: {
+        status: parsed.data.status,
+        resolvedAt: terminal ? new Date() : null,
+        resolvedById: terminal ? access.user.id : null,
+      },
+    });
+
+    await tx.adminAuditLog.createMany({
+      data: reports.map((report) => ({
+        adminId: access.user.id,
+        action: "BULK_UPDATE_REPORTS",
+        targetType: "REPORT",
+        targetId: report.id,
+        details: JSON.stringify({ before: report.status, after: parsed.data.status, note: parsed.data.note ?? null }),
+      })),
+    });
+
+    return updated.count;
+  });
+
+  return NextResponse.json({ updated: result });
 }
 
 export async function POST(request: Request) {
