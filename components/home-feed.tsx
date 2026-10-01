@@ -14,7 +14,6 @@ import {
   Home,
   Image as ImageIcon,
   Loader2,
-  Menu,
   MessageCircle,
   MoreHorizontal,
   Pencil,
