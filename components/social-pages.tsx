@@ -85,6 +85,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 function Auth({ signup = false }: { signup?: boolean }) {
   const router = useRouter();
   const [show, setShow] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -172,7 +173,7 @@ function Auth({ signup = false }: { signup?: boolean }) {
     try {
       const result = signup
         ? await authClient.signUp.email({ name: name.trim(), email: email.trim(), password, callbackURL: "/home" })
-        : await authClient.signIn.email({ email: email.trim(), password, callbackURL: "/home" });
+        : await authClient.signIn.email({ email: email.trim(), password, rememberMe, callbackURL: "/home" });
       if (result.error) { setError(result.error.message || "Authentication failed. Please try again."); return; }
       if (signup) {
         setStep("verify-signup"); setOtp(""); setCooldown(30);
@@ -253,7 +254,7 @@ function Auth({ signup = false }: { signup?: boolean }) {
                   <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Email</span><div className="relative"><Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/><input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} autoComplete="email" required className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="you@example.com"/></div></label>
                   {signup && <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3 text-[11px] leading-5 text-gray-500"><span className="font-black text-gray-700">Username:</span> @{email.split("@")[0] || "yourname"} · You can change it from your profile.</div>}
                   <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Password</span><div className="relative"><Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/><input type={show ? "text" : "password"} value={password} onChange={(e)=>setPassword(e.target.value)} autoComplete={signup ? "new-password" : "current-password"} minLength={8} required className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-20 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="••••••••"/><button type="button" onClick={()=>setShow(v=>!v)} className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-bold text-gray-500">{show ? "Hide" : "Show"}</button></div></label>
-                  {!signup && <div className="flex items-center justify-between text-xs font-semibold text-gray-500"><label className="flex items-center gap-2"><input type="checkbox" className="accent-[#6d5dfc]"/>Remember me</label><button type="button" onClick={()=>{setError("");setNotice("");setStep("forgot");}} className="font-black text-[#5a4be8]">Forgot password?</button></div>}
+                  {!signup && <div className="flex items-center justify-between text-xs font-semibold text-gray-500"><label className="flex items-center gap-2"><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="accent-[#6d5dfc]"/>Remember me</label><button type="button" onClick={()=>{setError("");setNotice("");setStep("forgot");}} className="font-black text-[#5a4be8]">Forgot password?</button></div>}
                   {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">{error}</div> : null}
                   {notice ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-semibold leading-5 text-emerald-700">{notice}</div> : null}
                   <button type="submit" disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gray-950 text-sm font-black text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"><LogIn size={17}/>{loading ? "Please wait…" : signup ? "Create account" : "Sign in"}</button>
