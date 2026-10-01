@@ -328,6 +328,7 @@ model Story {
   createdAt  DateTime       @default(now())
 
   author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  views      StoryView[]
 
   @@index([authorId, expiresAt])
   @@index([expiresAt, audience])
