@@ -88,6 +88,8 @@ model User {
   privacySetting UserPrivacySetting?
   stories       Story[]
   storyViews    StoryView[]
+  storyReplies  StoryReply[]
+  storyReactions StoryReaction[]
   messageAttachments MessageAttachment[] @relation("MessageAttachmentSender")
   messageReactions MessageReaction[] @relation("MessageReactionUser")
   savedPosts    SavedPost[]
@@ -468,4 +470,34 @@ model AdminAuditLog {
 
   @@index([adminId, createdAt])
   @@index([targetType, targetId, createdAt])
+}
+
+
+model StoryReply {
+  id        String   @id @default(cuid())
+  storyId   String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  story  Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([storyId, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model StoryReaction {
+  id        String   @id @default(cuid())
+  storyId   String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, userId])
+  @@index([storyId, createdAt])
+  @@index([userId, createdAt])
 }
