@@ -846,6 +846,10 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    setQ(initialQuery);
+  }, [initialQuery]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadUsers() {
