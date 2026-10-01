@@ -1247,6 +1247,8 @@ function Notifications() {
       window.location.href = "/friends";
     } else if (item.type === "MESSAGE" && item.message?.conversationId) {
       window.location.href = "/messages?conversation=" + encodeURIComponent(item.message.conversationId);
+    } else if (item.post?.id) {
+      window.location.href = "/home#post-" + encodeURIComponent(item.post.id);
     } else {
       window.location.href = "/home";
     }
