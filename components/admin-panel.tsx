@@ -16,6 +16,9 @@ type UserRow = {
 
 type ReportRow = {
   id: string; reason: string; status: "PENDING" | "REVIEWED" | "RESOLVED" | "DISMISSED";
+  priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  assignedTo?: { id: string; name: string; username: string | null } | null;
+  moderatorNote?: string | null;
   createdAt: string;
   reporter: { id: string; name: string; username: string | null; image: string | null };
   reportedUser: { id: string; name: string; username: string | null; image: string | null } | null;
@@ -224,6 +227,17 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
     }catch(e){onMessage(e instanceof Error?e.message:"Could not update report.");}finally{setBusy("")}
   }
 
+  async function updateMetadata(reportId:string, patch:Record<string,unknown>) {
+    setBusy(reportId);
+    try {
+      const response=await fetch("/api/admin/reports",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:reportId,...patch})});
+      const json=await response.json(); if(!response.ok) throw new Error(json.error??"Could not update report.");
+      setReports(items=>items.map(item=>item.id===reportId?{...item,...json.report}:item));
+      onMessage("Report workflow metadata updated.");
+    } catch(e) { onMessage(e instanceof Error?e.message:"Could not update report."); }
+    finally { setBusy(""); }
+  }
+
   async function takeAction(report:ReportRow,action:"DELETE_POST"|"DELETE_COMMENT"|"DISABLE_USER") {
     const labels={DELETE_POST:"delete this post",DELETE_COMMENT:"delete this comment",DISABLE_USER:"disable this account"};
     if(!window.confirm("Are you sure you want to "+labels[action]+"? The action will be permanent/audited."))return;
@@ -249,7 +263,12 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       {loading?<p className="p-8 text-center text-xs text-gray-400">Loading reports…</p>:reports.length===0?<div className="p-10 text-center"><ShieldCheck className="mx-auto text-emerald-500" size={24}/><p className="mt-3 text-sm font-black">No {status.toLowerCase()} reports</p><p className="mt-1 text-xs text-gray-400">{query?"No reports match your search.":"The queue is clear for this status."}</p></div>:
       <div className="divide-y divide-gray-100">{reports.map(report=><article key={report.id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-black">{report.reason}</p><p className="mt-1 text-[11px] text-gray-400">Reported by @{report.reporter.username??"member"} · {new Date(report.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">{report.status}</span></div>
         <div className="mt-3 rounded-2xl bg-gray-50 p-4 text-xs leading-5 text-gray-600">{report.reportedUser?<p>Profile: <strong>{report.reportedUser.name}</strong> @{report.reportedUser.username??"member"}</p>:null}{report.post?<p className="mt-1">Post: {report.post.content??"Media post"}</p>:null}{report.comment?<p className="mt-1">Comment: {report.comment.content}</p>:null}</div>
-        <div className="mt-4 flex flex-wrap gap-2">{report.status==="PENDING"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"REVIEWED")} className="rounded-xl bg-gray-950 px-3 py-2 text-[10px] font-black text-white">Mark reviewed</button>:null}
+        <div className="mt-4 grid gap-3 sm:grid-cols-[auto_auto_1fr] sm:items-center">
+          <select value={report.priority??"MEDIUM"} disabled={busy===report.id} onChange={(event)=>void updateMetadata(report.id,{priority:event.target.value})} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black"><option value="LOW">Low priority</option><option value="MEDIUM">Medium priority</option><option value="HIGH">High priority</option><option value="CRITICAL">Critical priority</option></select>
+          <button type="button" disabled={busy===report.id} onClick={()=>void updateMetadata(report.id,{assignedToId:null})} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black">{report.assignedTo?"Unassign":"Unassigned"}</button>
+          <input defaultValue={report.moderatorNote??""} onBlur={(event)=>{if(event.target.value!==(report.moderatorNote??""))void updateMetadata(report.id,{note:event.target.value})}} maxLength={1000} placeholder="Moderator note…" className="min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-semibold"/>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">{report.status==="PENDING"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"REVIEWED")} className="rounded-xl bg-gray-950 px-3 py-2 text-[10px] font-black text-white">Mark reviewed</button>:null}
           {report.post?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DELETE_POST")} className="inline-flex items-center gap-1 rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700"><Trash2 size={13}/> Delete post</button>:null}
           {report.comment?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DELETE_COMMENT")} className="inline-flex items-center gap-1 rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700"><Trash2 size={13}/> Delete comment</button>:null}
           {report.reportedUser?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DISABLE_USER")} className="rounded-xl bg-orange-50 px-3 py-2 text-[10px] font-black text-orange-700">Disable account</button>:null}
