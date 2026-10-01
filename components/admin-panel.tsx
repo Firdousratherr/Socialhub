@@ -180,6 +180,8 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
   const [query,setQuery]=useState("");
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState("");
+  const [nextBefore,setNextBefore]=useState<string | null>(null);
+  const [loadingMore,setLoadingMore]=useState(false);
 
   async function load() {
     setLoading(true);
@@ -189,12 +191,27 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       const response=await fetch("/api/admin/reports?"+params.toString(),{cache:"no-store"});
       const json=await response.json();
       if(!response.ok) throw new Error(json.error??"Could not load moderation queue.");
-      setReports(json.reports??[]);setCounts(json.counts??{});
+      setReports(json.reports??[]);setCounts(json.counts??{});setNextBefore(json.nextBefore??null);
     } catch(e){onMessage(e instanceof Error?e.message:"Could not load moderation queue.");}
     finally{setLoading(false)}
   }
 
   useEffect(()=>{const timer=window.setTimeout(()=>void load(),250);return()=>window.clearTimeout(timer)},[status,query]);
+
+  async function loadMore() {
+    if (!nextBefore || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const params=new URLSearchParams({status,before:nextBefore});
+      if(query.trim()) params.set("q",query.trim());
+      const response=await fetch("/api/admin/reports?"+params.toString(),{cache:"no-store"});
+      const json=await response.json();
+      if(!response.ok) throw new Error(json.error??"Could not load more reports.");
+      setReports(items=>[...items,...(json.reports??[])]);
+      setNextBefore(json.nextBefore??null);
+    } catch(e){onMessage(e instanceof Error?e.message:"Could not load more reports.");}
+    finally{setLoadingMore(false)}
+  }
 
   async function updateReport(id:string,next:ReportRow["status"]) {
     setBusy(id);
@@ -238,7 +255,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
           {report.reportedUser?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DISABLE_USER")} className="rounded-xl bg-orange-50 px-3 py-2 text-[10px] font-black text-orange-700">Disable account</button>:null}
           {report.status!=="RESOLVED"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"RESOLVED")} className="rounded-xl bg-emerald-50 px-3 py-2 text-[10px] font-black text-emerald-700">Resolve</button>:null}
           {report.status!=="DISMISSED"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"DISMISSED")} className="rounded-xl bg-gray-100 px-3 py-2 text-[10px] font-black text-gray-600">Dismiss</button>:null}
-        </div></article>)}</div>}
+        </div></article>)}</div>}{nextBefore?<div className="border-t border-gray-100 p-4 text-center"><button type="button" onClick={()=>void loadMore()} disabled={loadingMore} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[10px] font-black text-gray-700 disabled:opacity-50">{loadingMore?"Loading…":"Load more reports"}</button></div>:null}
     </Card>
   </div>;
 }

@@ -144,22 +144,32 @@ function CommentThread({
   const { data: session } = authClient.useSession();
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextBefore, setNextBefore] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [error, setError] = useState("");
 
+  async function loadComments(before?: string) {
+    const query = before ? `?before=${encodeURIComponent(before)}` : "";
+    const response = await fetch(`/api/posts/${postId}/comments${query}`, { cache: "no-store" });
+    const json = await response.json();
+    if (!response.ok) throw new Error(json.error ?? "Could not load comments.");
+    const next = (json.comments ?? []) as CommentItem[];
+    if (before) {
+      setComments((current) => [...next, ...current]);
+    } else {
+      setComments(next);
+    }
+    setNextBefore(json.nextBefore ?? null);
+  }
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const response = await fetch(`/api/posts/${postId}/comments`, { cache: "no-store" });
-        const json = await response.json();
-        if (!response.ok) throw new Error(json.error ?? "Could not load comments.");
-        if (!cancelled) {
-          const next = (json.comments ?? []) as CommentItem[];
-          setComments(next);
-        }
+        await loadComments();
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Could not load comments.");
       } finally {
@@ -167,10 +177,21 @@ function CommentThread({
       }
     }
     void load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [postId]);
+
+  async function loadOlder() {
+    if (!nextBefore || loadingMore) return;
+    setLoadingMore(true);
+    setError("");
+    try {
+      await loadComments(nextBefore);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Could not load older comments.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   async function sendComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -190,9 +211,7 @@ function CommentThread({
       setComments((current) => {
         if (replyTo) {
           return current.map((item) =>
-            item.id === replyTo
-              ? { ...item, replies: [...(item.replies ?? []), created] }
-              : item,
+            item.id === replyTo ? { ...item, replies: [...(item.replies ?? []), created] } : item,
           );
         }
         return [...current, created];
@@ -212,11 +231,7 @@ function CommentThread({
       <div className="mb-3 flex items-center justify-between">
         <p className="text-xs font-black text-gray-700">Comments</p>
         {replyTo ? (
-          <button
-            type="button"
-            onClick={() => setReplyTo(null)}
-            className="flex items-center gap-1 text-[11px] font-bold text-gray-400 hover:text-gray-700"
-          >
+          <button type="button" onClick={() => setReplyTo(null)} className="flex items-center gap-1 text-[11px] font-bold text-gray-400 hover:text-gray-700">
             <X size={13} /> Cancel reply
           </button>
         ) : null}
@@ -232,6 +247,11 @@ function CommentThread({
         </div>
       ) : (
         <div className="space-y-4">
+          {nextBefore ? (
+            <button type="button" onClick={() => void loadOlder()} disabled={loadingMore} className="mx-auto block rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black text-gray-600 disabled:opacity-50">
+              {loadingMore ? "Loading…" : "Load older comments"}
+            </button>
+          ) : null}
           {comments.map((comment) => (
             <div key={comment.id}>
               <div className="flex gap-2.5">
@@ -244,9 +264,7 @@ function CommentThread({
                   <div className="mt-1 flex gap-3 px-1 text-[10px] font-bold text-gray-400">
                     <span>{timeLabel(comment.createdAt)}</span>
                     {session?.user ? (
-                      <button type="button" onClick={() => setReplyTo(comment.id)} className="hover:text-[#5a4be8]">
-                        Reply
-                      </button>
+                      <button type="button" onClick={() => setReplyTo(comment.id)} className="hover:text-[#5a4be8]">Reply</button>
                     ) : null}
                   </div>
                 </div>
@@ -272,32 +290,17 @@ function CommentThread({
         </div>
       )}
 
-      {error ? (
-        <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600">{error}</div>
-      ) : null}
+      {error ? <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600">{error}</div> : null}
 
       {session?.user ? (
         <form onSubmit={sendComment} className="mt-4 flex gap-2">
-          <input
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            className="h-10 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 text-xs outline-none focus:border-[#bdb6ff] focus:ring-4 focus:ring-[#6d5dfc]/10"
-            placeholder={replyTo ? "Write a reply…" : "Write a comment…"}
-            maxLength={2000}
-          />
-          <button
-            type="submit"
-            disabled={!text.trim() || sending}
-            className="grid size-10 shrink-0 place-items-center rounded-xl bg-gray-950 text-white disabled:opacity-40"
-            aria-label={replyTo ? "Post reply" : "Post comment"}
-          >
+          <input value={text} onChange={(event) => setText(event.target.value)} className="h-10 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 text-xs outline-none focus:border-[#bdb6ff] focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder={replyTo ? "Write a reply…" : "Write a comment…"} maxLength={2000} />
+          <button type="submit" disabled={!text.trim() || sending} className="grid size-10 shrink-0 place-items-center rounded-xl bg-gray-950 text-white disabled:opacity-40" aria-label={replyTo ? "Post reply" : "Post comment"}>
             {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
           </button>
         </form>
       ) : (
-        <Link href="/login" className="mt-4 block rounded-xl bg-white px-3 py-2.5 text-center text-[11px] font-black text-[#5a4be8]">
-          Sign in to join the conversation
-        </Link>
+        <Link href="/login" className="mt-4 block rounded-xl bg-white px-3 py-2.5 text-center text-[11px] font-black text-[#5a4be8]">Sign in to join the conversation</Link>
       )}
     </div>
   );

@@ -27,24 +27,40 @@ export async function GET(request: Request) {
   const status = statusParam && statusSchema.safeParse(statusParam).success
     ? statusSchema.parse(statusParam)
     : undefined;
+  const before = url.searchParams.get("before");
+  let cursor: { createdAt: Date; id: string } | null = null;
+  if (before) {
+    try {
+      const decoded = JSON.parse(Buffer.from(before, "base64url").toString("utf8")) as { createdAt?: string; id?: string };
+      if (!decoded.createdAt || !decoded.id) throw new Error("invalid");
+      const createdAt = new Date(decoded.createdAt);
+      if (Number.isNaN(createdAt.getTime())) throw new Error("invalid");
+      cursor = { createdAt, id: decoded.id };
+    } catch {
+      return NextResponse.json({ error: "Invalid report cursor." }, { status: 400 });
+    }
+  }
 
   const reports = await prisma.report.findMany({
     where: {
-      ...(status ? { status } : {}),
-      ...(q ? {
-        OR: [
-          { reason: { contains: q, mode: "insensitive" } },
-          { reporter: { name: { contains: q, mode: "insensitive" } } },
-          { reporter: { username: { contains: q, mode: "insensitive" } } },
-          { reportedUser: { name: { contains: q, mode: "insensitive" } } },
-          { reportedUser: { username: { contains: q, mode: "insensitive" } } },
-          { post: { content: { contains: q, mode: "insensitive" } } },
-          { comment: { content: { contains: q, mode: "insensitive" } } },
-        ],
-      } : {}),
+      AND: [
+        ...(cursor ? [{ OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] }] : []),
+        ...(status ? [{ status }] : []),
+        ...(q ? [{
+          OR: [
+            { reason: { contains: q, mode: "insensitive" as const } },
+            { reporter: { name: { contains: q, mode: "insensitive" as const } } },
+            { reporter: { username: { contains: q, mode: "insensitive" as const } } },
+            { reportedUser: { name: { contains: q, mode: "insensitive" as const } } },
+            { reportedUser: { username: { contains: q, mode: "insensitive" as const } } },
+            { post: { content: { contains: q, mode: "insensitive" as const } } },
+            { comment: { content: { contains: q, mode: "insensitive" as const } } },
+          ],
+        }] : []),
+      ],
     },
-    orderBy: { createdAt: "desc" },
-    take: 100,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: 101,
     include: {
       reporter: { select: { id: true, name: true, username: true, image: true } },
       reportedUser: { select: { id: true, name: true, username: true, image: true } },
@@ -53,6 +69,11 @@ export async function GET(request: Request) {
     },
   });
 
+  const hasMore = reports.length > 100;
+  const page = reports.slice(0, 100);
+  const oldest = page.at(-1);
+  const nextBefore = hasMore && oldest ? Buffer.from(JSON.stringify({ createdAt: oldest.createdAt.toISOString(), id: oldest.id }), "utf8").toString("base64url") : null;
+
   const [pending, reviewed, resolved, dismissed] = await Promise.all([
     prisma.report.count({ where: { status: "PENDING" } }),
     prisma.report.count({ where: { status: "REVIEWED" } }),
@@ -60,7 +81,7 @@ export async function GET(request: Request) {
     prisma.report.count({ where: { status: "DISMISSED" } }),
   ]);
 
-  return NextResponse.json({ reports, counts: { pending, reviewed, resolved, dismissed } });
+  return NextResponse.json({ reports: page, nextBefore, counts: { pending, reviewed, resolved, dismissed } });
 }
 
 export async function PATCH(request: Request) {
