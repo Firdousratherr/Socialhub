@@ -837,6 +837,8 @@ export default function HomeFeed() {
         shares: 0,
         liked: false,
         saved: false,
+        reactions: [],
+        myReaction: null,
       };
       setFeedPosts((current) => [created, ...current]);
       setNewPost("");
