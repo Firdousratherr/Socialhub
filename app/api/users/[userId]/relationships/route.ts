@@ -14,7 +14,7 @@ export async function GET(
 
   const target = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, isActive: true, isPrivate: true },
+    select: { id: true, isActive: true, isPrivate: true, privacySetting: { select: { showFriendsList: true } } },
   });
   if (!target?.isActive) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
@@ -23,6 +23,9 @@ export async function GET(
   }
 
   const isSelf = viewerId === userId;
+  if (!isSelf && target.privacySetting && !target.privacySetting.showFriendsList) {
+    return NextResponse.json({ followers: [], following: [], mutual: [], hidden: true });
+  }
   if (!isSelf && target.isPrivate) {
     return NextResponse.json({ followers: [], following: [], mutual: [], hidden: true });
   }
