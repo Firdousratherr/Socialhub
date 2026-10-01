@@ -278,7 +278,7 @@ model Message {
 }
 
 model Notification {
-  id        String           @id
+  id        String           @id @default(cuid())
   userId    String
   actorId   String?
   type      NotificationType
