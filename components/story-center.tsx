@@ -33,7 +33,6 @@ export function StoryCenter({
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
 
-  const ownStories = session?.user ? stories.filter((story) => story.author.id === session.user.id) : [];
   const authors = Array.from(
     new Map(
       stories.map((story) => [story.author.id, {
