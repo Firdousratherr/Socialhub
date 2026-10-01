@@ -87,6 +87,8 @@ model User {
   notificationPreference NotificationPreference?
   stories       Story[]
   storyViews    StoryView[]
+  messageAttachments MessageAttachment[] @relation("MessageAttachmentSender")
+  messageReactions MessageReaction[] @relation("MessageReactionUser")
   savedPosts    SavedPost[]
   sentFriendRequests FriendRequest[] @relation("FriendRequestSender")
   receivedFriendRequests FriendRequest[] @relation("FriendRequestReceiver")
@@ -277,6 +279,34 @@ model Message {
   @@index([conversationId, createdAt])
   @@index([conversationId, createdAt, id])
   @@index([senderId, createdAt])
+}
+
+model MessageAttachment {
+  id        String   @id @default(cuid())
+  messageId String
+  senderId  String
+  url       String
+  kind      String   @default("image")
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  sender  User    @relation("MessageAttachmentSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, createdAt])
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation("MessageReactionUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId, createdAt])
 }
 
 model Notification {
