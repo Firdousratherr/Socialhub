@@ -1165,6 +1165,7 @@ type NotificationData = {
   actor: { id: string; name: string; username: string | null; image: string | null } | null;
   post?: { id: string; content: string | null; mediaUrl: string | null } | null;
   comment?: { id: string; content: string } | null;
+  message?: { id: string; conversationId: string } | null;
 };
 
 function Notifications() {
@@ -1209,6 +1210,28 @@ function Notifications() {
     if (response.ok) setNotifications((items) => items.map((item) => ({ ...item, readAt: new Date().toISOString() })));
   }
 
+  async function openNotification(item: NotificationData) {
+    if (!session?.user) return;
+    if (!item.readAt) {
+      const response = await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationId: item.id }),
+      });
+      if (response.ok) setNotifications((items) => items.map((row) => row.id === item.id ? { ...row, readAt: new Date().toISOString() } : row));
+    }
+
+    if (item.type === "FOLLOW" && item.actor?.username) {
+      window.location.href = "/profile/" + encodeURIComponent(item.actor.username);
+    } else if (item.type === "FRIEND_REQUEST" || item.type === "FRIEND_ACCEPTED") {
+      window.location.href = "/friends";
+    } else if (item.type === "MESSAGE" && item.message?.conversationId) {
+      window.location.href = "/messages?conversation=" + encodeURIComponent(item.message.conversationId);
+    } else {
+      window.location.href = "/home";
+    }
+  }
+
   function iconFor(type: NotificationData["type"]) {
     if (type === "LIKE") return Heart;
     if (type === "COMMENT" || type === "MESSAGE") return MessageCircle;
@@ -1234,7 +1257,7 @@ function Notifications() {
       {loading && session?.user ? <div className="space-y-2 p-5">{[1,2,3].map((i)=><div key={i} className="flex gap-3 p-3"><span className="size-10 animate-pulse rounded-2xl bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 w-2/3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-1/3 animate-pulse rounded bg-gray-100"/></div></div>)}</div> : null}
       {notifications.length > 0 ? notifications.map((item) => {
         const Icon = iconFor(item.type);
-        return <button key={item.id} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
+        return <button key={item.id} onClick={() => void openNotification(item)} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
           <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(item.type)}`}><Icon size={17}/></span>
           <span className="flex-1"><span className="block text-sm font-bold">{item.actor?.name ?? "Socialhub"} {item.type === "LIKE" ? "liked your post." : item.type === "FOLLOW" ? "started following you." : item.type === "COMMENT" ? "commented on your post." : item.type === "FRIEND_REQUEST" ? "sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? "accepted your friend request." : item.type === "MESSAGE" ? "sent you a message." : item.type === "MENTION" ? "mentioned you." : "interacted with your content."}</span><span className="mt-1 block text-xs text-gray-400">{new Date(item.createdAt).toLocaleString()}</span></span>
           {!item.readAt ? <span className="mt-2 size-2 shrink-0 rounded-full bg-[#6d5dfc]"/> : null}
