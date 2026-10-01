@@ -325,7 +325,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const followerCount = profile?._count.followers ?? 1800;
   const followingCount = profile?._count.following ?? 426;
 
-  return <Page eyebrow="Profile" title={\`@\${displayUsername}\`} action={
+  return <Page eyebrow="Profile" title={`@${displayUsername}`} action={
     session?.user ? (
       <button onClick={() => setEditing((value) => !value)} className="flex h-10 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white">
         <Pencil size={15}/>{editing ? "Cancel" : "Edit profile"}
@@ -342,7 +342,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
       <div className="relative px-5 pb-6 sm:px-8">
         <div className="-mt-12 flex flex-col gap-4 sm:-mt-14 sm:flex-row sm:items-end">
           <div className="rounded-full border-4 border-white"><Avatar initials={displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase() || "FR"} size="xl"/></div>
-          <div className="flex-1 sm:pb-2"><h2 className="text-2xl font-black tracking-[-.04em]">{displayName}</h2><p className="text-sm font-semibold text-gray-400">@{displayUsername}{profile?.location ? \` · \${profile.location}\` : ""}</p></div>
+          <div className="flex-1 sm:pb-2"><h2 className="text-2xl font-black tracking-[-.04em]">{displayName}</h2><p className="text-sm font-semibold text-gray-400">@{displayUsername}{profile?.location ? ` · ${profile.location}` : ""}</p></div>
           {session?.user ? <button onClick={() => setFollowing((value) => !value)} className={following ? "h-10 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700" : "h-10 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white"}>{following ? "Following" : "Follow"}</button> : null}
         </div>
 
@@ -451,7 +451,7 @@ function Messages() {
       }
 
       try {
-        const response = await fetch(\`/api/conversations/\${activeId}/messages\`, { cache: "no-store" });
+        const response = await fetch(`/api/conversations/${activeId}/messages`, { cache: "no-store" });
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not load messages.");
         if (!cancelled) setMessages(json.messages as ChatMessage[]);
@@ -477,7 +477,7 @@ function Messages() {
     setSending(true);
     setError("");
     try {
-      const response = await fetch(\`/api/conversations/\${activeId}/messages\`, {
+      const response = await fetch(`/api/conversations/${activeId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: draft.trim() }),
@@ -513,7 +513,7 @@ function Messages() {
             const other = conversation.members.find((member) => member.userId !== session?.user?.id)?.user;
             const name = conversation.title ?? other?.name ?? "Conversation";
             const preview = conversation.messages[0]?.content ?? "No messages yet";
-            return <button key={conversation.id} onClick={() => setActiveId(conversation.id)} className={\`flex w-full items-center gap-3 rounded-2xl p-3 text-left \${conversation.id===activeId?"bg-[#f4f2ff]":"hover:bg-gray-50"}\`}>
+            return <button key={conversation.id} onClick={() => setActiveId(conversation.id)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left ${conversation.id===activeId?"bg-[#f4f2ff]":"hover:bg-gray-50"}`}>
               <Avatar initials={(other?.name ?? name).split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} color={colors[i%colors.length]}/>
               <div className="min-w-0 flex-1"><p className="truncate text-xs font-black">{name}</p><p className="mt-1 truncate text-[11px] text-gray-400">{preview}</p></div>
             </button>;
@@ -530,7 +530,7 @@ function Messages() {
       <section className="flex min-h-[620px] flex-col">
         <div className="flex items-center gap-3 border-b border-gray-100 p-4">
           <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} />
-          <div className="flex-1"><p className="text-sm font-black">{activeName}</p><p className="text-[11px] text-gray-400">{active ? (active.isGroup ? \`\${active.members.length} members\` : "Direct message") : "Select a conversation"}</p></div>
+          <div className="flex-1"><p className="text-sm font-black">{activeName}</p><p className="text-[11px] text-gray-400">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
           <button className="social-icon-button"><Search size={17}/></button><button className="social-icon-button"><MoreHorizontal size={18}/></button>
         </div>
 
@@ -648,13 +648,13 @@ function Notifications() {
       {loading && session?.user ? <div className="space-y-2 p-5">{[1,2,3].map((i)=><div key={i} className="flex gap-3 p-3"><span className="size-10 animate-pulse rounded-2xl bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 w-2/3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-1/3 animate-pulse rounded bg-gray-100"/></div></div>)}</div> : null}
       {notifications.length > 0 ? notifications.map((item) => {
         const Icon = iconFor(item.type);
-        return <button key={item.id} className={\`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 \${item.readAt ? "" : "bg-[#fbfaff]"}\`}>
-          <span className={\`grid size-10 shrink-0 place-items-center rounded-2xl \${styleFor(item.type)}\`}><Icon size={17}/></span>
+        return <button key={item.id} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
+          <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(item.type)}`}><Icon size={17}/></span>
           <span className="flex-1"><span className="block text-sm font-bold">{item.actor?.name ?? "Socialhub"} {item.type === "LIKE" ? "liked your post." : item.type === "FOLLOW" ? "started following you." : item.type === "COMMENT" ? "commented on your post." : item.type === "FRIEND_REQUEST" ? "sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? "accepted your friend request." : item.type === "MESSAGE" ? "sent you a message." : item.type === "MENTION" ? "mentioned you." : "interacted with your content."}</span><span className="mt-1 block text-xs text-gray-400">{new Date(item.createdAt).toLocaleString()}</span></span>{!item.readAt ? <span className="mt-2 size-2 shrink-0 rounded-full bg-[#6d5dfc]"/> : null}
         </button>;
       }) : !loading ? (
         session?.user ? <div className="p-10 text-center"><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Bell size={20}/></span><p className="mt-3 text-sm font-black">You’re all caught up.</p><p className="mt-1 text-xs text-gray-400">New likes, follows, comments, and requests will appear here.</p></div> :
-        <div className="space-y-1">{sampleItems.map(([type,title,time],i)=>{const Icon=iconFor(type as NotificationData["type"]);return <button key={title} className="flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50"><span className={\`grid size-10 shrink-0 place-items-center rounded-2xl \${styleFor(type as NotificationData["type"])}\`}><Icon size={17}/></span><span className="flex-1"><span className="block text-sm font-bold">{title}</span><span className="mt-1 block text-xs text-gray-400">{time}</span></span>{i<2?<span className="mt-2 size-2 rounded-full bg-[#6d5dfc]"/>:null}</button>})}</div>
+        <div className="space-y-1">{sampleItems.map(([type,title,time],i)=>{const Icon=iconFor(type as NotificationData["type"]);return <button key={title} className="flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50"><span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(type as NotificationData["type"])}`}><Icon size={17}/></span><span className="flex-1"><span className="block text-sm font-bold">{title}</span><span className="mt-1 block text-xs text-gray-400">{time}</span></span>{i<2?<span className="mt-2 size-2 rounded-full bg-[#6d5dfc]"/>:null}</button>})}</div>
       ) : null}
     </Card>
   </Page>;
