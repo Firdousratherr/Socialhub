@@ -25,4 +25,4 @@ Open http://localhost:3000.
 Phase 1 foundation and visual shell are in progress. Backend capabilities will be added behind the current UI contracts rather than coupling the interface directly to a vendor.
 
 
-<!-- CI verification marker -->
+<!-- CI verification marker 2 -->
