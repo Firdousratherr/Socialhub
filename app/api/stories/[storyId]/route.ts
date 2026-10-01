@@ -24,7 +24,7 @@ export async function GET(
   if (story.authorId !== session.user.id && await isBlocked(session.user.id, story.authorId)) return NextResponse.json({ error: "Story unavailable." }, { status: 404 });
   if (story.authorId !== session.user.id && story.audience === "FRIENDS" && !(await areFriends(session.user.id, story.authorId))) return NextResponse.json({ error: "Story unavailable." }, { status: 403 });
 
-  const [replies, reactions, mine] = await Promise.all([
+  const [replies, reactions, mine, views] = await Promise.all([
     prisma.storyReply.findMany({
       where: { storyId },
       orderBy: { createdAt: "asc" },
@@ -37,9 +37,10 @@ export async function GET(
       include: { user: { select: { id: true, name: true, image: true } } },
     }),
     prisma.storyReaction.findUnique({ where: { storyId_userId: { storyId, userId: session.user.id } } }),
+    story.authorId === session.user.id ? prisma.storyView.findMany({ where: { storyId }, orderBy: { viewedAt: "desc" }, take: 200, include: { viewer: { select: { id: true, name: true, username: true, image: true } } } }) : Promise.resolve([]),
   ]);
 
-  return NextResponse.json({ replies, reactions, myReaction: mine });
+  return NextResponse.json({ replies, reactions, myReaction: mine, viewers: story.authorId === session.user.id ? views : undefined });
 }
 
 export async function POST(
