@@ -384,6 +384,8 @@ model Story {
 
   author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   views      StoryView[]
+  replies    StoryReply[]
+  reactions  StoryReaction[]
 
   @@index([authorId, expiresAt])
   @@index([expiresAt, audience])
