@@ -14,7 +14,7 @@ export async function GET(
 
   const target = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, isActive: true, isPrivate: true, privacySetting: { select: { showFriendsList: true } } },
+    select: { id: true, isActive: true, isPrivate: true, privacySetting: { select: { showFriendsList: true, showFollowersList: true, showFollowingList: true } } },
   });
   if (!target?.isActive) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
@@ -23,9 +23,6 @@ export async function GET(
   }
 
   const isSelf = viewerId === userId;
-  if (!isSelf && target.privacySetting && !target.privacySetting.showFriendsList) {
-    return NextResponse.json({ followers: [], following: [], mutual: [], hidden: true });
-  }
   if (!isSelf && target.isPrivate) {
     return NextResponse.json({ followers: [], following: [], mutual: [], hidden: true });
   }
@@ -65,8 +62,11 @@ export async function GET(
 
   return NextResponse.json({
     hidden: false,
-    followers: followers.map((row) => row.follower),
-    following: following.map((row) => row.following),
-    mutual,
+    followers: isSelf || target.privacySetting?.showFollowersList !== false ? followers.map((row) => row.follower) : [],
+    following: isSelf || target.privacySetting?.showFollowingList !== false ? following.map((row) => row.following) : [],
+    mutual: isSelf || target.privacySetting?.showFriendsList !== false ? mutual : [],
+    followersHidden: !isSelf && target.privacySetting?.showFollowersList === false,
+    followingHidden: !isSelf && target.privacySetting?.showFollowingList === false,
+    mutualHidden: !isSelf && target.privacySetting?.showFriendsList === false,
   });
 }
