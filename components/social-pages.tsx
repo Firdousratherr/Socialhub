@@ -237,20 +237,138 @@ function Auth({ signup = false }: { signup?: boolean }) {
     </main>
   );
 }
+type ProfileData = {
+  id: string;
+  name: string;
+  email: string;
+  username: string | null;
+  bio: string | null;
+  image: string | null;
+  coverImage: string | null;
+  website: string | null;
+  location: string | null;
+  isPrivate: boolean;
+  role: "USER" | "MODERATOR" | "ADMIN";
+  createdAt: string;
+  _count: { posts: number; followers: number; following: number };
+};
+
 function Profile({ username = "firdous" }: { username?: string }) {
-  const [editing,setEditing]=useState(false); const [following,setFollowing]=useState(false);
-  return <Page eyebrow="Profile" title={`@${username}`} action={<button onClick={()=>setEditing(v=>!v)} className="flex h-10 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white"><Pencil size={15}/>{editing?"Done":"Edit profile"}</button>}>
+  const { data: session } = authClient.useSession();
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [following, setFollowing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    name: "Firdous Rather",
+    username,
+    bio: "Building products, learning every day, and sharing the journey.",
+    location: "Jammu & Kashmir",
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProfile() {
+      if (!session?.user) return;
+      try {
+        const response = await fetch("/api/profile", { cache: "no-store" });
+        const json = await response.json();
+        if (!response.ok) throw new Error(json.error ?? "Could not load profile.");
+        if (cancelled) return;
+        const next = json.profile as ProfileData;
+        setProfile(next);
+        setForm({
+          name: next.name,
+          username: next.username ?? "",
+          bio: next.bio ?? "",
+          location: next.location ?? "",
+        });
+      } catch (requestError) {
+        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load profile.");
+      }
+    }
+
+    void loadProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
+
+  async function saveProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session?.user || saving) return;
+    setSaving(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error ?? "Could not update profile.");
+      setProfile((json.profile as ProfileData) ?? profile);
+      setEditing(false);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not update profile.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const displayName = profile?.name ?? form.name;
+  const displayUsername = profile?.username ?? form.username ?? username;
+  const postCount = profile?._count.posts ?? 184;
+  const followerCount = profile?._count.followers ?? 1800;
+  const followingCount = profile?._count.following ?? 426;
+
+  return <Page eyebrow="Profile" title={\`@\${displayUsername}\`} action={
+    session?.user ? (
+      <button onClick={() => setEditing((value) => !value)} className="flex h-10 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white">
+        <Pencil size={15}/>{editing ? "Cancel" : "Edit profile"}
+      </button>
+    ) : <Link href="/login" className="flex h-10 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white"><LogIn size={15}/>Sign in</Link>
+  }>
+    {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
+
     <div className="overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)]">
-      <div className="relative h-48 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,.24),transparent_22%),linear-gradient(135deg,#5a4be8,#2e9fe9_55%,#51d3b4)]"><button className="absolute right-4 top-4 grid size-10 place-items-center rounded-xl bg-black/20 text-white"><Camera size={17}/></button></div>
-      <div className="relative px-5 pb-6 sm:px-8"><div className="-mt-12 flex flex-col gap-4 sm:-mt-14 sm:flex-row sm:items-end"><div className="rounded-full border-4 border-white"><Avatar initials="FR" size="xl"/></div><div className="flex-1 sm:pb-2"><h2 className="text-2xl font-black tracking-[-.04em]">Firdous Rather</h2><p className="text-sm font-semibold text-gray-400">@{username} · Jammu & Kashmir</p></div><button onClick={()=>setFollowing(v=>!v)} className={following?"h-10 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700":"h-10 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white"}>{following?"Following":"Follow"}</button></div>
-        {editing ? <div className="mt-6 grid gap-4 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] p-4 sm:grid-cols-2"><input defaultValue="Firdous Rather" className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm"/><input defaultValue={username} className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm"/><textarea defaultValue="Building products, learning every day, and sharing the journey." className="min-h-24 resize-none rounded-xl border border-gray-200 bg-white p-3 text-sm sm:col-span-2"/></div> : <><p className="mt-5 max-w-2xl text-sm leading-6 text-gray-600">Building products, learning every day, and sharing the journey. Welcome to my corner of Socialhub.</p><div className="mt-5 flex gap-6 text-sm"><span><strong className="font-black">184</strong> <span className="text-gray-400">posts</span></span><span><strong className="font-black">1.8k</strong> <span className="text-gray-400">followers</span></span><span><strong className="font-black">426</strong> <span className="text-gray-400">following</span></span></div></>}
+      <div className="relative h-48 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,.24),transparent_22%),linear-gradient(135deg,#5a4be8,#2e9fe9_55%,#51d3b4)]">
+        <button className="absolute right-4 top-4 grid size-10 place-items-center rounded-xl bg-black/20 text-white" aria-label="Change cover"><Camera size={17}/></button>
+      </div>
+
+      <div className="relative px-5 pb-6 sm:px-8">
+        <div className="-mt-12 flex flex-col gap-4 sm:-mt-14 sm:flex-row sm:items-end">
+          <div className="rounded-full border-4 border-white"><Avatar initials={displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase() || "FR"} size="xl"/></div>
+          <div className="flex-1 sm:pb-2"><h2 className="text-2xl font-black tracking-[-.04em]">{displayName}</h2><p className="text-sm font-semibold text-gray-400">@{displayUsername}{profile?.location ? \` · \${profile.location}\` : ""}</p></div>
+          {session?.user ? <button onClick={() => setFollowing((value) => !value)} className={following ? "h-10 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700" : "h-10 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white"}>{following ? "Following" : "Follow"}</button> : null}
+        </div>
+
+        {editing ? (
+          <form onSubmit={saveProfile} className="mt-6 grid gap-4 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] p-4 sm:grid-cols-2">
+            <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Display name</span><input value={form.name} onChange={(e)=>setForm((value)=>({...value,name:e.target.value}))} className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
+            <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Username</span><input value={form.username} onChange={(e)=>setForm((value)=>({...value,username:e.target.value}))} className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
+            <label className="block sm:col-span-2"><span className="mb-2 block text-xs font-bold text-gray-600">Bio</span><textarea value={form.bio} onChange={(e)=>setForm((value)=>({...value,bio:e.target.value}))} className="min-h-24 w-full resize-none rounded-xl border border-gray-200 bg-white p-3 text-sm"/></label>
+            <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Location</span><input value={form.location} onChange={(e)=>setForm((value)=>({...value,location:e.target.value}))} className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
+            <div className="flex items-end justify-end"><button disabled={saving} type="submit" className="h-11 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white disabled:opacity-60">{saving ? "Saving…" : "Save changes"}</button></div>
+          </form>
+        ) : (
+          <>
+            <p className="mt-5 max-w-2xl text-sm leading-6 text-gray-600">{profile?.bio ?? form.bio}</p>
+            <div className="mt-5 flex gap-6 text-sm"><span><strong className="font-black">{postCount}</strong> <span className="text-gray-400">posts</span></span><span><strong className="font-black">{followerCount}</strong> <span className="text-gray-400">followers</span></span><span><strong className="font-black">{followingCount}</strong> <span className="text-gray-400">following</span></span></div>
+          </>
+        )}
+
         <div className="mt-7 flex gap-6 border-b border-gray-100 pb-3 text-xs font-black"><button className="border-b-2 border-[#6d5dfc] pb-3 text-[#5a4be8]">Posts</button><button className="pb-3 text-gray-400">Photos</button><button className="pb-3 text-gray-400">Friends</button></div>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">{[1,2,3,4].map(n=><article key={n} className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><div className="flex items-center gap-3"><Avatar initials="FR" size="sm"/><div><p className="text-xs font-black">Firdous Rather</p><p className="text-[11px] text-gray-400">{n*2}h ago</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">Small wins add up. Keeping the focus on building, learning, and sharing useful things along the way.</p><div className="mt-4 h-28 rounded-xl bg-gradient-to-br from-violet-100 via-white to-sky-100"/><div className="mt-3 flex gap-5 text-xs font-semibold text-gray-400"><span className="inline-flex items-center gap-1"><Heart size={14}/> {18+n}</span><span className="inline-flex items-center gap-1"><MessageCircle size={14}/> {n+2}</span><span className="inline-flex items-center gap-1"><Bookmark size={14}/>Save</span></div></article>)}</div>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          {[1,2,3,4].map((n)=><article key={n} className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><div className="flex items-center gap-3"><Avatar initials={displayName.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase() || "FR" } size="sm"/><div><p className="text-xs font-black">{displayName}</p><p className="text-[11px] text-gray-400">{n*2}h ago</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">Small wins add up. Keeping the focus on building, learning, and sharing useful things along the way.</p><div className="mt-4 h-28 rounded-xl bg-gradient-to-br from-violet-100 via-white to-sky-100"/><div className="mt-3 flex gap-5 text-xs font-semibold text-gray-400"><span className="inline-flex items-center gap-1"><Heart size={14}/> {18+n}</span><span className="inline-flex items-center gap-1"><MessageCircle size={14}/> {n+2}</span><span className="inline-flex items-center gap-1"><Bookmark size={14}/>Save</span></div></article>)}
+        </div>
       </div>
     </div>
   </Page>;
 }
-
 type ChatMessage = {
   id: string;
   senderId: string;
@@ -445,11 +563,102 @@ function Friends() {
   return <Page eyebrow="Friends" title="Manage your circle" subtitle="Review requests, discover people you know, and keep your connections organized."><div className="mb-5 flex gap-2 rounded-2xl border border-gray-200 bg-white p-1.5">{[["requests","Requests","4"],["suggestions","Suggestions","8"],["all","All friends","184"]].map(x=><button key={x[0]} onClick={()=>setTab(x[0])} className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-black ${tab===x[0]?"bg-[#eeebff] text-[#5a4be8]":"text-gray-500"}`}>{x[1]} <span className="ml-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px]">{x[2]}</span></button>)}</div><div className="grid gap-4 sm:grid-cols-2">{people.concat(people.slice(0,2)).map((p,i)=><Card key={p[2]+i} className="flex items-center gap-4"><Avatar initials={p[0]} color={colors[i%colors.length]} size="lg"/><div className="min-w-0 flex-1"><p className="truncate text-sm font-black">{p[1]}</p><p className="text-xs text-gray-400">{p[2]}</p><p className="mt-2 text-[10px] font-bold uppercase tracking-[.12em] text-gray-400">{p[3]}</p></div>{tab==="requests"?<div className="flex gap-2"><button className="grid size-9 place-items-center rounded-xl bg-[#6d5dfc] text-white"><Check size={15}/></button><button className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={15}/></button></div>:<button className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white"><UserPlus size={15}/></button>}</Card>)}</div></Page>;
 }
 
-function Notifications() {
-  const items=[[Heart,"Maya Chen liked your post.","18 minutes ago","bg-rose-50 text-rose-500"],[UserPlus,"Nora Patel started following you.","42 minutes ago","bg-violet-50 text-violet-600"],[MessageCircle,"Arjun Mehta mentioned you in a comment.","1 hour ago","bg-sky-50 text-sky-500"],[Users,"You have 4 new friend requests.","3 hours ago","bg-emerald-50 text-emerald-600"],[AtSign,"Sara Malik mentioned you in #WeekendMoments.","Yesterday","bg-amber-50 text-amber-500"]];
-  return <Page eyebrow="Notifications" title="Stay in the loop" subtitle="Important activity stays here so you can catch up without hunting through your feed."><Card className="!p-0 overflow-hidden"><div className="flex items-center justify-between border-b border-gray-100 p-5"><h2 className="text-sm font-black">Recent activity</h2><button className="text-xs font-bold text-[#5a4be8]">Mark all as read</button></div>{items.map(([Icon,title,time,color],i)=><button key={String(title)} className="flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50"><span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${color}`}><Icon size={17}/></span><span className="flex-1"><span className="block text-sm font-bold">{String(title)}</span><span className="mt-1 block text-xs text-gray-400">{String(time)}</span></span>{i<2&&<span className="mt-2 size-2 rounded-full bg-[#6d5dfc]"/>}</button>)}</Card></Page>;
-}
+type NotificationData = {
+  id: string;
+  type: "LIKE" | "COMMENT" | "FOLLOW" | "FRIEND_REQUEST" | "FRIEND_ACCEPTED" | "MESSAGE" | "MENTION" | "SHARE" | "SYSTEM";
+  readAt: string | null;
+  createdAt: string;
+  actor: { id: string; name: string; username: string | null; image: string | null } | null;
+  post?: { id: string; content: string | null; mediaUrl: string | null } | null;
+  comment?: { id: string; content: string } | null;
+};
 
+function Notifications() {
+  const { data: session } = authClient.useSession();
+  const [notifications, setNotifications] = useState<NotificationData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const sampleItems = [
+    ["LIKE", "Maya Chen liked your post.", "18 minutes ago"],
+    ["FOLLOW", "Nora Patel started following you.", "42 minutes ago"],
+    ["MENTION", "Arjun Mehta mentioned you in a comment.", "1 hour ago"],
+    ["FRIEND_REQUEST", "You have 4 new friend requests.", "3 hours ago"],
+    ["MENTION", "Sara Malik mentioned you in #WeekendMoments.", "Yesterday"],
+  ];
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!session?.user) {
+        setNotifications([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/notifications", { cache: "no-store" });
+        const json = await response.json();
+        if (!response.ok) throw new Error(json.error ?? "Could not load notifications.");
+        if (!cancelled) setNotifications(json.notifications as NotificationData[]);
+      } catch (requestError) {
+        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load notifications.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
+
+  async function markAllRead() {
+    if (!session?.user) return;
+    const response = await fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ markAll: true }),
+    });
+    if (response.ok) setNotifications((items) => items.map((item) => ({ ...item, readAt: new Date().toISOString() })));
+  }
+
+  function iconFor(type: NotificationData["type"]) {
+    if (type === "LIKE") return Heart;
+    if (type === "COMMENT" || type === "MESSAGE") return MessageCircle;
+    if (type === "FOLLOW") return UserPlus;
+    if (type === "FRIEND_REQUEST" || type === "FRIEND_ACCEPTED") return Users;
+    if (type === "MENTION") return AtSign;
+    if (type === "SHARE") return Send;
+    return Bell;
+  }
+
+  function styleFor(type: NotificationData["type"]) {
+    if (type === "LIKE") return "bg-rose-50 text-rose-500";
+    if (type === "FOLLOW" || type === "FRIEND_ACCEPTED") return "bg-violet-50 text-violet-600";
+    if (type === "COMMENT" || type === "MESSAGE" || type === "MENTION") return "bg-sky-50 text-sky-500";
+    if (type === "FRIEND_REQUEST") return "bg-emerald-50 text-emerald-600";
+    return "bg-amber-50 text-amber-500";
+  }
+
+  return <Page eyebrow="Notifications" title="Stay in the loop" subtitle="Important activity stays here so you can catch up without hunting through your feed.">
+    {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
+    <Card className="!p-0 overflow-hidden">
+      <div className="flex items-center justify-between border-b border-gray-100 p-5"><h2 className="text-sm font-black">Recent activity</h2><button onClick={markAllRead} disabled={!session?.user} className="text-xs font-bold text-[#5a4be8] disabled:opacity-40">Mark all as read</button></div>
+      {loading && session?.user ? <div className="space-y-2 p-5">{[1,2,3].map((i)=><div key={i} className="flex gap-3 p-3"><span className="size-10 animate-pulse rounded-2xl bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 w-2/3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-1/3 animate-pulse rounded bg-gray-100"/></div></div>)}</div> : null}
+      {notifications.length > 0 ? notifications.map((item) => {
+        const Icon = iconFor(item.type);
+        return <button key={item.id} className={\`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 \${item.readAt ? "" : "bg-[#fbfaff]"}\`}>
+          <span className={\`grid size-10 shrink-0 place-items-center rounded-2xl \${styleFor(item.type)}\`}><Icon size={17}/></span>
+          <span className="flex-1"><span className="block text-sm font-bold">{item.actor?.name ?? "Socialhub"} {item.type === "LIKE" ? "liked your post." : item.type === "FOLLOW" ? "started following you." : item.type === "COMMENT" ? "commented on your post." : item.type === "FRIEND_REQUEST" ? "sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? "accepted your friend request." : item.type === "MESSAGE" ? "sent you a message." : item.type === "MENTION" ? "mentioned you." : "interacted with your content."}</span><span className="mt-1 block text-xs text-gray-400">{new Date(item.createdAt).toLocaleString()}</span></span>{!item.readAt ? <span className="mt-2 size-2 shrink-0 rounded-full bg-[#6d5dfc]"/> : null}
+        </button>;
+      }) : !loading ? (
+        session?.user ? <div className="p-10 text-center"><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Bell size={20}/></span><p className="mt-3 text-sm font-black">You’re all caught up.</p><p className="mt-1 text-xs text-gray-400">New likes, follows, comments, and requests will appear here.</p></div> :
+        <div className="space-y-1">{sampleItems.map(([type,title,time],i)=>{const Icon=iconFor(type as NotificationData["type"]);return <button key={title} className="flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50"><span className={\`grid size-10 shrink-0 place-items-center rounded-2xl \${styleFor(type as NotificationData["type"])}\`}><Icon size={17}/></span><span className="flex-1"><span className="block text-sm font-bold">{title}</span><span className="mt-1 block text-xs text-gray-400">{time}</span></span>{i<2?<span className="mt-2 size-2 rounded-full bg-[#6d5dfc]"/>:null}</button>})}</div>
+      ) : null}
+    </Card>
+  </Page>;
+}
 function SettingsPage() {
   const [privateAccount,setPrivate]=useState(false),[activity,setActivity]=useState(true),[push,setPush]=useState(true);
   const Toggle=({value,set}:{value:boolean;set:(v:boolean)=>void})=><button onClick={()=>set(!value)} className={`relative h-7 w-12 rounded-full p-1 ${value?"bg-[#6d5dfc]":"bg-gray-200"}`}><span className={`block size-5 rounded-full bg-white transition-transform ${value?"translate-x-5":""}`}/></button>;
