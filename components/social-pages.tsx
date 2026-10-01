@@ -272,12 +272,22 @@ type ProfileData = {
   createdAt: string;
   _count: { posts: number; followers: number; following: number };
   visibleCounts?: { posts: number; followers: number; following: number };
+  isFollowing?: boolean;
+  isFriend?: boolean;
+  posts?: Array<{
+    id: string;
+    content: string | null;
+    mediaUrl: string | null;
+    createdAt: string;
+    _count: { likes: number; comments: number };
+  }>;
 };
 
 function Profile({ username = "firdous" }: { username?: string }) {
   const { data: session } = authClient.useSession();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [editing, setEditing] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
   const [following, setFollowing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
@@ -293,14 +303,30 @@ function Profile({ username = "firdous" }: { username?: string }) {
     let cancelled = false;
 
     async function loadProfile() {
-      if (!session?.user) return;
       try {
-        const response = await fetch("/api/profile", { cache: "no-store" });
-        const json = await response.json();
-        if (!response.ok) throw new Error(json.error ?? "Could not load profile.");
-        if (cancelled) return;
-        const next = json.profile as ProfileData;
+        let next: ProfileData | null = null;
+        let owner = false;
+
+        if (session?.user) {
+          const ownResponse = await fetch("/api/profile", { cache: "no-store" });
+          const ownJson = await ownResponse.json().catch(() => ({}));
+          if (ownResponse.ok && ownJson.profile?.username === username) {
+            next = ownJson.profile as ProfileData;
+            owner = true;
+          }
+        }
+
+        if (!next) {
+          const response = await fetch("/api/users/" + encodeURIComponent(username), { cache: "no-store" });
+          const json = await response.json();
+          if (!response.ok) throw new Error(json.error ?? "Could not load profile.");
+          next = json.profile as ProfileData;
+        }
+
+        if (cancelled || !next) return;
         setProfile(next);
+        setIsOwner(owner);
+        setFollowing(Boolean(next.isFollowing));
         setForm({
           name: next.name,
           username: next.username ?? "",
@@ -316,7 +342,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, username]);
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -388,12 +414,54 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const followingCount = profile?.visibleCounts?.following ?? profile?._count.following ?? 426;
   const initials = displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase() || "SH";
 
+  async function toggleFollow() {
+    if (!session?.user || isOwner || !profile) return;
+    const response = await fetch("/api/users/" + profile.id + "/follow", { method: following ? "DELETE" : "POST" });
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setError(json.error ?? "Could not update follow status.");
+      return;
+    }
+    setFollowing(Boolean(json.following));
+  }
+
+  async function reportUser() {
+    if (!profile || isOwner) return;
+    const reason = window.prompt("Why are you reporting this profile?", "Spam or misleading profile");
+    if (!reason?.trim()) return;
+    const response = await fetch("/api/users/" + profile.id + "/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: reason.trim() }),
+    });
+    if (response.ok) setError("Report submitted. Thank you for helping keep Socialhub safe.");
+    else setError("Could not submit the report.");
+  }
+
+  async function blockUser() {
+    if (!profile || isOwner) return;
+    if (!window.confirm("Block this user? Their content will no longer appear for you.")) return;
+    const response = await fetch("/api/users/" + profile.id + "/block", { method: "POST" });
+    if (response.ok) setError("User blocked.");
+    else setError("Could not block this user.");
+  }
+
   return <Page eyebrow="Profile" title={`@${displayUsername}`} action={
-    session?.user ? (
+    isOwner ? (
       <button onClick={() => setEditing((value) => !value)} className="flex h-10 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white">
         <Pencil size={15}/>{editing ? "Cancel" : "Edit profile"}
       </button>
-    ) : <Link href="/login" className="flex h-10 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white"><LogIn size={15}/>Sign in</Link>
+    ) : session?.user ? (
+      <div className="flex gap-2">
+        <button onClick={() => void toggleFollow()} className={following ? "h-10 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700" : "h-10 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white"}>
+          {following ? "Following" : "Follow"}
+        </button>
+        <button onClick={() => void reportUser()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Report profile"><Shield size={15}/></button>
+        <button onClick={() => void blockUser()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Block profile"><UserPlus size={15}/></button>
+      </div>
+    ) : (
+      <Link href="/login" className="flex h-10 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white"><LogIn size={15}/>Sign in</Link>
+    )
   }>
     {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
@@ -402,7 +470,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
         className="relative h-48 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,.24),transparent_22%),linear-gradient(135deg,#5a4be8,#2e9fe9_55%,#51d3b4)] bg-cover bg-center"
         style={profile?.coverImage ? { backgroundImage: `url("${profile.coverImage}")` } : undefined}
       >
-        {session?.user ? (
+        {isOwner ? (
           <>
             <input
               id="cover-upload"
@@ -431,7 +499,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
       <div className="relative px-5 pb-6 sm:px-8">
         <div className="-mt-12 flex flex-col gap-4 sm:-mt-14 sm:flex-row sm:items-end">
           <div className="relative rounded-full border-4 border-white bg-white">
-            {session?.user ? (
+            {isOwner ? (
               <>
                 <input
                   id="avatar-upload"
@@ -459,7 +527,11 @@ function Profile({ username = "firdous" }: { username?: string }) {
             )}
           </div>
           <div className="flex-1 sm:pb-2"><h2 className="text-2xl font-black tracking-[-.04em]">{displayName}</h2><p className="text-sm font-semibold text-gray-400">@{displayUsername}{profile?.location ? ` · ${profile.location}` : ""}</p></div>
-          {session?.user ? <button onClick={() => setFollowing((value) => !value)} className={following ? "h-10 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700" : "h-10 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white"}>{following ? "Following" : "Follow"}</button> : null}
+          {!isOwner && session?.user ? (
+          <button onClick={() => void toggleFollow()} className={following ? "h-10 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700" : "h-10 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white"}>
+            {following ? "Following" : "Follow"}
+          </button>
+        ) : null}
         </div>
 
         {uploading === "avatar" ? <p className="mt-3 text-[11px] font-bold text-[#5a4be8]">Uploading profile picture…</p> : null}
@@ -481,7 +553,27 @@ function Profile({ username = "firdous" }: { username?: string }) {
 
         <div className="mt-7 flex gap-6 border-b border-gray-100 pb-3 text-xs font-black"><button className="border-b-2 border-[#6d5dfc] pb-3 text-[#5a4be8]">Posts</button><button className="pb-3 text-gray-400">Photos</button><button className="pb-3 text-gray-400">Friends</button></div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          {[1,2,3,4].map((n)=><article key={n} className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><div className="flex items-center gap-3">{profile?.image ? <img src={profile.image} alt="" className="size-9 rounded-full object-cover" /> : <Avatar initials={initials} size="sm" />}<div><p className="text-xs font-black">{displayName}</p><p className="text-[11px] text-gray-400">{n*2}h ago</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">Small wins add up. Keeping the focus on building, learning, and sharing useful things along the way.</p><div className="mt-4 h-28 rounded-xl bg-gradient-to-br from-violet-100 via-white to-sky-100"/><div className="mt-3 flex gap-5 text-xs font-semibold text-gray-400"><span className="inline-flex items-center gap-1"><Heart size={14}/> {18+n}</span><span className="inline-flex items-center gap-1"><MessageCircle size={14}/> {n+2}</span><span className="inline-flex items-center gap-1"><Bookmark size={14}/>Save</span></div></article>)}
+          {(profile?.posts ?? []).length > 0 ? (
+            profile?.posts?.map((post) => (
+              <article key={post.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                <div className="flex items-center gap-3">
+                  {profile?.image ? <img src={profile.image} alt="" className="size-9 rounded-full object-cover" /> : <Avatar initials={initials} size="sm" />}
+                  <div><p className="text-xs font-black">{displayName}</p><p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p></div>
+                </div>
+                {post.content ? <p className="mt-3 text-sm leading-6 text-gray-600">{post.content}</p> : null}
+                {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
+                <div className="mt-4 flex gap-5 text-xs font-semibold text-gray-400">
+                  <span className="inline-flex items-center gap-1"><Heart size={14}/> {post._count.likes}</span>
+                  <span className="inline-flex items-center gap-1"><MessageCircle size={14}/> {post._count.comments}</span>
+                </div>
+              </article>
+            ))
+          ) : (
+            <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center">
+              <p className="text-sm font-black">No public posts yet</p>
+              <p className="mt-1 text-xs text-gray-400">{isOwner ? "Share your first post from the home feed." : "This profile has not shared any public posts."}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
