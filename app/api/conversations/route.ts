@@ -93,15 +93,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "You cannot start a conversation while a block is active." }, { status: 403 });
     }
 
-    const existingCandidates = await prisma.conversation.findMany({
+    const otherId = memberIds.find((id) => id !== session.user.id)!;
+    const existing = await prisma.conversation.findFirst({
       where: {
         isGroup: false,
-        members: {
-          some: { userId: session.user.id },
-        },
+        AND: [
+          { members: { some: { userId: session.user.id } } },
+          { members: { some: { userId: otherId } } },
+          { members: { every: { userId: { in: memberIds } } } },
+        ],
       },
       orderBy: { updatedAt: "desc" },
-      take: 50,
       include: {
         members: {
           select: {
@@ -112,14 +114,9 @@ export async function POST(request: Request) {
         },
       },
     });
-
-    const otherId = memberIds.find((id) => id !== session.user.id);
-    const existing = existingCandidates.find(
-      (conversation) =>
-        conversation.members.length === 2 &&
-        conversation.members.some((member) => member.userId === otherId),
-    );
-    if (existing) return NextResponse.json({ conversation: existing, existing: true });
+    if (existing && existing.members.length === 2) {
+      return NextResponse.json({ conversation: existing, existing: true });
+    }
   }
 
   const conversation = await prisma.conversation.create({
