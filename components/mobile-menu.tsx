@@ -29,9 +29,7 @@ export function MobileMenu() {
   const pathname = usePathname();
   const { data: session } = authClient.useSession();
   const [open, setOpen] = useState(false);
-  const profileHref = session?.user?.email
-    ? "/profile/" + encodeURIComponent(session.user.email.split("@")[0] ?? "me")
-    : "/login";
+  const profileHref = session?.user ? "/profile/me" : "/login";
 
   async function signOut() {
     await authClient.signOut();
