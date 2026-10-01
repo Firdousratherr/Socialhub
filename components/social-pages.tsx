@@ -14,7 +14,7 @@ import {
   Search, Send, Settings, Shield, Sparkles, Trash2, UserPlus, Users, X
 } from "lucide-react";
 
-type Screen = { kind: string; username?: string; section?: string };
+type Screen = { kind: string; username?: string; section?: string; search?: string };
 
 const colors = [
   "from-violet-500 to-sky-400",
@@ -837,9 +837,9 @@ type DiscoverUser = {
   _count: { followers: number; following: number };
 };
 
-function Discover() {
+function Discover({ initialQuery = "" }: { initialQuery?: string }) {
   const { data: session } = authClient.useSession();
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialQuery);
   const [results, setResults] = useState<DiscoverUser[]>([]);
   const [following, setFollowing] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
