@@ -98,6 +98,24 @@ export async function POST(request: Request) {
 
   if (!parsed.data.isGroup && memberIds.length === 2) {
     const otherId = memberIds.find((id) => id !== session.user.id)!;
+    const other = await prisma.user.findUnique({
+      where: { id: otherId },
+      select: { privacySetting: { select: { allowMessagesEveryone: true } } },
+    });
+    if (other?.privacySetting && !other.privacySetting.allowMessagesEveryone) {
+      const friends = await prisma.friendRequest.findFirst({
+        where: {
+          status: "ACCEPTED",
+          OR: [
+            { senderId: session.user.id, receiverId: otherId },
+            { senderId: otherId, receiverId: session.user.id },
+          ],
+        },
+        select: { id: true },
+      });
+      if (!friends) return NextResponse.json({ error: "This user only accepts messages from friends." }, { status: 403 });
+    }
+
     const blocked = await prisma.block.findFirst({
       where: {
         OR: [
