@@ -322,9 +322,9 @@ function Profile({ username = "firdous" }: { username?: string }) {
 
   const displayName = profile?.name ?? form.name;
   const displayUsername = profile?.username ?? form.username ?? username;
-  const postCount = profile?._count.posts ?? 184;
-  const followerCount = profile?._count.followers ?? 1800;
-  const followingCount = profile?._count.following ?? 426;
+  const postCount = profile?.visibleCounts?.posts ?? profile?._count.posts ?? 184;
+  const followerCount = profile?.visibleCounts?.followers ?? profile?._count.followers ?? 1800;
+  const followingCount = profile?.visibleCounts?.following ?? profile?._count.following ?? 426;
 
   return <Page eyebrow="Profile" title={`@${displayUsername}`} action={
     session?.user ? (
