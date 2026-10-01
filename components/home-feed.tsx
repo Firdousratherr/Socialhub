@@ -345,22 +345,23 @@ export default function HomeFeed() {
 
       <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 rounded-2xl border border-gray-200/80 bg-white/95 p-1.5 shadow-2xl shadow-gray-950/10 backdrop-blur-xl lg:hidden" aria-label="Mobile navigation">
         {[
-          [Home, "Home", true],
-          [Compass, "Discover", false],
-          [Plus, "Create", false],
-          [Bell, "Alerts", false],
-          [Users, "Profile", false],
-        ].map(([Icon, label, active]) => (
-          <button
-            key={String(label)}
+          { Icon: Home, label: "Home", active: true, href: "/home" },
+          { Icon: Compass, label: "Discover", active: false, href: "/discover" },
+          { Icon: Plus, label: "Create", active: false, href: "/home" },
+          { Icon: Bell, label: "Alerts", active: false, href: "/notifications" },
+          { Icon: Users, label: "Profile", active: false, href: "/profile/firdous" },
+        ].map(({ Icon, label, active, href }) => (
+          <Link
+            href={href}
+            key={label}
             className={[
               "flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold transition",
               active ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500",
             ].join(" ")}
           >
             <Icon size={18} strokeWidth={active ? 2.5 : 2} />
-            {String(label)}
-          </button>
+            {label}
+          </Link>
         ))}
       </nav>
     </main>
