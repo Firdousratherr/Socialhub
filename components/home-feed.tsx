@@ -109,7 +109,7 @@ function PostCard({ post }: { post: Post }) {
       return;
     }
 
-    const response = await fetch(\`/api/posts/\${post.id}/like\`, {
+    const response = await fetch(`/api/posts/${post.id}/like`, {
       method: liked ? "DELETE" : "POST",
     });
 
@@ -124,7 +124,7 @@ function PostCard({ post }: { post: Post }) {
     <article className="social-card overflow-hidden rounded-3xl">
       <div className="p-5">
         <div className="flex items-start gap-3">
-          <div className={\`grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br \${post.accent} text-xs font-extrabold text-white shadow-sm\`} aria-hidden="true">{post.initials}</div>
+          <div className={`grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br ${post.accent} text-xs font-extrabold text-white shadow-sm`} aria-hidden="true">{post.initials}</div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5"><p className="truncate text-sm font-extrabold text-gray-950">{post.name}</p><span className="text-gray-300">·</span><span className="text-xs font-medium text-gray-400">{post.timestamp}</span></div>
             <p className="text-xs font-medium text-gray-400">{post.handle}</p>
@@ -134,7 +134,7 @@ function PostCard({ post }: { post: Post }) {
 
         <p className="mt-4 text-[15px] leading-6 text-gray-700">{post.copy}</p>
 
-        <div className={\`relative mt-4 overflow-hidden rounded-2xl bg-gradient-to-br p-6 sm:p-8 \${post.accent}\`}>
+        <div className={`relative mt-4 overflow-hidden rounded-2xl bg-gradient-to-br p-6 sm:p-8 ${post.accent}`}>
           <div className="absolute -right-12 -top-12 size-36 rounded-full bg-white/25 blur-2xl" />
           <div className="absolute -bottom-12 -left-8 size-32 rounded-full bg-white/20 blur-2xl" />
           <div className="relative max-w-sm"><div className="mb-6 inline-flex rounded-full bg-white/25 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/90">Socialhub moment</div><p className="text-2xl font-black leading-tight tracking-[-0.04em] text-white sm:text-3xl">Keep the small moments. They become the big story.</p></div>
@@ -143,10 +143,10 @@ function PostCard({ post }: { post: Post }) {
         <div className="mt-4 flex items-center justify-between text-xs font-semibold text-gray-400"><span>{likeCount.toLocaleString()} reactions</span><span>{post.comments} comments · {post.shares} shares</span></div>
 
         <div className="mt-4 grid grid-cols-4 border-t border-gray-100 pt-3">
-          <button onClick={toggleLike} className={\`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition \${liked ? "bg-rose-50 text-rose-500" : "text-gray-500 hover:bg-gray-50"}\`} aria-pressed={liked}><Heart size={17} fill={liked ? "currentColor" : "none"}/>Like</button>
+          <button onClick={toggleLike} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${liked ? "bg-rose-50 text-rose-500" : "text-gray-500 hover:bg-gray-50"}`} aria-pressed={liked}><Heart size={17} fill={liked ? "currentColor" : "none"}/>Like</button>
           <button className="flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold text-gray-500 transition hover:bg-gray-50"><MessageCircle size={17}/>Comment</button>
           <button className="flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold text-gray-500 transition hover:bg-gray-50"><Share2 size={17}/>Share</button>
-          <button onClick={()=>setSaved((value)=>!value)} className={\`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition \${saved ? "bg-violet-50 text-violet-600" : "text-gray-500 hover:bg-gray-50"}\`} aria-pressed={saved}><Bookmark size={17} fill={saved ? "currentColor" : "none"}/>Save</button>
+          <button onClick={()=>setSaved((value)=>!value)} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${saved ? "bg-violet-50 text-violet-600" : "text-gray-500 hover:bg-gray-50"}`} aria-pressed={saved}><Bookmark size={17} fill={saved ? "currentColor" : "none"}/>Save</button>
         </div>
       </div>
     </article>
@@ -169,7 +169,7 @@ export default function HomeFeed() {
         const mapped = (json.posts ?? []).map((item: { id: string; content: string | null; createdAt: string; author: { name: string; username: string | null }; _count: { likes: number; comments: number } }, index: number) => ({
           id: item.id,
           name: item.author.name,
-          handle: \`@\${item.author.username ?? "member"}\`,
+          handle: `@${item.author.username ?? "member"}`,
           initials: item.author.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase(),
           timestamp: new Date(item.createdAt).toLocaleString(),
           copy: item.content ?? "Shared a new moment.",
@@ -206,7 +206,7 @@ export default function HomeFeed() {
       const created: Post = {
         id: item.id,
         name: item.author.name,
-        handle: \`@\${item.author.username ?? "member"}\`,
+        handle: `@${item.author.username ?? "member"}`,
         initials: item.author.name.split(" ").map((part: string) => part[0]).join("").slice(0,2).toUpperCase(),
         timestamp: "Just now",
         copy: item.content ?? "",
