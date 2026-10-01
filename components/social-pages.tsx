@@ -795,7 +795,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     return () => {
       cancelled = true;
     };
-  }, [session?.user?.id, initialConversationId]);
+  }, [session?.user?.id, initialConversationId, showArchivedConversations]);
 
   useEffect(() => {
     if (!newConversationOpen || !session?.user) return;
