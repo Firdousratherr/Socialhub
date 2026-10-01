@@ -46,9 +46,12 @@ export async function POST(request: Request) {
 
   const receiver = await prisma.user.findUnique({
     where: { id: receiverId },
-    select: { id: true, isActive: true },
+    select: { id: true, isActive: true, privacySetting: { select: { allowFriendRequests: true } } },
   });
   if (!receiver?.isActive) return NextResponse.json({ error: "User not found." }, { status: 404 });
+  if (receiver.privacySetting && !receiver.privacySetting.allowFriendRequests) {
+    return NextResponse.json({ error: "This user is not accepting new friend requests." }, { status: 403 });
+  }
 
   const block = await prisma.block.findFirst({
     where: {
