@@ -356,3 +356,33 @@ model Block {
   @@id([blockerId, blockedId])
   @@index([blockedId])
 }
+
+
+model AdminMetricOverride {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  followers       Int?
+  following       Int?
+  posts           Int?
+  likesReceived   Int?
+  commentsReceived Int?
+  shares          Int?
+  profileViews    Int?
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@index([updatedAt])
+}
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  adminId     String
+  action      String
+  targetType  String
+  targetId    String?
+  details     String?
+  createdAt   DateTime @default(now())
+
+  @@index([adminId, createdAt])
+  @@index([targetType, targetId, createdAt])
+}
