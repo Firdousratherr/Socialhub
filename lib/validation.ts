@@ -1,0 +1,30 @@
+import * as z from "zod";
+
+export const postInputSchema = z.object({
+  content: z.string().trim().max(5000).optional().nullable(),
+  mediaUrl: z.string().url().max(2048).optional().nullable(),
+  visibility: z.enum(["PUBLIC", "FRIENDS", "PRIVATE"]).default("PUBLIC"),
+}).refine(
+  (value) => Boolean(value.content) || Boolean(value.mediaUrl),
+  "A post needs text or media.",
+);
+
+export const profileInputSchema = z.object({
+  name: z.string().trim().min(2).max(80).optional(),
+  username: z.string().trim().regex(/^[A-Za-z0-9_]{3,30}$/).nullable().optional(),
+  bio: z.string().trim().max(500).nullable().optional(),
+  coverImage: z.string().url().max(2048).nullable().optional(),
+  website: z.string().url().max(2048).nullable().optional(),
+  location: z.string().trim().max(120).nullable().optional(),
+  isPrivate: z.boolean().optional(),
+});
+
+export const conversationInputSchema = z.object({
+  memberIds: z.array(z.string().min(1)).min(1).max(50),
+  title: z.string().trim().max(100).nullable().optional(),
+  isGroup: z.boolean().default(false),
+});
+
+export const messageInputSchema = z.object({
+  content: z.string().trim().min(1).max(5000),
+});
