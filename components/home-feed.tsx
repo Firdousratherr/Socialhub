@@ -65,6 +65,17 @@ type StoryItem = {
   author: { id: string; name: string; username: string | null; image: string | null };
 };
 
+type SuggestedUser = {
+  id: string;
+  name: string;
+  username: string | null;
+  image: string | null;
+  bio: string | null;
+  isPrivate: boolean;
+  isFollowing: boolean;
+  isFriend: boolean;
+};
+
 const navItems = [
   { label: "Home", icon: Home, active: true, href: "/home" },
   { label: "Discover", icon: Compass, href: "/discover" },
@@ -566,6 +577,7 @@ export default function HomeFeed() {
   const router = useRouter();
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<StoryItem[]>([]);
+  const [suggestedUsers, setSuggestedUsers] = useState<SuggestedUser[]>([]);
   const [newPost, setNewPost] = useState("");
   const [visibility, setVisibility] = useState<Post["visibility"]>("PUBLIC");
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
@@ -624,12 +636,14 @@ export default function HomeFeed() {
     let cancelled = false;
     async function load() {
       try {
-        const [feedResponse, storyResponse] = await Promise.all([
+        const [feedResponse, storyResponse, usersResponse] = await Promise.all([
           fetch("/api/posts?take=20", { cache: "no-store" }),
           fetch("/api/stories", { cache: "no-store" }),
+          fetch("/api/users?take=3", { cache: "no-store" }),
         ]);
         const feedJson = await feedResponse.json();
         const storyJson = await storyResponse.json();
+        const usersJson = await usersResponse.json();
         if (cancelled) return;
 
         if (feedResponse.ok) {
@@ -661,6 +675,7 @@ export default function HomeFeed() {
         }
 
         if (storyResponse.ok) setStories((storyJson.stories ?? []) as StoryItem[]);
+        if (usersResponse.ok) setSuggestedUsers((usersJson.users ?? []) as SuggestedUser[]);
       } catch (loadError) {
         if (!cancelled) setFeedError(loadError instanceof Error ? loadError.message : "Could not load your feed.");
       }
@@ -882,10 +897,6 @@ export default function HomeFeed() {
             <section className="social-card rounded-3xl p-5">
               <div className="flex items-center justify-between"><h2 className="text-sm font-black tracking-[-0.02em]">Stories</h2><Link href="/home" className="text-xs font-bold text-[#6d5dfc]">See all</Link></div>
               <div className="mt-4 flex gap-3 overflow-hidden">
-                <button className="min-w-16" aria-label="Create your story">
-                  <div className="grid size-16 place-items-center rounded-2xl border-2 border-dashed border-[#c9c4ff] bg-[#f5f2ff] text-[#6d5dfc]"><Plus size={19}/></div>
-                  <p className="mt-2 truncate text-[11px] font-bold text-gray-500">Your story</p>
-                </button>
                 {visibleStories.map((story, index) => (
                   <Link href={`/profile/${story.author.username ?? story.author.id}`} className="min-w-16" key={story.id}>
                     <div className="rounded-[1.15rem] bg-gradient-to-br p-[2px] from-[#6d5dfc] via-[#d957ff] to-[#ffb347]">
@@ -900,17 +911,17 @@ export default function HomeFeed() {
             <section className="social-card rounded-3xl p-5">
               <div className="flex items-center justify-between"><h2 className="text-sm font-black tracking-[-0.02em]">People to follow</h2><Link href="/discover" className="text-xs font-bold text-[#6d5dfc]">View all</Link></div>
               <div className="mt-4 space-y-4">
-                {[
-                  ["Nora Patel","@norapatel","from-fuchsia-500 to-orange-400"],
-                  ["Dev Kapoor","@devk","from-sky-500 to-indigo-500"],
-                  ["Zoya Shah","@zoyas","from-amber-400 to-rose-500"],
-                ].map(([name, handle, accent]) => (
-                  <div key={handle} className="flex items-center gap-3">
-                    <Avatar name={name} accent={accent} />
-                    <div className="min-w-0 flex-1"><p className="truncate text-xs font-extrabold text-gray-900">{name}</p><p className="truncate text-[11px] font-medium text-gray-400">{handle}</p></div>
-                    <Link href={`/discover?q=${handle.slice(1)}`} className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white" aria-label={"Follow " + name}><Plus size={16}/></Link>
+                {suggestedUsers.map((user, index) => (
+                  <div key={user.id} className="flex items-center gap-3">
+                    <Avatar name={user.name} image={user.image} accent={["from-fuchsia-500 to-orange-400","from-sky-500 to-indigo-500","from-amber-400 to-rose-500"][index % 3]} />
+                    <div className="min-w-0 flex-1">
+                      <Link href={`/profile/${user.username ?? user.id}`} className="block truncate text-xs font-extrabold text-gray-900 hover:text-[#5a4be8]">{user.name}</Link>
+                      <p className="truncate text-[11px] font-medium text-gray-400">@{user.username ?? "member"}</p>
+                    </div>
+                    <Link href={`/discover?q=${encodeURIComponent(user.username ?? user.name)}`} className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white" aria-label={`Find ${user.name} in Discover`}><Plus size={16}/></Link>
                   </div>
                 ))}
+                {!suggestedUsers.length ? <p className="py-3 text-xs text-gray-400">No new people to show right now.</p> : null}
               </div>
             </section>
 
