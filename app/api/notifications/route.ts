@@ -26,7 +26,15 @@ export async function GET(request: Request) {
     preferences.system ? "SYSTEM" : null,
   ].filter(Boolean) as Array<"LIKE"|"COMMENT"|"FOLLOW"|"FRIEND_REQUEST"|"FRIEND_ACCEPTED"|"MESSAGE"|"MENTION"|"SHARE"|"SYSTEM">;
 
-  const before = new URL(request.url).searchParams.get("before");
+  const params = new URL(request.url).searchParams;
+  if (params.get("countOnly") === "true") {
+    const unreadCount = await prisma.notification.count({
+      where: { userId: session.user.id, readAt: null, type: { in: enabledTypes } },
+    });
+    return NextResponse.json({ unreadCount });
+  }
+
+  const before = params.get("before");
   let cursor: { createdAt: Date; id: string } | null = null;
   if (before) {
     try {
