@@ -253,6 +253,7 @@ type ProfileData = {
   role: "USER" | "MODERATOR" | "ADMIN";
   createdAt: string;
   _count: { posts: number; followers: number; following: number };
+  visibleCounts?: { posts: number; followers: number; following: number };
 };
 
 function Profile({ username = "firdous" }: { username?: string }) {
