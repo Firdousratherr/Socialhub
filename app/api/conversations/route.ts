@@ -12,15 +12,25 @@ const memberSelect = {
   userId: true,
   role: true,
   lastReadAt: true,
+  mutedUntil: true,
+  archivedAt: true,
   user: { select: { id: true, name: true, username: true, image: true } },
 } as const;
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
+  const includeArchived = new URL(request.url).searchParams.get("includeArchived") === "true";
   const conversations = await prisma.conversation.findMany({
-    where: { members: { some: { userId: session.user.id } } },
+    where: {
+      members: {
+        some: {
+          userId: session.user.id,
+          ...(includeArchived ? {} : { archivedAt: null }),
+        },
+      },
+    },
     orderBy: { updatedAt: "desc" },
     include: {
       members: { select: memberSelect },
