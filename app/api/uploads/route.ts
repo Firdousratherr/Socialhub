@@ -4,7 +4,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
+const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm"]);
 
 function matches(bytes: Uint8Array, signature: number[], offset = 0) {
   return signature.every((value, index) => bytes[offset + index] === value);
@@ -22,6 +23,12 @@ function detectImageType(bytes: Uint8Array) {
   return null;
 }
 
+function detectVideoType(bytes: Uint8Array) {
+  if (bytes.length >= 12 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) return "video/mp4";
+  if (bytes.length >= 4 && matches(bytes, [0x1a, 0x45, 0xdf, 0xa3])) return "video/webm";
+  return null;
+}
+
 function extensionFor(type: string) {
   return type.split("/")[1] === "jpeg" ? "jpg" : type.split("/")[1];
 }
@@ -36,19 +43,20 @@ export async function POST(request: Request) {
   const file = formData?.get("file");
 
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: "Choose an image file." }, { status: 400 });
+    return NextResponse.json({ error: "Choose a supported image or video file." }, { status: 400 });
   }
 
   if (!ALLOWED_TYPES.has(file.type)) {
-    return NextResponse.json({ error: "Only JPG, PNG, WebP, and GIF images are supported." }, { status: 415 });
+    return NextResponse.json({ error: "Only JPG, PNG, WebP, GIF, MP4, and WebM files are supported." }, { status: 415 });
   }
 
-  if (file.size > MAX_IMAGE_BYTES) {
-    return NextResponse.json({ error: "Image must be 4 MB or smaller." }, { status: 413 });
+  const isVideo = file.type.startsWith("video/");
+  if (file.size > (isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES)) {
+    return NextResponse.json({ error: isVideo ? "Video must be 20 MB or smaller." : "Image must be 4 MB or smaller." }, { status: 413 });
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const detectedType = detectImageType(bytes);
+  const detectedType = isVideo ? detectVideoType(bytes) : detectImageType(bytes);
   if (!detectedType || detectedType !== file.type) {
     return NextResponse.json({ error: "The file contents do not match the declared image type." }, { status: 415 });
   }
