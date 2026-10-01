@@ -467,6 +467,22 @@ function Profile({ username = "firdous" }: { username?: string }) {
     setFollowing(Boolean(json.following));
   }
 
+  async function startMessage() {
+    if (!profile || isOwner || !session?.user) return;
+    try {
+      const response = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberIds: [profile.id], isGroup: false }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not start a conversation.");
+      window.location.href = "/messages?conversation=" + encodeURIComponent(json.conversation.id);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not start a conversation.");
+    }
+  }
+
   async function reportUser() {
     if (!profile || isOwner) return;
     const reason = window.prompt("Why are you reporting this profile?", "Spam or misleading profile");
@@ -662,7 +678,7 @@ type ConversationData = {
   messages: Array<{ id: string; senderId: string; content: string; createdAt: string }>;
 };
 
-function Messages() {
+function Messages({ initialConversationId }: { initialConversationId?: string }) {
   const { data: session } = authClient.useSession();
   const [conversations, setConversations] = useState<ConversationData[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -694,7 +710,10 @@ function Messages() {
         if (cancelled) return;
         const next = json.conversations as ConversationData[];
         setConversations(next);
-        setActiveId((current) => current && next.some((conversation) => conversation.id === current) ? current : next[0]?.id ?? null);
+        setActiveId((current) => {
+            if (initialConversationId && next.some((conversation) => conversation.id === initialConversationId)) return initialConversationId;
+            return current && next.some((conversation) => conversation.id === current) ? current : next[0]?.id ?? null;
+          });
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load conversations.");
       } finally {
@@ -706,7 +725,7 @@ function Messages() {
     return () => {
       cancelled = true;
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, initialConversationId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -722,6 +741,15 @@ function Messages() {
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not load messages.");
         if (!cancelled) setMessages(json.messages as ChatMessage[]);
+        void fetch(`/api/conversations/${activeId}/messages`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "read" }),
+        }).then(() => {
+          if (!cancelled) setConversations((current) => current.map((conversation) =>
+            conversation.id === activeId ? { ...conversation, unreadCount: 0 } : conversation
+          ));
+        }).catch(() => {});
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load messages.");
       }
@@ -779,7 +807,7 @@ function Messages() {
 
     <div className="grid min-h-[620px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:grid-cols-[330px_1fr]">
       <aside className="border-b border-gray-100 lg:border-b-0 lg:border-r">
-        <div className="flex items-center justify-between border-b border-gray-100 p-4"><h2 className="text-sm font-black">Inbox</h2><button className="social-icon-button"><Pencil size={17}/></button></div>
+        <div className="flex items-center justify-between border-b border-gray-100 p-4"><h2 className="text-sm font-black">Inbox</h2><button type="button" onClick={() => { window.location.href = "/discover"; }} className="social-icon-button" aria-label="Start a new message"><Pencil size={17}/></button></div>
         <label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages" aria-label="Search messages"/></label>
 
         <div className="space-y-1 p-2">
@@ -808,7 +836,7 @@ function Messages() {
         <div className="flex items-center gap-3 border-b border-gray-100 p-4">
           <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} />
           <div className="flex-1"><p className="text-sm font-black">{activeName}</p><p className="text-[11px] text-gray-400">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
-          <button className="social-icon-button"><Search size={17}/></button><button className="social-icon-button"><MoreHorizontal size={18}/></button>
+          <button type="button" onClick={() => setMessageSearch("")} className="social-icon-button" aria-label="Clear message search"><Search size={17}/></button><button type="button" onClick={() => setError(active ? "Conversation options will be available here as messaging settings ship." : "Select a conversation first.")} className="social-icon-button" aria-label="Conversation options"><MoreHorizontal size={18}/></button>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
@@ -1405,7 +1433,7 @@ export function SocialPages({ screen }: { screen: Screen }) {
   if (screen.kind==="login") return <Auth/>;
   if (screen.kind==="signup") return <Auth signup/>;
   if (screen.kind==="profile") return <Profile username={screen.username}/>;
-  if (screen.kind==="messages") return <Messages/>;
+  if (screen.kind==="messages") return <Messages initialConversationId={screen.search}/>;
   if (screen.kind==="discover") return <Discover/>;
   if (screen.kind==="friends") return <Friends/>;
   if (screen.kind==="notifications") return <Notifications/>;
