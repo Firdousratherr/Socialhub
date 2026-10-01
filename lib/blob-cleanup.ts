@@ -11,7 +11,7 @@ function isManagedBlob(value: string | null | undefined) {
 
 export async function safeDeleteBlob(value: string | null | undefined) {
   if (!isManagedBlob(value)) return;
-  const blobUrl = value;
+  const blobUrl = value as string;
   try {
     await del(blobUrl);
   } catch (error) {
