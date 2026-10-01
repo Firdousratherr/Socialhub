@@ -558,7 +558,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
               <article key={post.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
                 <div className="flex items-center gap-3">
                   {profile?.image ? <img src={profile.image} alt="" className="size-9 rounded-full object-cover" /> : <Avatar initials={initials} size="sm" />}
-                  <div><p className="text-xs font-black">{displayName}</p><p className="text-[11px] text-gray-400">{timeLabel(post.createdAt)}</p></div>
+                  <div><p className="text-xs font-black">{displayName}</p><p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p></div>
                 </div>
                 {post.content ? <p className="mt-3 text-sm leading-6 text-gray-600">{post.content}</p> : null}
                 {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
