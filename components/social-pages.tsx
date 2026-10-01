@@ -91,12 +91,6 @@ function Auth({ signup = false }: { signup?: boolean }) {
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState("");
-  const [newConversationOpen, setNewConversationOpen] = useState(false);
-  const [userQuery, setUserQuery] = useState("");
-  const [people, setPeople] = useState<Array<{ id: string; name: string; username: string | null; image: string | null }>>([]);
-  const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
-  const attachmentRef = useRef<HTMLInputElement | null>(null);
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"form" | "verify-signup" | "forgot" | "forgot-verify">("form");
@@ -741,6 +735,12 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [newConversationOpen, setNewConversationOpen] = useState(false);
+  const [userQuery, setUserQuery] = useState("");
+  const [people, setPeople] = useState<Array<{ id: string; name: string; username: string | null; image: string | null }>>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const attachmentRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
