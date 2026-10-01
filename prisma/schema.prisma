@@ -1,0 +1,358 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum PostVisibility {
+  PUBLIC
+  FRIENDS
+  PRIVATE
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum ConversationRole {
+  MEMBER
+  ADMIN
+}
+
+enum NotificationType {
+  LIKE
+  COMMENT
+  FOLLOW
+  FRIEND_REQUEST
+  FRIEND_ACCEPTED
+  MESSAGE
+  MENTION
+  SHARE
+  SYSTEM
+}
+
+enum StoryAudience {
+  PUBLIC
+  FRIENDS
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+
+  username      String?   @unique
+  bio           String?
+  coverImage    String?
+  website       String?
+  location      String?
+  role          UserRole  @default(USER)
+  isPrivate     Boolean   @default(false)
+  isActive      Boolean   @default(true)
+
+  sessions      Session[]
+  accounts      Account[]
+
+  posts         Post[]
+  comments      Comment[]
+  likes         Like[]
+  followers     Follow[]          @relation("UserFollowers")
+  following     Follow[]          @relation("UserFollowing")
+  sentMessages  Message[]         @relation("MessageSender")
+  memberships   ConversationMember[]
+  notifications Notification[]    @relation("NotificationRecipient")
+  actedNotifications Notification[] @relation("NotificationActor")
+  stories       Story[]
+  savedPosts    SavedPost[]
+  sentFriendRequests FriendRequest[] @relation("FriendRequestSender")
+  receivedFriendRequests FriendRequest[] @relation("FriendRequestReceiver")
+  filedReports  Report[]           @relation("ReportReporter")
+  reportedIn    Report[]           @relation("ReportTargetUser")
+  resolvedReports Report[]         @relation("ReportResolver")
+  blockedUsers  Block[]            @relation("Blocker")
+  blockedBy     Block[]            @relation("Blocked")
+
+  @@index([createdAt])
+  @@index([role])
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String   @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model Post {
+  id         String         @id @default(cuid())
+  authorId   String
+  content    String?
+  mediaUrl   String?
+  visibility PostVisibility @default(PUBLIC)
+  shareCount Int            @default(0)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments   Comment[]
+  likes      Like[]
+  savedBy    SavedPost[]
+  notifications Notification[]
+  reports    Report[]
+
+  @@index([authorId, createdAt])
+  @@index([visibility, createdAt])
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  postId    String
+  authorId  String
+  parentId  String?
+  content   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  notifications Notification[]
+  reports   Report[]
+
+  @@index([postId, createdAt])
+  @@index([authorId, createdAt])
+  @@index([parentId])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+}
+
+model Follow {
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower   User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following  User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId, createdAt])
+}
+
+model FriendRequest {
+  id          String           @id @default(cuid())
+  senderId    String
+  receiverId  String
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  sender      User @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User @relation("FriendRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId, status])
+  @@index([senderId, status])
+}
+
+model Conversation {
+  id        String                 @id @default(cuid())
+  title     String?
+  isGroup   Boolean                @default(false)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  members   ConversationMember[]
+  messages  Message[]
+
+  @@index([updatedAt])
+}
+
+model ConversationMember {
+  id             String             @id @default(cuid())
+  conversationId String
+  userId         String
+  role           ConversationRole   @default(MEMBER)
+  joinedAt       DateTime           @default(now())
+  lastReadAt     DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId, lastReadAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+  createdAt      DateTime     @default(now())
+  editedAt       DateTime?
+  deletedAt      DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([conversationId, createdAt])
+  @@index([senderId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  actorId   String?
+  type      NotificationType
+  postId    String?
+  commentId String?
+  messageId String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user      User        @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor     User?       @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  post      Post?       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment   Comment?    @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  message   Message?    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model Story {
+  id         String         @id @default(cuid())
+  authorId   String
+  mediaUrl   String
+  caption    String?
+  audience   StoryAudience  @default(PUBLIC)
+  expiresAt  DateTime
+  createdAt  DateTime       @default(now())
+
+  author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId, expiresAt])
+  @@index([expiresAt])
+}
+
+model SavedPost {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId, createdAt])
+}
+
+model Report {
+  id             String       @id @default(cuid())
+  reporterId     String
+  postId         String?
+  commentId      String?
+  reportedUserId String?
+  reason         String
+  status         ReportStatus @default(PENDING)
+  createdAt      DateTime     @default(now())
+  resolvedAt     DateTime?
+  resolvedById   String?
+
+  reporter     User      @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  post         Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment      Comment?  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  reportedUser User?     @relation("ReportTargetUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  resolvedBy   User?     @relation("ReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([reporterId])
+  @@index([reportedUserId])
+}
+
+model Block {
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+}
