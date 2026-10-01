@@ -8,8 +8,11 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") ?? "").trim();
+  const before = url.searchParams.get("before");
+  const take = Math.min(Math.max(Number(url.searchParams.get("take") ?? 50), 1), 100);
   const users = await prisma.user.findMany({
     where: {
+      ...(before ? { createdAt: { lt: new Date(before) } } : {}),
       ...(q ? {
         OR: [
           { name: { contains: q, mode: "insensitive" } },
@@ -18,8 +21,8 @@ export async function GET(request: Request) {
         ],
       } : {}),
     },
-    orderBy: { createdAt: "desc" },
-    take: 100,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take,
     select: {
       id: true,
       name: true,
@@ -33,5 +36,5 @@ export async function GET(request: Request) {
     },
   });
 
-  return NextResponse.json({ users });
+  return NextResponse.json({ users, nextBefore: users.length === take ? users.at(-1)?.createdAt.toISOString() ?? null : null });
 }

@@ -49,6 +49,8 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [usersBefore, setUsersBefore] = useState<string | null>(null);
+  const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
 
   useEffect(() => setActive(normalize(section)), [section]);
   useEffect(() => {
@@ -62,15 +64,31 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
           if (!cancelled) setDashboard(json);
         }
         if (active === "users") {
-          const response = await fetch("/api/admin/users?take=100&q=" + encodeURIComponent(query), { cache: "no-store" });
+          const response = await fetch("/api/admin/users?take=50&q=" + encodeURIComponent(query), { cache: "no-store" });
           const json = await response.json(); if (!response.ok) throw new Error(json.error ?? "Could not load users.");
-          if (!cancelled) setUsers(json.users ?? []);
+          if (!cancelled) { setUsers(json.users ?? []); setUsersBefore(json.nextBefore ?? null); }
         }
       } catch (error) { if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not load admin data."); }
       finally { if (!cancelled) setLoading(false); }
     }
     void load(); return () => { cancelled = true; };
   }, [active, query]);
+
+  async function loadMoreUsers() {
+    if (!usersBefore || loadingMoreUsers) return;
+    setLoadingMoreUsers(true);
+    try {
+      const response = await fetch("/api/admin/users?take=50&q=" + encodeURIComponent(query) + "&before=" + encodeURIComponent(usersBefore), { cache: "no-store" });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error ?? "Could not load more users.");
+      setUsers((items) => [...items, ...(json.users ?? [])]);
+      setUsersBefore(json.nextBefore ?? null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load more users.");
+    } finally {
+      setLoadingMoreUsers(false);
+    }
+  }
 
   async function openUser(id: string) {
     setSelectedId(id); setMessage("");
@@ -117,7 +135,7 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
             {active === "moderation" ? <ModerationQueue onMessage={setMessage}/> : null}
             {active === "content" ? <ContentManager onMessage={setMessage}/> : null}
             {active === "user360" ? <AdminInspection/> : null}
-            {active === "users" && !selectedId ? <><Card><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><div><h2 className="text-sm font-black">User management</h2><p className="mt-1 text-xs text-gray-400">Search, inspect and manage real Socialhub accounts.</p></div><div className="relative sm:ml-auto"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, username or email" className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-xs outline-none focus:border-[#a79dff] sm:w-80"/></div></div></Card><Card className="!p-0 overflow-hidden"><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-gray-50 text-[10px] font-black uppercase tracking-[.12em] text-gray-400"><tr><th className="px-5 py-3">User</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Posts</th><th className="px-5 py-3">Followers</th><th className="px-5 py-3">Status</th><th className="px-5 py-3"></th></tr></thead><tbody>{loading ? <tr><td colSpan={6} className="p-8 text-center text-gray-400">Loading users…</td></tr> : users.map((user) => <tr key={user.id} className="border-t border-gray-100"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-xs font-black text-white">{initials(user.name)}</span><div><p className="font-black">{user.name}</p><p className="mt-0.5 text-[11px] text-gray-400">@{user.username ?? "member"} · {user.email}</p></div></div></td><td className="px-5 py-4"><span className="rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-600">{user.role}</span></td><td className="px-5 py-4 text-gray-500">{user._count.posts}</td><td className="px-5 py-4 text-gray-500">{user._count.followers}</td><td className="px-5 py-4">{user.isActive ? <span className="text-emerald-600">Active</span> : <span className="text-red-600">Disabled</span>}</td><td className="px-5 py-4"><button onClick={() => void openUser(user.id)} className="rounded-xl bg-gray-950 px-3 py-2 text-[10px] font-black text-white">Open</button></td></tr>)}{!loading && users.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-xs text-gray-400">No users match this search.</td></tr> : null}</tbody></table></div></Card></> : null}
+            {active === "users" && !selectedId ? <><Card><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><div><h2 className="text-sm font-black">User management</h2><p className="mt-1 text-xs text-gray-400">Search, inspect and manage real Socialhub accounts.</p></div><div className="relative sm:ml-auto"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, username or email" className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-xs outline-none focus:border-[#a79dff] sm:w-80"/></div></div></Card><Card className="!p-0 overflow-hidden"><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-gray-50 text-[10px] font-black uppercase tracking-[.12em] text-gray-400"><tr><th className="px-5 py-3">User</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Posts</th><th className="px-5 py-3">Followers</th><th className="px-5 py-3">Status</th><th className="px-5 py-3"></th></tr></thead><tbody>{loading ? <tr><td colSpan={6} className="p-8 text-center text-gray-400">Loading users…</td></tr> : users.map((user) => <tr key={user.id} className="border-t border-gray-100"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-xs font-black text-white">{initials(user.name)}</span><div><p className="font-black">{user.name}</p><p className="mt-0.5 text-[11px] text-gray-400">@{user.username ?? "member"} · {user.email}</p></div></div></td><td className="px-5 py-4"><span className="rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-600">{user.role}</span></td><td className="px-5 py-4 text-gray-500">{user._count.posts}</td><td className="px-5 py-4 text-gray-500">{user._count.followers}</td><td className="px-5 py-4">{user.isActive ? <span className="text-emerald-600">Active</span> : <span className="text-red-600">Disabled</span>}</td><td className="px-5 py-4"><button onClick={() => void openUser(user.id)} className="rounded-xl bg-gray-950 px-3 py-2 text-[10px] font-black text-white">Open</button></td></tr>)}{!loading && users.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-xs text-gray-400">No users match this search.</td></tr> : null}</tbody></table></div>{usersBefore ? <div className="border-t border-gray-100 p-4 text-center"><button type="button" onClick={() => void loadMoreUsers()} disabled={loadingMoreUsers} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[11px] font-black text-gray-700 disabled:opacity-40">{loadingMoreUsers ? "Loading…" : "Load more users"}</button></div> : null}</Card></> : null}
             {active === "users" && selectedId && selected ? <UserEditor user={selected} details={selectedDetails} onBack={() => { setSelectedId(""); setSelected(null); setSelectedDetails(null); }} onSaveUser={saveUser}/> : null}
           </section>
         </div>
