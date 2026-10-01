@@ -1351,6 +1351,8 @@ type NotificationData = {
 function Notifications() {
   const { data: session } = authClient.useSession();
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
+  const [nextNotificationCursor, setNextNotificationCursor] = useState<string | null>(null);
+  const [loadingOlderNotifications, setLoadingOlderNotifications] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -1367,7 +1369,7 @@ function Notifications() {
         const response = await fetch("/api/notifications", { cache: "no-store" });
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not load notifications.");
-        if (!cancelled) setNotifications(json.notifications as NotificationData[]);
+        if (!cancelled) { setNotifications(json.notifications as NotificationData[]); setNextNotificationCursor(json.nextBefore ?? null); }
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load notifications.");
       } finally {
@@ -1379,6 +1381,22 @@ function Notifications() {
       cancelled = true;
     };
   }, [session?.user?.id]);
+
+  async function loadOlderNotifications() {
+    if (!nextNotificationCursor || loadingOlderNotifications) return;
+    setLoadingOlderNotifications(true);
+    try {
+      const response = await fetch("/api/notifications?before=" + encodeURIComponent(nextNotificationCursor), { cache: "no-store" });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error ?? "Could not load older notifications.");
+      setNotifications((current) => [...current, ...(json.notifications as NotificationData[])]);
+      setNextNotificationCursor(json.nextBefore ?? null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not load older notifications.");
+    } finally {
+      setLoadingOlderNotifications(false);
+    }
+  }
 
   async function markAllRead() {
     if (!session?.user) return;
@@ -1437,14 +1455,17 @@ function Notifications() {
     <Card className="!p-0 overflow-hidden">
       <div className="flex items-center justify-between border-b border-gray-100 p-5"><h2 className="text-sm font-black">Recent activity</h2><button onClick={markAllRead} disabled={!session?.user} className="text-xs font-bold text-[#5a4be8] disabled:opacity-40">Mark all as read</button></div>
       {loading && session?.user ? <div className="space-y-2 p-5">{[1,2,3].map((i)=><div key={i} className="flex gap-3 p-3"><span className="size-10 animate-pulse rounded-2xl bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 w-2/3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-1/3 animate-pulse rounded bg-gray-100"/></div></div>)}</div> : null}
-      {notifications.length > 0 ? notifications.map((item) => {
+      {notifications.length > 0 ? <>
+        {notifications.map((item) => {
         const Icon = iconFor(item.type);
         return <button key={item.id} onClick={() => void openNotification(item)} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
           <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(item.type)}`}><Icon size={17}/></span>
           <span className="flex-1"><span className="block text-sm font-bold">{item.actor?.name ?? "Socialhub"} {item.type === "LIKE" ? "liked your post." : item.type === "FOLLOW" ? "started following you." : item.type === "COMMENT" ? "commented on your post." : item.type === "FRIEND_REQUEST" ? "sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? "accepted your friend request." : item.type === "MESSAGE" ? "sent you a message." : item.type === "MENTION" ? "mentioned you." : "interacted with your content."}</span><span className="mt-1 block text-xs text-gray-400">{new Date(item.createdAt).toLocaleString()}</span></span>
           {!item.readAt ? <span className="mt-2 size-2 shrink-0 rounded-full bg-[#6d5dfc]"/> : null}
         </button>;
-      }) : !loading ? (
+        })}
+        {nextNotificationCursor ? <div className="border-t border-gray-100 p-4 text-center"><button type="button" onClick={() => void loadOlderNotifications()} disabled={loadingOlderNotifications} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-[10px] font-black text-gray-600 disabled:opacity-50">{loadingOlderNotifications ? "Loading older notifications…" : "Load older notifications"}</button></div> : null}
+      </> : !loading ? (
         session?.user ? (
           <div className="p-10 text-center">
             <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Bell size={20}/></span>
