@@ -211,12 +211,12 @@ export default function HomeFeed() {
             </button>
             <Link href="/messages" className="social-icon-button" aria-label="Messages">
               <MessageCircle size={19} />
-            </button>
-            <button className="social-icon-button relative" aria-label="Notifications">
+            </Link>
+            <Link href="/notifications" className="social-icon-button relative" aria-label="Notifications">
               <Bell size={19} />
               <span className="absolute right-2 top-2 size-2 rounded-full bg-[#6d5dfc] ring-2 ring-white" />
-            </button>
-            <Avatar initials="FR" />
+            </Link>
+            <Link href="/profile/firdous"><Avatar initials="FR" /></Link>
             <button className="social-icon-button md:hidden" aria-label="Menu">
               <Menu size={19} />
             </button>
