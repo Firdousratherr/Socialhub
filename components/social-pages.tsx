@@ -6,6 +6,7 @@ import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
+import { MobileMenu } from "@/components/mobile-menu";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
@@ -34,11 +35,54 @@ function Avatar({ initials, color = colors[0], size = "md" }: { initials: string
   return <div className={`grid shrink-0 place-items-center rounded-full bg-gradient-to-br ${color} ${sizes[size]} font-black text-white shadow-sm`}>{initials}</div>;
 }
 
-function Page({ eyebrow, title, subtitle, action, children }: { eyebrow?: string; title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode }) {
-  return <main className="min-h-screen pb-8"><div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 lg:px-8">
-    <div className="mb-7 flex items-end justify-between gap-4"><div>{eyebrow && <p className="text-xs font-black uppercase tracking-[0.16em] text-[#6d5dfc]">{eyebrow}</p>}<h1 className="mt-1 text-3xl font-black tracking-[-0.045em] text-gray-950 sm:text-4xl">{title}</h1>{subtitle && <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">{subtitle}</p>}</div>{action}</div>
-    {children}
-  </div></main>;
+function Page({
+  eyebrow,
+  title,
+  subtitle,
+  action,
+  fallbackHref = "/home",
+  children,
+}: {
+  eyebrow?: string;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+  fallbackHref?: string;
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+
+  function goBack() {
+    if (window.history.length > 1 && document.referrer.startsWith(window.location.origin)) {
+      router.back();
+      return;
+    }
+    router.push(fallbackHref);
+  }
+
+  return (
+    <main className="min-h-screen pb-8">
+      <div className="mx-auto max-w-[1100px] px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <button type="button" onClick={goBack} className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50" aria-label="Go back">
+              <ArrowLeft size={18} />
+            </button>
+            <div className="min-w-0">
+              {eyebrow ? <p className="text-xs font-black uppercase tracking-[0.16em] text-[#6d5dfc]">{eyebrow}</p> : null}
+              <h1 className="mt-1 text-3xl font-black tracking-[-0.045em] text-gray-950 sm:text-4xl">{title}</h1>
+              {subtitle ? <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">{subtitle}</p> : null}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {action}
+            <MobileMenu />
+          </div>
+        </div>
+        {children}
+      </div>
+    </main>
+  );
 }
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -622,16 +666,10 @@ function Messages() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [messageSearch, setMessageSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-
-  const sampleChats = [
-    { initials: "MC", name: "Maya Chen", preview: "That sounds great. Send me the draft when you can.", time: "9:42", unread: 2 },
-    { initials: "AM", name: "Arjun Mehta", preview: "The weekend plan still on?", time: "8:18", unread: 0 },
-    { initials: "SM", name: "Sara Malik", preview: "Loved the photos ✨", time: "Yesterday", unread: 0 },
-    { initials: "DC", name: "Design Crew", preview: "Nora: I pushed the latest concept.", time: "Mon", unread: 7 },
-  ];
 
   useEffect(() => {
     let cancelled = false;
@@ -693,6 +731,15 @@ function Messages() {
     };
   }, [activeId, session?.user?.id]);
 
+  const filteredConversations = conversations.filter((conversation) => {
+    const other = conversation.members.find((member) => member.userId !== session?.user?.id)?.user;
+    const haystack = [conversation.title, other?.name, other?.username, ...conversation.messages.map((message) => message.content)]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(messageSearch.trim().toLowerCase());
+  });
+
   const active = conversations.find((conversation) => conversation.id === activeId) ?? null;
   const activeMember = active?.members.find((member) => member.userId !== session?.user?.id)?.user;
   const activeName = active?.title ?? activeMember?.name ?? "Messages";
@@ -731,12 +778,12 @@ function Messages() {
     <div className="grid min-h-[620px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:grid-cols-[330px_1fr]">
       <aside className="border-b border-gray-100 lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between border-b border-gray-100 p-4"><h2 className="text-sm font-black">Inbox</h2><button className="social-icon-button"><Pencil size={17}/></button></div>
-        <label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages"/></label>
+        <label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages" aria-label="Search messages"/></label>
 
         <div className="space-y-1 p-2">
           {loading && session?.user ? (
             [1,2,3].map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl p-3"><span className="size-10 animate-pulse rounded-full bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-2/3 animate-pulse rounded bg-gray-100"/></div></div>)
-          ) : conversations.length > 0 ? conversations.map((conversation, i) => {
+          ) : filteredConversations.length > 0 ? filteredConversations.map((conversation, i) => {
             const other = conversation.members.find((member) => member.userId !== session?.user?.id)?.user;
             const name = conversation.title ?? other?.name ?? "Conversation";
             const preview = conversation.messages[0]?.content ?? "No messages yet";
@@ -745,12 +792,12 @@ function Messages() {
               <div className="min-w-0 flex-1"><p className="truncate text-xs font-black">{name}</p><p className="mt-1 truncate text-[11px] text-gray-400">{preview}</p></div>
             </button>;
           }) : (
-            sampleChats.map((chat, i) => <div key={chat.name} className="flex items-center gap-3 rounded-2xl p-3">
-              <Avatar initials={chat.initials} color={colors[i%colors.length]}/>
-              <div className="min-w-0 flex-1"><div className="flex justify-between gap-2"><p className="truncate text-xs font-black">{chat.name}</p><span className="text-[10px] text-gray-400">{chat.time}</span></div><p className="mt-1 truncate text-[11px] text-gray-400">{chat.preview}</p></div>
-              {chat.unread ? <span className="grid size-5 place-items-center rounded-full bg-[#6d5dfc] text-[9px] font-black text-white">{chat.unread}</span> : null}
-            </div>)
-          )}
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-7 text-center">
+              <MessageCircle className="mx-auto text-gray-300" size={22}/>
+              <p className="mt-3 text-xs font-black text-gray-700">{messageSearch.trim() ? "No matching conversations" : "No conversations yet"}</p>
+              <p className="mt-1 text-[11px] leading-5 text-gray-400">{messageSearch.trim() ? "Try another name or message." : session?.user ? "Your real conversations will appear here." : "Sign in to see your conversations."}</p>
+            </div>
+                    )}
         </div>
       </aside>
 
@@ -1073,14 +1120,6 @@ function Notifications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const sampleItems = [
-    ["LIKE", "Maya Chen liked your post.", "18 minutes ago"],
-    ["FOLLOW", "Nora Patel started following you.", "42 minutes ago"],
-    ["MENTION", "Arjun Mehta mentioned you in a comment.", "1 hour ago"],
-    ["FRIEND_REQUEST", "You have 4 new friend requests.", "3 hours ago"],
-    ["MENTION", "Sara Malik mentioned you in #WeekendMoments.", "Yesterday"],
-  ];
-
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -1148,199 +1187,9 @@ function Notifications() {
         </button>;
       }) : !loading ? (
         session?.user ? <div className="p-10 text-center"><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Bell size={20}/></span><p className="mt-3 text-sm font-black">You’re all caught up.</p><p className="mt-1 text-xs text-gray-400">New likes, follows, comments, and requests will appear here.</p></div> :
-        <div className="space-y-1">{sampleItems.map(([type,title,time],i)=>{const Icon=iconFor(type as NotificationData["type"]);return <button key={title} className="flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50"><span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(type as NotificationData["type"])}`}><Icon size={17}/></span><span className="flex-1"><span className="block text-sm font-bold">{title}</span><span className="mt-1 block text-xs text-gray-400">{time}</span></span>{i<2?<span className="mt-2 size-2 rounded-full bg-[#6d5dfc]"/>:null}</button>})}</div>
-      ) : null}
-    </Card>
-  </Page>;
-}
-function SettingsPage() {
-  const router = useRouter();
-  const { data: session } = authClient.useSession();
-  const [privateAccount, setPrivate] = useState(false);
-  const [activity, setActivity] = useState(true);
-  const [push, setPush] = useState(true);
-  const [email, setEmail] = useState("Not loaded");
-  const [username, setUsername] = useState("Not loaded");
-  const [loading, setLoading] = useState(true);
-  const [savingPrivacy, setSavingPrivacy] = useState(false);
-  const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadProfile() {
-      if (!session?.user) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch("/api/profile", { cache: "no-store" });
-        const json = await response.json();
-        if (!response.ok) throw new Error(json.error ?? "Could not load account.");
-        if (!cancelled) {
-          setPrivate(Boolean(json.profile.isPrivate));
-          setEmail(json.profile.email);
-          setUsername(json.profile.username ? "@" + json.profile.username : "No username");
-        }
-      } catch (requestError) {
-        if (!cancelled) setMessage(requestError instanceof Error ? requestError.message : "Could not load account.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    void loadProfile();
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.user?.id]);
-
-  async function updatePrivacy(value: boolean) {
-    if (!session?.user || savingPrivacy) return;
-
-    setSavingPrivacy(true);
-    setMessage("");
-    try {
-      const response = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isPrivate: value }),
-      });
-      const json = await response.json();
-      if (!response.ok) throw new Error(json.error ?? "Could not update privacy.");
-      setPrivate(Boolean(json.profile.isPrivate));
-      setMessage("Privacy setting saved.");
-    } catch (requestError) {
-      setMessage(requestError instanceof Error ? requestError.message : "Could not update privacy.");
-    } finally {
-      setSavingPrivacy(false);
-    }
-  }
-
-  async function signOut() {
-    await authClient.signOut();
-    router.push("/login");
-    router.refresh();
-  }
-
-  async function deleteAccount() {
-    if (!session?.user) return;
-    const confirmed = window.confirm("Delete your Socialhub account permanently? This cannot be undone.");
-    if (!confirmed) return;
-
-    const response = await fetch("/api/profile", { method: "DELETE" });
-    if (response.ok) {
-      await authClient.signOut();
-      router.push("/");
-      router.refresh();
-    } else {
-      const json = await response.json().catch(() => ({}));
-      setMessage(json.error ?? "Could not delete account.");
-    }
-  }
-
-  const Toggle = ({ value, disabled, onChange }: { value: boolean; disabled?: boolean; onChange: (value: boolean) => void }) => (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => onChange(!value)}
-      className={"relative h-7 w-12 rounded-full p-1 transition " + (value ? "bg-[#6d5dfc]" : "bg-gray-200") + (disabled ? " cursor-not-allowed opacity-50" : "")}
-      aria-pressed={value}
-    >
-      <span className={"block size-5 rounded-full bg-white transition-transform " + (value ? "translate-x-5" : "")}/>
-    </button>
-  );
-
-  return <Page eyebrow="Settings" title="Make Socialhub yours" subtitle="Control account, privacy, notifications, and security from one place.">
-    {!session?.user ? (
-      <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-4 py-3 text-xs font-semibold text-[#5a4be8]">
-        <span>Sign in to save account settings.</span>
-        <Link href="/login" className="font-black underline">Sign in</Link>
-      </div>
-    ) : null}
-    {message ? <div role="status" className="mb-5 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-xs font-semibold text-gray-600">{message}</div> : null}
-
-    <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-      <Card className="h-fit !p-2">
-        {[[Settings,"General"],[Lock,"Privacy"],[Bell,"Notifications"],[Shield,"Security"],[CircleHelp,"Help"]].map(([Icon,label],i)=>
-          <button key={String(label)} className={"flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-xs font-black " + (i===0 ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500 hover:bg-gray-50")}>
-            <Icon size={16}/>{String(label)}
-          </button>
-        )}
-      </Card>
-
-      <div className="space-y-5">
-        <Card>
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-black">Account</h2>
-            {loading ? <span className="text-[10px] font-bold text-gray-400">Loading…</span> : null}
-          </div>
-          <div className="mt-4 space-y-3">
-            {[
-              ["Email address", email, Mail],
-              ["Username", username, AtSign],
-              ["Password", "Managed by your sign-in method", KeyRound],
-            ].map(([title, detail, Icon]) =>
-              <button key={String(title)} type="button" className="flex w-full items-center gap-3 rounded-2xl border border-gray-100 p-3 text-left hover:bg-gray-50">
-                <span className="grid size-9 place-items-center rounded-xl bg-gray-100 text-gray-500"><Icon size={16}/></span>
-                <span className="flex-1"><span className="block text-xs font-black">{String(title)}</span><span className="text-[11px] text-gray-400">{String(detail)}</span></span>
-                <ChevronRight size={16} className="text-gray-400"/>
-              </button>
-            )}
-          </div>
-        </Card>
-
-        <Card>
-          <h2 className="text-sm font-black">Privacy & presence</h2>
-          <div className="divide-y divide-gray-100">
-            <div className="flex items-center gap-4 py-4">
-              <div className="flex-1"><p className="text-sm font-bold">Private account</p><p className="text-xs text-gray-400">Only approved followers can see your posts.</p></div>
-              <Toggle value={privateAccount} disabled={!session?.user || savingPrivacy} onChange={(value)=>void updatePrivacy(value)}/>
-            </div>
-            <div className="flex items-center gap-4 py-4">
-              <div className="flex-1"><p className="text-sm font-bold">Activity status</p><p className="text-xs text-gray-400">Control whether people can see when you are active.</p></div>
-              <Toggle value={activity} onChange={setActivity}/>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-center gap-4">
-            <div className="flex-1"><p className="text-sm font-bold">Push notifications</p><p className="text-xs text-gray-400">Likes, comments, messages, and friend requests.</p></div>
-            <Toggle value={push} onChange={setPush}/>
-          </div>
-        </Card>
-
-        {session?.user ? (
-          <Card>
-            <h2 className="text-sm font-black">Session</h2>
-            <p className="mt-2 text-xs leading-5 text-gray-400">End the current session on this device.</p>
-            <button onClick={()=>void signOut()} className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-700 hover:bg-gray-50">Sign out</button>
-          </Card>
-        ) : null}
-
-        <div className="rounded-3xl border border-red-100 bg-red-50 p-5">
-          <div className="flex items-center gap-2 text-red-600"><Trash2 size={17}/><h2 className="text-sm font-black">Danger zone</h2></div>
-          <p className="mt-2 text-xs leading-5 text-red-500/75">Deleting your account permanently removes your profile, posts, messages, and social activity.</p>
-          <button onClick={()=>void deleteAccount()} disabled={!session?.user} className="mt-4 rounded-xl border border-red-200 bg-white px-3.5 py-2.5 text-xs font-black text-red-600 disabled:cursor-not-allowed disabled:opacity-50">Delete account</button>
+        <div className="p-10 text-center">
+          <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Bell size={20}/></span>
+          <p className="mt-3 text-sm font-black">Sign in to see your notifications</p>
+          <p className="mt-1 text-xs text-gray-400">Your real likes, follows, comments, messages, and requests will appear here.</p>
         </div>
-      </div>
-    </div>
-  </Page>;
-}
-function Admin({ section="overview" }: { section?: string }) {
-  return <AdminPanel section={section}/>;
-}
-export function SocialPages({ screen }: { screen: Screen }) {
-  if (screen.kind==="login") return <Auth/>;
-  if (screen.kind==="signup") return <Auth signup/>;
-  if (screen.kind==="profile") return <Profile username={screen.username}/>;
-  if (screen.kind==="messages") return <Messages/>;
-  if (screen.kind==="discover") return <Discover/>;
-  if (screen.kind==="friends") return <Friends/>;
-  if (screen.kind==="notifications") return <Notifications/>;
-  if (screen.kind==="settings") return <SettingsPage/>;
-  if (screen.kind==="admin") return <Admin section={screen.section}/>;
-  return <Page eyebrow="Socialhub" title="You're all caught up." subtitle="Use the main navigation to keep exploring the experience."><Card><div className="flex items-start gap-4"><span className="grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><Sparkles size={20}/></span><div><h2 className="font-black">This route is ready.</h2><p className="mt-2 text-sm text-gray-500">The screen shell is in place so real data can be connected without redesigning the interface.</p></div></div></Card></Page>;
-}
+
