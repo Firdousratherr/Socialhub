@@ -793,7 +793,7 @@ function Friends() {
 
     <div className="mb-5 flex gap-2 rounded-2xl border border-gray-200 bg-white p-1.5">
       {[["requests","Requests",String(requestCount)],["suggestions","Suggestions",String(suggestions.length)],["all","All friends",String(friends.length)]].map((item)=>
-        <button key={item[0]} onClick={()=>setTab(item[0])} className={\`flex-1 rounded-xl px-3 py-2.5 text-xs font-black \${tab===item[0] ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500"}\`}>
+        <button key={item[0]} onClick={()=>setTab(item[0])} className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-black ${tab===item[0] ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500"}`}>
           {item[1]} <span className="ml-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px]">{item[2]}</span>
         </button>
       )}
