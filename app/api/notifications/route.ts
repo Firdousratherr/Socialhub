@@ -8,8 +8,29 @@ export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
-  const notifications = await prisma.notification.findMany({
+  const preferences = await prisma.notificationPreference.upsert({
     where: { userId: session.user.id },
+    create: { userId: session.user.id },
+    update: {},
+  });
+
+  const enabledTypes = [
+    preferences.likes ? "LIKE" : null,
+    preferences.comments ? "COMMENT" : null,
+    preferences.follows ? "FOLLOW" : null,
+    preferences.friendRequests ? "FRIEND_REQUEST" : null,
+    preferences.friendAccepted ? "FRIEND_ACCEPTED" : null,
+    preferences.messages ? "MESSAGE" : null,
+    preferences.mentions ? "MENTION" : null,
+    preferences.shares ? "SHARE" : null,
+    preferences.system ? "SYSTEM" : null,
+  ].filter(Boolean) as Array<"LIKE"|"COMMENT"|"FOLLOW"|"FRIEND_REQUEST"|"FRIEND_ACCEPTED"|"MESSAGE"|"MENTION"|"SHARE"|"SYSTEM">;
+
+  const notifications = await prisma.notification.findMany({
+    where: {
+      userId: session.user.id,
+      ...(enabledTypes.length ? { type: { in: enabledTypes } } : { id: { in: [] } }),
+    },
     orderBy: { createdAt: "desc" },
     take: 100,
     include: {
