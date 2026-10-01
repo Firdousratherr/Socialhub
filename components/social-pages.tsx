@@ -51,212 +51,180 @@ function Auth({ signup = false }: { signup?: boolean }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<"form" | "verify-signup" | "forgot" | "forgot-verify">("form");
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (!cooldown) return;
+    const timer = window.setInterval(() => setCooldown((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldown]);
+
+  async function sendSignupOtp() {
+    if (!email.trim() || cooldown) return;
+    setLoading(true); setError("");
+    try {
+      const result = await authClient.emailOtp.sendVerificationOtp({ email: email.trim(), type: "email-verification" });
+      if (result.error) throw new Error(result.error.message || "Could not send a new verification code.");
+      setCooldown(30); setNotice("A fresh verification code has been sent.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not send a new verification code.");
+    } finally { setLoading(false); }
+  }
+
+  async function verifySignupOtp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (loading) return;
+    setLoading(true); setError(""); setNotice("");
+    try {
+      const result = await authClient.emailOtp.verifyEmail({ email: email.trim(), otp: otp.trim() });
+      if (result.error) throw new Error(result.error.message || "That code is invalid or expired.");
+      const signIn = await authClient.signIn.email({ email: email.trim(), password, callbackURL: "/home" });
+      if (signIn.error) throw new Error(signIn.error.message || "Email verified, but sign-in could not be completed.");
+      router.push("/home"); router.refresh();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Verification failed. Please try again.");
+    } finally { setLoading(false); }
+  }
+
+  async function requestPasswordReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (loading) return;
+    setLoading(true); setError(""); setNotice("");
+    try {
+      const result = await authClient.emailOtp.requestPasswordReset({ email: email.trim() });
+      if (result.error) throw new Error(result.error.message || "Could not start password recovery.");
+      setStep("forgot-verify"); setOtp(""); setCooldown(30);
+      setNotice("Check your email for a 6-digit password reset code.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not start password recovery.");
+    } finally { setLoading(false); }
+  }
+
+  async function resendPasswordReset() {
+    if (cooldown || loading) return;
+    setLoading(true); setError("");
+    try {
+      const result = await authClient.emailOtp.requestPasswordReset({ email: email.trim() });
+      if (result.error) throw new Error(result.error.message || "Could not send a new reset code.");
+      setCooldown(30); setNotice("A fresh reset code has been sent.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not send a new reset code.");
+    } finally { setLoading(false); }
+  }
+
+  async function resetPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (loading) return;
+    if (newPassword.length < 8) { setError("Use at least 8 characters for your new password."); return; }
+    setLoading(true); setError(""); setNotice("");
+    try {
+      const result = await authClient.emailOtp.resetPassword({ email: email.trim(), otp: otp.trim(), password: newPassword });
+      if (result.error) throw new Error(result.error.message || "That code is invalid or expired.");
+      setStep("form"); setPassword(""); setNewPassword(""); setOtp("");
+      setNotice("Password updated. You can now sign in with your new password.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not reset your password.");
+    } finally { setLoading(false); }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    setLoading(true);
-
+    event.preventDefault(); setError(""); setNotice(""); setLoading(true);
     try {
       const result = signup
-        ? await authClient.signUp.email({
-            name: name.trim(),
-            email: email.trim(),
-            password,
-            callbackURL: "/home",
-          })
-        : await authClient.signIn.email({
-            email: email.trim(),
-            password,
-            callbackURL: "/home",
-          });
-
-      if (result.error) {
-        setError(result.error.message || "Authentication failed. Please try again.");
+        ? await authClient.signUp.email({ name: name.trim(), email: email.trim(), password, callbackURL: "/home" })
+        : await authClient.signIn.email({ email: email.trim(), password, callbackURL: "/home" });
+      if (result.error) { setError(result.error.message || "Authentication failed. Please try again."); return; }
+      if (signup) {
+        setStep("verify-signup"); setOtp(""); setCooldown(30);
+        setNotice("We sent a 6-digit verification code to your email.");
         return;
       }
-
-      router.push("/home");
-      router.refresh();
+      router.push("/home"); router.refresh();
     } catch {
       setError("We could not reach the authentication service. Check your connection and try again.");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
+
+  function resetAuthView() {
+    setStep("form"); setError(""); setNotice(""); setOtp(""); setNewPassword(""); setCooldown(0);
+  }
+
+  const title = step === "verify-signup" ? "Verify your email."
+    : step === "forgot" ? "Recover your account."
+    : step === "forgot-verify" ? "Create a new password."
+    : signup ? "Join Socialhub today." : "Sign in to Socialhub.";
+  const subtitle = step === "verify-signup" ? "Enter the code we sent to " + email + "."
+    : step === "forgot" ? "We’ll send a secure 6-digit code to your email."
+    : step === "forgot-verify" ? "Enter the code from your email and choose a new password."
+    : signup ? "Build your profile and start finding your people." : "Pick up where you left off.";
 
   return (
     <main className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-6xl overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-2xl lg:grid-cols-[.9fr_1.1fr]">
         <section className="hidden bg-[radial-gradient(circle_at_top,#7d70ff,transparent_55%),linear-gradient(145deg,#171426,#30275d)] p-10 text-white lg:flex lg:flex-col lg:justify-between">
-          <Link href="/" className="flex items-center gap-3">
-            <span className="grid size-10 place-items-center rounded-2xl bg-white/10"><Sparkles size={18}/></span>
-            <span className="font-black">Socialhub</span>
-          </Link>
-          <div>
-            <p className="text-xs font-black uppercase tracking-[.18em] text-white/50">Connect. Share. Belong.</p>
-            <h1 className="mt-5 max-w-md text-5xl font-black leading-[.96] tracking-[-.055em]">A social space that feels like yours.</h1>
-            <p className="mt-6 max-w-md text-sm leading-7 text-white/65">Keep your people close, share the moments that matter, and discover conversations worth having.</p>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {[["12.4k","members"],["48k","posts"],["9.8k","daily chats"]].map(x=>
-              <div key={x[1]} className="rounded-2xl border border-white/10 bg-white/10 p-3">
-                <p className="font-black">{x[0]}</p>
-                <p className="text-[10px] text-white/50">{x[1]}</p>
-              </div>
-            )}
-          </div>
+          <Link href="/" className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-2xl bg-white/10"><Sparkles size={18}/></span><span className="font-black">Socialhub</span></Link>
+          <div><p className="text-xs font-black uppercase tracking-[.18em] text-white/50">Connect. Share. Belong.</p><h1 className="mt-5 max-w-md text-5xl font-black leading-[.96] tracking-[-.055em]">A social space that feels like yours.</h1><p className="mt-6 max-w-md text-sm leading-7 text-white/65">Keep your people close, share the moments that matter, and discover conversations worth having.</p></div>
+          <div className="grid grid-cols-3 gap-3">{[["12.4k","members"],["48k","posts"],["9.8k","daily chats"]].map(x=><div key={x[1]} className="rounded-2xl border border-white/10 bg-white/10 p-3"><p className="font-black">{x[0]}</p><p className="text-[10px] text-white/50">{x[1]}</p></div>)}</div>
         </section>
 
         <section className="flex items-center p-6 sm:p-10">
           <div className="mx-auto w-full max-w-md">
-            <div className="mb-7 flex items-center justify-between lg:hidden">
-              <Link href="/" className="flex items-center gap-2 font-black">
-                <span className="grid size-9 place-items-center rounded-xl bg-[#6d5dfc] text-white"><Sparkles size={17}/></span>
-                Socialhub
-              </Link>
-              <Link href="/" className="text-xs font-bold text-gray-500">Home</Link>
-            </div>
+            <div className="mb-7 flex items-center justify-between lg:hidden"><Link href="/" className="flex items-center gap-2 font-black"><span className="grid size-9 place-items-center rounded-xl bg-[#6d5dfc] text-white"><Sparkles size={17}/></span>Socialhub</Link><Link href="/" className="text-xs font-bold text-gray-500">Home</Link></div>
+            <p className="text-xs font-black uppercase tracking-[.16em] text-[#6d5dfc]">{step === "verify-signup" ? "Email verification" : step.startsWith("forgot") ? "Account recovery" : signup ? "Create your account" : "Welcome back"}</p>
+            <h2 className="mt-2 text-3xl font-black tracking-[-.045em]">{title}</h2><p className="mt-2 text-sm text-gray-500">{subtitle}</p>
 
-            <p className="text-xs font-black uppercase tracking-[.16em] text-[#6d5dfc]">{signup ? "Create your account" : "Welcome back"}</p>
-            <h2 className="mt-2 text-3xl font-black tracking-[-.045em]">{signup ? "Join Socialhub today." : "Sign in to Socialhub."}</h2>
-            <p className="mt-2 text-sm text-gray-500">{signup ? "Build your profile and start finding your people." : "Pick up where you left off."}</p>
-
-            <form onSubmit={handleSubmit} className="mt-7 space-y-4">
-              {signup && (
-                <label className="block">
-                  <span className="mb-2 block text-xs font-bold text-gray-600">Full name</span>
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    autoComplete="name"
-                    required
-                    className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10"
-                    placeholder="Firdous Rather"
-                  />
-                </label>
-              )}
-
-              <label className="block">
-                <span className="mb-2 block text-xs font-bold text-gray-600">Email</span>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                    required
-                    className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10"
-                    placeholder="you@example.com"
-                  />
-                </div>
-              </label>
-
-              {signup && (
-                <label className="block">
-                  <span className="mb-2 block text-xs font-bold text-gray-600">Username</span>
-                  <div className="relative">
-                    <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/>
-                    <input
-                      value={email.split("@")[0]}
-                      readOnly
-                      className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm text-gray-500 outline-none"
-                      aria-label="Username preview"
-                    />
-                  </div>
-                  <p className="mt-1.5 text-[10px] text-gray-400">We’ll start with your email name; you can change it from your profile.</p>
-                </label>
-              )}
-
-              <label className="block">
-                <span className="mb-2 block text-xs font-bold text-gray-600">Password</span>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/>
-                  <input
-                    type={show ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete={signup ? "new-password" : "current-password"}
-                    minLength={8}
-                    required
-                    className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-20 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10"
-                    placeholder="••••••••"
-                  />
-                  <button type="button" onClick={() => setShow(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-bold text-gray-500">
-                    {show ? "Hide" : "Show"}
-                  </button>
-                </div>
-              </label>
-
-              {!signup && (
-                <div className="flex items-center justify-between text-xs font-semibold text-gray-500">
-                  <label className="flex items-center gap-2">
-                    <input type="checkbox" className="accent-[#6d5dfc]"/>Remember me
-                  </label>
-                  <button type="button" className="font-black text-[#5a4be8]">Forgot password?</button>
-                </div>
-              )}
-
-              {error ? (
-                <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">
-                  {error}
-                </div>
-              ) : null}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gray-950 text-sm font-black text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <LogIn size={17}/>
-                {loading ? "Please wait…" : signup ? "Create account" : "Sign in"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  void (async () => {
-                    setError("");
-                    setLoading(true);
-                    try {
-                      const result = await authClient.signIn.social({
-                        provider: "google",
-                        callbackURL: "/home",
-                      });
-                      if (result.error) {
-                        setError(result.error.message || "Google sign-in failed. Please try again.");
-                        setLoading(false);
-                      }
-                    } catch {
-                      setError("We could not start Google sign-in. Please try again.");
-                      setLoading(false);
-                    }
-                  })();
-                }}
-                disabled={loading}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Globe2 size={17}/>
-                {loading ? "Connecting to Google…" : "Continue with Google"}
-              </button>
-            </form>
-
-            <p className="mt-7 text-center text-sm text-gray-500">
-              {signup ? (
-                <>Already have an account? <Link href="/login" className="font-black text-[#5a4be8]">Sign in</Link></>
-              ) : (
-                <>New to Socialhub? <Link href="/signup" className="font-black text-[#5a4be8]">Create an account</Link></>
-              )}
-            </p>
+            {step === "verify-signup" ? (
+              <form onSubmit={verifySignupOtp} className="mt-7 space-y-4">
+                <div className="rounded-3xl border border-[#ddd8ff] bg-[#f8f7ff] p-5 text-center"><div className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><Mail size={20}/></div><p className="mt-3 text-sm font-black text-gray-900">Check your inbox</p><p className="mt-1 text-xs leading-5 text-gray-500">The code is valid for 10 minutes and has a limited number of attempts.</p></div>
+                <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">6-digit code</span><input value={otp} onChange={(e)=>setOtp(e.target.value.replace(/\D/g,"").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} required className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-center text-2xl font-black tracking-[.45em] outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="000000"/></label>
+                {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">{error}</div> : null}
+                {notice ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-semibold leading-5 text-emerald-700">{notice}</div> : null}
+                <button type="submit" disabled={loading || otp.length !== 6} className="h-12 w-full rounded-2xl bg-gray-950 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{loading ? "Verifying…" : "Verify & continue"}</button>
+                <div className="flex items-center justify-between text-xs font-bold"><button type="button" onClick={()=>void sendSignupOtp()} disabled={loading || cooldown>0} className="text-[#5a4be8] disabled:text-gray-400">{cooldown>0 ? "Resend in " + cooldown + "s" : "Resend code"}</button><button type="button" onClick={resetAuthView} className="text-gray-500">Back</button></div>
+              </form>
+            ) : step === "forgot" ? (
+              <form onSubmit={requestPasswordReset} className="mt-7 space-y-4">
+                <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Account email</span><div className="relative"><Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/><input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} autoComplete="email" required className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="you@example.com"/></div></label>
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-xs leading-5 text-gray-500">We’ll send a 6-digit code that expires in 10 minutes. Never share your code with anyone.</div>
+                {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">{error}</div> : null}
+                <button type="submit" disabled={loading} className="h-12 w-full rounded-2xl bg-gray-950 text-sm font-black text-white disabled:opacity-50">{loading ? "Sending code…" : "Send reset code"}</button>
+                <button type="button" onClick={resetAuthView} className="w-full text-xs font-black text-gray-500">Back to sign in</button>
+              </form>
+            ) : step === "forgot-verify" ? (
+              <form onSubmit={resetPassword} className="mt-7 space-y-4">
+                <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">6-digit reset code</span><input value={otp} onChange={(e)=>setOtp(e.target.value.replace(/\D/g,"").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} required className="h-14 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-center text-2xl font-black tracking-[.45em] outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="000000"/></label>
+                <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">New password</span><input type="password" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} minLength={8} autoComplete="new-password" required className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="At least 8 characters"/></label>
+                {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">{error}</div> : null}
+                {notice ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-semibold leading-5 text-emerald-700">{notice}</div> : null}
+                <button type="submit" disabled={loading || otp.length !== 6} className="h-12 w-full rounded-2xl bg-gray-950 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{loading ? "Updating password…" : "Set new password"}</button>
+                <div className="flex items-center justify-between text-xs font-bold"><button type="button" onClick={()=>void resendPasswordReset()} disabled={loading || cooldown>0} className="text-[#5a4be8] disabled:text-gray-400">{cooldown>0 ? "Resend in " + cooldown + "s" : "Send a new code"}</button><button type="button" onClick={()=>setStep("forgot")} className="text-gray-500">Change email</button></div>
+              </form>
+            ) : (
+              <>
+                <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+                  {signup && <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Full name</span><input value={name} onChange={(e)=>setName(e.target.value)} autoComplete="name" required className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Your name"/></label>}
+                  <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Email</span><div className="relative"><Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/><input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} autoComplete="email" required className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="you@example.com"/></div></label>
+                  {signup && <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3 text-[11px] leading-5 text-gray-500"><span className="font-black text-gray-700">Username:</span> @{email.split("@")[0] || "yourname"} · You can change it from your profile.</div>}
+                  <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Password</span><div className="relative"><Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/><input type={show ? "text" : "password"} value={password} onChange={(e)=>setPassword(e.target.value)} autoComplete={signup ? "new-password" : "current-password"} minLength={8} required className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-20 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="••••••••"/><button type="button" onClick={()=>setShow(v=>!v)} className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-bold text-gray-500">{show ? "Hide" : "Show"}</button></div></label>
+                  {!signup && <div className="flex items-center justify-between text-xs font-semibold text-gray-500"><label className="flex items-center gap-2"><input type="checkbox" className="accent-[#6d5dfc]"/>Remember me</label><button type="button" onClick={()=>{setError("");setNotice("");setStep("forgot");}} className="font-black text-[#5a4be8]">Forgot password?</button></div>}
+                  {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">{error}</div> : null}
+                  {notice ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-semibold leading-5 text-emerald-700">{notice}</div> : null}
+                  <button type="submit" disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gray-950 text-sm font-black text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"><LogIn size={17}/>{loading ? "Please wait…" : signup ? "Create account" : "Sign in"}</button>
+                  <button type="button" onClick={()=>{void (async()=>{setError("");setNotice("");setLoading(true);try{const result=await authClient.signIn.social({provider:"google",callbackURL:"/home"});if(result.error){setError(result.error.message||"Google sign-in failed.");setLoading(false);}}catch{setError("We could not start Google sign-in. Please try again.");setLoading(false);}})();}} disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"><Globe2 size={17}/>{loading ? "Connecting to Google…" : "Continue with Google"}</button>
+                </form>
+                <p className="mt-7 text-center text-sm text-gray-500">{signup ? <>Already have an account? <Link href="/login" className="font-black text-[#5a4be8]">Sign in</Link></> : <>New to Socialhub? <Link href="/signup" className="font-black text-[#5a4be8]">Create an account</Link></>}</p>
+              </>
+            )}
           </div>
         </section>
       </div>
     </main>
   );
 }
+
 type ProfileData = {
   id: string;
   name: string;
