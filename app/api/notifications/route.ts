@@ -37,6 +37,7 @@ export async function GET() {
       actor: { select: { id: true, name: true, username: true, image: true } },
       post: { select: { id: true, content: true, mediaUrl: true } },
       comment: { select: { id: true, content: true } },
+      message: { select: { id: true, conversationId: true } },
     },
   });
 
