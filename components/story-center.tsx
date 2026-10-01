@@ -37,6 +37,7 @@ export function StoryCenter({
   const [myStoryReaction, setMyStoryReaction] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [interactionLoading, setInteractionLoading] = useState(false);
+  const [storyViewers, setStoryViewers] = useState<Array<{ id: string; viewer: { id: string; name: string; username: string | null; image: string | null }; viewedAt: string }>>([]);
 
   const authors = Array.from(
     new Map(
@@ -112,6 +113,7 @@ export function StoryCenter({
       setStoryReplies([]);
       setStoryReactions([]);
       setMyStoryReaction(null);
+      setStoryViewers([]);
       return;
     }
     let cancelled = false;
@@ -124,6 +126,7 @@ export function StoryCenter({
           setStoryReplies(json.replies ?? []);
           setStoryReactions((json.reactions ?? []).map((item: { id: string; emoji: string; userId: string }) => ({ id: item.id, emoji: item.emoji, userId: item.userId })));
           setMyStoryReaction(json.myReaction?.emoji ?? null);
+          setStoryViewers(json.viewers ?? []);
         }
       })
       .catch((requestError) => { if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load story interactions."); })
@@ -252,7 +255,8 @@ export function StoryCenter({
                   <input value={replyText} onChange={(event) => setReplyText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void replyToStory(); } }} maxLength={500} className="min-w-0 flex-1 rounded-xl bg-white/10 px-3 py-2 text-xs text-white outline-none placeholder:text-white/50" placeholder="Reply to story…"/>
                   <button type="button" onClick={() => void replyToStory()} disabled={!replyText.trim() || interactionLoading} className="rounded-xl bg-white px-3 py-2 text-[10px] font-black text-gray-950 disabled:opacity-40">Reply</button>
                 </div> : null}
-                {storyReplies.length ? <div className="mt-3 max-h-24 space-y-1 overflow-y-auto">{storyReplies.slice(-3).map((reply) => <p key={reply.id} className="text-[10px] text-white/80"><span className="font-black">{reply.author.name}:</span> {reply.content}</p>)}</div> : null}
+                {active.author.id === session?.user?.id && storyViewers.length ? <div className="mt-3 text-[10px] text-white/75"><span className="font-black">{storyViewers.length} viewer{storyViewers.length === 1 ? "" : "s"}</span>{storyViewers.slice(0, 5).map((item) => <span key={item.id} className="ml-2">@{item.viewer.username ?? item.viewer.name}</span>)}</div> : null}
+                                {storyReplies.length ? <div className="mt-3 max-h-24 space-y-1 overflow-y-auto">{storyReplies.slice(-3).map((reply) => <p key={reply.id} className="text-[10px] text-white/80"><span className="font-black">{reply.author.name}:</span> {reply.content}</p>)}</div> : null}
                 {active.author.id === session?.user?.id ? <button type="button" onClick={() => void removeStory()} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-[11px] font-bold"><Trash2 size={14}/> Delete</button> : null}
               </div>
             </div>
