@@ -16,6 +16,8 @@ import {
 
 type Screen = { kind: string; username?: string; section?: string; search?: string };
 
+const googleAuthEnabled = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true";
+
 const colors = [
   "from-violet-500 to-sky-400",
   "from-fuchsia-500 to-orange-400",
@@ -258,7 +260,7 @@ function Auth({ signup = false }: { signup?: boolean }) {
                   {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">{error}</div> : null}
                   {notice ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-semibold leading-5 text-emerald-700">{notice}</div> : null}
                   <button type="submit" disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gray-950 text-sm font-black text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"><LogIn size={17}/>{loading ? "Please wait…" : signup ? "Create account" : "Sign in"}</button>
-                  <button type="button" onClick={()=>{void (async()=>{setError("");setNotice("");setLoading(true);try{const result=await authClient.signIn.social({provider:"google",callbackURL:"/home"});if(result.error){setError(result.error.message||"Google sign-in failed.");setLoading(false);}}catch{setError("We could not start Google sign-in. Please try again.");setLoading(false);}})();}} disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"><Globe2 size={17}/>{loading ? "Connecting to Google…" : "Continue with Google"}</button>
+                  {googleAuthEnabled ? <button type="button" onClick={()=>{void (async()=>{setError("");setNotice("");setLoading(true);try{const result=await authClient.signIn.social({provider:"google",callbackURL:"/home"});if(result.error){setError(result.error.message||"Google sign-in failed.");setLoading(false);}}catch{setError("We could not start Google sign-in. Please try again.");setLoading(false);}})();}} disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"><Globe2 size={17}/>{loading ? "Connecting to Google…" : "Continue with Google"}</button> : null}
                 </form>
                 <p className="mt-7 text-center text-sm text-gray-500">{signup ? <>Already have an account? <Link href="/login" className="font-black text-[#5a4be8]">Sign in</Link></> : <>New to Socialhub? <Link href="/signup" className="font-black text-[#5a4be8]">Create an account</Link></>}</p>
               </>
