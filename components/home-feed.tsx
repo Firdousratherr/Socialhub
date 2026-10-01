@@ -38,6 +38,19 @@ type Post = {
   shares: number;
 };
 
+type StoryItem = {
+  id: string;
+  mediaUrl: string;
+  caption: string | null;
+  expiresAt: string;
+  author: {
+    id: string;
+    name: string;
+    username: string | null;
+    image: string | null;
+  };
+};
+
 const posts: Post[] = [
   {
     id: "sample-1",
@@ -155,9 +168,31 @@ function PostCard({ post }: { post: Post }) {
 export default function HomeFeed() {
   const { data: session } = authClient.useSession();
   const [feedPosts, setFeedPosts] = useState<Post[]>(posts);
+  const [stories, setStories] = useState<StoryItem[]>([]);
   const [newPost, setNewPost] = useState("");
   const [publishing, setPublishing] = useState(false);
   const [feedError, setFeedError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadStories() {
+      try {
+        const response = await fetch("/api/stories", { cache: "no-store" });
+        const json = await response.json();
+        if (response.ok && !cancelled) {
+          setStories((json.stories ?? []) as StoryItem[]);
+        }
+      } catch {
+        // Keep the visual fallback when the stories API is unavailable.
+      }
+    }
+
+    void loadStories();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -281,7 +316,20 @@ export default function HomeFeed() {
                   </div>
                   <p className="mt-2 truncate text-[11px] font-bold text-gray-500">Your story</p>
                 </div>
-                {[
+                {stories.length > 0 ? stories.slice(0, 5).map((story, index) => (
+                  <Link href={"/profile/" + (story.author.username ?? story.author.id)} className="min-w-16" key={story.id} title={story.caption ?? "Story"}>
+                    <div className="rounded-[1.15rem] bg-gradient-to-br p-[2px] from-[#6d5dfc] via-[#d957ff] to-[#ffb347]">
+                      <div className="rounded-[1rem] bg-white p-[2px]">
+                        <Avatar
+                          initials={story.author.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
+                          accent={["from-emerald-400 to-sky-500","from-pink-400 to-violet-500","from-amber-400 to-orange-500","from-sky-400 to-indigo-500","from-fuchsia-500 to-orange-400"][index % 5]}
+                          large
+                        />
+                      </div>
+                    </div>
+                    <p className="mt-2 truncate text-center text-[11px] font-bold text-gray-500">{story.author.name.split(" ")[0]}</p>
+                  </Link>
+                )) : [
                   ["AK", "Aarav", "from-emerald-400 to-sky-500"],
                   ["SM", "Sara", "from-pink-400 to-violet-500"],
                   ["JT", "Jai", "from-amber-400 to-orange-500"],
