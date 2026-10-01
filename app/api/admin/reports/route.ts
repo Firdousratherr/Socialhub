@@ -1,19 +1,55 @@
 import { NextResponse } from "next/server";
+import * as z from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/app/api/admin/_auth";
 
-export async function GET() {
+const statusSchema = z.enum(["PENDING", "REVIEWED", "RESOLVED", "DISMISSED"]);
+
+const updateSchema = z.object({
+  id: z.string().min(1),
+  status: statusSchema,
+  note: z.string().trim().max(1000).optional(),
+});
+
+const actionSchema = z.object({
+  id: z.string().min(1),
+  action: z.enum(["DELETE_POST", "DELETE_COMMENT", "DISABLE_USER"]),
+  note: z.string().trim().max(1000).optional(),
+});
+
+export async function GET(request: Request) {
   const access = await requireAdmin();
   if (access.response) return access.response;
 
+  const url = new URL(request.url);
+  const statusParam = url.searchParams.get("status");
+  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 100);
+  const status = statusParam && statusSchema.safeParse(statusParam).success
+    ? statusSchema.parse(statusParam)
+    : undefined;
+
   const reports = await prisma.report.findMany({
+    where: {
+      ...(status ? { status } : {}),
+      ...(q ? {
+        OR: [
+          { reason: { contains: q, mode: "insensitive" } },
+          { reporter: { name: { contains: q, mode: "insensitive" } } },
+          { reporter: { username: { contains: q, mode: "insensitive" } } },
+          { reportedUser: { name: { contains: q, mode: "insensitive" } } },
+          { reportedUser: { username: { contains: q, mode: "insensitive" } } },
+          { post: { content: { contains: q, mode: "insensitive" } } },
+          { comment: { content: { contains: q, mode: "insensitive" } } },
+        ],
+      } : {}),
+    },
     orderBy: { createdAt: "desc" },
     take: 100,
     include: {
       reporter: { select: { id: true, name: true, username: true, image: true } },
       reportedUser: { select: { id: true, name: true, username: true, image: true } },
-      post: { select: { id: true, content: true, mediaUrl: true } },
-      comment: { select: { id: true, content: true } },
+      post: { select: { id: true, content: true, mediaUrl: true, authorId: true } },
+      comment: { select: { id: true, content: true, authorId: true, postId: true } },
     },
   });
 
@@ -24,41 +60,110 @@ export async function GET() {
     prisma.report.count({ where: { status: "DISMISSED" } }),
   ]);
 
-  return NextResponse.json({
-    reports,
-    counts: { pending, reviewed, resolved, dismissed },
-  });
+  return NextResponse.json({ reports, counts: { pending, reviewed, resolved, dismissed } });
 }
 
 export async function PATCH(request: Request) {
   const access = await requireAdmin();
   if (access.response) return access.response;
 
-  const body = await request.json().catch(() => null);
-  const id = typeof body?.id === "string" ? body.id : "";
-  const status = body?.status;
-  if (!id || !["REVIEWED", "RESOLVED", "DISMISSED", "PENDING"].includes(status)) {
-    return NextResponse.json({ error: "Invalid report update." }, { status: 400 });
-  }
+  const parsed = updateSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Invalid report update." }, { status: 400 });
 
+  const existing = await prisma.report.findUnique({ where: { id: parsed.data.id } });
+  if (!existing) return NextResponse.json({ error: "Report not found." }, { status: 404 });
+
+  const terminal = parsed.data.status === "RESOLVED" || parsed.data.status === "DISMISSED";
   const report = await prisma.report.update({
-    where: { id },
+    where: { id: existing.id },
     data: {
-      status,
-      resolvedAt: status === "RESOLVED" || status === "DISMISSED" ? new Date() : null,
-      resolvedById: status === "RESOLVED" || status === "DISMISSED" ? access.session?.user.id : null,
+      status: parsed.data.status,
+      resolvedAt: terminal ? new Date() : null,
+      resolvedById: terminal ? access.user.id : null,
     },
   });
 
   await prisma.adminAuditLog.create({
     data: {
-      adminId: access.session?.user.id ?? "unknown",
+      adminId: access.user.id,
       action: "UPDATE_REPORT",
       targetType: "REPORT",
       targetId: report.id,
-      details: JSON.stringify({ status }),
+      details: JSON.stringify({
+        before: existing.status,
+        after: report.status,
+        note: parsed.data.note ?? null,
+      }),
     },
   });
 
   return NextResponse.json({ report });
+}
+
+export async function POST(request: Request) {
+  const access = await requireAdmin();
+  if (access.response) return access.response;
+
+  const parsed = actionSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Invalid moderation action." }, { status: 400 });
+
+  const report = await prisma.report.findUnique({
+    where: { id: parsed.data.id },
+    select: { id: true, postId: true, commentId: true, reportedUserId: true, status: true },
+  });
+  if (!report) return NextResponse.json({ error: "Report not found." }, { status: 404 });
+
+  if (report.status === "DISMISSED") {
+    return NextResponse.json({ error: "Dismissed reports cannot be acted on." }, { status: 409 });
+  }
+
+  let targetId = "";
+  await prisma.$transaction(async (tx) => {
+    if (parsed.data.action === "DELETE_POST") {
+      if (!report.postId) throw new Error("This report does not target a post.");
+      const target = await tx.post.findUnique({ where: { id: report.postId }, select: { id: true, authorId: true } });
+      if (!target) throw new Error("Reported post no longer exists.");
+      await tx.post.delete({ where: { id: target.id } });
+      targetId = target.id;
+    }
+
+    if (parsed.data.action === "DELETE_COMMENT") {
+      if (!report.commentId) throw new Error("This report does not target a comment.");
+      const target = await tx.comment.findUnique({ where: { id: report.commentId }, select: { id: true } });
+      if (!target) throw new Error("Reported comment no longer exists.");
+      await tx.comment.delete({ where: { id: target.id } });
+      targetId = target.id;
+    }
+
+    if (parsed.data.action === "DISABLE_USER") {
+      if (!report.reportedUserId) throw new Error("This report does not target a user.");
+      const target = await tx.user.findUnique({ where: { id: report.reportedUserId }, select: { id: true, role: true } });
+      if (!target) throw new Error("Reported user no longer exists.");
+      if (target.role === "ADMIN" && access.user.role !== "ADMIN") {
+        throw new Error("Moderators cannot disable administrator accounts.");
+      }
+      if (target.id === access.user.id) {
+        throw new Error("You cannot disable your own account.");
+      }
+      await tx.user.update({ where: { id: target.id }, data: { isActive: false } });
+      targetId = target.id;
+    }
+
+    await tx.report.update({
+      where: { id: report.id },
+      data: { status: "RESOLVED", resolvedAt: new Date(), resolvedById: access.user.id },
+    });
+
+    await tx.adminAuditLog.create({
+      data: {
+        adminId: access.user.id,
+        action: "MODERATION_ACTION",
+        targetType: parsed.data.action === "DELETE_POST" ? "POST" : parsed.data.action === "DELETE_COMMENT" ? "COMMENT" : "USER",
+        targetId,
+        details: JSON.stringify({ reportId: report.id, action: parsed.data.action, note: parsed.data.note ?? null }),
+      },
+    });
+  });
+
+  return NextResponse.json({ success: true, reportId: report.id, action: parsed.data.action, targetId });
 }
