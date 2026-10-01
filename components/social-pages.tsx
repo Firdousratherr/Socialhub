@@ -117,7 +117,7 @@ function Auth({ signup = false }: { signup?: boolean }) {
                 <span className="grid size-9 place-items-center rounded-xl bg-[#6d5dfc] text-white"><Sparkles size={17}/></span>
                 Socialhub
               </Link>
-              <Link href="/home" className="text-xs font-bold text-gray-500">Preview</Link>
+              <Link href="/" className="text-xs font-bold text-gray-500">Home</Link>
             </div>
 
             <p className="text-xs font-black uppercase tracking-[.16em] text-[#6d5dfc]">{signup ? "Create your account" : "Welcome back"}</p>
@@ -217,12 +217,30 @@ function Auth({ signup = false }: { signup?: boolean }) {
 
               <button
                 type="button"
-                disabled
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 text-sm font-bold text-gray-400 disabled:cursor-not-allowed"
-                title="Google sign-in will be enabled after provider credentials are configured."
+                onClick={() => {
+                  void (async () => {
+                    setError("");
+                    setLoading(true);
+                    try {
+                      const result = await authClient.signIn.social({
+                        provider: "google",
+                        callbackURL: "/home",
+                      });
+                      if (result.error) {
+                        setError(result.error.message || "Google sign-in failed. Please try again.");
+                        setLoading(false);
+                      }
+                    } catch {
+                      setError("We could not start Google sign-in. Please try again.");
+                      setLoading(false);
+                    }
+                  })();
+                }}
+                disabled={loading}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Globe2 size={17}/>
-                Continue with Google
+                {loading ? "Connecting to Google…" : "Continue with Google"}
               </button>
             </form>
 

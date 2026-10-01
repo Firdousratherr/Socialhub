@@ -16,6 +16,18 @@ Status: In progress
 - SMTP-backed password reset flow
 - Remove development-only authentication secret fallback
 
+## Phase 0.5 — Public entry + Google authentication
+Status: In implementation
+
+- Replace demo/preview entry points with real Sign in and Create account actions
+- Redirect authenticated users from `/` to `/home`
+- Enable Better Auth Google OAuth when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are configured
+- Add Google sign-in to both login and signup flows
+- Keep Google configuration optional in code so deployments without credentials still boot
+- Use the Socialhub OAuth callback: `/api/auth/callback/google`
+- Configure Socialhub production and localhost redirect URIs in Google Cloud
+- Run CI before merge and deploy only the green commit
+
 ## Phase 1 — Real account experience
 - Verified profile data and profile editing
 - Avatar and cover uploads
@@ -92,4 +104,4 @@ Status: In progress
 - Final deployment gate
 
 ## Current milestone
-The first implementation milestone wires the infrastructure the project already has configured: authentication hardening, admin bootstrap, administrator-only inspection, password-reset email delivery, and Vercel Blob uploads.
+The first implementation milestone wires the infrastructure the project already has configured: authentication hardening, admin bootstrap, administrator-only inspection, password-reset email delivery, and Vercel Blob uploads. The current milestone adds a real public entry flow and Google OAuth.

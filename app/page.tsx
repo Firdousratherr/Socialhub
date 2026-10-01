@@ -1,4 +1,7 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import Link from "next/link";
+import { auth } from "@/lib/auth";
 import { ArrowRight, Compass, Heart, MessageCircle, Sparkles, Users } from "lucide-react";
 
 const features = [
@@ -19,7 +22,10 @@ const features = [
   },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (session?.user) redirect("/home");
+
   return (
     <main className="min-h-screen overflow-hidden">
       <section className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 pb-10 pt-6 sm:px-8 lg:px-10">
@@ -33,16 +39,16 @@ export default function LandingPage() {
 
           <div className="flex items-center gap-2">
             <Link
-              href="/home"
+              href="/login"
               className="rounded-xl px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-white hover:text-gray-950"
             >
-              Preview
+              Sign in
             </Link>
             <Link
-              href="/home"
+              href="/signup"
               className="rounded-xl bg-gray-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
             >
-              Get started
+              Create account
             </Link>
           </div>
         </header>
@@ -69,10 +75,10 @@ export default function LandingPage() {
 
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/home"
+                href="/signup"
                 className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-gray-950 px-5 text-sm font-bold text-white shadow-xl shadow-gray-950/10 transition hover:-translate-y-0.5 hover:bg-gray-800"
               >
-                Explore the experience
+                Create your account
                 <ArrowRight size={17} className="transition-transform group-hover:translate-x-0.5" />
               </Link>
               <a
