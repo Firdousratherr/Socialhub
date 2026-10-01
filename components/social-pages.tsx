@@ -450,9 +450,9 @@ function Profile({ username = "firdous" }: { username?: string }) {
 
   const displayName = profile?.name ?? form.name;
   const displayUsername = profile?.username ?? form.username ?? username;
-  const postCount = profile?._count.posts ?? profile?._count.posts ?? 184;
-  const followerCount = profile?._count.followers ?? profile?._count.followers ?? 1800;
-  const followingCount = profile?._count.following ?? profile?._count.following ?? 426;
+  const postCount = profile?._count.posts ?? 0;
+  const followerCount = profile?._count.followers ?? 0;
+  const followingCount = profile?._count.following ?? 0;
   const initials = displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase() || "SH";
 
   async function toggleFollow() {
@@ -652,6 +652,7 @@ type ConversationData = {
   id: string;
   title: string | null;
   isGroup: boolean;
+  unreadCount?: number;
   members: Array<{
     userId: string;
     role: string;
@@ -790,6 +791,7 @@ function Messages() {
             return <button key={conversation.id} onClick={() => setActiveId(conversation.id)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left ${conversation.id===activeId?"bg-[#f4f2ff]":"hover:bg-gray-50"}`}>
               <Avatar initials={(other?.name ?? name).split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} color={colors[i%colors.length]}/>
               <div className="min-w-0 flex-1"><p className="truncate text-xs font-black">{name}</p><p className="mt-1 truncate text-[11px] text-gray-400">{preview}</p></div>
+              {conversation.unreadCount ? <span className="min-w-5 rounded-full bg-[#6d5dfc] px-1.5 py-1 text-center text-[9px] font-black text-white">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span> : null}
             </button>;
           }) : (
             <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-7 text-center">
@@ -821,7 +823,7 @@ function Messages() {
         </div>
 
         <form onSubmit={sendMessage} className="border-t border-gray-100 p-3">
-          <div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2"><button type="button" className="grid size-10 place-items-center rounded-xl"><Plus size={18}/></button><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={1} disabled={!active || !session?.user || sending} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60" placeholder={active ? "Write a message…" : "Select a conversation first"}/><button type="submit" disabled={!active || !draft.trim() || !session?.user || sending} className="grid size-10 place-items-center rounded-xl bg-gray-950 text-white disabled:cursor-not-allowed disabled:opacity-50"><Send size={16}/></button></div>
+          <div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2"><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={1} disabled={!active || !session?.user || sending} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60" placeholder={active ? "Write a message…" : "Select a conversation first"}/><button type="submit" disabled={!active || !draft.trim() || !session?.user || sending} className="grid size-10 place-items-center rounded-xl bg-gray-950 text-white disabled:cursor-not-allowed disabled:opacity-50"><Send size={16}/></button></div>
         </form>
       </section>
     </div>
@@ -834,6 +836,8 @@ type DiscoverUser = {
   image: string | null;
   bio: string | null;
   isPrivate?: boolean;
+  isFollowing?: boolean;
+  isFriend?: boolean;
   _count: { followers: number; following: number };
 };
 
@@ -859,7 +863,11 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
         const response = await fetch("/api/users?q=" + encodeURIComponent(q) + "&take=20", { cache: "no-store" });
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not search users.");
-        if (!cancelled) setResults((json.users ?? []) as DiscoverUser[]);
+        if (!cancelled) {
+          const nextResults = (json.users ?? []) as DiscoverUser[];
+          setResults(nextResults);
+          setFollowing(new Set(nextResults.filter((user) => user.isFollowing).map((user) => user.id)));
+        }
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not search users.");
       } finally {
@@ -1214,8 +1222,6 @@ function SettingsPage() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const [privateAccount, setPrivate] = useState(false);
-  const [activity, setActivity] = useState(true);
-  const [push, setPush] = useState(true);
   const [email, setEmail] = useState("Not loaded");
   const [username, setUsername] = useState("Not loaded");
   const [loading, setLoading] = useState(true);
@@ -1319,12 +1325,11 @@ function SettingsPage() {
     {message ? <div role="status" className="mb-5 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-xs font-semibold text-gray-600">{message}</div> : null}
 
     <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-      <Card className="h-fit !p-2">
-        {[[Settings,"General"],[Lock,"Privacy"],[Bell,"Notifications"],[Shield,"Security"],[CircleHelp,"Help"]].map(([Icon,label],i)=>
-          <button key={String(label)} className={"flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-xs font-black " + (i===0 ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500 hover:bg-gray-50")}>
-            <Icon size={16}/>{String(label)}
-          </button>
-        )}
+      <Card className="h-fit !p-4">
+        <p className="text-[10px] font-black uppercase tracking-[.14em] text-gray-400">Settings areas</p>
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-gray-500">
+          {["General","Privacy","Notifications","Security","Help"].map((label) => <span key={label} className="rounded-xl bg-gray-50 px-3 py-2">{label}</span>)}
+        </div>
       </Card>
 
       <div className="space-y-5">
@@ -1355,18 +1360,12 @@ function SettingsPage() {
               <div className="flex-1"><p className="text-sm font-bold">Private account</p><p className="text-xs text-gray-400">Only approved followers can see your posts.</p></div>
               <Toggle value={privateAccount} disabled={!session?.user || savingPrivacy} onChange={(value)=>void updatePrivacy(value)}/>
             </div>
-            <div className="flex items-center gap-4 py-4">
-              <div className="flex-1"><p className="text-sm font-bold">Activity status</p><p className="text-xs text-gray-400">Control whether people can see when you are active.</p></div>
-              <Toggle value={activity} onChange={setActivity}/>
-            </div>
           </div>
         </Card>
 
         <Card>
-          <div className="flex items-center gap-4">
-            <div className="flex-1"><p className="text-sm font-bold">Push notifications</p><p className="text-xs text-gray-400">Likes, comments, messages, and friend requests.</p></div>
-            <Toggle value={push} onChange={setPush}/>
-          </div>
+          <h2 className="text-sm font-black">Notifications</h2>
+          <p className="mt-2 text-xs leading-5 text-gray-400">Notification preferences will be connected to stored settings before these controls become interactive.</p>
         </Card>
 
         {session?.user ? (
