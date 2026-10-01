@@ -54,6 +54,13 @@ enum ReportStatus {
   DISMISSED
 }
 
+enum ReportPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
 model User {
   id            String   @id
   name          String
@@ -98,6 +105,7 @@ model User {
   filedReports  Report[]           @relation("ReportReporter")
   reportedIn    Report[]           @relation("ReportTargetUser")
   resolvedReports Report[]         @relation("ReportResolver")
+  assignedReports Report[]         @relation("ReportAssignee")
   blockedUsers  Block[]            @relation("Blocker")
   blockedBy     Block[]            @relation("Blocked")
 
@@ -415,6 +423,9 @@ model Report {
   reportedUserId String?
   reason         String
   status         ReportStatus @default(PENDING)
+  priority       ReportPriority @default(MEDIUM)
+  assignedToId   String?
+  moderatorNote  String?
   createdAt      DateTime     @default(now())
   resolvedAt     DateTime?
   resolvedById   String?
@@ -424,10 +435,12 @@ model Report {
   comment      Comment?  @relation(fields: [commentId], references: [id], onDelete: Cascade)
   reportedUser User?     @relation("ReportTargetUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
   resolvedBy   User?     @relation("ReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  assignedTo   User?     @relation("ReportAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([reporterId, createdAt])
   @@index([reportedUserId, createdAt])
+  @@index([assignedToId, status, priority, createdAt])
 }
 
 model Block {
