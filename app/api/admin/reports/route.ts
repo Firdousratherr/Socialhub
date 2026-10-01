@@ -118,6 +118,27 @@ export async function POST(request: Request) {
   }
 
   let targetId = "";
+  const actionError = (message: string, status = 409) => NextResponse.json({ error: message }, { status });
+
+  if (parsed.data.action === "DELETE_POST" && !report.postId) return actionError("This report does not target a post.", 400);
+  if (parsed.data.action === "DELETE_COMMENT" && !report.commentId) return actionError("This report does not target a comment.", 400);
+  if (parsed.data.action === "DISABLE_USER" && !report.reportedUserId) return actionError("This report does not target a user.", 400);
+
+  if (parsed.data.action === "DELETE_POST") {
+    const target = await prisma.post.findUnique({ where: { id: report.postId! }, select: { id: true } });
+    if (!target) return actionError("Reported post no longer exists.", 404);
+  }
+  if (parsed.data.action === "DELETE_COMMENT") {
+    const target = await prisma.comment.findUnique({ where: { id: report.commentId! }, select: { id: true } });
+    if (!target) return actionError("Reported comment no longer exists.", 404);
+  }
+  if (parsed.data.action === "DISABLE_USER") {
+    const target = await prisma.user.findUnique({ where: { id: report.reportedUserId! }, select: { id: true, role: true } });
+    if (!target) return actionError("Reported user no longer exists.", 404);
+    if (target.role === "ADMIN" && access.user.role !== "ADMIN") return actionError("Moderators cannot disable administrator accounts.", 403);
+    if (target.id === access.user.id) return actionError("You cannot disable your own account.", 400);
+  }
+
   await prisma.$transaction(async (tx) => {
     if (parsed.data.action === "DELETE_POST") {
       if (!report.postId) throw new Error("This report does not target a post.");
