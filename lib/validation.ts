@@ -27,8 +27,9 @@ export const conversationInputSchema = z.object({
 });
 
 export const messageInputSchema = z.object({
-  content: z.string().trim().min(1).max(5000),
-});
+  content: z.string().trim().max(5000).default(""),
+  attachments: z.array(z.string().url().max(2048)).max(4).default([]),
+}).refine((value) => Boolean(value.content.trim()) || value.attachments.length > 0, "Message needs text or an attachment.");
 
 export const commentInputSchema = z.object({
   content: z.string().trim().min(1).max(2000),
