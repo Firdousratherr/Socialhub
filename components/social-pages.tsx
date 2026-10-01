@@ -316,10 +316,10 @@ function Profile({ username = "firdous" }: { username?: string }) {
   } | null>(null);
   const [loadingRelationships, setLoadingRelationships] = useState(false);
   const [form, setForm] = useState({
-    name: "Firdous Rather",
+    name: "",
     username,
-    bio: "Building products, learning every day, and sharing the journey.",
-    location: "Jammu & Kashmir",
+    bio: "",
+    location: "",
     website: "",
     isPrivate: false,
   });
@@ -541,7 +541,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
           {following ? "Following" : "Follow"}
         </button>
         <button onClick={() => void reportUser()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Report profile"><Shield size={15}/></button>
-        <button onClick={() => void blockUser()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Block profile"><UserPlus size={15}/></button>
+        <button onClick={() => void blockUser()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Block profile"><ShieldOff size={15}/></button>
       </div>
     ) : (
       <Link href="/login" className="flex h-10 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white"><LogIn size={15}/>Sign in</Link>
