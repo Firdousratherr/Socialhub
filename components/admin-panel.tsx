@@ -180,6 +180,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
   const [query,setQuery]=useState("");
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState("");
+  const [selected,setSelected]=useState<Set<string>>(new Set());
 
   async function load() {
     setLoading(true);
@@ -189,7 +190,9 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       const response=await fetch("/api/admin/reports?"+params.toString(),{cache:"no-store"});
       const json=await response.json();
       if(!response.ok) throw new Error(json.error??"Could not load moderation queue.");
-      setReports(json.reports??[]);setCounts(json.counts??{});
+      setReports(json.reports??[]);
+      setCounts(json.counts??{});
+      setSelected(new Set());
     } catch(e){onMessage(e instanceof Error?e.message:"Could not load moderation queue.");}
     finally{setLoading(false)}
   }
@@ -202,9 +205,23 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       const response=await fetch("/api/admin/reports",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status:next})});
       const json=await response.json();if(!response.ok)throw new Error(json.error??"Could not update report.");
       setReports(items=>items.filter(item=>item.id!==id));
+      setSelected(current=>{const nextSet=new Set(current);nextSet.delete(id);return nextSet});
       setCounts(current=>({...current,[next.toLowerCase()]:Math.max(0,(current[next.toLowerCase()]??0)+1)}));
       onMessage("Report updated.");
     }catch(e){onMessage(e instanceof Error?e.message:"Could not update report.");}finally{setBusy("")}
+  }
+
+  async function bulkUpdate(next:ReportRow["status"]) {
+    const ids=[...selected];
+    if(!ids.length) return;
+    if(!window.confirm(`Update ${ids.length} selected report(s) to ${next.toLowerCase()}?`)) return;
+    setBusy("bulk");
+    try {
+      const response=await fetch("/api/admin/reports",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids,status:next})});
+      const json=await response.json();if(!response.ok)throw new Error(json.error??"Could not update selected reports.");
+      onMessage(`${json.updated ?? 0} report(s) updated and audited.`);
+      await load();
+    }catch(e){onMessage(e instanceof Error?e.message:"Could not update selected reports.");}finally{setBusy("")}
   }
 
   async function takeAction(report:ReportRow,action:"DELETE_POST"|"DELETE_COMMENT"|"DISABLE_USER") {
@@ -215,34 +232,54 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       const response=await fetch("/api/admin/reports",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:report.id,action})});
       const json=await response.json();if(!response.ok)throw new Error(json.error??"Could not apply moderation action.");
       setReports(items=>items.filter(item=>item.id!==report.id));
+      setSelected(current=>{const next=new Set(current);next.delete(report.id);return next});
       onMessage("Moderation action completed and audit record created.");
     }catch(e){onMessage(e instanceof Error?e.message:"Could not apply moderation action.");}finally{setBusy("")}
   }
 
   const count=(key:string)=>counts[key]??0;
+  const allSelected=reports.length>0&&reports.every((report)=>selected.has(report.id));
+
   return <div className="space-y-5">
     <Card>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div><h2 className="text-sm font-black">Moderation queue</h2><p className="mt-1 text-xs text-gray-400">Review reports, take action, and keep every moderation decision auditable.</p></div>
         <div className="relative lg:ml-auto"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search reason, user or content" className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-xs outline-none focus:border-[#a79dff] lg:w-80"/></div>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">{(["PENDING","REVIEWED","RESOLVED","DISMISSED"] as const).map(key=><button key={key} onClick={()=>setStatus(key)} className={"rounded-2xl px-4 py-2.5 text-xs font-black "+(status===key?"bg-[#eeebff] text-[#5a4be8]":"bg-gray-50 text-gray-500")}>{key[0]+key.slice(1).toLowerCase()} <span className="ml-1 text-[10px]">{count(key.toLowerCase())}</span></button>)}</div>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {(["PENDING","REVIEWED","RESOLVED","DISMISSED"] as const).map(key=><button key={key} onClick={()=>setStatus(key)} className={"rounded-2xl px-4 py-2.5 text-xs font-black "+(status===key?"bg-[#eeebff] text-[#5a4be8]":"bg-gray-50 text-gray-500")}>{key[0]+key.slice(1).toLowerCase()} <span className="ml-1 text-[10px]">{count(key.toLowerCase())}</span></button>)}
+        {selected.size ? <div className="ml-auto flex flex-wrap gap-2">
+          <button type="button" disabled={busy==="bulk"} onClick={()=>void bulkUpdate("REVIEWED")} className="rounded-xl bg-[#eeebff] px-3 py-2 text-[10px] font-black text-[#5a4be8]">Mark reviewed</button>
+          <button type="button" disabled={busy==="bulk"} onClick={()=>void bulkUpdate("RESOLVED")} className="rounded-xl bg-emerald-50 px-3 py-2 text-[10px] font-black text-emerald-700">Resolve</button>
+          <button type="button" disabled={busy==="bulk"} onClick={()=>void bulkUpdate("DISMISSED")} className="rounded-xl bg-gray-100 px-3 py-2 text-[10px] font-black text-gray-600">Dismiss</button>
+        </div> : null}
+      </div>
     </Card>
     <Card className="!p-0 overflow-hidden">
       {loading?<p className="p-8 text-center text-xs text-gray-400">Loading reports…</p>:reports.length===0?<div className="p-10 text-center"><ShieldCheck className="mx-auto text-emerald-500" size={24}/><p className="mt-3 text-sm font-black">No {status.toLowerCase()} reports</p><p className="mt-1 text-xs text-gray-400">{query?"No reports match your search.":"The queue is clear for this status."}</p></div>:
-      <div className="divide-y divide-gray-100">{reports.map(report=><article key={report.id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-black">{report.reason}</p><p className="mt-1 text-[11px] text-gray-400">Reported by @{report.reporter.username??"member"} · {new Date(report.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">{report.status}</span></div>
-        <div className="mt-3 rounded-2xl bg-gray-50 p-4 text-xs leading-5 text-gray-600">{report.reportedUser?<p>Profile: <strong>{report.reportedUser.name}</strong> @{report.reportedUser.username??"member"}</p>:null}{report.post?<p className="mt-1">Post: {report.post.content??"Media post"}</p>:null}{report.comment?<p className="mt-1">Comment: {report.comment.content}</p>:null}</div>
-        <div className="mt-4 flex flex-wrap gap-2">{report.status==="PENDING"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"REVIEWED")} className="rounded-xl bg-gray-950 px-3 py-2 text-[10px] font-black text-white">Mark reviewed</button>:null}
-          {report.post?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DELETE_POST")} className="inline-flex items-center gap-1 rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700"><Trash2 size={13}/> Delete post</button>:null}
-          {report.comment?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DELETE_COMMENT")} className="inline-flex items-center gap-1 rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700"><Trash2 size={13}/> Delete comment</button>:null}
-          {report.reportedUser?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DISABLE_USER")} className="rounded-xl bg-orange-50 px-3 py-2 text-[10px] font-black text-orange-700">Disable account</button>:null}
-          {report.status!=="RESOLVED"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"RESOLVED")} className="rounded-xl bg-emerald-50 px-3 py-2 text-[10px] font-black text-emerald-700">Resolve</button>:null}
-          {report.status!=="DISMISSED"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"DISMISSED")} className="rounded-xl bg-gray-100 px-3 py-2 text-[10px] font-black text-gray-600">Dismiss</button>:null}
-        </div></article>)}</div>}
+      <div>
+        <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50/80 px-5 py-3">
+          <input type="checkbox" checked={allSelected} onChange={(event)=>setSelected(event.target.checked?new Set(reports.map((report)=>report.id)):new Set())} aria-label="Select all visible reports" className="size-4 accent-[#6d5dfc]"/>
+          <span className="text-[10px] font-black uppercase tracking-[.12em] text-gray-400">{selected.size ? `${selected.size} selected` : "Select reports for bulk status updates"}</span>
+        </div>
+        <div className="divide-y divide-gray-100">{reports.map(report=><article key={report.id} className="p-5"><div className="flex gap-3">
+          <input type="checkbox" checked={selected.has(report.id)} onChange={(event)=>setSelected(current=>{const next=new Set(current);if(event.target.checked)next.add(report.id);else next.delete(report.id);return next})} aria-label={"Select report " + report.id} className="mt-1 size-4 accent-[#6d5dfc]"/>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-black">{report.reason}</p><p className="mt-1 text-[11px] text-gray-400">Reported by @{report.reporter.username??"member"} · {new Date(report.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">{report.status}</span></div>
+            <div className="mt-3 rounded-2xl bg-gray-50 p-4 text-xs leading-5 text-gray-600">{report.reportedUser?<p>Profile: <strong>{report.reportedUser.name}</strong> @{report.reportedUser.username??"member"}</p>:null}{report.post?<p className="mt-1">Post: {report.post.content??"Media post"}</p>:null}{report.comment?<p className="mt-1">Comment: {report.comment.content}</p>:null}</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {report.post?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DELETE_POST")} className="rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700">Delete post</button>:null}
+              {report.comment?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DELETE_COMMENT")} className="rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700">Delete comment</button>:null}
+              {report.reportedUser?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DISABLE_USER")} className="rounded-xl bg-orange-50 px-3 py-2 text-[10px] font-black text-orange-700">Disable account</button>:null}
+              {report.status!=="RESOLVED"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"RESOLVED")} className="rounded-xl bg-emerald-50 px-3 py-2 text-[10px] font-black text-emerald-700">Resolve</button>:null}
+              {report.status!=="DISMISSED"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"DISMISSED")} className="rounded-xl bg-gray-100 px-3 py-2 text-[10px] font-black text-gray-600">Dismiss</button>:null}
+            </div>
+          </div>
+        </div></article>)}</div>
+      </div>}
     </Card>
   </div>;
 }
-
 function ContentManager({onMessage}:{onMessage:(value:string)=>void}) {
   const [posts,setPosts]=useState<PostRow[]>([]);
   const [loading,setLoading]=useState(true);
