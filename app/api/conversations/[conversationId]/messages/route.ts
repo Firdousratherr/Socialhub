@@ -50,6 +50,7 @@ export async function GET(
     take: 51,
     include: {
       sender: { select: { id: true, name: true, username: true, image: true } },
+      replyTo: { select: { id: true, content: true, senderId: true, sender: { select: { id: true, name: true, username: true } } } },
       attachments: { orderBy: { createdAt: "asc" } },
       reactions: { include: { user: { select: { id: true, name: true, image: true } } }, orderBy: { createdAt: "asc" } },
     },
@@ -75,12 +76,22 @@ export async function POST(
     return NextResponse.json({ error: "Conversation access denied." }, { status: 403 });
   }
 
-  const parsed = messageInputSchema.safeParse(await request.json().catch(() => null));
+  const body = await request.json().catch(() => null);
+  const parsed = messageInputSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "Invalid message." },
       { status: 400 },
     );
+  }
+
+  let replyToId: string | null = null;
+  if (typeof body?.replyToId === "string" && body.replyToId) {
+    const parent = await prisma.message.findUnique({ where: { id: body.replyToId }, select: { id: true, conversationId: true, deletedAt: true } });
+    if (!parent || parent.conversationId !== conversationId || parent.deletedAt) {
+      return NextResponse.json({ error: "Reply target is unavailable." }, { status: 400 });
+    }
+    replyToId = parent.id;
   }
 
   const message = await prisma.$transaction(async (tx) => {
@@ -89,6 +100,7 @@ export async function POST(
         conversationId,
         senderId: session.user.id,
         content: parsed.data.content,
+        replyToId,
         attachments: parsed.data.attachments.length ? {
           createMany: {
             data: parsed.data.attachments.map((url) => ({ url, senderId: session.user.id, kind: "image" })),
@@ -97,6 +109,7 @@ export async function POST(
       },
       include: {
         sender: { select: { id: true, name: true, username: true, image: true } },
+        replyTo: { select: { id: true, content: true, senderId: true, sender: { select: { id: true, name: true, username: true } } } },
         attachments: true,
         reactions: { include: { user: { select: { id: true, name: true, image: true } } } },
       },
@@ -127,14 +140,29 @@ export async function PATCH(
   }
 
   const body = await request.json().catch(() => null);
-  if (body?.action !== "read") {
+  if (!["read","archive","unarchive","mute","unmute"].includes(body?.action)) {
     return NextResponse.json({ error: "Unsupported conversation action." }, { status: 400 });
   }
 
-  await prisma.conversationMember.update({
+  if (body.action === "read") {
+    await prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId, userId: session.user.id } },
+      data: { lastReadAt: new Date() },
+    });
+    return NextResponse.json({ read: true });
+  }
+  if (body.action === "archive" || body.action === "unarchive") {
+    const member = await prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId, userId: session.user.id } },
+      data: { archivedAt: body.action === "archive" ? new Date() : null },
+      select: { archivedAt: true },
+    });
+    return NextResponse.json({ archivedAt: member.archivedAt });
+  }
+  const member = await prisma.conversationMember.update({
     where: { conversationId_userId: { conversationId, userId: session.user.id } },
-    data: { lastReadAt: new Date() },
+    data: { mutedUntil: body.action === "mute" ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) : null },
+    select: { mutedUntil: true },
   });
-
-  return NextResponse.json({ read: true });
+  return NextResponse.json({ mutedUntil: member.mutedUntil });
 }

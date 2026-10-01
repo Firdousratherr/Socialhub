@@ -16,6 +16,8 @@ import {
 
 type Screen = { kind: string; username?: string; section?: string; search?: string };
 
+const googleAuthEnabled = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true";
+
 const colors = [
   "from-violet-500 to-sky-400",
   "from-fuchsia-500 to-orange-400",
@@ -258,7 +260,7 @@ function Auth({ signup = false }: { signup?: boolean }) {
                   {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">{error}</div> : null}
                   {notice ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-semibold leading-5 text-emerald-700">{notice}</div> : null}
                   <button type="submit" disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gray-950 text-sm font-black text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"><LogIn size={17}/>{loading ? "Please wait…" : signup ? "Create account" : "Sign in"}</button>
-                  <button type="button" onClick={()=>{void (async()=>{setError("");setNotice("");setLoading(true);try{const result=await authClient.signIn.social({provider:"google",callbackURL:"/home"});if(result.error){setError(result.error.message||"Google sign-in failed.");setLoading(false);}}catch{setError("We could not start Google sign-in. Please try again.");setLoading(false);}})();}} disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"><Globe2 size={17}/>{loading ? "Connecting to Google…" : "Continue with Google"}</button>
+                  {googleAuthEnabled ? <button type="button" onClick={()=>{void (async()=>{setError("");setNotice("");setLoading(true);try{const result=await authClient.signIn.social({provider:"google",callbackURL:"/home"});if(result.error){setError(result.error.message||"Google sign-in failed.");setLoading(false);}}catch{setError("We could not start Google sign-in. Please try again.");setLoading(false);}})();}} disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"><Globe2 size={17}/>{loading ? "Connecting to Google…" : "Continue with Google"}</button> : null}
                 </form>
                 <p className="mt-7 text-center text-sm text-gray-500">{signup ? <>Already have an account? <Link href="/login" className="font-black text-[#5a4be8]">Sign in</Link></> : <>New to Socialhub? <Link href="/signup" className="font-black text-[#5a4be8]">Create an account</Link></>}</p>
               </>
@@ -541,6 +543,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
         <button onClick={() => void toggleFollow()} className={following ? "h-10 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700" : "h-10 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white"}>
           {following ? "Following" : "Follow"}
         </button>
+        <button onClick={() => void startMessage()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Message profile" title="Message"><MessageCircle size={15}/></button>
         <button onClick={() => void reportUser()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Report profile"><Shield size={15}/></button>
         <button onClick={() => void blockUser()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Block profile"><ShieldOff size={15}/></button>
       </div>
@@ -708,6 +711,9 @@ type ChatMessage = {
   senderId: string;
   content: string;
   createdAt: string;
+  editedAt?: string | null;
+  deletedAt?: string | null;
+  replyTo?: { id: string; content: string; senderId: string; sender: { id: string; name: string; username: string | null } } | null;
   sender: { id: string; name: string; username: string | null; image: string | null };
   attachments?: Array<{ id: string; url: string; kind: string }>;
   reactions?: Array<{ id: string; emoji: string; userId: string; user: { id: string; name: string; image: string | null } }>;
@@ -718,6 +724,8 @@ type ConversationData = {
   title: string | null;
   isGroup: boolean;
   unreadCount?: number;
+  mutedUntil?: string | null;
+  archivedAt?: string | null;
   members: Array<{
     userId: string;
     role: string;
@@ -735,6 +743,9 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [draft, setDraft] = useState("");
   const [messageSearch, setMessageSearch] = useState("");
+  const [showArchivedConversations, setShowArchivedConversations] = useState(false);
+  const [showConversationOptions, setShowConversationOptions] = useState(false);
+  const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -743,6 +754,9 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [people, setPeople] = useState<Array<{ id: string; name: string; username: string | null; image: string | null }>>([]);
   const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageText, setEditingMessageText] = useState("");
+  const [savingMessage, setSavingMessage] = useState(false);
   const attachmentRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -760,7 +774,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       }
 
       try {
-        const response = await fetch("/api/conversations", { cache: "no-store" });
+        const response = await fetch("/api/conversations" + (showArchivedConversations ? "?includeArchived=true" : ""), { cache: "no-store" });
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not load conversations.");
         if (cancelled) return;
@@ -781,7 +795,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     return () => {
       cancelled = true;
     };
-  }, [session?.user?.id, initialConversationId]);
+  }, [session?.user?.id, initialConversationId, showArchivedConversations]);
 
   useEffect(() => {
     if (!newConversationOpen || !session?.user) return;
@@ -916,6 +930,59 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
   }
 
+  async function editMessage(messageId: string) {
+    if (!editingMessageText.trim() || savingMessage) return;
+    setSavingMessage(true);
+    setError("");
+    try {
+      const response = await fetch("/api/messages/" + messageId, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "edit", content: editingMessageText.trim() }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not edit message.");
+      setMessages((current) => current.map((item) => item.id === messageId ? { ...item, ...json.message } : item));
+      setEditingMessageId(null);
+      setEditingMessageText("");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not edit message.");
+    } finally {
+      setSavingMessage(false);
+    }
+  }
+
+  async function deleteMessage(messageId: string) {
+    if (!window.confirm("Delete this message?")) return;
+    setError("");
+    try {
+      const response = await fetch("/api/messages/" + messageId, { method: "DELETE" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not delete message.");
+      setMessages((current) => current.map((item) => item.id === messageId ? { ...item, ...json.message, deletedAt: json.message.deletedAt } : item));
+      if (editingMessageId === messageId) {
+        setEditingMessageId(null);
+        setEditingMessageText("");
+      }
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not delete message.");
+    }
+  }
+
+  async function updateConversationAction(action: "archive" | "unarchive" | "mute" | "unmute") {
+    if (!activeId) return;
+    const response = await fetch(`/api/conversations/${activeId}/messages`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) { setError(json.error ?? "Could not update conversation."); return; }
+    setConversations((current) => current.map((item) => item.id === activeId ? { ...item, ...(action === "archive" || action === "unarchive" ? { archivedAt: json.archivedAt } : { mutedUntil: json.mutedUntil }) } : item));
+    setShowConversationOptions(false);
+    if (action === "archive") setActiveId(null);
+  }
+
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!activeId || (!draft.trim() && !pendingAttachments.length) || !session?.user || sending) return;
@@ -926,13 +993,14 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       const response = await fetch(`/api/conversations/${activeId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: draft.trim(), attachments: pendingAttachments }),
+        body: JSON.stringify({ content: draft.trim(), attachments: pendingAttachments, replyToId: replyingToMessage?.id ?? null }),
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not send message.");
       setMessages((current) => [...current, json.message as ChatMessage]);
       setDraft("");
       setPendingAttachments([]);
+      setReplyingToMessage(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not send message.");
     } finally {
@@ -952,7 +1020,10 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
 
     <div className="grid min-h-[620px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:grid-cols-[330px_1fr]">
       <aside className="border-b border-gray-100 lg:border-b-0 lg:border-r">
-        <div className="flex items-center justify-between border-b border-gray-100 p-4"><h2 className="text-sm font-black">Inbox</h2><button type="button" onClick={() => setNewConversationOpen(true)} className="social-icon-button" aria-label="Start a new message"><Pencil size={17}/></button></div>
+        <div className="flex items-center justify-between border-b border-gray-100 p-4">
+          <div className="flex items-center gap-2"><h2 className="text-sm font-black">{showArchivedConversations ? "Archived" : "Inbox"}</h2><button type="button" onClick={() => setShowArchivedConversations((value) => !value)} className="rounded-lg px-2 py-1 text-[10px] font-black text-gray-500 hover:bg-gray-100">{showArchivedConversations ? "Inbox" : "Archived"}</button></div>
+          <button type="button" onClick={() => setNewConversationOpen(true)} className="social-icon-button" aria-label="Start a new message"><Pencil size={17}/></button>
+        </div>
         <label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages" aria-label="Search messages"/></label>
 
         <div className="space-y-1 p-2">
@@ -981,7 +1052,13 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         <div className="flex items-center gap-3 border-b border-gray-100 p-4">
           <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} />
           <div className="flex-1"><p className="text-sm font-black">{activeName}</p><p className="text-[11px] text-gray-400">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
-          <button type="button" onClick={() => setMessageSearch("")} className="social-icon-button" aria-label="Clear message search"><Search size={17}/></button><button type="button" onClick={() => setError(active ? "Conversation options will be available here as messaging settings ship." : "Select a conversation first.")} className="social-icon-button" aria-label="Conversation options"><MoreHorizontal size={18}/></button>
+          <button type="button" onClick={() => setMessageSearch("")} className="social-icon-button" aria-label="Clear message search"><Search size={17}/></button>
+          <div className="relative"><button type="button" onClick={() => setShowConversationOptions((value) => !value)} disabled={!active} className="social-icon-button disabled:opacity-40" aria-label="Conversation options"><MoreHorizontal size={18}/></button>
+            {showConversationOptions && active ? <div className="absolute right-0 top-11 z-30 w-44 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl">
+              <button type="button" onClick={() => void updateConversationAction(active.archivedAt ? "unarchive" : "archive")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.archivedAt ? "Unarchive" : "Archive"}</button>
+              <button type="button" onClick={() => void updateConversationAction(active.mutedUntil ? "unmute" : "mute")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.mutedUntil ? "Unmute" : "Mute for 7 days"}</button>
+            </div> : null}
+          </div>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
@@ -991,13 +1068,37 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
             return <div key={message.id} className={mine ? "flex justify-end" : "flex items-end gap-2"}>
               {!mine ? <Avatar initials={message.sender.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} size="sm"/> : null}
               <div className="max-w-[76%]">
-                <div className={mine ? "rounded-2xl rounded-br-md bg-[#6d5dfc] px-4 py-3 text-sm leading-6 text-white" : "rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700"}>
-                  {message.attachments?.length ? <div className="mb-2 grid gap-2">{message.attachments.map((attachment)=><img key={attachment.id} src={attachment.url} alt="Message attachment" className="max-h-72 w-full rounded-xl object-cover"/>)}</div> : null}
-                  {message.content ? <span>{message.content}</span> : null}
-                </div>
+                {editingMessageId === message.id ? (
+                  <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2 shadow-sm">
+                    <textarea
+                      value={editingMessageText}
+                      onChange={(event) => setEditingMessageText(event.target.value)}
+                      rows={2}
+                      maxLength={5000}
+                      className="w-full resize-none rounded-xl bg-gray-50 p-2 text-sm text-gray-800 outline-none"
+                      autoFocus
+                    />
+                    <div className="mt-2 flex justify-end gap-2">
+                      <button type="button" onClick={() => { setEditingMessageId(null); setEditingMessageText(""); }} className="rounded-xl px-3 py-2 text-[10px] font-black text-gray-500">Cancel</button>
+                      <button type="button" onClick={() => void editMessage(message.id)} disabled={!editingMessageText.trim() || savingMessage} className="rounded-xl bg-gray-950 px-3 py-2 text-[10px] font-black text-white disabled:opacity-40">{savingMessage ? "Saving…" : "Save"}</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={mine ? "rounded-2xl rounded-br-md bg-[#6d5dfc] px-4 py-3 text-sm leading-6 text-white" : "rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700"}>
+                    {message.attachments?.length && !message.deletedAt ? <div className="mb-2 grid gap-2">{message.attachments.map((attachment)=><img key={attachment.id} src={attachment.url} alt="Message attachment" className="max-h-72 w-full rounded-xl object-cover"/>)}</div> : null}
+                    {message.deletedAt ? <span className="italic opacity-70">Message deleted</span> : message.content ? <span>{message.content}</span> : null}
+                  </div>
+                )}
                 <div className={"mt-1 flex items-center gap-2 " + (mine ? "justify-end" : "")}>
+                  {message.editedAt && !message.deletedAt ? <span className="text-[9px] text-gray-400">edited</span> : null}
                   {message.reactions?.length ? <span className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px]">{message.reactions.map((reaction)=>reaction.emoji).join("")}</span> : null}
-                  <button type="button" onClick={() => void reactToMessage(message.id)} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px] text-gray-500 hover:bg-gray-50" aria-label="React with heart">❤️</button>
+                  {message.replyTo && !message.deletedAt ? <div className="w-full max-w-xs rounded-xl border border-gray-200 bg-white/80 px-2.5 py-2 text-[10px] text-gray-500"><span className="font-black">Replying to {message.replyTo.sender.name}</span><p className="mt-0.5 truncate">{message.replyTo.content}</p></div> : null}
+                  {!message.deletedAt ? <button type="button" onClick={() => void reactToMessage(message.id)} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px] text-gray-500 hover:bg-gray-50" aria-label="React with heart">❤️</button> : null}
+                  {!message.deletedAt ? <button type="button" onClick={() => { setReplyingToMessage(message); setDraft(""); }} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px] text-gray-500 hover:bg-gray-50" aria-label="Reply to message"><MessageCircle size={11}/></button> : null}
+                  {mine && !message.deletedAt ? <>
+                    <button type="button" onClick={() => { setEditingMessageId(message.id); setEditingMessageText(message.content); }} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-gray-500 hover:bg-gray-50" aria-label="Edit message"><Pencil size={11}/></button>
+                    <button type="button" onClick={() => void deleteMessage(message.id)} className="rounded-full border border-red-100 bg-white px-2 py-1 text-red-500 hover:bg-red-50" aria-label="Delete message"><Trash2 size={11}/></button>
+                  </> : null}
                 </div>
               </div>
             </div>;
@@ -1007,6 +1108,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         </div>
 
         <form onSubmit={sendMessage} className="border-t border-gray-100 p-3">
+          {replyingToMessage ? <div className="mb-2 flex items-center justify-between rounded-xl bg-[#f4f2ff] px-3 py-2"><div className="min-w-0"><p className="text-[10px] font-black text-[#5a4be8]">Replying to {replyingToMessage.sender.name}</p><p className="truncate text-[10px] text-gray-500">{replyingToMessage.content || "Media message"}</p></div><button type="button" onClick={() => setReplyingToMessage(null)} className="grid size-7 place-items-center rounded-lg bg-white text-gray-400" aria-label="Cancel reply"><X size={13}/></button></div> : null}
           <input ref={attachmentRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={(event) => { void uploadAttachment(event.target.files?.[0]); event.currentTarget.value = ""; }} />
           {pendingAttachments.length ? <div className="mb-2 flex gap-2 overflow-x-auto">{pendingAttachments.map((url, index)=><div key={url} className="relative shrink-0"><img src={url} alt="Pending attachment" className="size-16 rounded-xl object-cover"/><button type="button" onClick={() => setPendingAttachments((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-gray-950 text-white"><X size={11}/></button></div>)}</div> : null}
           <div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2"><button type="button" onClick={() => attachmentRef.current?.click()} disabled={!active || uploadingAttachment || pendingAttachments.length >= 4} className="grid size-10 place-items-center rounded-xl bg-white text-gray-500 disabled:opacity-40" aria-label="Attach image"><Paperclip size={16}/></button><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={1} disabled={!active || !session?.user || sending} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60" placeholder={active ? "Write a message…" : "Select a conversation first"}/><button type="submit" disabled={!active || (!draft.trim() && !pendingAttachments.length) || !session?.user || sending} className="grid size-10 place-items-center rounded-xl bg-gray-950 text-white disabled:cursor-not-allowed disabled:opacity-50"><Send size={16}/></button></div>
@@ -1492,7 +1594,7 @@ function SettingsPage() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const [privateAccount, setPrivate] = useState(false);
-  const [privacySettings, setPrivacySettings] = useState({ showFriendsList: true, allowMessagesEveryone: true, allowFriendRequests: true });
+  const [privacySettings, setPrivacySettings] = useState({ showFriendsList: true, showFollowersList: true, showFollowingList: true, allowMessagesEveryone: true, allowFriendRequests: true });
   const [savingPrivacySetting, setSavingPrivacySetting] = useState<string | null>(null);
   const [email, setEmail] = useState("Not loaded");
   const [username, setUsername] = useState("Not loaded");
@@ -1557,7 +1659,7 @@ function SettingsPage() {
       .catch((requestError) => setMessage(requestError instanceof Error ? requestError.message : "Could not load privacy settings."));
   }, [session?.user?.id]);
 
-  async function updatePrivacySetting(key: "showFriendsList" | "allowMessagesEveryone" | "allowFriendRequests", value: boolean) {
+  async function updatePrivacySetting(key: "showFriendsList" | "showFollowersList" | "showFollowingList" | "allowMessagesEveryone" | "allowFriendRequests", value: boolean) {
     if (!session?.user || savingPrivacySetting) return;
     setSavingPrivacySetting(key);
     try {
@@ -1729,8 +1831,16 @@ function SettingsPage() {
               <Toggle value={privateAccount} disabled={!session?.user || savingPrivacy} onChange={(value)=>void updatePrivacy(value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
-              <div className="flex-1"><p className="text-sm font-bold">Show friends and relationship lists</p><p className="text-xs text-gray-400">Let other people open your Friends, Followers and Following lists.</p></div>
+              <div className="flex-1"><p className="text-sm font-bold">Show Friends / mutual list</p><p className="text-xs text-gray-400">Control whether other people can open your Friends and mutual connections list.</p></div>
               <Toggle value={privacySettings.showFriendsList} disabled={!session?.user || savingPrivacySetting === "showFriendsList"} onChange={(value)=>void updatePrivacySetting("showFriendsList", value)}/>
+            </div>
+            <div className="flex items-center gap-4 py-4">
+              <div className="flex-1"><p className="text-sm font-bold">Show followers list</p><p className="text-xs text-gray-400">Control whether other people can open your followers list.</p></div>
+              <Toggle value={privacySettings.showFollowersList} disabled={!session?.user || savingPrivacySetting === "showFollowersList"} onChange={(value)=>void updatePrivacySetting("showFollowersList", value)}/>
+            </div>
+            <div className="flex items-center gap-4 py-4">
+              <div className="flex-1"><p className="text-sm font-bold">Show following list</p><p className="text-xs text-gray-400">Control whether other people can open your following list.</p></div>
+              <Toggle value={privacySettings.showFollowingList} disabled={!session?.user || savingPrivacySetting === "showFollowingList"} onChange={(value)=>void updatePrivacySetting("showFollowingList", value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
               <div className="flex-1"><p className="text-sm font-bold">Allow messages from everyone</p><p className="text-xs text-gray-400">Turn off to limit new direct conversations to accepted friends.</p></div>

@@ -143,12 +143,25 @@ export async function GET(request: Request) {
 
   const likedSet = new Set(likedRows.map((row) => row.postId));
   const savedSet = new Set(savedRows.map((row) => row.postId));
+  const [reactionRows, myReactionRows] = postIds.length && session?.user ? await Promise.all([
+    prisma.postReaction.groupBy({ by: ["postId", "emoji"], where: { postId: { in: postIds } }, _count: { _all: true } }),
+    prisma.postReaction.findMany({ where: { userId: session.user.id, postId: { in: postIds } }, select: { postId: true, emoji: true } }),
+  ]) : [[], []];
+  const reactionSummary = new Map<string, Array<{ emoji: string; count: number }>>();
+  for (const row of reactionRows) {
+    const list = reactionSummary.get(row.postId) ?? [];
+    list.push({ emoji: row.emoji, count: row._count._all });
+    reactionSummary.set(row.postId, list);
+  }
+  const myReactionMap = new Map(myReactionRows.map((row) => [row.postId, row.emoji]));
 
   return NextResponse.json({
     posts: posts.map((post) => ({
       ...post,
       liked: likedSet.has(post.id),
       saved: savedSet.has(post.id),
+      reactions: reactionSummary.get(post.id) ?? [],
+      myReaction: myReactionMap.get(post.id) ?? null,
     })),
     nextBefore:
       posts.length === take

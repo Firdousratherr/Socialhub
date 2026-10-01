@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Camera, ChevronLeft, ChevronRight, Image as ImageIcon, Loader2, Plus, Trash2, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
@@ -32,6 +32,11 @@ export function StoryCenter({
   const [uploading, setUploading] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
+  const [storyReplies, setStoryReplies] = useState<Array<{ id: string; content: string; createdAt: string; author: { id: string; name: string; image: string | null } }>>([]);
+  const [storyReactions, setStoryReactions] = useState<Array<{ id: string; emoji: string; userId: string }>>([]);
+  const [myStoryReaction, setMyStoryReaction] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [interactionLoading, setInteractionLoading] = useState(false);
 
   const authors = Array.from(
     new Map(
@@ -99,6 +104,64 @@ export function StoryCenter({
     const response = await fetch("/api/stories/" + story.id, { method: "POST" });
     if (response.ok) {
       onStoriesChange(stories.map((item) => item.id === story.id ? { ...item, hasViewed: true } : item));
+    }
+  }
+
+  useEffect(() => {
+    if (!active?.id || !session?.user) {
+      setStoryReplies([]);
+      setStoryReactions([]);
+      setMyStoryReaction(null);
+      return;
+    }
+    let cancelled = false;
+    setInteractionLoading(true);
+    void fetch("/api/stories/" + active.id, { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(json.error ?? "Could not load story interactions.");
+        if (!cancelled) {
+          setStoryReplies(json.replies ?? []);
+          setStoryReactions((json.reactions ?? []).map((item: { id: string; emoji: string; userId: string }) => ({ id: item.id, emoji: item.emoji, userId: item.userId })));
+          setMyStoryReaction(json.myReaction?.emoji ?? null);
+        }
+      })
+      .catch((requestError) => { if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load story interactions."); })
+      .finally(() => { if (!cancelled) setInteractionLoading(false); });
+    return () => { cancelled = true; };
+  }, [active?.id, session?.user?.id]);
+
+  async function reactToStory(emoji: string) {
+    if (!active || !session?.user) return;
+    const response = await fetch("/api/stories/" + active.id, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reaction", emoji }) });
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) { setError(json.error ?? "Could not react to story."); return; }
+    setMyStoryReaction(emoji);
+    setStoryReactions((items) => [...items.filter((item) => item.userId !== session.user.id), { id: json.reaction.id, emoji, userId: session.user.id }]);
+  }
+
+  async function removeStoryReaction() {
+    if (!active || !session?.user) return;
+    const response = await fetch("/api/stories/" + active.id, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reaction" }) });
+    if (response.ok) {
+      setMyStoryReaction(null);
+      setStoryReactions((items) => items.filter((item) => item.userId !== session.user.id));
+    }
+  }
+
+  async function replyToStory() {
+    if (!active || !session?.user || !replyText.trim() || interactionLoading) return;
+    setInteractionLoading(true);
+    try {
+      const response = await fetch("/api/stories/" + active.id, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reply", content: replyText.trim() }) });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not reply to story.");
+      setStoryReplies((items) => [...items, json.reply]);
+      setReplyText("");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not reply to story.");
+    } finally {
+      setInteractionLoading(false);
     }
   }
 
@@ -182,6 +245,14 @@ export function StoryCenter({
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-5 pt-16 text-white">
                 <p className="text-sm font-black">{active.author.name}</p>
                 {active.caption ? <p className="mt-1 text-xs leading-5 text-white/85">{active.caption}</p> : null}
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {["❤️","😂","😮","😢","🔥","👍"].map((emoji) => <button key={emoji} type="button" onClick={() => myStoryReaction === emoji ? void removeStoryReaction() : void reactToStory(emoji)} className={"rounded-full px-2.5 py-1.5 text-sm " + (myStoryReaction === emoji ? "bg-white text-black" : "bg-white/10 text-white")}>{emoji}</button>)}
+                </div>
+                {session?.user && active.author.id !== session.user.id ? <div className="mt-3 flex gap-2">
+                  <input value={replyText} onChange={(event) => setReplyText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void replyToStory(); } }} maxLength={500} className="min-w-0 flex-1 rounded-xl bg-white/10 px-3 py-2 text-xs text-white outline-none placeholder:text-white/50" placeholder="Reply to story…"/>
+                  <button type="button" onClick={() => void replyToStory()} disabled={!replyText.trim() || interactionLoading} className="rounded-xl bg-white px-3 py-2 text-[10px] font-black text-gray-950 disabled:opacity-40">Reply</button>
+                </div> : null}
+                {storyReplies.length ? <div className="mt-3 max-h-24 space-y-1 overflow-y-auto">{storyReplies.slice(-3).map((reply) => <p key={reply.id} className="text-[10px] text-white/80"><span className="font-black">{reply.author.name}:</span> {reply.content}</p>)}</div> : null}
                 {active.author.id === session?.user?.id ? <button type="button" onClick={() => void removeStory()} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-[11px] font-bold"><Trash2 size={14}/> Delete</button> : null}
               </div>
             </div>

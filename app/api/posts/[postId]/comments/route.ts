@@ -113,3 +113,55 @@ export async function POST(request: Request, { params }: { params: Promise<{ pos
   }
   return NextResponse.json({ comment }, { status: 201 });
 }
+
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ postId: string }> }) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const { postId } = await params;
+  const access = await canViewPost(postId, session.user.id);
+  if (!access.allowed) return NextResponse.json({ error: "Post unavailable." }, { status: 404 });
+
+  const body = await request.json().catch(() => null) as { commentId?: string; content?: string } | null;
+  const commentId = typeof body?.commentId === "string" ? body.commentId : "";
+  const content = typeof body?.content === "string" ? body.content.trim() : "";
+  if (!commentId || content.length < 1 || content.length > 2000) {
+    return NextResponse.json({ error: "Provide valid comment content." }, { status: 400 });
+  }
+
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    select: { id: true, postId: true, authorId: true, parentId: true },
+  });
+  if (!comment || comment.postId !== postId) return NextResponse.json({ error: "Comment not found." }, { status: 404 });
+  if (comment.authorId !== session.user.id) return NextResponse.json({ error: "You can only edit your own comments." }, { status: 403 });
+
+  const updated = await prisma.comment.update({
+    where: { id: commentId },
+    data: { content },
+    include: { author: { select: { id: true, name: true, username: true, image: true } } },
+  });
+  return NextResponse.json({ comment: updated });
+}
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ postId: string }> }) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const { postId } = await params;
+  const access = await canViewPost(postId, session.user.id);
+  if (!access.allowed) return NextResponse.json({ error: "Post unavailable." }, { status: 404 });
+
+  const body = await request.json().catch(() => null) as { commentId?: string } | null;
+  const commentId = typeof body?.commentId === "string" ? body.commentId : "";
+  if (!commentId) return NextResponse.json({ error: "Comment id is required." }, { status: 400 });
+
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    select: { id: true, postId: true, authorId: true },
+  });
+  if (!comment || comment.postId !== postId) return NextResponse.json({ error: "Comment not found." }, { status: 404 });
+  if (comment.authorId !== session.user.id) return NextResponse.json({ error: "You can only delete your own comments." }, { status: 403 });
+
+  await prisma.comment.delete({ where: { id: commentId } });
+  return NextResponse.json({ success: true, commentId });
+}

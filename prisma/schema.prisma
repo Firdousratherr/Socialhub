@@ -54,6 +54,13 @@ enum ReportStatus {
   DISMISSED
 }
 
+enum ReportPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
 model User {
   id            String   @id
   name          String
@@ -78,6 +85,7 @@ model User {
   posts         Post[]
   comments      Comment[]
   likes         Like[]
+  postReactions PostReaction[]
   followers     Follow[]          @relation("UserFollowers")
   following     Follow[]          @relation("UserFollowing")
   sentMessages  Message[]         @relation("MessageSender")
@@ -88,6 +96,8 @@ model User {
   privacySetting UserPrivacySetting?
   stories       Story[]
   storyViews    StoryView[]
+  storyReplies  StoryReply[]
+  storyReactions StoryReaction[]
   messageAttachments MessageAttachment[] @relation("MessageAttachmentSender")
   messageReactions MessageReaction[] @relation("MessageReactionUser")
   savedPosts    SavedPost[]
@@ -96,6 +106,7 @@ model User {
   filedReports  Report[]           @relation("ReportReporter")
   reportedIn    Report[]           @relation("ReportTargetUser")
   resolvedReports Report[]         @relation("ReportResolver")
+  assignedReports Report[]         @relation("ReportAssignee")
   blockedUsers  Block[]            @relation("Blocker")
   blockedBy     Block[]            @relation("Blocked")
 
@@ -163,6 +174,7 @@ model Post {
   author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   comments   Comment[]
   likes      Like[]
+  postReactions PostReaction[]
   savedBy    SavedPost[]
   notifications Notification[]
   reports    Report[]
@@ -256,6 +268,8 @@ model ConversationMember {
   role           ConversationRole   @default(MEMBER)
   joinedAt       DateTime           @default(now())
   lastReadAt     DateTime?
+  mutedUntil     DateTime?
+  archivedAt     DateTime?
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -272,16 +286,20 @@ model Message {
   createdAt      DateTime     @default(now())
   editedAt       DateTime?
   deletedAt      DateTime?
+  replyToId      String?
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   notifications Notification[]
   attachments MessageAttachment[]
   reactions MessageReaction[]
+  replyTo Message? @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies Message[] @relation("MessageReply")
 
   @@index([conversationId, createdAt])
   @@index([conversationId, createdAt, id])
   @@index([senderId, createdAt])
+  @@index([replyToId])
 }
 
 model MessageAttachment {
@@ -337,6 +355,8 @@ model UserPrivacySetting {
   id                    String   @id @default(cuid())
   userId                String   @unique
   showFriendsList       Boolean  @default(true)
+  showFollowersList     Boolean  @default(true)
+  showFollowingList     Boolean  @default(true)
   allowMessagesEveryone Boolean  @default(true)
   allowFriendRequests   Boolean  @default(true)
   createdAt             DateTime @default(now())
@@ -374,6 +394,8 @@ model Story {
 
   author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   views      StoryView[]
+  replies    StoryReply[]
+  reactions  StoryReaction[]
 
   @@index([authorId, expiresAt])
   @@index([expiresAt, audience])
@@ -413,6 +435,9 @@ model Report {
   reportedUserId String?
   reason         String
   status         ReportStatus @default(PENDING)
+  priority       ReportPriority @default(MEDIUM)
+  assignedToId   String?
+  moderatorNote  String?
   createdAt      DateTime     @default(now())
   resolvedAt     DateTime?
   resolvedById   String?
@@ -422,10 +447,12 @@ model Report {
   comment      Comment?  @relation(fields: [commentId], references: [id], onDelete: Cascade)
   reportedUser User?     @relation("ReportTargetUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
   resolvedBy   User?     @relation("ReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  assignedTo   User?     @relation("ReportAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([reporterId, createdAt])
   @@index([reportedUserId, createdAt])
+  @@index([assignedToId, status, priority, createdAt])
 }
 
 model Block {
@@ -468,4 +495,62 @@ model AdminAuditLog {
 
   @@index([adminId, createdAt])
   @@index([targetType, targetId, createdAt])
+}
+
+
+model StoryReply {
+  id        String   @id @default(cuid())
+  storyId   String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  story  Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([storyId, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model StoryReaction {
+  id        String   @id @default(cuid())
+  storyId   String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, userId])
+  @@index([storyId, createdAt])
+  @@index([userId, createdAt])
+}
+
+
+model PostReaction {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId, emoji, createdAt])
+  @@index([userId, createdAt])
+}
+
+
+model AdminLoginAttempt {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  count     Int      @default(0)
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
 }

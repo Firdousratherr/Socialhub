@@ -16,6 +16,9 @@ type UserRow = {
 
 type ReportRow = {
   id: string; reason: string; status: "PENDING" | "REVIEWED" | "RESOLVED" | "DISMISSED";
+  priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  assignedTo?: { id: string; name: string; username: string | null } | null;
+  moderatorNote?: string | null;
   createdAt: string;
   reporter: { id: string; name: string; username: string | null; image: string | null };
   reportedUser: { id: string; name: string; username: string | null; image: string | null } | null;
@@ -182,6 +185,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
   const [busy,setBusy]=useState("");
   const [nextBefore,setNextBefore]=useState<string | null>(null);
   const [loadingMore,setLoadingMore]=useState(false);
+  const [currentAdminId,setCurrentAdminId]=useState<string|null>(null);
 
   async function load() {
     setLoading(true);
@@ -191,7 +195,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       const response=await fetch("/api/admin/reports?"+params.toString(),{cache:"no-store"});
       const json=await response.json();
       if(!response.ok) throw new Error(json.error??"Could not load moderation queue.");
-      setReports(json.reports??[]);setCounts(json.counts??{});setNextBefore(json.nextBefore??null);
+      setReports(json.reports??[]);setCounts(json.counts??{});setNextBefore(json.nextBefore??null);setCurrentAdminId(json.currentAdminId??null);
     } catch(e){onMessage(e instanceof Error?e.message:"Could not load moderation queue.");}
     finally{setLoading(false)}
   }
@@ -207,7 +211,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       const response=await fetch("/api/admin/reports?"+params.toString(),{cache:"no-store"});
       const json=await response.json();
       if(!response.ok) throw new Error(json.error??"Could not load more reports.");
-      setReports(items=>[...items,...(json.reports??[])]);
+      setReports(items=>[...items,...(json.reports??[])]);setCurrentAdminId(json.currentAdminId??currentAdminId);
       setNextBefore(json.nextBefore??null);
     } catch(e){onMessage(e instanceof Error?e.message:"Could not load more reports.");}
     finally{setLoadingMore(false)}
@@ -222,6 +226,17 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       setCounts(current=>({...current,[next.toLowerCase()]:Math.max(0,(current[next.toLowerCase()]??0)+1)}));
       onMessage("Report updated.");
     }catch(e){onMessage(e instanceof Error?e.message:"Could not update report.");}finally{setBusy("")}
+  }
+
+  async function updateMetadata(reportId:string, patch:Record<string,unknown>) {
+    setBusy(reportId);
+    try {
+      const response=await fetch("/api/admin/reports",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:reportId,...patch})});
+      const json=await response.json(); if(!response.ok) throw new Error(json.error??"Could not update report.");
+      setReports(items=>items.map(item=>item.id===reportId?{...item,...json.report}:item));
+      onMessage("Report workflow metadata updated.");
+    } catch(e) { onMessage(e instanceof Error?e.message:"Could not update report."); }
+    finally { setBusy(""); }
   }
 
   async function takeAction(report:ReportRow,action:"DELETE_POST"|"DELETE_COMMENT"|"DISABLE_USER") {
@@ -249,7 +264,12 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       {loading?<p className="p-8 text-center text-xs text-gray-400">Loading reports…</p>:reports.length===0?<div className="p-10 text-center"><ShieldCheck className="mx-auto text-emerald-500" size={24}/><p className="mt-3 text-sm font-black">No {status.toLowerCase()} reports</p><p className="mt-1 text-xs text-gray-400">{query?"No reports match your search.":"The queue is clear for this status."}</p></div>:
       <div className="divide-y divide-gray-100">{reports.map(report=><article key={report.id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-black">{report.reason}</p><p className="mt-1 text-[11px] text-gray-400">Reported by @{report.reporter.username??"member"} · {new Date(report.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">{report.status}</span></div>
         <div className="mt-3 rounded-2xl bg-gray-50 p-4 text-xs leading-5 text-gray-600">{report.reportedUser?<p>Profile: <strong>{report.reportedUser.name}</strong> @{report.reportedUser.username??"member"}</p>:null}{report.post?<p className="mt-1">Post: {report.post.content??"Media post"}</p>:null}{report.comment?<p className="mt-1">Comment: {report.comment.content}</p>:null}</div>
-        <div className="mt-4 flex flex-wrap gap-2">{report.status==="PENDING"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"REVIEWED")} className="rounded-xl bg-gray-950 px-3 py-2 text-[10px] font-black text-white">Mark reviewed</button>:null}
+        <div className="mt-4 grid gap-3 sm:grid-cols-[auto_auto_1fr] sm:items-center">
+          <select value={report.priority??"MEDIUM"} disabled={busy===report.id} onChange={(event)=>void updateMetadata(report.id,{priority:event.target.value})} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black"><option value="LOW">Low priority</option><option value="MEDIUM">Medium priority</option><option value="HIGH">High priority</option><option value="CRITICAL">Critical priority</option></select>
+          <button type="button" disabled={busy===report.id} onClick={()=>void updateMetadata(report.id,{assignedToId:report.assignedTo?.id===currentAdminId?null:currentAdminId})} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black">{report.assignedTo?.id===currentAdminId?"Unassign me":report.assignedTo?"Assigned to "+(report.assignedTo.username?"@"+report.assignedTo.username:report.assignedTo.name):"Assign to me"}</button>
+          <input defaultValue={report.moderatorNote??""} onBlur={(event)=>{if(event.target.value!==(report.moderatorNote??""))void updateMetadata(report.id,{note:event.target.value})}} maxLength={1000} placeholder="Moderator note…" className="min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-semibold"/>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">{report.status==="PENDING"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"REVIEWED")} className="rounded-xl bg-gray-950 px-3 py-2 text-[10px] font-black text-white">Mark reviewed</button>:null}
           {report.post?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DELETE_POST")} className="inline-flex items-center gap-1 rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700"><Trash2 size={13}/> Delete post</button>:null}
           {report.comment?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DELETE_COMMENT")} className="inline-flex items-center gap-1 rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700"><Trash2 size={13}/> Delete comment</button>:null}
           {report.reportedUser?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DISABLE_USER")} className="rounded-xl bg-orange-50 px-3 py-2 text-[10px] font-black text-orange-700">Disable account</button>:null}
@@ -323,12 +343,32 @@ function Audit(){
   const [targetType,setTargetType]=useState("");
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
+  const [nextBefore,setNextBefore]=useState<string|null>(null);
+  const [loadingMore,setLoadingMore]=useState(false);
   useEffect(()=>{const timer=window.setTimeout(()=>{void (async()=>{setLoading(true);setError("");try{
     const params=new URLSearchParams(); if(query.trim()) params.set("q",query.trim()); if(action) params.set("action",action); if(targetType) params.set("targetType",targetType);
-    const response=await fetch("/api/admin/audit?"+params.toString(),{cache:"no-store"}); const json=await response.json(); if(!response.ok) throw new Error(json.error??"Could not load audit log."); setLogs(json.logs??[]);
+    const response=await fetch("/api/admin/audit?"+params.toString(),{cache:"no-store"}); const json=await response.json(); if(!response.ok) throw new Error(json.error??"Could not load audit log."); setLogs(json.logs??[]); setNextBefore(json.nextBefore??null);
   }catch(e){setError(e instanceof Error?e.message:"Could not load audit log.");}finally{setLoading(false)}})()},200);return()=>window.clearTimeout(timer)},[query,action,targetType]);
-  return <Card><div className="flex flex-col gap-4 lg:flex-row lg:items-center"><div><div className="flex items-center gap-2"><History size={17}/><h2 className="text-sm font-black">Admin audit log</h2></div><p className="mt-1 text-xs text-gray-400">Searchable record of administrative and moderation actions.</p></div><div className="flex flex-col gap-2 sm:flex-row lg:ml-auto"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search action, target or details" className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-[#a79dff] sm:w-64"/><input value={action} onChange={e=>setAction(e.target.value)} placeholder="Action filter" className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-[#a79dff] sm:w-36"/><select value={targetType} onChange={e=>setTargetType(e.target.value)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold"><option value="">All targets</option><option value="USER">USER</option><option value="POST">POST</option><option value="COMMENT">COMMENT</option><option value="REPORT">REPORT</option><option value="CONVERSATION">CONVERSATION</option></select></div></div>
+  async function loadMore() {
+    if (!nextBefore || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const params=new URLSearchParams({before:nextBefore});
+      if(query.trim()) params.set("q",query.trim()); if(action) params.set("action",action); if(targetType) params.set("targetType",targetType);
+      const response=await fetch("/api/admin/audit?"+params.toString(),{cache:"no-store"});
+      const json=await response.json(); if(!response.ok) throw new Error(json.error??"Could not load more audit entries.");
+      setLogs((items)=>[...items,...(json.logs??[])]); setNextBefore(json.nextBefore??null);
+    }catch(e){setError(e instanceof Error?e.message:"Could not load more audit entries.");}
+    finally{setLoadingMore(false);}
+  }
+  function downloadCsv() {
+    const params=new URLSearchParams({format:"csv"});
+    if(query.trim()) params.set("q",query.trim()); if(action) params.set("action",action); if(targetType) params.set("targetType",targetType);
+    window.location.href="/api/admin/audit?"+params.toString();
+  }
+
+  return <Card><div className="flex flex-col gap-4 lg:flex-row lg:items-center"><div><div className="flex items-center gap-2"><History size={17}/><h2 className="text-sm font-black">Admin audit log</h2></div><p className="mt-1 text-xs text-gray-400">Searchable record of administrative and moderation actions.</p></div><div className="flex flex-col gap-2 sm:flex-row lg:ml-auto"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search action, target or details" className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-[#a79dff] sm:w-64"/><input value={action} onChange={e=>setAction(e.target.value)} placeholder="Action filter" className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-[#a79dff] sm:w-36"/><button type="button" onClick={downloadCsv} className="rounded-xl bg-gray-950 px-3 py-2 text-xs font-black text-white">Export CSV</button><select value={targetType} onChange={e=>setTargetType(e.target.value)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold"><option value="">All targets</option><option value="USER">USER</option><option value="POST">POST</option><option value="COMMENT">COMMENT</option><option value="REPORT">REPORT</option><option value="CONVERSATION">CONVERSATION</option></select></div></div>
     {error?<p className="mt-4 rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-600">{error}</p>:null}
-    <div className="mt-5 overflow-x-auto">{loading?<p className="py-8 text-center text-xs text-gray-400">Loading audit log…</p>:logs.length===0?<p className="py-8 text-center text-xs text-gray-400">No audit entries match these filters.</p>:<table className="w-full min-w-[760px] text-left text-xs"><thead className="border-b border-gray-100 text-[10px] font-black uppercase tracking-[.12em] text-gray-400"><tr><th className="px-2 py-3">Time</th><th className="px-2 py-3">Action</th><th className="px-2 py-3">Target</th><th className="px-2 py-3">Details</th><th className="px-2 py-3">Admin</th></tr></thead><tbody>{logs.map((log:any)=><tr key={log.id} className="border-b border-gray-50"><td className="px-2 py-3 whitespace-nowrap text-gray-500">{new Date(log.createdAt).toLocaleString()}</td><td className="px-2 py-3 font-black">{log.action}</td><td className="px-2 py-3">{log.targetType}{log.targetId?" · "+log.targetId:""}</td><td className="max-w-[360px] truncate px-2 py-3 text-gray-500">{log.details||"—"}</td><td className="px-2 py-3 text-gray-500">{log.adminId}</td></tr>)}</tbody></table>}</div>
+    <div className="mt-5 overflow-x-auto">{loading?<p className="py-8 text-center text-xs text-gray-400">Loading audit log…</p>:logs.length===0?<p className="py-8 text-center text-xs text-gray-400">No audit entries match these filters.</p>:<table className="w-full min-w-[760px] text-left text-xs"><thead className="border-b border-gray-100 text-[10px] font-black uppercase tracking-[.12em] text-gray-400"><tr><th className="px-2 py-3">Time</th><th className="px-2 py-3">Action</th><th className="px-2 py-3">Target</th><th className="px-2 py-3">Details</th><th className="px-2 py-3">Admin</th></tr></thead><tbody>{logs.map((log:any)=><tr key={log.id} className="border-b border-gray-50"><td className="px-2 py-3 whitespace-nowrap text-gray-500">{new Date(log.createdAt).toLocaleString()}</td><td className="px-2 py-3 font-black">{log.action}</td><td className="px-2 py-3">{log.targetType}{log.targetId?" · "+log.targetId:""}</td><td className="max-w-[360px] truncate px-2 py-3 text-gray-500">{log.details||"—"}</td><td className="px-2 py-3 text-gray-500">{log.adminId}</td></tr>)}</tbody></table>}{nextBefore?<div className="mt-4 text-center"><button type="button" onClick={()=>void loadMore()} disabled={loadingMore} className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-[11px] font-black text-gray-700 disabled:opacity-40">{loadingMore?"Loading…":"Load more audit entries"}</button></div>:null}</div>
   </Card>;
 }

@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as z from "zod";
+import { safeDeleteBlob } from "@/lib/blob-cleanup";
 
 const updateSchema = z.object({
   action: z.enum(["edit", "delete"]),
@@ -27,7 +28,7 @@ export async function PATCH(
 
   const message = await prisma.message.findUnique({
     where: { id: messageId },
-    select: { id: true, senderId: true, deletedAt: true },
+    select: { id: true, senderId: true, deletedAt: true, attachments: { select: { url: true } } },
   });
   if (!message) return NextResponse.json({ error: "Message not found." }, { status: 404 });
   if (message.senderId !== session.user.id) return NextResponse.json({ error: "You can only edit your own messages." }, { status: 403 });
@@ -43,6 +44,7 @@ export async function PATCH(
     },
   });
 
+  void Promise.all(message.attachments.map((attachment) => safeDeleteBlob(attachment.url)));
   return NextResponse.json({ message: updated });
 }
 

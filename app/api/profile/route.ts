@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { profileInputSchema } from "@/lib/validation";
+import { safeDeleteBlob } from "@/lib/blob-cleanup";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -59,6 +60,8 @@ export async function PATCH(request: Request) {
     );
   }
 
+  const previousMedia = await prisma.user.findUnique({ where: { id: session.user.id }, select: { image: true, coverImage: true } });
+
   try {
     const profile = await prisma.user.update({
       where: { id: session.user.id },
@@ -70,6 +73,8 @@ export async function PATCH(request: Request) {
       },
     });
 
+    if (previousMedia?.image && previousMedia.image !== profile.image) void safeDeleteBlob(previousMedia.image);
+    if (previousMedia?.coverImage && previousMedia.coverImage !== profile.coverImage) void safeDeleteBlob(previousMedia.coverImage);
     return NextResponse.json({ profile });
   } catch (error) {
     if (

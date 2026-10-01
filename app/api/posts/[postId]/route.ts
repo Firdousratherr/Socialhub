@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { postInputSchema } from "@/lib/validation";
+import { safeDeleteBlob } from "@/lib/blob-cleanup";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -18,7 +19,7 @@ export async function PATCH(
   const { postId } = await params;
   const existing = await prisma.post.findUnique({
     where: { id: postId },
-    select: { id: true, authorId: true },
+    select: { id: true, authorId: true, mediaUrl: true },
   });
   if (!existing) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   if (existing.authorId !== session.user.id) return NextResponse.json({ error: "You can only edit your own posts." }, { status: 403 });
@@ -28,6 +29,7 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid post." }, { status: 400 });
   }
 
+  const previousMedia = await prisma.post.findUnique({ where: { id: postId }, select: { mediaUrl: true } });
   const post = await prisma.post.update({
     where: { id: postId },
     data: {
@@ -41,6 +43,7 @@ export async function PATCH(
     },
   });
 
+  if (previousMedia?.mediaUrl && previousMedia.mediaUrl !== post.mediaUrl) void safeDeleteBlob(previousMedia.mediaUrl);
   return NextResponse.json({ post });
 }
 
@@ -54,11 +57,12 @@ export async function DELETE(
   const { postId } = await params;
   const existing = await prisma.post.findUnique({
     where: { id: postId },
-    select: { id: true, authorId: true },
+    select: { id: true, authorId: true, mediaUrl: true },
   });
   if (!existing) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   if (existing.authorId !== session.user.id) return NextResponse.json({ error: "You can only delete your own posts." }, { status: 403 });
 
   await prisma.post.delete({ where: { id: postId } });
+  void safeDeleteBlob(existing.mediaUrl);
   return NextResponse.json({ success: true });
 }
