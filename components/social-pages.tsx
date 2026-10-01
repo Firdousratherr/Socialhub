@@ -1165,6 +1165,7 @@ type NotificationData = {
   actor: { id: string; name: string; username: string | null; image: string | null } | null;
   post?: { id: string; content: string | null; mediaUrl: string | null } | null;
   comment?: { id: string; content: string } | null;
+  message?: { id: string; conversationId: string } | null;
 };
 
 function Notifications() {
@@ -1209,6 +1210,28 @@ function Notifications() {
     if (response.ok) setNotifications((items) => items.map((item) => ({ ...item, readAt: new Date().toISOString() })));
   }
 
+  async function openNotification(item: NotificationData) {
+    if (!session?.user) return;
+    if (!item.readAt) {
+      const response = await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationId: item.id }),
+      });
+      if (response.ok) setNotifications((items) => items.map((row) => row.id === item.id ? { ...row, readAt: new Date().toISOString() } : row));
+    }
+
+    if (item.type === "FOLLOW" && item.actor?.username) {
+      window.location.href = "/profile/" + encodeURIComponent(item.actor.username);
+    } else if (item.type === "FRIEND_REQUEST" || item.type === "FRIEND_ACCEPTED") {
+      window.location.href = "/friends";
+    } else if (item.type === "MESSAGE" && item.message?.conversationId) {
+      window.location.href = "/messages?conversation=" + encodeURIComponent(item.message.conversationId);
+    } else {
+      window.location.href = "/home";
+    }
+  }
+
   function iconFor(type: NotificationData["type"]) {
     if (type === "LIKE") return Heart;
     if (type === "COMMENT" || type === "MESSAGE") return MessageCircle;
@@ -1234,7 +1257,7 @@ function Notifications() {
       {loading && session?.user ? <div className="space-y-2 p-5">{[1,2,3].map((i)=><div key={i} className="flex gap-3 p-3"><span className="size-10 animate-pulse rounded-2xl bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 w-2/3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-1/3 animate-pulse rounded bg-gray-100"/></div></div>)}</div> : null}
       {notifications.length > 0 ? notifications.map((item) => {
         const Icon = iconFor(item.type);
-        return <button key={item.id} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
+        return <button key={item.id} onClick={() => void openNotification(item)} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
           <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(item.type)}`}><Icon size={17}/></span>
           <span className="flex-1"><span className="block text-sm font-bold">{item.actor?.name ?? "Socialhub"} {item.type === "LIKE" ? "liked your post." : item.type === "FOLLOW" ? "started following you." : item.type === "COMMENT" ? "commented on your post." : item.type === "FRIEND_REQUEST" ? "sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? "accepted your friend request." : item.type === "MESSAGE" ? "sent you a message." : item.type === "MENTION" ? "mentioned you." : "interacted with your content."}</span><span className="mt-1 block text-xs text-gray-400">{new Date(item.createdAt).toLocaleString()}</span></span>
           {!item.readAt ? <span className="mt-2 size-2 shrink-0 rounded-full bg-[#6d5dfc]"/> : null}
@@ -1268,6 +1291,8 @@ function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [savingPrivacy, setSavingPrivacy] = useState(false);
   const [message, setMessage] = useState("");
+  const [preferences, setPreferences] = useState<Record<string, boolean>>({});
+  const [savingPreference, setSavingPreference] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1299,6 +1324,36 @@ function SettingsPage() {
       cancelled = true;
     };
   }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!session?.user) return;
+    void fetch("/api/notification-preferences", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(json.error ?? "Could not load notification preferences.");
+        setPreferences(json.preferences ?? {});
+      })
+      .catch((requestError) => setMessage(requestError instanceof Error ? requestError.message : "Could not load notification preferences."));
+  }, [session?.user?.id]);
+
+  async function updatePreference(key: string, value: boolean) {
+    if (!session?.user || savingPreference) return;
+    setSavingPreference(key);
+    try {
+      const response = await fetch("/api/notification-preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: value }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not save notification preference.");
+      setPreferences(json.preferences ?? {});
+    } catch (requestError) {
+      setMessage(requestError instanceof Error ? requestError.message : "Could not save notification preference.");
+    } finally {
+      setSavingPreference(null);
+    }
+  }
 
   async function updatePrivacy(value: boolean) {
     if (!session?.user || savingPrivacy) return;
@@ -1406,7 +1461,8 @@ function SettingsPage() {
 
         <Card>
           <h2 className="text-sm font-black">Notifications</h2>
-          <p className="mt-2 text-xs leading-5 text-gray-400">Notification preferences will be connected to stored settings before these controls become interactive.</p>
+          <p className="mt-2 text-xs leading-5 text-gray-400">Choose which activity appears in your notification inbox.</p>
+          <div className="mt-4 divide-y divide-gray-100"><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Likes</p><p className="mt-0.5 text-[11px] text-gray-400">When someone likes your posts.</p></div><Toggle value={Boolean(preferences.likes)} disabled={!session?.user || savingPreference === "likes"} onChange={(value)=>void updatePreference("likes", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Comments</p><p className="mt-0.5 text-[11px] text-gray-400">When someone comments on your posts.</p></div><Toggle value={Boolean(preferences.comments)} disabled={!session?.user || savingPreference === "comments"} onChange={(value)=>void updatePreference("comments", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Follows</p><p className="mt-0.5 text-[11px] text-gray-400">When someone follows you.</p></div><Toggle value={Boolean(preferences.follows)} disabled={!session?.user || savingPreference === "follows"} onChange={(value)=>void updatePreference("follows", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests</p><p className="mt-0.5 text-[11px] text-gray-400">When someone sends you a friend request.</p></div><Toggle value={Boolean(preferences.friendRequests)} disabled={!session?.user || savingPreference === "friendRequests"} onChange={(value)=>void updatePreference("friendRequests", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests accepted</p><p className="mt-0.5 text-[11px] text-gray-400">When a friend request is accepted.</p></div><Toggle value={Boolean(preferences.friendAccepted)} disabled={!session?.user || savingPreference === "friendAccepted"} onChange={(value)=>void updatePreference("friendAccepted", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Messages</p><p className="mt-0.5 text-[11px] text-gray-400">When you receive a new message notification.</p></div><Toggle value={Boolean(preferences.messages)} disabled={!session?.user || savingPreference === "messages"} onChange={(value)=>void updatePreference("messages", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Mentions</p><p className="mt-0.5 text-[11px] text-gray-400">When someone mentions you.</p></div><Toggle value={Boolean(preferences.mentions)} disabled={!session?.user || savingPreference === "mentions"} onChange={(value)=>void updatePreference("mentions", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Shares</p><p className="mt-0.5 text-[11px] text-gray-400">When your content is shared.</p></div><Toggle value={Boolean(preferences.shares)} disabled={!session?.user || savingPreference === "shares"} onChange={(value)=>void updatePreference("shares", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">System</p><p className="mt-0.5 text-[11px] text-gray-400">Important account and platform notices.</p></div><Toggle value={Boolean(preferences.system)} disabled={!session?.user || savingPreference === "system"} onChange={(value)=>void updatePreference("system", value)}/></div></div>
         </Card>
 
         {session?.user ? (

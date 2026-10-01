@@ -324,7 +324,6 @@ function PostCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [error, setError] = useState("");
   const isOwner = currentUserId === post.authorId;
-  const isSample = post.id.startsWith("sample-");
   const handleCommentCountChange = useCallback((count: number) => setCommentCount((value) => value + count), []);
 
   useEffect(() => {
@@ -338,11 +337,6 @@ function PostCard({
   }, [post]);
 
   async function toggleLike() {
-    if (isSample) {
-      setLiked((value) => !value);
-      setLikeCount((value) => value + (liked ? -1 : 1));
-      return;
-    }
     const response = await fetch(`/api/posts/${post.id}/like`, { method: liked ? "DELETE" : "POST" });
     const json = await response.json().catch(() => ({}));
     if (response.ok) {
@@ -352,16 +346,11 @@ function PostCard({
   }
 
   async function toggleSave() {
-    if (isSample) {
-      setSaved((value) => !value);
-      return;
-    }
     const response = await fetch(`/api/posts/${post.id}/save`, { method: saved ? "DELETE" : "POST" });
     if (response.ok) setSaved(!saved);
   }
 
   async function sharePost() {
-    if (isSample) return;
     const url = `${window.location.origin}/home#post-${post.id}`;
     try {
       if (navigator.share) {
@@ -385,7 +374,7 @@ function PostCard({
 
   async function saveEdit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editText.trim() || savingEdit || isSample) return;
+    if (!editText.trim() || savingEdit) return;
     setSavingEdit(true);
     setError("");
     try {
@@ -411,14 +400,13 @@ function PostCard({
   }
 
   async function deletePost() {
-    if (!window.confirm("Delete this post permanently?") || isSample) return;
+    if (!window.confirm("Delete this post permanently?")) return;
     const response = await fetch(`/api/posts/${post.id}`, { method: "DELETE" });
     if (response.ok) onRemove(post.id);
     else setError("Could not delete the post.");
   }
 
   async function reportPost() {
-    if (isSample) return;
     const reason = window.prompt("Why are you reporting this post?", "Spam or misleading content");
     if (!reason?.trim()) return;
     const response = await fetch(`/api/posts/${post.id}/report`, {
@@ -479,7 +467,7 @@ function PostCard({
                       <Trash2 size={14} /> Delete post
                     </button>
                   </>
-                ) : !isSample ? (
+                ) : (
                   <>
                     <button onClick={() => void copyLink()} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50">
                       <Share2 size={14} /> Copy link
@@ -491,7 +479,7 @@ function PostCard({
                       <Users size={14} /> Block user
                     </button>
                   </>
-                ) : null}
+                )}
               </div>
             ) : null}
           </div>
@@ -836,7 +824,7 @@ export default function HomeFeed() {
 
           {feedError ? <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600"><span>{feedError}</span><button onClick={() => setFeedError("")} aria-label="Dismiss"><X size={14}/></button></div> : null}
 
-          <form onSubmit={publishPost} className="social-card mb-5 rounded-3xl p-4">
+          <form id="create-post" onSubmit={publishPost} className="social-card mb-5 scroll-mt-24 rounded-3xl p-4">
             <div className="flex gap-3">
               <Avatar name={session?.user?.name ?? "You"} image={session?.user?.image} accent="from-gray-800 to-gray-500"/>
               <div className="min-w-0 flex-1">
@@ -936,7 +924,7 @@ export default function HomeFeed() {
         {[
           { Icon: Home, label: "Home", active: true, href: "/home" },
           { Icon: Compass, label: "Discover", active: false, href: "/discover" },
-          { Icon: Plus, label: "Create", active: false, href: "/home" },
+          { Icon: Plus, label: "Create", active: false, href: "#create-post" },
           { Icon: Bell, label: "Alerts", active: false, href: "/notifications" },
           { Icon: Users, label: "Profile", active: false, href: profileHref },
         ].map(({ Icon, label, active, href }) => (
