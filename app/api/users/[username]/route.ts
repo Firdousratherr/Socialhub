@@ -40,6 +40,7 @@ export async function GET(
           id: true,
           content: true,
           mediaUrl: true,
+          visibility: true,
           createdAt: true,
           _count: {
             select: {
