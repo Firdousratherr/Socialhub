@@ -743,6 +743,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [draft, setDraft] = useState("");
   const [messageSearch, setMessageSearch] = useState("");
+  const [showArchivedConversations, setShowArchivedConversations] = useState(false);
   const [showConversationOptions, setShowConversationOptions] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -773,7 +774,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       }
 
       try {
-        const response = await fetch("/api/conversations", { cache: "no-store" });
+        const response = await fetch("/api/conversations" + (showArchivedConversations ? "?includeArchived=true" : ""), { cache: "no-store" });
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not load conversations.");
         if (cancelled) return;
@@ -1019,7 +1020,10 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
 
     <div className="grid min-h-[620px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:grid-cols-[330px_1fr]">
       <aside className="border-b border-gray-100 lg:border-b-0 lg:border-r">
-        <div className="flex items-center justify-between border-b border-gray-100 p-4"><h2 className="text-sm font-black">Inbox</h2><button type="button" onClick={() => setNewConversationOpen(true)} className="social-icon-button" aria-label="Start a new message"><Pencil size={17}/></button></div>
+        <div className="flex items-center justify-between border-b border-gray-100 p-4">
+          <div className="flex items-center gap-2"><h2 className="text-sm font-black">{showArchivedConversations ? "Archived" : "Inbox"}</h2><button type="button" onClick={() => setShowArchivedConversations((value) => !value)} className="rounded-lg px-2 py-1 text-[10px] font-black text-gray-500 hover:bg-gray-100">{showArchivedConversations ? "Inbox" : "Archived"}</button></div>
+          <button type="button" onClick={() => setNewConversationOpen(true)} className="social-icon-button" aria-label="Start a new message"><Pencil size={17}/></button>
+        </div>
         <label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages" aria-label="Search messages"/></label>
 
         <div className="space-y-1 p-2">
@@ -1334,7 +1338,7 @@ function Friends() {
     return () => {
       cancelled = true;
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, showArchivedConversations]);
 
   async function cancelRequest(requestId: string) {
     const response = await fetch("/api/friend-requests/" + requestId, { method: "DELETE" });
