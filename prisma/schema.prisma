@@ -85,6 +85,7 @@ model User {
   posts         Post[]
   comments      Comment[]
   likes         Like[]
+  postReactions PostReaction[]
   followers     Follow[]          @relation("UserFollowers")
   following     Follow[]          @relation("UserFollowing")
   sentMessages  Message[]         @relation("MessageSender")
@@ -98,6 +99,7 @@ model User {
   storyReplies  StoryReply[]
   storyReactions StoryReaction[]
   messageAttachments MessageAttachment[] @relation("MessageAttachmentSender")
+  postReactions PostReaction[]
   messageReactions MessageReaction[] @relation("MessageReactionUser")
   savedPosts    SavedPost[]
   sentFriendRequests FriendRequest[] @relation("FriendRequestSender")
@@ -522,5 +524,21 @@ model StoryReaction {
 
   @@unique([storyId, userId])
   @@index([storyId, createdAt])
+  @@index([userId, createdAt])
+}
+
+
+model PostReaction {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId, emoji, createdAt])
   @@index([userId, createdAt])
 }
