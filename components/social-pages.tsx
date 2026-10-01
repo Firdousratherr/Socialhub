@@ -1195,5 +1195,10 @@ function Notifications() {
           <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Bell size={20}/></span>
           <p className="mt-3 text-sm font-black">Sign in to see your notifications</p>
           <p className="mt-1 text-xs text-gray-400">Your real likes, follows, comments, messages, and requests will appear here.</p>
+      ) : null}
         </div>
 
+
+    </Card>
+  </Page>;
+}
