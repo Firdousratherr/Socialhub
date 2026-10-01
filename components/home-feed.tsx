@@ -1,13 +1,12 @@
 "use client";
 
 import type { ChangeEvent, FormEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import {
   Bell,
   Bookmark,
-  Check,
   ChevronDown,
   Compass,
   Home,
@@ -163,11 +162,9 @@ function timeLabel(createdAt: string) {
 
 function CommentThread({
   postId,
-  postAuthorId,
   onCountChange,
 }: {
   postId: string;
-  postAuthorId: string;
   onCountChange: (count: number) => void;
 }) {
   const { data: session } = authClient.useSession();
@@ -199,7 +196,7 @@ function CommentThread({
     return () => {
       cancelled = true;
     };
-  }, [postId, onCountChange]);
+  }, [postId]);
 
   async function sendComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -593,8 +590,7 @@ function PostCard({
         {commentsOpen ? (
           <CommentThread
             postId={post.id}
-            postAuthorId={post.authorId}
-            onCountChange={(count) => setCommentCount((value) => value + count)}
+            onCountChange={useCallback((count: number) => setCommentCount((value) => value + count), [])}
           />
         ) : null}
       </div>
