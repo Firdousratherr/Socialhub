@@ -1338,7 +1338,7 @@ function Friends() {
     return () => {
       cancelled = true;
     };
-  }, [session?.user?.id, showArchivedConversations]);
+  }, [session?.user?.id]);
 
   async function cancelRequest(requestId: string) {
     const response = await fetch("/api/friend-requests/" + requestId, { method: "DELETE" });
