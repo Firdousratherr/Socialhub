@@ -22,7 +22,7 @@ export async function GET(request: Request) {
       cursor = { createdAt, id: decoded.id };
     } catch { return NextResponse.json({ error: "Invalid audit cursor." }, { status: 400 }); }
   }
-  const format = url.searchParams.get("format") === "csv";
+  const isCsv = url.searchParams.get("format") === "csv";
   const takeParam = Number(url.searchParams.get("take") ?? "50");
   const take = Number.isFinite(takeParam) ? Math.min(Math.max(Math.floor(takeParam), 1), 100) : 50;
 
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
       } : {}),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: format === "csv" ? 1000 : take + 1,
+    take: isCsv ? 1000 : take + 1,
   });
 
   const hasMore = logs.length > take;
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
   const oldest = page.at(-1);
   const nextBefore = hasMore && oldest ? Buffer.from(JSON.stringify({ createdAt: oldest.createdAt.toISOString(), id: oldest.id })).toString("base64url") : null;
 
-  if (format === "csv") {
+  if (isCsv) {
     const escape = (value: string | null | undefined) => "\"" + String(value ?? "").replace(/\"/g, "\"\"") + "\"";
     const csv = ["createdAt,adminId,action,targetType,targetId,details", ...page.map((log) => [log.createdAt.toISOString(), log.adminId, log.action, log.targetType, log.targetId, log.details].map(escape).join(","))].join("\\n");
     return new NextResponse(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": "attachment; filename=admin-audit.csv" } });
