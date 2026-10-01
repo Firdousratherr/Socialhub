@@ -56,7 +56,20 @@ export async function GET() {
     },
   });
 
-  return NextResponse.json({ stories });
+  const viewedIds = session?.user
+    ? new Set(
+        (
+          await prisma.storyView.findMany({
+            where: { viewerId: session.user.id, storyId: { in: stories.map((story) => story.id) } },
+            select: { storyId: true },
+          })
+        ).map((view) => view.storyId),
+      )
+    : new Set<string>();
+
+  return NextResponse.json({
+    stories: stories.map((story) => ({ ...story, hasViewed: viewedIds.has(story.id) })),
+  });
 }
 
 export async function POST(request: Request) {

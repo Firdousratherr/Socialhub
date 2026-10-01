@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { MobileMenu } from "@/components/mobile-menu";
+import { StoryCenter } from "@/components/story-center";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -794,6 +795,8 @@ export default function HomeFeed() {
         ) : null}
       </header>
 
+      <div className="mx-auto max-w-[1440px] px-4 pt-4 sm:px-6 lg:hidden"><StoryCenter stories={stories} onStoriesChange={setStories}/></div>
+
       <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[230px_minmax(0,650px)_300px] lg:px-8">
         <aside className="hidden lg:block">
           <div className="sticky top-24">
@@ -882,19 +885,7 @@ export default function HomeFeed() {
 
         <aside className="hidden xl:block">
           <div className="sticky top-24 space-y-5">
-            <section className="social-card rounded-3xl p-5">
-              <div className="flex items-center justify-between"><h2 className="text-sm font-black tracking-[-0.02em]">Stories</h2><Link href="/home" className="text-xs font-bold text-[#6d5dfc]">See all</Link></div>
-              <div className="mt-4 flex gap-3 overflow-hidden">
-                {visibleStories.map((story, index) => (
-                  <Link href={`/profile/${story.author.username ?? story.author.id}`} className="min-w-16" key={story.id}>
-                    <div className="rounded-[1.15rem] bg-gradient-to-br p-[2px] from-[#6d5dfc] via-[#d957ff] to-[#ffb347]">
-                      <div className="rounded-[1rem] bg-white p-[2px]"><Avatar name={story.author.name} image={story.author.image} large accent={["from-emerald-400 to-sky-500","from-pink-400 to-violet-500","from-amber-400 to-orange-500","from-sky-400 to-indigo-500","from-fuchsia-500 to-orange-400"][index % 5]}/></div>
-                    </div>
-                    <p className="mt-2 truncate text-center text-[11px] font-bold text-gray-500">{story.author.name.split(" ")[0]}</p>
-                  </Link>
-                ))}
-              </div>
-            </section>
+            <StoryCenter stories={visibleStories} onStoriesChange={setStories}/>
 
             <section className="social-card rounded-3xl p-5">
               <div className="flex items-center justify-between"><h2 className="text-sm font-black tracking-[-0.02em]">People to follow</h2><Link href="/discover" className="text-xs font-bold text-[#6d5dfc]">View all</Link></div>
