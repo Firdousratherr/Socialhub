@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, BarChart3, Check, Edit3, Eye, FileText, Gauge, History, Search, Shield, UserCog, Users, X } from "lucide-react";
+import { Activity, BarChart3, Check, Edit3, Eye, FileText, Gauge, History, Search, Shield, Users, X } from "lucide-react";
+import { AdminInspection } from "@/components/admin-inspection";
 
 type UserRow = {
   id: string; name: string; username: string | null; email: string; image: string | null;
@@ -147,6 +148,7 @@ export function AdminPanel({ section="overview" }: { section?: string }) {
           {message ? <div role="status" className="rounded-2xl border border-[#ddd8ff] bg-[#f8f7ff] px-4 py-3 text-xs font-bold text-[#5a4be8]">{message}</div> : null}
 
           {active==="overview" ? <Dashboard dashboard={dashboard} loading={loading}/> : null}
+          {active==="inspection" ? <AdminInspection/> : null}
 
           {(active==="users" || active==="engagement") && !selectedId ? <>
             <Card><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><div><h2 className="text-sm font-black">{active==="users" ? "User management" : "Engagement manager"}</h2><p className="mt-1 text-xs text-gray-400">{active==="users" ? "Search and manage every Socialhub account." : "Select a user to control visible engagement metrics."}</p></div><div className="relative sm:ml-auto"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search name, username or email" className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-xs outline-none focus:border-[#a79dff] sm:w-80"/></div></div></Card>
