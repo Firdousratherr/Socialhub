@@ -19,6 +19,18 @@ export async function GET() {
       image: true, coverImage: true, website: true, location: true,
       isPrivate: true, role: true, createdAt: true,
       _count: { select: { posts: true, followers: true, following: true } },
+      posts: {
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select: {
+          id: true,
+          content: true,
+          mediaUrl: true,
+          visibility: true,
+          createdAt: true,
+          _count: { select: { likes: true, comments: true } },
+        },
+      },
     },
   });
 
