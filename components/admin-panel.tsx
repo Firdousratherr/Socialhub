@@ -255,7 +255,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
           {report.reportedUser?<button disabled={busy===report.id} onClick={()=>void takeAction(report,"DISABLE_USER")} className="rounded-xl bg-orange-50 px-3 py-2 text-[10px] font-black text-orange-700">Disable account</button>:null}
           {report.status!=="RESOLVED"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"RESOLVED")} className="rounded-xl bg-emerald-50 px-3 py-2 text-[10px] font-black text-emerald-700">Resolve</button>:null}
           {report.status!=="DISMISSED"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"DISMISSED")} className="rounded-xl bg-gray-100 px-3 py-2 text-[10px] font-black text-gray-600">Dismiss</button>:null}
-        </div></article>)}</div>}
+        </div></article>)}</div>}{nextBefore?<div className="border-t border-gray-100 p-4 text-center"><button type="button" onClick={()=>void loadMore()} disabled={loadingMore} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[10px] font-black text-gray-700 disabled:opacity-50">{loadingMore?"Loading…":"Load more reports"}</button></div>:null}
     </Card>
   </div>;
 }
