@@ -352,6 +352,7 @@ function PostCard({
   const [error, setError] = useState("");
   const isOwner = currentUserId === post.authorId;
   const isSample = post.id.startsWith("sample-");
+  const handleCommentCountChange = useCallback((count: number) => setCommentCount((value) => value + count), []);
 
   useEffect(() => {
     setLiked(post.liked);
@@ -590,7 +591,7 @@ function PostCard({
         {commentsOpen ? (
           <CommentThread
             postId={post.id}
-            onCountChange={useCallback((count: number) => setCommentCount((value) => value + count), [])}
+            onCountChange={handleCommentCountChange}
           />
         ) : null}
       </div>
