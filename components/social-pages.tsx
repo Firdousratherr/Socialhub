@@ -306,6 +306,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [error, setError] = useState("");
   const [profileTab, setProfileTab] = useState<"posts" | "photos" | "friends">("posts");
   const [friends, setFriends] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; bio: string | null }>>([]);
+  const [friendsHidden, setFriendsHidden] = useState(false);
   const [form, setForm] = useState({
     name: "Firdous Rather",
     username,
@@ -363,9 +364,9 @@ function Profile({ username = "firdous" }: { username?: string }) {
   }, [session?.user?.id, username]);
 
   useEffect(() => {
-    if (!isOwner || profileTab !== "friends") return;
+    if (profileTab !== "friends" || !profile) return;
     let cancelled = false;
-    void fetch("/api/friends", { cache: "no-store" })
+    void fetch(isOwner ? "/api/friends" : "/api/users/" + encodeURIComponent(profile.id) + "/friends", { cache: "no-store" })
       .then(async (response) => {
         const json = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(json.error ?? "Could not load friends.");
@@ -375,7 +376,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load friends.");
       });
     return () => { cancelled = true; };
-  }, [isOwner, profileTab]);
+  }, [isOwner, profileTab, profile?.id]);
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -605,7 +606,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
         </div>
         {profileTab === "friends" ? (
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {friends.length ? friends.map((friend) => <Link key={friend.id} href={"/profile/" + encodeURIComponent(friend.username ?? friend.id)} className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white">
+            {friendsHidden ? <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><Lock className="mx-auto text-gray-400" size={20}/><p className="mt-3 text-sm font-black">Friends are private</p><p className="mt-1 text-xs text-gray-400">Only the account owner and accepted friends can view this list.</p></div> : friends.length ? friends.map((friend) => <Link key={friend.id} href={"/profile/" + encodeURIComponent(friend.username ?? friend.id)} className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white">
               {friend.image ? <img src={friend.image} alt="" className="size-11 rounded-full object-cover"/> : <Avatar initials={friend.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="md"/>}
               <span className="min-w-0"><span className="block truncate text-sm font-black">{friend.name}</span><span className="block truncate text-xs text-gray-400">@{friend.username ?? "member"}</span></span>
             </Link>) : <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><p className="text-sm font-black">No friends to show yet</p><p className="mt-1 text-xs text-gray-400">Accepted connections will appear here.</p></div>}
@@ -846,12 +847,24 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
   const [q, setQ] = useState(initialQuery);
   const [results, setResults] = useState<DiscoverUser[]>([]);
   const [following, setFollowing] = useState<Set<string>>(new Set());
+  const [trends, setTrends] = useState<Array<{ tag: string; posts: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     setQ(initialQuery);
   }, [initialQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/discover/trends", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (response.ok && !cancelled) setTrends(json.trends ?? []);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
