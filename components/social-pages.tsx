@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
@@ -42,32 +43,199 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 }
 
 function Auth({ signup = false }: { signup?: boolean }) {
+  const router = useRouter();
   const [show, setShow] = useState(false);
-  return <main className="min-h-screen p-4 sm:p-6 lg:p-8"><div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-6xl overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-2xl lg:grid-cols-[.9fr_1.1fr]">
-    <section className="hidden bg-[radial-gradient(circle_at_top,#7d70ff,transparent_55%),linear-gradient(145deg,#171426,#30275d)] p-10 text-white lg:flex lg:flex-col lg:justify-between">
-      <Link href="/" className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-2xl bg-white/10"><Sparkles size={18}/></span><span className="font-black">Socialhub</span></Link>
-      <div><p className="text-xs font-black uppercase tracking-[.18em] text-white/50">Connect. Share. Belong.</p><h1 className="mt-5 max-w-md text-5xl font-black leading-[.96] tracking-[-.055em]">A social space that feels like yours.</h1><p className="mt-6 max-w-md text-sm leading-7 text-white/65">Keep your people close, share the moments that matter, and discover conversations worth having.</p></div>
-      <div className="grid grid-cols-3 gap-3">{[["12.4k","members"],["48k","posts"],["9.8k","daily chats"]].map(x=><div key={x[1]} className="rounded-2xl border border-white/10 bg-white/10 p-3"><p className="font-black">{x[0]}</p><p className="text-[10px] text-white/50">{x[1]}</p></div>)}</div>
-    </section>
-    <section className="flex items-center p-6 sm:p-10"><div className="mx-auto w-full max-w-md">
-      <div className="mb-7 flex items-center justify-between lg:hidden"><Link href="/" className="flex items-center gap-2 font-black"><span className="grid size-9 place-items-center rounded-xl bg-[#6d5dfc] text-white"><Sparkles size={17}/></span>Socialhub</Link><Link href="/home" className="text-xs font-bold text-gray-500">Preview</Link></div>
-      <p className="text-xs font-black uppercase tracking-[.16em] text-[#6d5dfc]">{signup ? "Create your account" : "Welcome back"}</p>
-      <h2 className="mt-2 text-3xl font-black tracking-[-.045em]">{signup ? "Join Socialhub today." : "Sign in to Socialhub."}</h2>
-      <p className="mt-2 text-sm text-gray-500">{signup ? "Build your profile and start finding your people." : "Pick up where you left off."}</p>
-      <div className="mt-7 space-y-4">
-        {signup && <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Full name</span><input className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Firdous Rather"/></label>}
-        <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Email</span><div className="relative"><Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/><input type="email" className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="you@example.com"/></div></label>
-        {signup && <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Username</span><div className="relative"><AtSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/><input className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="firdous"/></div></label>}
-        <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Password</span><div className="relative"><Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/><input type={show ? "text" : "password"} className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-20 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="••••••••"/><button type="button" onClick={()=>setShow(v=>!v)} className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-bold text-gray-500">{show?"Hide":"Show"}</button></div></label>
-        {!signup && <div className="flex items-center justify-between text-xs font-semibold text-gray-500"><label className="flex items-center gap-2"><input type="checkbox" className="accent-[#6d5dfc]"/>Remember me</label><button className="font-black text-[#5a4be8]">Forgot password?</button></div>}
-        <button className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gray-950 text-sm font-black text-white hover:bg-gray-800"><LogIn size={17}/>{signup?"Create account":"Sign in"}</button>
-        <button className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50"><Globe2 size={17}/>Continue with Google</button>
-      </div>
-      <p className="mt-7 text-center text-sm text-gray-500">{signup ? <>Already have an account? <Link href="/login" className="font-black text-[#5a4be8]">Sign in</Link></> : <>New to Socialhub? <Link href="/signup" className="font-black text-[#5a4be8]">Create an account</Link></>}</p>
-    </div></section>
-  </div></main>;
-}
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const result = signup
+        ? await authClient.signUp.email({
+            name: name.trim(),
+            email: email.trim(),
+            password,
+            callbackURL: "/home",
+          })
+        : await authClient.signIn.email({
+            email: email.trim(),
+            password,
+            callbackURL: "/home",
+          });
+
+      if (result.error) {
+        setError(result.error.message || "Authentication failed. Please try again.");
+        return;
+      }
+
+      router.push("/home");
+      router.refresh();
+    } catch {
+      setError("We could not reach the authentication service. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="min-h-screen p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-6xl overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-2xl lg:grid-cols-[.9fr_1.1fr]">
+        <section className="hidden bg-[radial-gradient(circle_at_top,#7d70ff,transparent_55%),linear-gradient(145deg,#171426,#30275d)] p-10 text-white lg:flex lg:flex-col lg:justify-between">
+          <Link href="/" className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-2xl bg-white/10"><Sparkles size={18}/></span>
+            <span className="font-black">Socialhub</span>
+          </Link>
+          <div>
+            <p className="text-xs font-black uppercase tracking-[.18em] text-white/50">Connect. Share. Belong.</p>
+            <h1 className="mt-5 max-w-md text-5xl font-black leading-[.96] tracking-[-.055em]">A social space that feels like yours.</h1>
+            <p className="mt-6 max-w-md text-sm leading-7 text-white/65">Keep your people close, share the moments that matter, and discover conversations worth having.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {[["12.4k","members"],["48k","posts"],["9.8k","daily chats"]].map(x=>
+              <div key={x[1]} className="rounded-2xl border border-white/10 bg-white/10 p-3">
+                <p className="font-black">{x[0]}</p>
+                <p className="text-[10px] text-white/50">{x[1]}</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="flex items-center p-6 sm:p-10">
+          <div className="mx-auto w-full max-w-md">
+            <div className="mb-7 flex items-center justify-between lg:hidden">
+              <Link href="/" className="flex items-center gap-2 font-black">
+                <span className="grid size-9 place-items-center rounded-xl bg-[#6d5dfc] text-white"><Sparkles size={17}/></span>
+                Socialhub
+              </Link>
+              <Link href="/home" className="text-xs font-bold text-gray-500">Preview</Link>
+            </div>
+
+            <p className="text-xs font-black uppercase tracking-[.16em] text-[#6d5dfc]">{signup ? "Create your account" : "Welcome back"}</p>
+            <h2 className="mt-2 text-3xl font-black tracking-[-.045em]">{signup ? "Join Socialhub today." : "Sign in to Socialhub."}</h2>
+            <p className="mt-2 text-sm text-gray-500">{signup ? "Build your profile and start finding your people." : "Pick up where you left off."}</p>
+
+            <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+              {signup && (
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold text-gray-600">Full name</span>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    autoComplete="name"
+                    required
+                    className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10"
+                    placeholder="Firdous Rather"
+                  />
+                </label>
+              )}
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-bold text-gray-600">Email</span>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
+                    required
+                    className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10"
+                    placeholder="you@example.com"
+                  />
+                </div>
+              </label>
+
+              {signup && (
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold text-gray-600">Username</span>
+                  <div className="relative">
+                    <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/>
+                    <input
+                      value={email.split("@")[0]}
+                      readOnly
+                      className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm text-gray-500 outline-none"
+                      aria-label="Username preview"
+                    />
+                  </div>
+                  <p className="mt-1.5 text-[10px] text-gray-400">We’ll start with your email name; you can change it from your profile.</p>
+                </label>
+              )}
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-bold text-gray-600">Password</span>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/>
+                  <input
+                    type={show ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete={signup ? "new-password" : "current-password"}
+                    minLength={8}
+                    required
+                    className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-20 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10"
+                    placeholder="••••••••"
+                  />
+                  <button type="button" onClick={() => setShow(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-bold text-gray-500">
+                    {show ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </label>
+
+              {!signup && (
+                <div className="flex items-center justify-between text-xs font-semibold text-gray-500">
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" className="accent-[#6d5dfc]"/>Remember me
+                  </label>
+                  <button type="button" className="font-black text-[#5a4be8]">Forgot password?</button>
+                </div>
+              )}
+
+              {error ? (
+                <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">
+                  {error}
+                </div>
+              ) : null}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gray-950 text-sm font-black text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <LogIn size={17}/>
+                {loading ? "Please wait…" : signup ? "Create account" : "Sign in"}
+              </button>
+
+              <button
+                type="button"
+                disabled
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 text-sm font-bold text-gray-400 disabled:cursor-not-allowed"
+                title="Google sign-in will be enabled after provider credentials are configured."
+              >
+                <Globe2 size={17}/>
+                Continue with Google
+              </button>
+            </form>
+
+            <p className="mt-7 text-center text-sm text-gray-500">
+              {signup ? (
+                <>Already have an account? <Link href="/login" className="font-black text-[#5a4be8]">Sign in</Link></>
+              ) : (
+                <>New to Socialhub? <Link href="/signup" className="font-black text-[#5a4be8]">Create an account</Link></>
+              )}
+            </p>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
 function Profile({ username = "firdous" }: { username?: string }) {
   const [editing,setEditing]=useState(false); const [following,setFollowing]=useState(false);
   return <Page eyebrow="Profile" title={`@${username}`} action={<button onClick={()=>setEditing(v=>!v)} className="flex h-10 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white"><Pencil size={15}/>{editing?"Done":"Edit profile"}</button>}>
