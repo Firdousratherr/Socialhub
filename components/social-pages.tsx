@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
@@ -251,17 +251,190 @@ function Profile({ username = "firdous" }: { username?: string }) {
   </Page>;
 }
 
-function Messages() {
-  const chats=[["MC","Maya Chen","That sounds great. Send me the draft when you can.","9:42","2",true],["AM","Arjun Mehta","The weekend plan still on?","8:18","0",true],["SM","Sara Malik","Loved the photos ✨","Yesterday","0",false],["DC","Design Crew","Nora: I pushed the latest concept.","Mon","7",false]];
-  const [active,setActive]=useState(0); const [draft,setDraft]=useState(""); const current=chats[active];
-  return <Page eyebrow="Messages" title="Your conversations" subtitle="Focused one-to-one and group messaging, designed to be easy to pick back up."><div className="grid min-h-[620px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:grid-cols-[330px_1fr]">
-    <aside className="border-b border-gray-100 lg:border-b-0 lg:border-r"><div className="flex items-center justify-between border-b border-gray-100 p-4"><h2 className="text-sm font-black">Inbox</h2><button className="social-icon-button"><Pencil size={17}/></button></div><label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages"/></label><div className="space-y-1 p-2">{chats.map((c,i)=><button key={c[1]} onClick={()=>setActive(i)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left ${i===active?"bg-[#f4f2ff]":"hover:bg-gray-50"}`}><Avatar initials={c[0]} color={colors[i%colors.length]}/><div className="min-w-0 flex-1"><div className="flex justify-between gap-2"><p className="truncate text-xs font-black">{c[1]}</p><span className="text-[10px] text-gray-400">{c[3]}</span></div><div className="mt-1 flex gap-2"><p className="truncate text-[11px] text-gray-400">{c[2]}</p>{Number(c[4])>0&&<span className="grid size-5 place-items-center rounded-full bg-[#6d5dfc] text-[9px] font-black text-white">{c[4]}</span>}</div></div></button>)}</div></aside>
-    <section className="flex min-h-[620px] flex-col"><div className="flex items-center gap-3 border-b border-gray-100 p-4"><Avatar initials={current[0]} color={colors[active%colors.length]}/><div className="flex-1"><p className="text-sm font-black">{current[1]}</p><p className="text-[11px] text-emerald-500">{current[5]?"Active now":"Active recently"}</p></div><button className="social-icon-button"><Search size={17}/></button><button className="social-icon-button"><MoreHorizontal size={18}/></button></div>
-      <div className="flex-1 space-y-4 p-5"><div className="flex justify-center"><span className="rounded-full bg-gray-100 px-3 py-1 text-[10px] font-bold text-gray-400">Today</span></div><div className="flex items-end gap-2"><Avatar initials={current[0]} color={colors[active%colors.length]} size="sm"/><div className="max-w-[76%] rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700">Hey! Have you had a chance to look at the latest idea?</div></div><div className="flex justify-end"><div className="max-w-[76%] rounded-2xl rounded-br-md bg-[#6d5dfc] px-4 py-3 text-sm leading-6 text-white">Yes, I did. I really like the direction. Let me send you a couple of notes.</div></div><div className="flex items-end gap-2"><Avatar initials={current[0]} color={colors[active%colors.length]} size="sm"/><div className="max-w-[76%] rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700">{current[2]}</div></div></div>
-      <div className="border-t border-gray-100 p-3"><div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2"><button className="grid size-10 place-items-center rounded-xl"><Plus size={18}/></button><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={1} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none" placeholder="Write a message…"/><button onClick={()=>setDraft("")} className="grid size-10 place-items-center rounded-xl bg-gray-950 text-white"><Send size={16}/></button></div></div>
-    </section></div></Page>;
-}
+type ChatMessage = {
+  id: string;
+  senderId: string;
+  content: string;
+  createdAt: string;
+  sender: { id: string; name: string; username: string | null; image: string | null };
+};
 
+type ConversationData = {
+  id: string;
+  title: string | null;
+  isGroup: boolean;
+  members: Array<{
+    userId: string;
+    role: string;
+    user: { id: string; name: string; username: string | null; image: string | null };
+  }>;
+  messages: Array<{ id: string; senderId: string; content: string; createdAt: string }>;
+};
+
+function Messages() {
+  const { data: session } = authClient.useSession();
+  const [conversations, setConversations] = useState<ConversationData[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+
+  const sampleChats = [
+    { initials: "MC", name: "Maya Chen", preview: "That sounds great. Send me the draft when you can.", time: "9:42", unread: 2 },
+    { initials: "AM", name: "Arjun Mehta", preview: "The weekend plan still on?", time: "8:18", unread: 0 },
+    { initials: "SM", name: "Sara Malik", preview: "Loved the photos ✨", time: "Yesterday", unread: 0 },
+    { initials: "DC", name: "Design Crew", preview: "Nora: I pushed the latest concept.", time: "Mon", unread: 7 },
+  ];
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadConversations() {
+      setLoading(true);
+      setError("");
+      if (!session?.user) {
+        setConversations([]);
+        setActiveId(null);
+        setMessages([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/conversations", { cache: "no-store" });
+        const json = await response.json();
+        if (!response.ok) throw new Error(json.error ?? "Could not load conversations.");
+        if (cancelled) return;
+        const next = json.conversations as ConversationData[];
+        setConversations(next);
+        setActiveId((current) => current && next.some((conversation) => conversation.id === current) ? current : next[0]?.id ?? null);
+      } catch (requestError) {
+        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load conversations.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadConversations();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMessages() {
+      if (!activeId || !session?.user) {
+        setMessages([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(\`/api/conversations/\${activeId}/messages\`, { cache: "no-store" });
+        const json = await response.json();
+        if (!response.ok) throw new Error(json.error ?? "Could not load messages.");
+        if (!cancelled) setMessages(json.messages as ChatMessage[]);
+      } catch (requestError) {
+        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load messages.");
+      }
+    }
+
+    void loadMessages();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeId, session?.user?.id]);
+
+  const active = conversations.find((conversation) => conversation.id === activeId) ?? null;
+  const activeMember = active?.members.find((member) => member.userId !== session?.user?.id)?.user;
+  const activeName = active?.title ?? activeMember?.name ?? "Messages";
+
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeId || !draft.trim() || !session?.user || sending) return;
+
+    setSending(true);
+    setError("");
+    try {
+      const response = await fetch(\`/api/conversations/\${activeId}/messages\`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: draft.trim() }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error ?? "Could not send message.");
+      setMessages((current) => [...current, json.message as ChatMessage]);
+      setDraft("");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not send message.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return <Page eyebrow="Messages" title="Your conversations" subtitle="Focused one-to-one and group messaging, designed to be easy to pick back up.">
+    {!session?.user ? (
+      <div className="mb-5 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-4 py-3 text-xs font-semibold text-[#5a4be8]">
+        Sign in to load your real conversations. The interface stays browsable while you are signed out.
+      </div>
+    ) : null}
+    {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
+
+    <div className="grid min-h-[620px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:grid-cols-[330px_1fr]">
+      <aside className="border-b border-gray-100 lg:border-b-0 lg:border-r">
+        <div className="flex items-center justify-between border-b border-gray-100 p-4"><h2 className="text-sm font-black">Inbox</h2><button className="social-icon-button"><Pencil size={17}/></button></div>
+        <label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages"/></label>
+
+        <div className="space-y-1 p-2">
+          {loading && session?.user ? (
+            [1,2,3].map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl p-3"><span className="size-10 animate-pulse rounded-full bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-2/3 animate-pulse rounded bg-gray-100"/></div></div>)
+          ) : conversations.length > 0 ? conversations.map((conversation, i) => {
+            const other = conversation.members.find((member) => member.userId !== session?.user?.id)?.user;
+            const name = conversation.title ?? other?.name ?? "Conversation";
+            const preview = conversation.messages[0]?.content ?? "No messages yet";
+            return <button key={conversation.id} onClick={() => setActiveId(conversation.id)} className={\`flex w-full items-center gap-3 rounded-2xl p-3 text-left \${conversation.id===activeId?"bg-[#f4f2ff]":"hover:bg-gray-50"}\`}>
+              <Avatar initials={(other?.name ?? name).split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} color={colors[i%colors.length]}/>
+              <div className="min-w-0 flex-1"><p className="truncate text-xs font-black">{name}</p><p className="mt-1 truncate text-[11px] text-gray-400">{preview}</p></div>
+            </button>;
+          }) : (
+            sampleChats.map((chat, i) => <div key={chat.name} className="flex items-center gap-3 rounded-2xl p-3">
+              <Avatar initials={chat.initials} color={colors[i%colors.length]}/>
+              <div className="min-w-0 flex-1"><div className="flex justify-between gap-2"><p className="truncate text-xs font-black">{chat.name}</p><span className="text-[10px] text-gray-400">{chat.time}</span></div><p className="mt-1 truncate text-[11px] text-gray-400">{chat.preview}</p></div>
+              {chat.unread ? <span className="grid size-5 place-items-center rounded-full bg-[#6d5dfc] text-[9px] font-black text-white">{chat.unread}</span> : null}
+            </div>)
+          )}
+        </div>
+      </aside>
+
+      <section className="flex min-h-[620px] flex-col">
+        <div className="flex items-center gap-3 border-b border-gray-100 p-4">
+          <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} />
+          <div className="flex-1"><p className="text-sm font-black">{activeName}</p><p className="text-[11px] text-gray-400">{active ? (active.isGroup ? \`\${active.members.length} members\` : "Direct message") : "Select a conversation"}</p></div>
+          <button className="social-icon-button"><Search size={17}/></button><button className="social-icon-button"><MoreHorizontal size={18}/></button>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-y-auto p-5">
+          {active && messages.length > 0 ? messages.map((message) => {
+            const mine = message.senderId === session?.user?.id;
+            return <div key={message.id} className={mine ? "flex justify-end" : "flex items-end gap-2"}>
+              {!mine ? <Avatar initials={message.sender.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} size="sm"/> : null}
+              <div className={mine ? "max-w-[76%] rounded-2xl rounded-br-md bg-[#6d5dfc] px-4 py-3 text-sm leading-6 text-white" : "max-w-[76%] rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700"}>{message.content}</div>
+            </div>;
+          }) : (
+            <div className="flex h-full min-h-56 items-center justify-center text-center"><div><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={20}/></span><p className="mt-3 text-sm font-black">{active ? "No messages yet" : "Pick a conversation"}</p><p className="mt-1 text-xs text-gray-400">{active ? "Send the first message below." : "Choose a chat from your inbox to start."}</p></div></div>
+          )}
+        </div>
+
+        <form onSubmit={sendMessage} className="border-t border-gray-100 p-3">
+          <div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2"><button type="button" className="grid size-10 place-items-center rounded-xl"><Plus size={18}/></button><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={1} disabled={!active || !session?.user || sending} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60" placeholder={active ? "Write a message…" : "Select a conversation first"}/><button type="submit" disabled={!active || !draft.trim() || !session?.user || sending} className="grid size-10 place-items-center rounded-xl bg-gray-950 text-white disabled:cursor-not-allowed disabled:opacity-50"><Send size={16}/></button></div>
+        </form>
+      </section>
+    </div>
+  </Page>;
+}
 function Discover() {
   const [q,setQ]=useState(""); const results=useMemo(()=>people.filter(p=>(p[1]+p[2]).toLowerCase().includes(q.toLowerCase())),[q]);
   return <Page eyebrow="Discover" title="Find your next connection" subtitle="Search people, browse topics, and explore conversations worth joining."><div className="space-y-5"><Card><div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/><input value={q} onChange={e=>setQ(e.target.value)} className="h-12 w-full rounded-2xl bg-gray-50 pl-11 text-sm font-semibold outline-none focus:bg-white" placeholder="Search people and usernames…"/></div><div className="mt-4 flex gap-2"><button className="rounded-xl bg-[#eeebff] px-3.5 py-2 text-xs font-black text-[#5a4be8]">People</button>{["Posts","Topics","Communities"].map(x=><button key={x} className="rounded-xl px-3.5 py-2 text-xs font-bold text-gray-500 hover:bg-gray-50">{x}</button>)}</div></Card><div className="grid gap-5 md:grid-cols-2"><Card><div className="flex justify-between"><h2 className="text-sm font-black">Suggested people</h2><button className="text-xs font-bold text-[#5a4be8]">See all</button></div><div className="mt-4 space-y-4">{results.map((p,i)=><div key={p[2]} className="flex items-center gap-3"><Avatar initials={p[0]} color={colors[i%colors.length]}/><div className="flex-1"><p className="text-xs font-black">{p[1]}</p><p className="text-[11px] text-gray-400">{p[2]} · {p[3]}</p></div><button className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white"><UserPlus size={15}/></button></div>)}</div></Card><Card><h2 className="text-sm font-black">Trending topics</h2><div className="mt-4 space-y-2">{["#BuildInPublic","#WeekendMoments","#DesignTalk","#Creators"].map((x,i)=><Link key={x} href="#" className="flex items-center gap-3 rounded-2xl p-3 hover:bg-gray-50"><span className="grid size-9 place-items-center rounded-xl bg-gray-100 text-[10px] font-black text-gray-500">0{i+1}</span><span className="flex-1"><span className="block text-xs font-black">{x}</span><span className="text-[11px] text-gray-400">{18-i*3}.4k posts</span></span><ChevronRight size={16} className="text-gray-400"/></Link>)}</div></Card></div></div></Page>;
