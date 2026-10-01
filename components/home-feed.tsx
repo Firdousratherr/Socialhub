@@ -697,6 +697,8 @@ export default function HomeFeed() {
       shareCount: number;
       liked: boolean;
       saved: boolean;
+      reactions: Array<{ emoji: string; count: number }>;
+      myReaction: string | null;
       author: { id: string; name: string; username: string | null; image: string | null };
       _count: { likes: number; comments: number };
     }, index: number) => ({
@@ -716,6 +718,8 @@ export default function HomeFeed() {
       shares: item.shareCount ?? 0,
       liked: Boolean(item.liked),
       saved: Boolean(item.saved),
+      reactions: item.reactions ?? [],
+      myReaction: item.myReaction ?? null,
     }));
 
     setNextBefore(json.nextBefore ?? null);
@@ -740,6 +744,7 @@ export default function HomeFeed() {
           const mapped = (feedJson.posts ?? []).map((item: {
             id: string; authorId: string; content: string | null; mediaUrl: string | null; visibility: Post["visibility"]; createdAt: string;
             shareCount: number; liked: boolean; saved: boolean;
+            reactions: Array<{ emoji: string; count: number }>; myReaction: string | null;
             author: { id: string; name: string; username: string | null; image: string | null };
             _count: { likes: number; comments: number };
           }, index: number) => ({
@@ -759,6 +764,8 @@ export default function HomeFeed() {
             shares: item.shareCount ?? 0,
             liked: Boolean(item.liked),
             saved: Boolean(item.saved),
+            reactions: item.reactions ?? [],
+            myReaction: item.myReaction ?? null,
           }));
           setFeedPosts(mapped);
           setNextBefore(feedJson.nextBefore ?? null);
