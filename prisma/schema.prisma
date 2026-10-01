@@ -86,6 +86,7 @@ model User {
   actedNotifications Notification[] @relation("NotificationActor")
   notificationPreference NotificationPreference?
   stories       Story[]
+  storyViews    StoryView[]
   savedPosts    SavedPost[]
   sentFriendRequests FriendRequest[] @relation("FriendRequestSender")
   receivedFriendRequests FriendRequest[] @relation("FriendRequestReceiver")
@@ -330,6 +331,19 @@ model Story {
 
   @@index([authorId, expiresAt])
   @@index([expiresAt, audience])
+}
+
+model StoryView {
+  id        String   @id @default(cuid())
+  storyId   String
+  viewerId  String
+  viewedAt  DateTime @default(now())
+
+  story  Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  viewer User  @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, viewerId])
+  @@index([viewerId, viewedAt])
 }
 
 model SavedPost {
