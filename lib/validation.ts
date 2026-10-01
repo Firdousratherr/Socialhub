@@ -1,20 +1,31 @@
 import * as z from "zod";
 
+function isTrustedMediaUrl(value: string) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return false;
+    if (url.hostname.endsWith(".public.blob.vercel-storage.com")) return true;
+    const configured = (process.env.MEDIA_URL_HOSTS ?? "").split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
+    return configured.includes(url.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+const mediaUrlSchema = z.string().url().max(2048).refine(isTrustedMediaUrl, "Media must be uploaded through an approved storage host.");
+
 export const postInputSchema = z.object({
   content: z.string().trim().max(5000).optional().nullable(),
-  mediaUrl: z.string().url().max(2048).optional().nullable(),
+  mediaUrl: mediaUrlSchema.optional().nullable(),
   visibility: z.enum(["PUBLIC", "FRIENDS", "PRIVATE"]).default("PUBLIC"),
-}).refine(
-  (value) => Boolean(value.content) || Boolean(value.mediaUrl),
-  "A post needs text or media.",
-);
+}).refine((value) => Boolean(value.content) || Boolean(value.mediaUrl), "A post needs text or media.");
 
 export const profileInputSchema = z.object({
   name: z.string().trim().min(2).max(80).optional(),
   username: z.string().trim().regex(/^[A-Za-z0-9_]{3,30}$/).nullable().optional(),
   bio: z.string().trim().max(500).nullable().optional(),
-  image: z.string().url().max(2048).nullable().optional(),
-  coverImage: z.string().url().max(2048).nullable().optional(),
+  image: mediaUrlSchema.optional().nullable(),
+  coverImage: mediaUrlSchema.optional().nullable(),
   website: z.string().url().max(2048).nullable().optional(),
   location: z.string().trim().max(120).nullable().optional(),
   isPrivate: z.boolean().optional(),
@@ -28,7 +39,7 @@ export const conversationInputSchema = z.object({
 
 export const messageInputSchema = z.object({
   content: z.string().trim().max(5000).default(""),
-  attachments: z.array(z.string().url().max(2048)).max(4).default([]),
+  attachments: z.array(mediaUrlSchema).max(4).default([]),
 }).refine((value) => Boolean(value.content.trim()) || value.attachments.length > 0, "Message needs text or an attachment.");
 
 export const commentInputSchema = z.object({
@@ -37,7 +48,7 @@ export const commentInputSchema = z.object({
 });
 
 export const storyInputSchema = z.object({
-  mediaUrl: z.string().url().max(2048),
+  mediaUrl: mediaUrlSchema,
   caption: z.string().trim().max(300).nullable().optional(),
   audience: z.enum(["PUBLIC", "FRIENDS"]).default("PUBLIC"),
   expiresAt: z.coerce.date(),
