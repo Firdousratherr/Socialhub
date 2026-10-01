@@ -18,12 +18,18 @@ export async function POST(
   const post = await prisma.post.findUnique({ where: { id: postId }, select: { id: true } });
   if (!post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
 
-  await prisma.report.create({
-    data: {
+  const existing = await prisma.report.findFirst({
+    where: {
       reporterId: session.user.id,
       postId,
-      reason,
+      status: { in: ["PENDING", "REVIEWED"] },
     },
+    select: { id: true },
+  });
+  if (existing) return NextResponse.json({ error: "You have already reported this post." }, { status: 409 });
+
+  await prisma.report.create({
+    data: { reporterId: session.user.id, postId, reason },
   });
 
   return NextResponse.json({ reported: true }, { status: 201 });
