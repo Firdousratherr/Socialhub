@@ -274,6 +274,13 @@ type ProfileData = {
   visibleCounts?: { posts: number; followers: number; following: number };
   isFollowing?: boolean;
   isFriend?: boolean;
+  posts?: Array<{
+    id: string;
+    content: string | null;
+    mediaUrl: string | null;
+    createdAt: string;
+    _count: { likes: number; comments: number };
+  }>;
 };
 
 function Profile({ username = "firdous" }: { username?: string }) {
@@ -492,7 +499,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
       <div className="relative px-5 pb-6 sm:px-8">
         <div className="-mt-12 flex flex-col gap-4 sm:-mt-14 sm:flex-row sm:items-end">
           <div className="relative rounded-full border-4 border-white bg-white">
-            {session?.user ? (
+            {isOwner ? (
               <>
                 <input
                   id="avatar-upload"
@@ -546,7 +553,27 @@ function Profile({ username = "firdous" }: { username?: string }) {
 
         <div className="mt-7 flex gap-6 border-b border-gray-100 pb-3 text-xs font-black"><button className="border-b-2 border-[#6d5dfc] pb-3 text-[#5a4be8]">Posts</button><button className="pb-3 text-gray-400">Photos</button><button className="pb-3 text-gray-400">Friends</button></div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          {[1,2,3,4].map((n)=><article key={n} className="rounded-2xl border border-gray-100 bg-gray-50 p-4"><div className="flex items-center gap-3">{profile?.image ? <img src={profile.image} alt="" className="size-9 rounded-full object-cover" /> : <Avatar initials={initials} size="sm" />}<div><p className="text-xs font-black">{displayName}</p><p className="text-[11px] text-gray-400">{n*2}h ago</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">Small wins add up. Keeping the focus on building, learning, and sharing useful things along the way.</p><div className="mt-4 h-28 rounded-xl bg-gradient-to-br from-violet-100 via-white to-sky-100"/><div className="mt-3 flex gap-5 text-xs font-semibold text-gray-400"><span className="inline-flex items-center gap-1"><Heart size={14}/> {18+n}</span><span className="inline-flex items-center gap-1"><MessageCircle size={14}/> {n+2}</span><span className="inline-flex items-center gap-1"><Bookmark size={14}/>Save</span></div></article>)}
+          {(profile?.posts ?? []).length > 0 ? (
+            profile?.posts?.map((post) => (
+              <article key={post.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                <div className="flex items-center gap-3">
+                  {profile?.image ? <img src={profile.image} alt="" className="size-9 rounded-full object-cover" /> : <Avatar initials={initials} size="sm" />}
+                  <div><p className="text-xs font-black">{displayName}</p><p className="text-[11px] text-gray-400">{timeLabel(post.createdAt)}</p></div>
+                </div>
+                {post.content ? <p className="mt-3 text-sm leading-6 text-gray-600">{post.content}</p> : null}
+                {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
+                <div className="mt-4 flex gap-5 text-xs font-semibold text-gray-400">
+                  <span className="inline-flex items-center gap-1"><Heart size={14}/> {post._count.likes}</span>
+                  <span className="inline-flex items-center gap-1"><MessageCircle size={14}/> {post._count.comments}</span>
+                </div>
+              </article>
+            ))
+          ) : (
+            <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center">
+              <p className="text-sm font-black">No public posts yet</p>
+              <p className="mt-1 text-xs text-gray-400">{isOwner ? "Share your first post from the home feed." : "This profile has not shared any public posts."}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
