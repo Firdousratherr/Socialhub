@@ -260,11 +260,15 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
   const [error, setError] = useState("");
+  const [profileTab, setProfileTab] = useState<"posts" | "photos" | "friends">("posts");
+  const [friends, setFriends] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; bio: string | null }>>([]);
   const [form, setForm] = useState({
     name: "Firdous Rather",
     username,
     bio: "Building products, learning every day, and sharing the journey.",
     location: "Jammu & Kashmir",
+    website: "",
+    isPrivate: false,
   });
 
   useEffect(() => {
@@ -300,6 +304,8 @@ function Profile({ username = "firdous" }: { username?: string }) {
           username: next.username ?? "",
           bio: next.bio ?? "",
           location: next.location ?? "",
+          website: next.website ?? "",
+          isPrivate: Boolean(next.isPrivate),
         });
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load profile.");
@@ -311,6 +317,21 @@ function Profile({ username = "firdous" }: { username?: string }) {
       cancelled = true;
     };
   }, [session?.user?.id, username]);
+
+  useEffect(() => {
+    if (!isOwner || profileTab !== "friends") return;
+    let cancelled = false;
+    void fetch("/api/friends", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(json.error ?? "Could not load friends.");
+        if (!cancelled) setFriends(json.friends ?? []);
+      })
+      .catch((requestError) => {
+        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load friends.");
+      });
+    return () => { cancelled = true; };
+  }, [isOwner, profileTab]);
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -373,6 +394,14 @@ function Profile({ username = "firdous" }: { username?: string }) {
     } finally {
       setUploading(null);
     }
+  }
+
+  async function shareProfile() {
+    const url = window.location.href;
+    try {
+      if (navigator.share) await navigator.share({ title: displayName, text: "View my Socialhub profile", url });
+      else { await navigator.clipboard.writeText(url); setError("Profile link copied."); }
+    } catch {}
   }
 
   const displayName = profile?.name ?? form.name;
@@ -510,7 +539,9 @@ function Profile({ username = "firdous" }: { username?: string }) {
             <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Username</span><input value={form.username} onChange={(e)=>setForm((value)=>({...value,username:e.target.value}))} className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
             <label className="block sm:col-span-2"><span className="mb-2 block text-xs font-bold text-gray-600">Bio</span><textarea value={form.bio} onChange={(e)=>setForm((value)=>({...value,bio:e.target.value}))} className="min-h-24 w-full resize-none rounded-xl border border-gray-200 bg-white p-3 text-sm"/></label>
             <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Location</span><input value={form.location} onChange={(e)=>setForm((value)=>({...value,location:e.target.value}))} className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
-            <div className="flex items-end justify-end"><button disabled={saving} type="submit" className="h-11 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white disabled:opacity-60">{saving ? "Saving…" : "Save changes"}</button></div>
+            <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Website</span><input type="url" value={form.website} onChange={(e)=>setForm((value)=>({...value,website:e.target.value}))} placeholder="https://example.com" className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
+            <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 sm:col-span-2"><input type="checkbox" checked={form.isPrivate} onChange={(e)=>setForm((value)=>({...value,isPrivate:e.target.checked}))} className="size-4 accent-[#6d5dfc]"/><span><span className="block text-xs font-black text-gray-700">Private account</span><span className="mt-0.5 block text-[11px] text-gray-400">Limit profile posts to you and accepted friends.</span></span></label>
+            <div className="flex items-end justify-end sm:col-span-2"><button disabled={saving} type="submit" className="h-11 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white disabled:opacity-60">{saving ? "Saving…" : "Save changes"}</button></div>
           </form>
         ) : (
           <>
@@ -519,9 +550,25 @@ function Profile({ username = "firdous" }: { username?: string }) {
           </>
         )}
 
-        <div className="mt-7 flex gap-6 border-b border-gray-100 pb-3 text-xs font-black"><button className="border-b-2 border-[#6d5dfc] pb-3 text-[#5a4be8]">Posts</button><button className="pb-3 text-gray-400">Photos</button><button className="pb-3 text-gray-400">Friends</button></div>
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          {profile?.website ? <a href={profile.website} target="_blank" rel="noreferrer" className="rounded-full bg-gray-50 px-3 py-1.5 text-[11px] font-bold text-[#5a4be8] hover:bg-[#eeebff]">{profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}</a> : null}
+          {profile?.isPrivate ? <span className="rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-700">Private account</span> : null}
+          <span className="rounded-full bg-gray-50 px-3 py-1.5 text-[11px] font-bold text-gray-500">Joined {new Date(profile?.createdAt ?? Date.now()).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span>
+          <button type="button" onClick={() => void shareProfile()} className="rounded-full bg-gray-950 px-3 py-1.5 text-[11px] font-black text-white">Share profile</button>
+        </div>
+        <div className="mt-7 flex gap-6 border-b border-gray-100 pb-3 text-xs font-black">
+          {(["posts","photos","friends"] as const).map((tab) => <button key={tab} type="button" onClick={() => setProfileTab(tab)} className={profileTab === tab ? "border-b-2 border-[#6d5dfc] pb-3 text-[#5a4be8]" : "pb-3 text-gray-400"}>{tab[0].toUpperCase() + tab.slice(1)}</button>)}
+        </div>
+        {profileTab === "friends" ? (
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {friends.length ? friends.map((friend) => <Link key={friend.id} href={"/profile/" + encodeURIComponent(friend.username ?? friend.id)} className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white">
+              {friend.image ? <img src={friend.image} alt="" className="size-11 rounded-full object-cover"/> : <Avatar initials={friend.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="md"/>}
+              <span className="min-w-0"><span className="block truncate text-sm font-black">{friend.name}</span><span className="block truncate text-xs text-gray-400">@{friend.username ?? "member"}</span></span>
+            </Link>) : <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><p className="text-sm font-black">No friends to show yet</p><p className="mt-1 text-xs text-gray-400">Accepted connections will appear here.</p></div>}
+          </div>
+        ) : (
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          {(profile?.posts ?? []).length > 0 ? (
+          {(profile?.posts ?? []).filter((post) => profileTab === "posts" || Boolean(post.mediaUrl)).length > 0 ? (
             profile?.posts?.map((post) => (
               <article key={post.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
                 <div className="flex items-center gap-3">
@@ -538,11 +585,12 @@ function Profile({ username = "firdous" }: { username?: string }) {
             ))
           ) : (
             <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center">
-              <p className="text-sm font-black">No public posts yet</p>
+              <p className="text-sm font-black">{profileTab === "photos" ? "No photos yet" : "No public posts yet"}</p>
               <p className="mt-1 text-xs text-gray-400">{isOwner ? "Share your first post from the home feed." : "This profile has not shared any public posts."}</p>
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   </Page>;
