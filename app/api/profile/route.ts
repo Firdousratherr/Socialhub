@@ -50,3 +50,17 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json({ profile });
 }
+
+
+export async function DELETE() {
+  const session = await getSession();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+
+  await prisma.user.delete({
+    where: { id: session.user.id },
+  });
+
+  return NextResponse.json({ success: true });
+}
