@@ -3,20 +3,36 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/app/api/admin/_auth";
 import * as z from "zod";
 
-export async function GET() {
+export async function GET(request: Request) {
   const access = await requireAdmin();
   if (access.response) return access.response;
 
+  const url = new URL(request.url);
+  const q = url.searchParams.get("q")?.trim() ?? "";
+  const before = url.searchParams.get("before");
+  const take = Math.min(Math.max(Number(url.searchParams.get("take") ?? 50), 1), 100);
+
   const posts = await prisma.post.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 100,
+    where: {
+      ...(before ? { createdAt: { lt: new Date(before) } } : {}),
+      ...(q ? {
+        OR: [
+          { content: { contains: q, mode: "insensitive" } },
+          { author: { name: { contains: q, mode: "insensitive" } } },
+          { author: { username: { contains: q, mode: "insensitive" } } },
+          { author: { email: { contains: q, mode: "insensitive" } } },
+        ],
+      } : {}),
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take,
     include: {
       author: { select: { id: true, name: true, username: true, image: true } },
       _count: { select: { likes: true, comments: true, reports: true } },
     },
   });
 
-  return NextResponse.json({ posts });
+  return NextResponse.json({ posts, nextBefore: posts.length === take ? posts.at(-1)?.createdAt.toISOString() ?? null : null });
 }
 
 
