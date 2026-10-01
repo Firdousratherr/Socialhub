@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { emailOTP } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
 import { sendTransactionalEmail } from "@/lib/email";
@@ -69,9 +70,30 @@ export const auth = betterAuth({
         },
       }
     : {}),
+  plugins: [
+    emailOTP({
+      otpLength: 6,
+      expiresIn: 600,
+      allowedAttempts: 5,
+      sendVerificationOnSignUp: true,
+      overrideDefaultEmailVerification: true,
+      async sendVerificationOTP({ email, otp, type }) {
+        const purpose = type === "forget-password" ? "password reset" : "email verification";
+        void sendTransactionalEmail({
+          to: email,
+          subject: type === "forget-password" ? "Your Socialhub password reset code" : "Your Socialhub verification code",
+          text: `Your Socialhub ${purpose} code is ${otp}. This code expires in 10 minutes. If you did not request this, you can ignore this email.`,
+          html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>Socialhub ${purpose}</h2><p>Your verification code is:</p><p style="font-size:30px;font-weight:800;letter-spacing:8px">${otp}</p><p>This code expires in 10 minutes.</p><p>If you did not request this, you can ignore this email.</p></div>`,
+        }).catch((error) => {
+          console.error("Socialhub OTP email failed", error);
+        });
+      },
+    }),
+  ],
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
+    requireEmailVerification: true,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       void sendTransactionalEmail({
