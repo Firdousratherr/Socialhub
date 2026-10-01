@@ -4,14 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma migrate deploy && prisma generate && next build",
     "start": "next start",
     "typecheck": "prisma generate && tsc --noEmit",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate deploy",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "build:ci": "prisma generate && next build"
   },
   "dependencies": {
     "lucide-react": "1.48.0",
