@@ -17,8 +17,18 @@ export async function POST(
   const reason = typeof body?.reason === "string" ? body.reason.trim().slice(0, 300) : "";
   if (!reason) return NextResponse.json({ error: "Choose a reason." }, { status: 400 });
 
-  const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
-  if (!target) return NextResponse.json({ error: "User not found." }, { status: 404 });
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, isActive: true } });
+  if (!target?.isActive) return NextResponse.json({ error: "User not found." }, { status: 404 });
+
+  const existing = await prisma.report.findFirst({
+    where: {
+      reporterId: session.user.id,
+      reportedUserId: userId,
+      status: { in: ["PENDING", "REVIEWED"] },
+    },
+    select: { id: true },
+  });
+  if (existing) return NextResponse.json({ error: "You have already reported this user." }, { status: 409 });
 
   await prisma.report.create({ data: { reporterId: session.user.id, reportedUserId: userId, reason } });
   return NextResponse.json({ reported: true }, { status: 201 });
