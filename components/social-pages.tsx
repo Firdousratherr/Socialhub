@@ -541,6 +541,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
         <button onClick={() => void toggleFollow()} className={following ? "h-10 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700" : "h-10 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white"}>
           {following ? "Following" : "Follow"}
         </button>
+        <button onClick={() => void startMessage()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Message profile" title="Message"><MessageCircle size={15}/></button>
         <button onClick={() => void reportUser()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Report profile"><Shield size={15}/></button>
         <button onClick={() => void blockUser()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Block profile"><ShieldOff size={15}/></button>
       </div>
@@ -743,6 +744,9 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [people, setPeople] = useState<Array<{ id: string; name: string; username: string | null; image: string | null }>>([]);
   const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageText, setEditingMessageText] = useState("");
+  const [savingMessage, setSavingMessage] = useState(false);
   const attachmentRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -916,6 +920,45 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
   }
 
+  async function editMessage(messageId: string) {
+    if (!editingMessageText.trim() || savingMessage) return;
+    setSavingMessage(true);
+    setError("");
+    try {
+      const response = await fetch("/api/messages/" + messageId, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "edit", content: editingMessageText.trim() }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not edit message.");
+      setMessages((current) => current.map((item) => item.id === messageId ? { ...item, ...json.message } : item));
+      setEditingMessageId(null);
+      setEditingMessageText("");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not edit message.");
+    } finally {
+      setSavingMessage(false);
+    }
+  }
+
+  async function deleteMessage(messageId: string) {
+    if (!window.confirm("Delete this message?")) return;
+    setError("");
+    try {
+      const response = await fetch("/api/messages/" + messageId, { method: "DELETE" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not delete message.");
+      setMessages((current) => current.map((item) => item.id === messageId ? { ...item, ...json.message, deletedAt: json.message.deletedAt } : item));
+      if (editingMessageId === messageId) {
+        setEditingMessageId(null);
+        setEditingMessageText("");
+      }
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not delete message.");
+    }
+  }
+
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!activeId || (!draft.trim() && !pendingAttachments.length) || !session?.user || sending) return;
@@ -991,13 +1034,35 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
             return <div key={message.id} className={mine ? "flex justify-end" : "flex items-end gap-2"}>
               {!mine ? <Avatar initials={message.sender.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} size="sm"/> : null}
               <div className="max-w-[76%]">
-                <div className={mine ? "rounded-2xl rounded-br-md bg-[#6d5dfc] px-4 py-3 text-sm leading-6 text-white" : "rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700"}>
-                  {message.attachments?.length ? <div className="mb-2 grid gap-2">{message.attachments.map((attachment)=><img key={attachment.id} src={attachment.url} alt="Message attachment" className="max-h-72 w-full rounded-xl object-cover"/>)}</div> : null}
-                  {message.content ? <span>{message.content}</span> : null}
-                </div>
+                {editingMessageId === message.id ? (
+                  <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2 shadow-sm">
+                    <textarea
+                      value={editingMessageText}
+                      onChange={(event) => setEditingMessageText(event.target.value)}
+                      rows={2}
+                      maxLength={5000}
+                      className="w-full resize-none rounded-xl bg-gray-50 p-2 text-sm text-gray-800 outline-none"
+                      autoFocus
+                    />
+                    <div className="mt-2 flex justify-end gap-2">
+                      <button type="button" onClick={() => { setEditingMessageId(null); setEditingMessageText(""); }} className="rounded-xl px-3 py-2 text-[10px] font-black text-gray-500">Cancel</button>
+                      <button type="button" onClick={() => void editMessage(message.id)} disabled={!editingMessageText.trim() || savingMessage} className="rounded-xl bg-gray-950 px-3 py-2 text-[10px] font-black text-white disabled:opacity-40">{savingMessage ? "Saving…" : "Save"}</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={mine ? "rounded-2xl rounded-br-md bg-[#6d5dfc] px-4 py-3 text-sm leading-6 text-white" : "rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700"}>
+                    {message.attachments?.length && !message.deletedAt ? <div className="mb-2 grid gap-2">{message.attachments.map((attachment)=><img key={attachment.id} src={attachment.url} alt="Message attachment" className="max-h-72 w-full rounded-xl object-cover"/>)}</div> : null}
+                    {message.deletedAt ? <span className="italic opacity-70">Message deleted</span> : message.content ? <span>{message.content}</span> : null}
+                  </div>
+                )}
                 <div className={"mt-1 flex items-center gap-2 " + (mine ? "justify-end" : "")}>
+                  {message.editedAt && !message.deletedAt ? <span className="text-[9px] text-gray-400">edited</span> : null}
                   {message.reactions?.length ? <span className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px]">{message.reactions.map((reaction)=>reaction.emoji).join("")}</span> : null}
-                  <button type="button" onClick={() => void reactToMessage(message.id)} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px] text-gray-500 hover:bg-gray-50" aria-label="React with heart">❤️</button>
+                  {!message.deletedAt ? <button type="button" onClick={() => void reactToMessage(message.id)} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px] text-gray-500 hover:bg-gray-50" aria-label="React with heart">❤️</button> : null}
+                  {mine && !message.deletedAt ? <>
+                    <button type="button" onClick={() => { setEditingMessageId(message.id); setEditingMessageText(message.content); }} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-gray-500 hover:bg-gray-50" aria-label="Edit message"><Pencil size={11}/></button>
+                    <button type="button" onClick={() => void deleteMessage(message.id)} className="rounded-full border border-red-100 bg-white px-2 py-1 text-red-500 hover:bg-red-50" aria-label="Delete message"><Trash2 size={11}/></button>
+                  </> : null}
                 </div>
               </div>
             </div>;
