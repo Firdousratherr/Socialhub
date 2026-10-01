@@ -585,11 +585,6 @@ function Profile({ username = "firdous" }: { username?: string }) {
             )}
           </div>
           <div className="flex-1 sm:pb-2"><h2 className="text-2xl font-black tracking-[-.04em]">{displayName}</h2><p className="text-sm font-semibold text-gray-400">@{displayUsername}{profile?.location ? ` · ${profile.location}` : ""}</p></div>
-          {!isOwner && session?.user ? (
-          <button onClick={() => void toggleFollow()} className={following ? "h-10 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700" : "h-10 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white"}>
-            {following ? "Following" : "Follow"}
-          </button>
-        ) : null}
         </div>
 
         {uploading === "avatar" ? <p className="mt-3 text-[11px] font-bold text-[#5a4be8]">Uploading profile picture…</p> : null}
