@@ -11,7 +11,7 @@ import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
   KeyRound, Lock, LogIn, Mail, MessageCircle, MoreHorizontal, Pencil, Plus,
-  Paperclip, Search, Send, Settings, Shield, Sparkles, Trash2, UserPlus, Users, X
+  Paperclip, Search, Send, Settings, Shield, ShieldOff, Sparkles, Trash2, UserPlus, Users, X
 } from "lucide-react";
 
 type Screen = { kind: string; username?: string; section?: string; search?: string };
