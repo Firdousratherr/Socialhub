@@ -28,18 +28,20 @@ export async function GET(request: Request) {
 
   const logs = await prisma.adminAuditLog.findMany({
     where: {
-      ...(cursor ? { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] } : {}),
-      ...(action ? { action: { contains: action, mode: "insensitive" } } : {}),
-      ...(targetType ? { targetType: { equals: targetType, mode: "insensitive" } } : {}),
-      ...(adminId ? { adminId } : {}),
-      ...(q ? {
-        OR: [
-          { action: { contains: q, mode: "insensitive" } },
-          { targetType: { contains: q, mode: "insensitive" } },
-          { targetId: { contains: q, mode: "insensitive" } },
-          { details: { contains: q, mode: "insensitive" } },
-        ],
-      } : {}),
+      AND: [
+        ...(cursor ? [{ OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] }] : []),
+        ...(action ? [{ action: { contains: action, mode: "insensitive" as const } }] : []),
+        ...(targetType ? [{ targetType: { equals: targetType, mode: "insensitive" as const } }] : []),
+        ...(adminId ? [{ adminId }] : []),
+        ...(q ? [{
+          OR: [
+            { action: { contains: q, mode: "insensitive" as const } },
+            { targetType: { contains: q, mode: "insensitive" as const } },
+            { targetId: { contains: q, mode: "insensitive" as const } },
+            { details: { contains: q, mode: "insensitive" as const } },
+          ],
+        }] : []),
+      ],
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: isCsv ? 1000 : take + 1,
