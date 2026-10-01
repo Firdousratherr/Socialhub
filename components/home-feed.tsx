@@ -369,16 +369,3 @@ export default function HomeFeed() {
 function ArrowRightIcon() {
   return <Send size={15} className="-rotate-45" />;
 }
-
-      </div>
-
-      <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 rounded-2xl border border-gray-200/80 bg-white/95 p-1.5 shadow-2xl shadow-gray-950/10 backdrop-blur-xl lg:hidden" aria-label="Mobile navigation">
-        {[[Home,"Home","/home",true],[Compass,"Discover","/discover",false],[Plus,"Create","/home",false],[Bell,"Alerts","/notifications",false],[Users,"Profile","/profile/firdous",false]].map(([Icon,label,href,active])=><Link key={String(label)} href={String(href)} className={[\`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold transition \${active ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500"}\`]}><Icon size={18} strokeWidth={active ? 2.5 : 2}/>{String(label)}</Link>)}
-      </nav>
-    </main>
-  );
-}
-
-function Composer() {
-  return null;
-}
