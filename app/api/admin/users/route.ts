@@ -10,16 +10,31 @@ export async function GET(request: Request) {
   const q = (url.searchParams.get("q") ?? "").trim();
   const before = url.searchParams.get("before");
   const take = Math.min(Math.max(Number(url.searchParams.get("take") ?? 50), 1), 100);
+  let cursor: { createdAt: Date; id: string } | null = null;
+  if (before) {
+    try {
+      const decoded = JSON.parse(Buffer.from(before, "base64url").toString("utf8")) as { createdAt?: string; id?: string };
+      if (!decoded.createdAt || !decoded.id) throw new Error("invalid");
+      const createdAt = new Date(decoded.createdAt);
+      if (Number.isNaN(createdAt.getTime())) throw new Error("invalid");
+      cursor = { createdAt, id: decoded.id };
+    } catch {
+      return NextResponse.json({ error: "Invalid user cursor." }, { status: 400 });
+    }
+  }
+
   const users = await prisma.user.findMany({
     where: {
-      ...(before ? { createdAt: { lt: new Date(before) } } : {}),
-      ...(q ? {
-        OR: [
-          { name: { contains: q, mode: "insensitive" } },
-          { username: { contains: q, mode: "insensitive" } },
-          { email: { contains: q, mode: "insensitive" } },
-        ],
-      } : {}),
+      AND: [
+        ...(cursor ? [{ OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] }] : []),
+        ...(q ? [{
+          OR: [
+            { name: { contains: q, mode: "insensitive" as const } },
+            { username: { contains: q, mode: "insensitive" as const } },
+            { email: { contains: q, mode: "insensitive" as const } },
+          ],
+        }] : []),
+      ],
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take,
@@ -36,5 +51,9 @@ export async function GET(request: Request) {
     },
   });
 
-  return NextResponse.json({ users, nextBefore: users.length === take ? users.at(-1)?.createdAt.toISOString() ?? null : null });
+  const last = users.at(-1);
+  const nextBefore = users.length === take && last
+    ? Buffer.from(JSON.stringify({ createdAt: last.createdAt.toISOString(), id: last.id }), "utf8").toString("base64url")
+    : null;
+  return NextResponse.json({ users, nextBefore });
 }
