@@ -39,5 +39,39 @@ export async function GET(request: Request) {
     },
   });
 
-  return NextResponse.json({ users });
+  const followingIds = session?.user
+    ? new Set(
+        (
+          await prisma.follow.findMany({
+            where: { followerId: session.user.id, followingId: { in: users.map((user) => user.id) } },
+            select: { followingId: true },
+          })
+        ).map((row) => row.followingId),
+      )
+    : new Set<string>();
+
+  const friendIds = session?.user
+    ? new Set(
+        (
+          await prisma.friendRequest.findMany({
+            where: {
+              status: "ACCEPTED",
+              OR: [
+                { senderId: session.user.id, receiverId: { in: users.map((user) => user.id) } },
+                { receiverId: session.user.id, senderId: { in: users.map((user) => user.id) } },
+              ],
+            },
+            select: { senderId: true, receiverId: true },
+          })
+        ).map((row) => (row.senderId === session.user.id ? row.receiverId : row.senderId)),
+      )
+    : new Set<string>();
+
+  return NextResponse.json({
+    users: users.map((user) => ({
+      ...user,
+      isFollowing: followingIds.has(user.id),
+      isFriend: friendIds.has(user.id),
+    })),
+  });
 }
