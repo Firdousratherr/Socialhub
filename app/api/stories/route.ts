@@ -3,15 +3,51 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { storyInputSchema } from "@/lib/validation";
+import { getBlockedUserIds } from "@/lib/social-access";
+
+async function getSession() {
+  return auth.api.getSession({ headers: await headers() });
+}
 
 export async function GET() {
   const now = new Date();
+  const session = await getSession();
+
+  let friendIds: string[] = [];
+  let blockedIds: string[] = [];
+
+  if (session?.user) {
+    blockedIds = await getBlockedUserIds(session.user.id);
+    friendIds = (
+      await prisma.friendRequest.findMany({
+        where: {
+          status: "ACCEPTED",
+          OR: [
+            { senderId: session.user.id },
+            { receiverId: session.user.id },
+          ],
+        },
+        select: { senderId: true, receiverId: true },
+      })
+    ).map((row) => (row.senderId === session.user.id ? row.receiverId : row.senderId));
+  }
 
   const stories = await prisma.story.findMany({
     where: {
       expiresAt: { gt: now },
-      audience: "PUBLIC",
-      author: { isActive: true },
+      author: {
+        isActive: true,
+        ...(blockedIds.length ? { id: { notIn: blockedIds } } : {}),
+      },
+      ...(session?.user
+        ? {
+            OR: [
+              { audience: "PUBLIC" },
+              { authorId: session.user.id },
+              ...(friendIds.length ? [{ audience: "FRIENDS" as const, authorId: { in: friendIds } }] : []),
+            ],
+          }
+        : { audience: "PUBLIC" }),
     },
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -35,8 +71,15 @@ export async function POST(request: Request) {
     );
   }
 
-  if (parsed.data.expiresAt <= new Date()) {
+  const now = new Date();
+  const maxExpiry = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  if (parsed.data.expiresAt <= now) {
     return NextResponse.json({ error: "Story expiry must be in the future." }, { status: 400 });
+  }
+
+  if (parsed.data.expiresAt > maxExpiry) {
+    return NextResponse.json({ error: "Stories can expire at most 24 hours after creation." }, { status: 400 });
   }
 
   const story = await prisma.story.create({
