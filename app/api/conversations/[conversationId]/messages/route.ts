@@ -81,3 +81,29 @@ export async function POST(
 
   return NextResponse.json({ message }, { status: 201 });
 }
+
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ conversationId: string }> },
+) {
+  const session = await getSession();
+  if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
+  const { conversationId } = await params;
+  if (!(await isMember(conversationId, session.user.id))) {
+    return NextResponse.json({ error: "Conversation access denied." }, { status: 403 });
+  }
+
+  const body = await request.json().catch(() => null);
+  if (body?.action !== "read") {
+    return NextResponse.json({ error: "Unsupported conversation action." }, { status: 400 });
+  }
+
+  await prisma.conversationMember.update({
+    where: { conversationId_userId: { conversationId, userId: session.user.id } },
+    data: { lastReadAt: new Date() },
+  });
+
+  return NextResponse.json({ read: true });
+}

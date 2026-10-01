@@ -164,6 +164,7 @@ model Post {
 
   @@index([authorId, createdAt])
   @@index([visibility, createdAt])
+  @@index([createdAt, id])
 }
 
 model Comment {
@@ -172,8 +173,8 @@ model Comment {
   authorId  String
   parentId  String?
   content   String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
   author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -226,12 +227,14 @@ model FriendRequest {
   @@unique([senderId, receiverId])
   @@index([receiverId, status])
   @@index([senderId, status])
+  @@index([receiverId, updatedAt])
 }
 
 model Conversation {
   id        String                 @id @default(cuid())
   title     String?
   isGroup   Boolean                @default(false)
+  directKey  String?               @unique
   createdAt DateTime               @default(now())
   updatedAt DateTime               @updatedAt
 
@@ -270,6 +273,7 @@ model Message {
   notifications Notification[]
 
   @@index([conversationId, createdAt])
+  @@index([conversationId, createdAt, id])
   @@index([senderId, createdAt])
 }
 
@@ -306,7 +310,7 @@ model Story {
   author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([authorId, expiresAt])
-  @@index([expiresAt])
+  @@index([expiresAt, audience])
 }
 
 model SavedPost {
@@ -341,8 +345,8 @@ model Report {
   resolvedBy   User?     @relation("ReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
-  @@index([reporterId])
-  @@index([reportedUserId])
+  @@index([reporterId, createdAt])
+  @@index([reportedUserId, createdAt])
 }
 
 model Block {

@@ -90,6 +90,19 @@ export const auth = betterAuth({
       },
     }),
   ],
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/email": { window: 60, max: 10 },
+      "/sign-up/email": { window: 60, max: 5 },
+      "/email-otp/send-verification-otp": { window: 60, max: 5 },
+      "/email-otp/verify-email": { window: 60, max: 10 },
+      "/email-otp/request-password-reset": { window: 60, max: 5 },
+      "/email-otp/reset-password": { window: 60, max: 10 },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,

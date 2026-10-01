@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AdminBootstrap } from "@/components/admin-bootstrap";
@@ -7,10 +7,14 @@ import { SocialPages } from "@/components/social-pages";
 
 export default async function CatchAllPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ segments: string[] }>;
+  searchParams: Promise<{ q?: string | string[] }>;
 }) {
   const { segments } = await params;
+  const queryParams = await searchParams;
+  const search = Array.isArray(queryParams.q) ? queryParams.q[0] : queryParams.q;
   const first = segments[0] ?? "";
 
   if (first === "login" || first === "signup") {
@@ -18,6 +22,19 @@ export default async function CatchAllPage({
   }
 
   if (first === "profile") {
+    if (segments[1] === "me") {
+      const session = await auth.api.getSession({ headers: await headers() });
+      if (!session?.user) redirect("/login?next=/profile/me");
+
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { username: true },
+      });
+      if (!user?.username) redirect("/settings");
+
+      return <SocialPages screen={{ kind: "profile", username: user.username }} />;
+    }
+
     return <SocialPages screen={{ kind: "profile", username: segments[1] ?? "firdous" }} />;
   }
 
@@ -49,5 +66,7 @@ export default async function CatchAllPage({
     settings: "settings",
   };
 
-  return <SocialPages screen={{ kind: map[first] ?? "fallback" }} />;
+  if (!map[first]) notFound();
+
+  return <SocialPages screen={{ kind: map[first], search }} />;
 }

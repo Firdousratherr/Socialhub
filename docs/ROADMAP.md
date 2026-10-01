@@ -40,6 +40,21 @@ Status: Complete
 - Privacy-aware profile visibility
 - Moderation audit logging
 
+## Milestone A.5 — Navigation, page shell & real-data integrity
+Status: Complete for this pass
+
+- Consistent back navigation with same-origin history fallback
+- Working mobile hamburger menu across app pages
+- Logout action inside mobile navigation
+- Working global people search from desktop/mobile header into Discover
+- Working conversation search within Messages
+- Remove demo conversation data from real message inboxes
+- Remove demo notification data from real notification views
+- Empty states for real feeds and inboxes instead of fabricated content
+- Stable `/profile/me` route for the signed-in user
+- Branded 404 page and unknown-route handling
+- Mobile/desktop navigation QA targets for 360px through wide desktop
+
 ## Milestone B — Authentication, recovery & identity
 Status: In implementation
 ### Email security
@@ -137,6 +152,45 @@ Status: In implementation
 - Push notification foundation
 - Mark individual notifications read
 
+## Milestone I.5 — Code audit, integrity & operations
+Status: In implementation
+
+### Real-data integrity
+- Remove fabricated people, trend counts, social-proof numbers, and dead actions from authenticated surfaces
+- Keep empty, loading, and error states tied to real API responses
+- Return actual follow/friend state from discovery APIs
+- Keep user-visible engagement counts derived from real database aggregates
+
+### Messaging integrity
+- Persist unread state from `ConversationMember.lastReadAt`
+- Mark conversations read when opened
+- Show unread counts in the inbox
+- Prevent duplicate direct conversations
+- Respect reciprocal blocks when starting a conversation
+
+### Security hardening
+- Validate uploaded image signatures in addition to declared MIME type
+- Add baseline security response headers
+- Add endpoint-specific Better Auth rate limits for sign-in, signup, verification, and password recovery
+- Continue hardening direct application APIs with validation, request limits, and abuse controls
+
+### Admin operations
+- Dashboard for live platform aggregates
+- Moderation queue for reports and status transitions
+- User management with explicit role boundaries
+- User 360 for privileged, audited inspection
+- Content moderation with audited hide/delete actions
+- Read-only analytics based on live counts
+- Audit-log visibility for sensitive admin operations
+- Keep privileged message inspection restricted to administrator-level access
+
+### Quality gate
+- Typecheck
+- Prisma validation/generation
+- Production build
+- Responsive smoke-test targets
+- Auth, feed, messaging, moderation, and admin regression checks
+
 ## Milestone I — Admin & moderation
 - Moderation queue
 - User/post/comment actions
@@ -147,6 +201,9 @@ Status: In implementation
 - Moderation permission boundaries
 - Account suspension workflow
 - Content removal workflow
+- Case notes and moderator assignment
+- Evidence snapshots and moderation history
+- Bulk actions with confirmation and audit records
 
 ## Milestone J — Security & reliability
 - API rate limiting

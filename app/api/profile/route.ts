@@ -19,19 +19,29 @@ export async function GET() {
       image: true, coverImage: true, website: true, location: true,
       isPrivate: true, role: true, createdAt: true,
       _count: { select: { posts: true, followers: true, following: true } },
+      posts: {
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select: {
+          id: true,
+          content: true,
+          mediaUrl: true,
+          visibility: true,
+          createdAt: true,
+          _count: { select: { likes: true, comments: true } },
+        },
+      },
     },
   });
 
   if (!profile) return NextResponse.json({ error: "Profile not found." }, { status: 404 });
-  const override = await prisma.adminMetricOverride.findUnique({ where: { userId: profile.id } });
   return NextResponse.json({
     profile: {
       ...profile,
-      metricOverrides: override,
       visibleCounts: {
-        posts: override?.posts ?? profile._count.posts,
-        followers: override?.followers ?? profile._count.followers,
-        following: override?.following ?? profile._count.following,
+        posts: profile._count.posts,
+        followers: profile._count.followers,
+        following: profile._count.following,
       },
     },
   });
@@ -49,19 +59,31 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const profile = await prisma.user.update({
-    where: { id: session.user.id },
-    data: parsed.data,
-    select: {
-      id: true, name: true, email: true, username: true, bio: true,
-      image: true, coverImage: true, website: true, location: true,
-      isPrivate: true, role: true,
-    },
-  });
+  try {
+    const profile = await prisma.user.update({
+      where: { id: session.user.id },
+      data: parsed.data,
+      select: {
+        id: true, name: true, email: true, username: true, bio: true,
+        image: true, coverImage: true, website: true, location: true,
+        isPrivate: true, role: true,
+      },
+    });
 
-  return NextResponse.json({ profile });
+    return NextResponse.json({ profile });
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: string }).code === "P2002"
+    ) {
+      return NextResponse.json({ error: "That username is already in use." }, { status: 409 });
+    }
+
+    throw error;
+  }
 }
-
 
 export async function DELETE() {
   const session = await getSession();

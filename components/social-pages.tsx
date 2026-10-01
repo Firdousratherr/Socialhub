@@ -6,6 +6,7 @@ import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
+import { MobileMenu } from "@/components/mobile-menu";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
@@ -13,7 +14,7 @@ import {
   Search, Send, Settings, Shield, Sparkles, Trash2, UserPlus, Users, X
 } from "lucide-react";
 
-type Screen = { kind: string; username?: string; section?: string };
+type Screen = { kind: string; username?: string; section?: string; search?: string };
 
 const colors = [
   "from-violet-500 to-sky-400",
@@ -22,23 +23,59 @@ const colors = [
   "from-amber-400 to-rose-500",
 ];
 
-const people = [
-  ["NP", "Nora Patel", "@norapatel", "12 mutuals"],
-  ["DK", "Dev Kapoor", "@devk", "8 mutuals"],
-  ["ZS", "Zoya Shah", "@zoyas", "5 mutuals"],
-  ["AK", "Aarav Khan", "@aaravk", "21 mutuals"],
-];
-
 function Avatar({ initials, color = colors[0], size = "md" }: { initials: string; color?: string; size?: "sm"|"md"|"lg"|"xl" }) {
   const sizes = { sm: "size-8 text-[10px]", md: "size-10 text-xs", lg: "size-14 text-sm", xl: "size-24 text-2xl" };
   return <div className={`grid shrink-0 place-items-center rounded-full bg-gradient-to-br ${color} ${sizes[size]} font-black text-white shadow-sm`}>{initials}</div>;
 }
 
-function Page({ eyebrow, title, subtitle, action, children }: { eyebrow?: string; title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode }) {
-  return <main className="min-h-screen pb-8"><div className="mx-auto max-w-[1100px] px-4 py-6 sm:px-6 lg:px-8">
-    <div className="mb-7 flex items-end justify-between gap-4"><div>{eyebrow && <p className="text-xs font-black uppercase tracking-[0.16em] text-[#6d5dfc]">{eyebrow}</p>}<h1 className="mt-1 text-3xl font-black tracking-[-0.045em] text-gray-950 sm:text-4xl">{title}</h1>{subtitle && <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">{subtitle}</p>}</div>{action}</div>
-    {children}
-  </div></main>;
+function Page({
+  eyebrow,
+  title,
+  subtitle,
+  action,
+  fallbackHref = "/home",
+  children,
+}: {
+  eyebrow?: string;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+  fallbackHref?: string;
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+
+  function goBack() {
+    if (window.history.length > 1 && document.referrer.startsWith(window.location.origin)) {
+      router.back();
+      return;
+    }
+    router.push(fallbackHref);
+  }
+
+  return (
+    <main className="min-h-screen pb-8">
+      <div className="mx-auto max-w-[1100px] px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <button type="button" onClick={goBack} className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50" aria-label="Go back">
+              <ArrowLeft size={18} />
+            </button>
+            <div className="min-w-0">
+              {eyebrow ? <p className="text-xs font-black uppercase tracking-[0.16em] text-[#6d5dfc]">{eyebrow}</p> : null}
+              <h1 className="mt-1 text-3xl font-black tracking-[-0.045em] text-gray-950 sm:text-4xl">{title}</h1>
+              {subtitle ? <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">{subtitle}</p> : null}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {action}
+            <MobileMenu />
+          </div>
+        </div>
+        {children}
+      </div>
+    </main>
+  );
 }
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -167,7 +204,14 @@ function Auth({ signup = false }: { signup?: boolean }) {
         <section className="hidden bg-[radial-gradient(circle_at_top,#7d70ff,transparent_55%),linear-gradient(145deg,#171426,#30275d)] p-10 text-white lg:flex lg:flex-col lg:justify-between">
           <Link href="/" className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-2xl bg-white/10"><Sparkles size={18}/></span><span className="font-black">Socialhub</span></Link>
           <div><p className="text-xs font-black uppercase tracking-[.18em] text-white/50">Connect. Share. Belong.</p><h1 className="mt-5 max-w-md text-5xl font-black leading-[.96] tracking-[-.055em]">A social space that feels like yours.</h1><p className="mt-6 max-w-md text-sm leading-7 text-white/65">Keep your people close, share the moments that matter, and discover conversations worth having.</p></div>
-          <div className="grid grid-cols-3 gap-3">{[["12.4k","members"],["48k","posts"],["9.8k","daily chats"]].map(x=><div key={x[1]} className="rounded-2xl border border-white/10 bg-white/10 p-3"><p className="font-black">{x[0]}</p><p className="text-[10px] text-white/50">{x[1]}</p></div>)}</div>
+          <div className="grid grid-cols-3 gap-3">
+  {[["Private by design","Respectful defaults"],["Real connections","No fake activity"],["Built to evolve","Features ship in milestones"]].map(([title,text]) => (
+    <div key={title} className="rounded-2xl border border-white/10 bg-white/10 p-3">
+      <p className="text-xs font-black">{title}</p>
+      <p className="mt-1 text-[10px] leading-4 text-white/50">{text}</p>
+    </div>
+  ))}
+</div>
         </section>
 
         <section className="flex items-center p-6 sm:p-10">
@@ -406,9 +450,9 @@ function Profile({ username = "firdous" }: { username?: string }) {
 
   const displayName = profile?.name ?? form.name;
   const displayUsername = profile?.username ?? form.username ?? username;
-  const postCount = profile?.visibleCounts?.posts ?? profile?._count.posts ?? 184;
-  const followerCount = profile?.visibleCounts?.followers ?? profile?._count.followers ?? 1800;
-  const followingCount = profile?.visibleCounts?.following ?? profile?._count.following ?? 426;
+  const postCount = profile?._count.posts ?? 0;
+  const followerCount = profile?._count.followers ?? 0;
+  const followingCount = profile?._count.following ?? 0;
   const initials = displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase() || "SH";
 
   async function toggleFollow() {
@@ -608,6 +652,7 @@ type ConversationData = {
   id: string;
   title: string | null;
   isGroup: boolean;
+  unreadCount?: number;
   members: Array<{
     userId: string;
     role: string;
@@ -622,16 +667,10 @@ function Messages() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [messageSearch, setMessageSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-
-  const sampleChats = [
-    { initials: "MC", name: "Maya Chen", preview: "That sounds great. Send me the draft when you can.", time: "9:42", unread: 2 },
-    { initials: "AM", name: "Arjun Mehta", preview: "The weekend plan still on?", time: "8:18", unread: 0 },
-    { initials: "SM", name: "Sara Malik", preview: "Loved the photos ✨", time: "Yesterday", unread: 0 },
-    { initials: "DC", name: "Design Crew", preview: "Nora: I pushed the latest concept.", time: "Mon", unread: 7 },
-  ];
 
   useEffect(() => {
     let cancelled = false;
@@ -693,6 +732,15 @@ function Messages() {
     };
   }, [activeId, session?.user?.id]);
 
+  const filteredConversations = conversations.filter((conversation) => {
+    const other = conversation.members.find((member) => member.userId !== session?.user?.id)?.user;
+    const haystack = [conversation.title, other?.name, other?.username, ...conversation.messages.map((message) => message.content)]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(messageSearch.trim().toLowerCase());
+  });
+
   const active = conversations.find((conversation) => conversation.id === activeId) ?? null;
   const activeMember = active?.members.find((member) => member.userId !== session?.user?.id)?.user;
   const activeName = active?.title ?? activeMember?.name ?? "Messages";
@@ -731,26 +779,27 @@ function Messages() {
     <div className="grid min-h-[620px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:grid-cols-[330px_1fr]">
       <aside className="border-b border-gray-100 lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between border-b border-gray-100 p-4"><h2 className="text-sm font-black">Inbox</h2><button className="social-icon-button"><Pencil size={17}/></button></div>
-        <label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages"/></label>
+        <label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages" aria-label="Search messages"/></label>
 
         <div className="space-y-1 p-2">
           {loading && session?.user ? (
             [1,2,3].map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl p-3"><span className="size-10 animate-pulse rounded-full bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-2/3 animate-pulse rounded bg-gray-100"/></div></div>)
-          ) : conversations.length > 0 ? conversations.map((conversation, i) => {
+          ) : filteredConversations.length > 0 ? filteredConversations.map((conversation, i) => {
             const other = conversation.members.find((member) => member.userId !== session?.user?.id)?.user;
             const name = conversation.title ?? other?.name ?? "Conversation";
             const preview = conversation.messages[0]?.content ?? "No messages yet";
             return <button key={conversation.id} onClick={() => setActiveId(conversation.id)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left ${conversation.id===activeId?"bg-[#f4f2ff]":"hover:bg-gray-50"}`}>
               <Avatar initials={(other?.name ?? name).split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} color={colors[i%colors.length]}/>
               <div className="min-w-0 flex-1"><p className="truncate text-xs font-black">{name}</p><p className="mt-1 truncate text-[11px] text-gray-400">{preview}</p></div>
+              {conversation.unreadCount ? <span className="min-w-5 rounded-full bg-[#6d5dfc] px-1.5 py-1 text-center text-[9px] font-black text-white">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span> : null}
             </button>;
           }) : (
-            sampleChats.map((chat, i) => <div key={chat.name} className="flex items-center gap-3 rounded-2xl p-3">
-              <Avatar initials={chat.initials} color={colors[i%colors.length]}/>
-              <div className="min-w-0 flex-1"><div className="flex justify-between gap-2"><p className="truncate text-xs font-black">{chat.name}</p><span className="text-[10px] text-gray-400">{chat.time}</span></div><p className="mt-1 truncate text-[11px] text-gray-400">{chat.preview}</p></div>
-              {chat.unread ? <span className="grid size-5 place-items-center rounded-full bg-[#6d5dfc] text-[9px] font-black text-white">{chat.unread}</span> : null}
-            </div>)
-          )}
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-7 text-center">
+              <MessageCircle className="mx-auto text-gray-300" size={22}/>
+              <p className="mt-3 text-xs font-black text-gray-700">{messageSearch.trim() ? "No matching conversations" : "No conversations yet"}</p>
+              <p className="mt-1 text-[11px] leading-5 text-gray-400">{messageSearch.trim() ? "Try another name or message." : session?.user ? "Your real conversations will appear here." : "Sign in to see your conversations."}</p>
+            </div>
+                    )}
         </div>
       </aside>
 
@@ -774,7 +823,7 @@ function Messages() {
         </div>
 
         <form onSubmit={sendMessage} className="border-t border-gray-100 p-3">
-          <div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2"><button type="button" className="grid size-10 place-items-center rounded-xl"><Plus size={18}/></button><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={1} disabled={!active || !session?.user || sending} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60" placeholder={active ? "Write a message…" : "Select a conversation first"}/><button type="submit" disabled={!active || !draft.trim() || !session?.user || sending} className="grid size-10 place-items-center rounded-xl bg-gray-950 text-white disabled:cursor-not-allowed disabled:opacity-50"><Send size={16}/></button></div>
+          <div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2"><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={1} disabled={!active || !session?.user || sending} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60" placeholder={active ? "Write a message…" : "Select a conversation first"}/><button type="submit" disabled={!active || !draft.trim() || !session?.user || sending} className="grid size-10 place-items-center rounded-xl bg-gray-950 text-white disabled:cursor-not-allowed disabled:opacity-50"><Send size={16}/></button></div>
         </form>
       </section>
     </div>
@@ -787,16 +836,22 @@ type DiscoverUser = {
   image: string | null;
   bio: string | null;
   isPrivate?: boolean;
+  isFollowing?: boolean;
+  isFriend?: boolean;
   _count: { followers: number; following: number };
 };
 
-function Discover() {
+function Discover({ initialQuery = "" }: { initialQuery?: string }) {
   const { data: session } = authClient.useSession();
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialQuery);
   const [results, setResults] = useState<DiscoverUser[]>([]);
   const [following, setFollowing] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setQ(initialQuery);
+  }, [initialQuery]);
 
   useEffect(() => {
     let cancelled = false;
@@ -808,7 +863,11 @@ function Discover() {
         const response = await fetch("/api/users?q=" + encodeURIComponent(q) + "&take=20", { cache: "no-store" });
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not search users.");
-        if (!cancelled) setResults((json.users ?? []) as DiscoverUser[]);
+        if (!cancelled) {
+          const nextResults = (json.users ?? []) as DiscoverUser[];
+          setResults(nextResults);
+          setFollowing(new Set(nextResults.filter((user) => user.isFollowing).map((user) => user.id)));
+        }
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not search users.");
       } finally {
@@ -864,9 +923,9 @@ function Discover() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
           <input value={q} onChange={(e)=>setQ(e.target.value)} className="h-12 w-full rounded-2xl bg-gray-50 pl-11 text-sm font-semibold outline-none focus:bg-white" placeholder="Search people and usernames…"/>
         </div>
-        <div className="mt-4 flex gap-2">
-          <button className="rounded-xl bg-[#eeebff] px-3.5 py-2 text-xs font-black text-[#5a4be8]">People</button>
-          {["Posts","Topics","Communities"].map((x)=><button key={x} className="rounded-xl px-3.5 py-2 text-xs font-bold text-gray-500 hover:bg-gray-50">{x}</button>)}
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <span className="rounded-xl bg-[#eeebff] px-3.5 py-2 text-xs font-black text-[#5a4be8]">People</span>
+          <span className="text-[11px] font-semibold text-gray-400">Posts, topics and communities will be added with their own search indexes.</span>
         </div>
       </Card>
 
@@ -1073,14 +1132,6 @@ function Notifications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const sampleItems = [
-    ["LIKE", "Maya Chen liked your post.", "18 minutes ago"],
-    ["FOLLOW", "Nora Patel started following you.", "42 minutes ago"],
-    ["MENTION", "Arjun Mehta mentioned you in a comment.", "1 hour ago"],
-    ["FRIEND_REQUEST", "You have 4 new friend requests.", "3 hours ago"],
-    ["MENTION", "Sara Malik mentioned you in #WeekendMoments.", "Yesterday"],
-  ];
-
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -1144,21 +1195,33 @@ function Notifications() {
         const Icon = iconFor(item.type);
         return <button key={item.id} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
           <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(item.type)}`}><Icon size={17}/></span>
-          <span className="flex-1"><span className="block text-sm font-bold">{item.actor?.name ?? "Socialhub"} {item.type === "LIKE" ? "liked your post." : item.type === "FOLLOW" ? "started following you." : item.type === "COMMENT" ? "commented on your post." : item.type === "FRIEND_REQUEST" ? "sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? "accepted your friend request." : item.type === "MESSAGE" ? "sent you a message." : item.type === "MENTION" ? "mentioned you." : "interacted with your content."}</span><span className="mt-1 block text-xs text-gray-400">{new Date(item.createdAt).toLocaleString()}</span></span>{!item.readAt ? <span className="mt-2 size-2 shrink-0 rounded-full bg-[#6d5dfc]"/> : null}
+          <span className="flex-1"><span className="block text-sm font-bold">{item.actor?.name ?? "Socialhub"} {item.type === "LIKE" ? "liked your post." : item.type === "FOLLOW" ? "started following you." : item.type === "COMMENT" ? "commented on your post." : item.type === "FRIEND_REQUEST" ? "sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? "accepted your friend request." : item.type === "MESSAGE" ? "sent you a message." : item.type === "MENTION" ? "mentioned you." : "interacted with your content."}</span><span className="mt-1 block text-xs text-gray-400">{new Date(item.createdAt).toLocaleString()}</span></span>
+          {!item.readAt ? <span className="mt-2 size-2 shrink-0 rounded-full bg-[#6d5dfc]"/> : null}
         </button>;
       }) : !loading ? (
-        session?.user ? <div className="p-10 text-center"><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Bell size={20}/></span><p className="mt-3 text-sm font-black">You’re all caught up.</p><p className="mt-1 text-xs text-gray-400">New likes, follows, comments, and requests will appear here.</p></div> :
-        <div className="space-y-1">{sampleItems.map(([type,title,time],i)=>{const Icon=iconFor(type as NotificationData["type"]);return <button key={title} className="flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50"><span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(type as NotificationData["type"])}`}><Icon size={17}/></span><span className="flex-1"><span className="block text-sm font-bold">{title}</span><span className="mt-1 block text-xs text-gray-400">{time}</span></span>{i<2?<span className="mt-2 size-2 rounded-full bg-[#6d5dfc]"/>:null}</button>})}</div>
+        session?.user ? (
+          <div className="p-10 text-center">
+            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Bell size={20}/></span>
+            <p className="mt-3 text-sm font-black">You’re all caught up.</p>
+            <p className="mt-1 text-xs text-gray-400">New likes, follows, comments, and requests will appear here.</p>
+          </div>
+        ) : (
+          <div className="p-10 text-center">
+            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Bell size={20}/></span>
+            <p className="mt-3 text-sm font-black">Sign in to see your notifications</p>
+            <p className="mt-1 text-xs text-gray-400">Your real likes, follows, comments, messages, and requests will appear here.</p>
+          </div>
+        )
       ) : null}
+
     </Card>
   </Page>;
 }
+
 function SettingsPage() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const [privateAccount, setPrivate] = useState(false);
-  const [activity, setActivity] = useState(true);
-  const [push, setPush] = useState(true);
   const [email, setEmail] = useState("Not loaded");
   const [username, setUsername] = useState("Not loaded");
   const [loading, setLoading] = useState(true);
@@ -1262,12 +1325,11 @@ function SettingsPage() {
     {message ? <div role="status" className="mb-5 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-xs font-semibold text-gray-600">{message}</div> : null}
 
     <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-      <Card className="h-fit !p-2">
-        {[[Settings,"General"],[Lock,"Privacy"],[Bell,"Notifications"],[Shield,"Security"],[CircleHelp,"Help"]].map(([Icon,label],i)=>
-          <button key={String(label)} className={"flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-xs font-black " + (i===0 ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500 hover:bg-gray-50")}>
-            <Icon size={16}/>{String(label)}
-          </button>
-        )}
+      <Card className="h-fit !p-4">
+        <p className="text-[10px] font-black uppercase tracking-[.14em] text-gray-400">Settings areas</p>
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-gray-500">
+          {["General","Privacy","Notifications","Security","Help"].map((label) => <span key={label} className="rounded-xl bg-gray-50 px-3 py-2">{label}</span>)}
+        </div>
       </Card>
 
       <div className="space-y-5">
@@ -1298,18 +1360,12 @@ function SettingsPage() {
               <div className="flex-1"><p className="text-sm font-bold">Private account</p><p className="text-xs text-gray-400">Only approved followers can see your posts.</p></div>
               <Toggle value={privateAccount} disabled={!session?.user || savingPrivacy} onChange={(value)=>void updatePrivacy(value)}/>
             </div>
-            <div className="flex items-center gap-4 py-4">
-              <div className="flex-1"><p className="text-sm font-bold">Activity status</p><p className="text-xs text-gray-400">Control whether people can see when you are active.</p></div>
-              <Toggle value={activity} onChange={setActivity}/>
-            </div>
           </div>
         </Card>
 
         <Card>
-          <div className="flex items-center gap-4">
-            <div className="flex-1"><p className="text-sm font-bold">Push notifications</p><p className="text-xs text-gray-400">Likes, comments, messages, and friend requests.</p></div>
-            <Toggle value={push} onChange={setPush}/>
-          </div>
+          <h2 className="text-sm font-black">Notifications</h2>
+          <p className="mt-2 text-xs leading-5 text-gray-400">Notification preferences will be connected to stored settings before these controls become interactive.</p>
         </Card>
 
         {session?.user ? (

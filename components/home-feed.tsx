@@ -4,6 +4,8 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
+import { MobileMenu } from "@/components/mobile-menu";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   Bookmark,
@@ -12,7 +14,6 @@ import {
   Home,
   Image as ImageIcon,
   Loader2,
-  Menu,
   MessageCircle,
   MoreHorizontal,
   Pencil,
@@ -64,44 +65,16 @@ type StoryItem = {
   author: { id: string; name: string; username: string | null; image: string | null };
 };
 
-const fallbackPosts: Post[] = [
-  {
-    id: "sample-1",
-    authorId: "sample-user-1",
-    name: "Maya Chen",
-    handle: "@mayachen",
-    initials: "MC",
-    authorImage: null,
-    timestamp: "18 min",
-    copy: "A little progress is still progress. Today I finally shipped the thing I had been putting off. ✨",
-    mediaUrl: null,
-    visibility: "PUBLIC",
-    likes: 248,
-    comments: 34,
-    shares: 12,
-    liked: false,
-    saved: false,
-    accent: "from-violet-500 via-fuchsia-400 to-amber-300",
-  },
-  {
-    id: "sample-2",
-    authorId: "sample-user-2",
-    name: "Arjun Mehta",
-    handle: "@arjunm",
-    initials: "AM",
-    authorImage: null,
-    timestamp: "1 hr",
-    copy: "Weekend walks, good coffee, and a camera roll full of tiny moments worth keeping.",
-    mediaUrl: null,
-    visibility: "PUBLIC",
-    likes: 176,
-    comments: 21,
-    shares: 8,
-    liked: false,
-    saved: false,
-    accent: "from-sky-500 via-cyan-400 to-emerald-300",
-  },
-];
+type SuggestedUser = {
+  id: string;
+  name: string;
+  username: string | null;
+  image: string | null;
+  bio: string | null;
+  isPrivate: boolean;
+  isFollowing: boolean;
+  isFriend: boolean;
+};
 
 const navItems = [
   { label: "Home", icon: Home, active: true, href: "/home" },
@@ -601,8 +574,10 @@ function PostCard({
 
 export default function HomeFeed() {
   const { data: session } = authClient.useSession();
-  const [feedPosts, setFeedPosts] = useState<Post[]>(fallbackPosts);
+  const router = useRouter();
+  const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<StoryItem[]>([]);
+  const [suggestedUsers, setSuggestedUsers] = useState<SuggestedUser[]>([]);
   const [newPost, setNewPost] = useState("");
   const [visibility, setVisibility] = useState<Post["visibility"]>("PUBLIC");
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
@@ -612,6 +587,8 @@ export default function HomeFeed() {
   const [feedError, setFeedError] = useState("");
   const [nextBefore, setNextBefore] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   async function fetchFeed(before?: string | null, append = false) {
@@ -652,19 +629,21 @@ export default function HomeFeed() {
     }));
 
     setNextBefore(json.nextBefore ?? null);
-    setFeedPosts((current) => (append ? [...current, ...mapped] : mapped.length ? mapped : current));
+    setFeedPosts((current) => (append ? [...current, ...mapped] : mapped));
   }
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const [feedResponse, storyResponse] = await Promise.all([
+        const [feedResponse, storyResponse, usersResponse] = await Promise.all([
           fetch("/api/posts?take=20", { cache: "no-store" }),
           fetch("/api/stories", { cache: "no-store" }),
+          fetch("/api/users?take=3", { cache: "no-store" }),
         ]);
         const feedJson = await feedResponse.json();
         const storyJson = await storyResponse.json();
+        const usersJson = await usersResponse.json();
         if (cancelled) return;
 
         if (feedResponse.ok) {
@@ -691,11 +670,12 @@ export default function HomeFeed() {
             liked: Boolean(item.liked),
             saved: Boolean(item.saved),
           }));
-          if (mapped.length) setFeedPosts(mapped);
+          setFeedPosts(mapped);
           setNextBefore(feedJson.nextBefore ?? null);
         }
 
         if (storyResponse.ok) setStories((storyJson.stories ?? []) as StoryItem[]);
+        if (usersResponse.ok) setSuggestedUsers((usersJson.users ?? []) as SuggestedUser[]);
       } catch (loadError) {
         if (!cancelled) setFeedError(loadError instanceof Error ? loadError.message : "Could not load your feed.");
       }
@@ -785,7 +765,14 @@ export default function HomeFeed() {
     }
   }
 
-  const profileHref = session?.user ? `/profile/${session.user.email.split("@")[0]}` : "/login";
+  const profileHref = session?.user ? "/profile/me" : "/login";
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = searchTerm.trim();
+    setSearchOpen(false);
+    router.push(query ? `/discover?q=${encodeURIComponent(query)}` : "/discover");
+  }
   const canSubmit = Boolean(session?.user && (newPost.trim() || mediaUrl) && !publishing && !uploading);
   const visibleStories = useMemo(() => stories.filter((story) => new Date(story.expiresAt) > new Date()).slice(0, 6), [stories]);
 
@@ -797,18 +784,26 @@ export default function HomeFeed() {
             <span className="grid size-9 place-items-center rounded-xl bg-[#6d5dfc] text-white shadow-md shadow-[#6d5dfc]/20"><Sparkles size={17}/></span>
             <span className="hidden text-base font-black tracking-[-0.03em] text-gray-950 sm:block">Socialhub</span>
           </Link>
-          <label className="relative mx-auto hidden max-w-md flex-1 md:block">
+          <form onSubmit={submitSearch} className="relative mx-auto hidden max-w-md flex-1 md:block">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/>
-            <input className="h-11 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm font-medium outline-none transition placeholder:text-gray-400 focus:border-[#bdb6ff] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Search people, posts, topics…" aria-label="Search"/>
-          </label>
+            <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-11 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm font-medium outline-none transition placeholder:text-gray-400 focus:border-[#bdb6ff] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Search people…" aria-label="Search people"/>
+          </form>
           <div className="ml-auto flex items-center gap-1.5">
-            <button className="social-icon-button md:hidden" aria-label="Search"><Search size={19}/></button>
+            <button type="button" onClick={() => setSearchOpen((value) => !value)} className="social-icon-button md:hidden" aria-label="Search" aria-expanded={searchOpen}><Search size={19}/></button>
             <Link href="/messages" className="social-icon-button" aria-label="Messages"><MessageCircle size={19}/></Link>
             <Link href="/notifications" className="social-icon-button relative" aria-label="Notifications"><Bell size={19}/><span className="absolute right-2 top-2 size-2 rounded-full bg-[#6d5dfc] ring-2 ring-white"/></Link>
             <Link href={profileHref}><Avatar name={session?.user?.name ?? "You"} image={session?.user?.image}/></Link>
-            <button className="social-icon-button md:hidden" aria-label="Menu"><Menu size={19}/></button>
+            <MobileMenu />
           </div>
         </div>
+        {searchOpen ? (
+          <form onSubmit={submitSearch} className="border-t border-gray-100 px-4 py-3 md:hidden">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/>
+              <input autoFocus value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-11 w-full rounded-2xl bg-gray-50 pl-11 pr-4 text-sm font-medium outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Search people…" aria-label="Search people"/>
+            </div>
+          </form>
+        ) : null}
       </header>
 
       <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[230px_minmax(0,650px)_300px] lg:px-8">
@@ -876,9 +871,16 @@ export default function HomeFeed() {
           </form>
 
           <div className="space-y-5">
-            {feedPosts.map((post) => (
+            {feedPosts.length > 0 ? feedPosts.map((post) => (
               <PostCard key={post.id} post={post} currentUserId={session?.user?.id} onRemove={(postId) => setFeedPosts((current) => current.filter((item) => item.id !== postId))}/>
-            ))}
+            )) : (
+              <section className="social-card rounded-3xl p-10 text-center">
+                <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={20}/></span>
+                <h2 className="mt-4 text-sm font-black">{session?.user ? "Your feed is empty" : "Sign in to build your feed"}</h2>
+                <p className="mt-2 text-xs leading-5 text-gray-400">{session?.user ? "Follow people or add your first post to start filling your feed." : "Real posts from the people you connect with will appear here."}</p>
+                {!session?.user ? <Link href="/login" className="mt-4 inline-flex rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white">Sign in</Link> : <Link href="/discover" className="mt-4 inline-flex rounded-xl bg-[#6d5dfc] px-4 py-2.5 text-xs font-black text-white">Discover people</Link>}
+              </section>
+            )}
 
             {nextBefore ? (
               <button onClick={() => void loadMore()} disabled={loadingMore} className="mx-auto flex min-h-11 items-center gap-2 rounded-2xl border border-gray-200 bg-white px-5 text-xs font-black text-gray-700 hover:bg-gray-50 disabled:opacity-50">
@@ -895,10 +897,6 @@ export default function HomeFeed() {
             <section className="social-card rounded-3xl p-5">
               <div className="flex items-center justify-between"><h2 className="text-sm font-black tracking-[-0.02em]">Stories</h2><Link href="/home" className="text-xs font-bold text-[#6d5dfc]">See all</Link></div>
               <div className="mt-4 flex gap-3 overflow-hidden">
-                <button className="min-w-16" aria-label="Create your story">
-                  <div className="grid size-16 place-items-center rounded-2xl border-2 border-dashed border-[#c9c4ff] bg-[#f5f2ff] text-[#6d5dfc]"><Plus size={19}/></div>
-                  <p className="mt-2 truncate text-[11px] font-bold text-gray-500">Your story</p>
-                </button>
                 {visibleStories.map((story, index) => (
                   <Link href={`/profile/${story.author.username ?? story.author.id}`} className="min-w-16" key={story.id}>
                     <div className="rounded-[1.15rem] bg-gradient-to-br p-[2px] from-[#6d5dfc] via-[#d957ff] to-[#ffb347]">
@@ -913,17 +911,17 @@ export default function HomeFeed() {
             <section className="social-card rounded-3xl p-5">
               <div className="flex items-center justify-between"><h2 className="text-sm font-black tracking-[-0.02em]">People to follow</h2><Link href="/discover" className="text-xs font-bold text-[#6d5dfc]">View all</Link></div>
               <div className="mt-4 space-y-4">
-                {[
-                  ["Nora Patel","@norapatel","from-fuchsia-500 to-orange-400"],
-                  ["Dev Kapoor","@devk","from-sky-500 to-indigo-500"],
-                  ["Zoya Shah","@zoyas","from-amber-400 to-rose-500"],
-                ].map(([name, handle, accent]) => (
-                  <div key={handle} className="flex items-center gap-3">
-                    <Avatar name={name} accent={accent} />
-                    <div className="min-w-0 flex-1"><p className="truncate text-xs font-extrabold text-gray-900">{name}</p><p className="truncate text-[11px] font-medium text-gray-400">{handle}</p></div>
-                    <Link href={`/discover?q=${handle.slice(1)}`} className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white" aria-label={"Follow " + name}><Plus size={16}/></Link>
+                {suggestedUsers.map((user, index) => (
+                  <div key={user.id} className="flex items-center gap-3">
+                    <Avatar name={user.name} image={user.image} accent={["from-fuchsia-500 to-orange-400","from-sky-500 to-indigo-500","from-amber-400 to-rose-500"][index % 3]} />
+                    <div className="min-w-0 flex-1">
+                      <Link href={`/profile/${user.username ?? user.id}`} className="block truncate text-xs font-extrabold text-gray-900 hover:text-[#5a4be8]">{user.name}</Link>
+                      <p className="truncate text-[11px] font-medium text-gray-400">@{user.username ?? "member"}</p>
+                    </div>
+                    <Link href={`/discover?q=${encodeURIComponent(user.username ?? user.name)}`} className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white" aria-label={`Find ${user.name} in Discover`}><Plus size={16}/></Link>
                   </div>
                 ))}
+                {!suggestedUsers.length ? <p className="py-3 text-xs text-gray-400">No new people to show right now.</p> : null}
               </div>
             </section>
 
