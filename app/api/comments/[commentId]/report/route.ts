@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canViewPost } from "@/lib/post-access";
-import { Prisma } from "@/app/generated/prisma/client";
 
 export async function POST(request: Request, { params }: { params: Promise<{ commentId: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -22,7 +21,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ com
   try {
     await prisma.report.create({ data: { reporterId: session.user.id, commentId, reason } });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
       return NextResponse.json({ error: "You have already reported this comment." }, { status: 409 });
     }
     throw error;
