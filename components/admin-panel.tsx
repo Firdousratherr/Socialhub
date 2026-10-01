@@ -225,8 +225,62 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
   </div>;
 }
 
-function ContentManager({onMessage}:{onMessage:(value:string)=>void}){const[posts,setPosts]=useState<PostRow[]>([]);const[loading,setLoading]=useState(true);async function load(){setLoading(true);const response=await fetch("/api/admin/posts",{cache:"no-store"});const json=await response.json();if(!response.ok){onMessage(json.error??"Could not load content.");setLoading(false);return}setPosts(json.posts??[]);setLoading(false)}useEffect(()=>{void load()},[]);async function updateVisibility(id:string,visibility:PostRow["visibility"]){const response=await fetch("/api/admin/posts",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,visibility})});const json=await response.json();if(!response.ok){onMessage(json.error??"Could not update post.");return}setPosts(items=>items.map(item=>item.id===id?{...item,visibility}:item));onMessage("Post visibility updated.")}async function deletePost(id:string){if(!window.confirm("Delete this post and its related comments permanently?"))return;const response=await fetch("/api/admin/posts",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});const json=await response.json();if(!response.ok){onMessage(json.error??"Could not delete post.");return}setPosts(items=>items.filter(item=>item.id!==id));onMessage("Post deleted.")}return <Card className="!p-0 overflow-hidden"><div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h2 className="text-sm font-black">Content moderation</h2><p className="mt-1 text-xs text-gray-400">Hide content by changing visibility or permanently remove a post. Every action is audited.</p></div><FileText className="text-gray-300" size={20}/></div>{loading?<p className="p-8 text-center text-xs text-gray-400">Loading posts…</p>:posts.length===0?<p className="p-8 text-center text-xs text-gray-400">No posts found.</p>:<div className="divide-y divide-gray-100">{posts.map(post=><article key={post.id} className="p-5"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-violet-100 text-xs font-black text-violet-600">{initials(post.author.name)}</span><div className="min-w-0 flex-1"><p className="text-xs font-black">{post.author.name} <span className="text-[10px] font-bold text-gray-400">@{post.author.username??"member"}</span></p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">{post.content??"Media post"}</p>{post.mediaUrl?<img src={post.mediaUrl} alt="" className="mt-3 max-h-72 w-full rounded-2xl object-cover"/>:null}<p className="mt-2 text-[10px] text-gray-400">{post._count.likes} likes · {post._count.comments} comments · {post._count.reports} reports · {new Date(post.createdAt).toLocaleString()}</p></div></div><div className="mt-4 flex flex-wrap items-center gap-2 pl-13"><select value={post.visibility} onChange={e=>void updateVisibility(post.id,e.target.value as PostRow["visibility"])} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black"><option value="PUBLIC">PUBLIC</option><option value="FRIENDS">FRIENDS</option><option value="PRIVATE">PRIVATE</option></select><button onClick={()=>void deletePost(post.id)} className="inline-flex items-center gap-1 rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700"><Trash2 size={13}/> Delete</button></div></article>)}</div>}</Card>}
+function ContentManager({onMessage}:{onMessage:(value:string)=>void}) {
+  const [posts,setPosts]=useState<PostRow[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [query,setQuery]=useState("");
+  const [nextBefore,setNextBefore]=useState<string|null>(null);
+  const [loadingMore,setLoadingMore]=useState(false);
 
+  async function load(before?:string|null, append=false) {
+    if (append) setLoadingMore(true); else setLoading(true);
+    const params=new URLSearchParams({take:"50"});
+    if(query.trim()) params.set("q",query.trim());
+    if(before) params.set("before",before);
+    try {
+      const response=await fetch("/api/admin/posts?"+params.toString(),{cache:"no-store"});
+      const json=await response.json();
+      if(!response.ok) throw new Error(json.error??"Could not load content.");
+      setPosts(current=>append?[...current,...(json.posts??[])]:json.posts??[]);
+      setNextBefore(json.nextBefore??null);
+    } catch(error) {
+      onMessage(error instanceof Error?error.message:"Could not load content.");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }
+
+  useEffect(()=>{const timer=window.setTimeout(()=>void load(),250);return()=>window.clearTimeout(timer)},[query]);
+
+  async function updateVisibility(id:string,visibility:PostRow["visibility"]){
+    const response=await fetch("/api/admin/posts",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,visibility})});
+    const json=await response.json();
+    if(!response.ok){onMessage(json.error??"Could not update post.");return}
+    setPosts(items=>items.map(item=>item.id===id?{...item,visibility}:item));
+    onMessage("Post visibility updated.");
+  }
+
+  async function deletePost(id:string){
+    if(!window.confirm("Delete this post and its related comments permanently?"))return;
+    const response=await fetch("/api/admin/posts",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+    const json=await response.json();
+    if(!response.ok){onMessage(json.error??"Could not delete post.");return}
+    setPosts(items=>items.filter(item=>item.id!==id));
+    onMessage("Post deleted.");
+  }
+
+  return <Card className="!p-0 overflow-hidden">
+    <div className="border-b border-gray-100 p-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div><h2 className="text-sm font-black">Content moderation</h2><p className="mt-1 text-xs text-gray-400">Search, review, change visibility, or remove posts. Every action is audited.</p></div>
+        <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search post or author" className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-xs outline-none focus:border-[#a79dff] lg:w-80" aria-label="Search admin content"/></div>
+      </div>
+    </div>
+    {loading?<p className="p-8 text-center text-xs text-gray-400">Loading posts…</p>:posts.length===0?<p className="p-8 text-center text-xs text-gray-400">No posts found.</p>:<div className="divide-y divide-gray-100">{posts.map(post=><article key={post.id} className="p-5"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-violet-100 text-xs font-black text-violet-600">{initials(post.author.name)}</span><div className="min-w-0 flex-1"><p className="text-xs font-black">{post.author.name} <span className="text-[10px] font-bold text-gray-400">@{post.author.username??"member"}</span></p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">{post.content??"Media post"}</p>{post.mediaUrl?<img src={post.mediaUrl} alt="" className="mt-3 max-h-72 w-full rounded-2xl object-cover"/>:null}<p className="mt-2 text-[10px] text-gray-400">{post._count.likes} likes · {post._count.comments} comments · {post._count.reports} reports · {new Date(post.createdAt).toLocaleString()}</p></div></div><div className="mt-4 flex flex-wrap items-center gap-2"><select value={post.visibility} onChange={e=>void updateVisibility(post.id,e.target.value as PostRow["visibility"])} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black"><option value="PUBLIC">PUBLIC</option><option value="FRIENDS">FRIENDS</option><option value="PRIVATE">PRIVATE</option></select><button onClick={()=>void deletePost(post.id)} className="inline-flex items-center gap-1 rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700"><Trash2 size={13}/> Delete</button></div></article>)}</div>}
+    {nextBefore ? <div className="border-t border-gray-100 p-4 text-center"><button type="button" onClick={()=>void load(nextBefore,true)} disabled={loadingMore} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[11px] font-black text-gray-700 disabled:opacity-40">{loadingMore?"Loading…":"Load more"}</button></div> : null}
+  </Card>
+}
 function Audit(){
   const [logs,setLogs]=useState<any[]>([]);
   const [query,setQuery]=useState("");
