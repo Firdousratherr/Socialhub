@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isBlocked } from "@/lib/social-access";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -17,6 +18,10 @@ export async function POST(
   const { userId } = await params;
   if (userId === session.user.id) {
     return NextResponse.json({ error: "You cannot follow yourself." }, { status: 400 });
+  }
+
+  if (await isBlocked(session.user.id, userId)) {
+    return NextResponse.json({ error: "You cannot follow this user while a block is active." }, { status: 403 });
   }
 
   const target = await prisma.user.findUnique({
