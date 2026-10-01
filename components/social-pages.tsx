@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { authClient } from "@/lib/auth-client";\nimport { AdminPanel } from "@/components/admin-panel";
+import { authClient } from "@/lib/auth-client";
+import { AdminPanel } from "@/components/admin-panel";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
