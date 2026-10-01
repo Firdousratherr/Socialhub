@@ -11,8 +11,9 @@ function isManagedBlob(value: string | null | undefined) {
 
 export async function safeDeleteBlob(value: string | null | undefined) {
   if (!isManagedBlob(value)) return;
+  const blobUrl = value;
   try {
-    await del(value);
+    await del(blobUrl);
   } catch (error) {
     console.error("Socialhub blob cleanup failed", error);
   }
