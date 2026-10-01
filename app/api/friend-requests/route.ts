@@ -50,6 +50,40 @@ export async function POST(request: Request) {
   });
   if (!receiver?.isActive) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
+  const block = await prisma.block.findFirst({
+    where: {
+      OR: [
+        { blockerId: session.user.id, blockedId: receiverId },
+        { blockerId: receiverId, blockedId: session.user.id },
+      ],
+    },
+    select: { blockerId: true },
+  });
+  if (block) return NextResponse.json({ error: "You cannot send a friend request while a block is active." }, { status: 403 });
+
+  const accepted = await prisma.friendRequest.findFirst({
+    where: {
+      status: "ACCEPTED",
+      OR: [
+        { senderId: session.user.id, receiverId },
+        { senderId: receiverId, receiverId: session.user.id },
+      ],
+    },
+    select: { id: true },
+  });
+  if (accepted) return NextResponse.json({ error: "You are already friends." }, { status: 409 });
+
+  const reversePending = await prisma.friendRequest.findFirst({
+    where: { senderId: receiverId, receiverId: session.user.id, status: "PENDING" },
+    select: { id: true },
+  });
+  if (reversePending) {
+    return NextResponse.json(
+      { error: "This person already sent you a friend request. Open Friends to respond." },
+      { status: 409 },
+    );
+  }
+
   const requestRecord = await prisma.friendRequest.findUnique({
     where: {
       senderId_receiverId: {
