@@ -16,8 +16,18 @@ export async function GET(request: Request) {
   const session = await getSession();
 
   let blockedIds: string[] = [];
+  let friendIds: string[] = [];
   if (session?.user) {
     blockedIds = await getBlockedUserIds(session.user.id);
+    friendIds = (
+      await prisma.friendRequest.findMany({
+        where: {
+          status: "ACCEPTED",
+          OR: [{ senderId: session.user.id }, { receiverId: session.user.id }],
+        },
+        select: { senderId: true, receiverId: true },
+      })
+    ).map((row) => (row.senderId === session.user.id ? row.receiverId : row.senderId));
   }
 
   const posts = await prisma.post.findMany({
@@ -32,12 +42,9 @@ export async function GET(request: Request) {
         ...(session?.user
           ? [
               { authorId: session.user.id },
-              {
-                visibility: "FRIENDS" as const,
-                author: {
-                  followers: { some: { followerId: session.user.id } },
-                },
-              },
+              ...(friendIds.length
+                ? [{ visibility: "FRIENDS" as const, authorId: { in: friendIds } }]
+                : []),
             ]
           : []),
       ],
@@ -62,31 +69,7 @@ export async function GET(request: Request) {
     },
   });
 
-  // A friendship can be represented by either accepted direction. Filter FRIENDS
-  // posts again so the feed never relies on an asymmetric follow relation.
-  let visiblePosts = posts;
-  if (session?.user) {
-    const friendIds = (
-      await prisma.friendRequest.findMany({
-        where: {
-          status: "ACCEPTED",
-          OR: [
-            { senderId: session.user.id },
-            { receiverId: session.user.id },
-          ],
-        },
-        select: { senderId: true, receiverId: true },
-      })
-    ).map((row) => (row.senderId === session.user.id ? row.receiverId : row.senderId));
-
-    const friendSet = new Set(friendIds);
-    visiblePosts = posts.filter(
-      (post) =>
-        post.visibility !== "FRIENDS" ||
-        post.author.id === session.user.id ||
-        friendSet.has(post.author.id),
-    );
-  }
+  const visiblePosts = posts;
 
   const postIds = visiblePosts.map((post) => post.id);
   const [likedRows, savedRows] = session?.user && postIds.length
