@@ -1288,6 +1288,8 @@ function SettingsPage() {
   const [message, setMessage] = useState("");
   const [preferences, setPreferences] = useState<Record<string, boolean>>({});
   const [savingPreference, setSavingPreference] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<Array<{ id: string; createdAt: string; updatedAt: string; expiresAt: string; ipAddress: string | null; userAgent: string | null; isCurrent: boolean }>>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1347,6 +1349,38 @@ function SettingsPage() {
       setMessage(requestError instanceof Error ? requestError.message : "Could not save notification preference.");
     } finally {
       setSavingPreference(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!session?.user) return;
+    setLoadingSessions(true);
+    void fetch("/api/security/sessions", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(json.error ?? "Could not load active sessions.");
+        setSessions(json.sessions ?? []);
+      })
+      .catch((requestError) => setMessage(requestError instanceof Error ? requestError.message : "Could not load active sessions."))
+      .finally(() => setLoadingSessions(false));
+  }, [session?.user?.id]);
+
+  async function revokeSession(sessionId?: string) {
+    if (!session?.user) return;
+    const allOther = !sessionId;
+    if (allOther && !window.confirm("Sign out all other devices?")) return;
+    try {
+      const response = await fetch("/api/security/sessions", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(allOther ? { allOther: true } : { sessionId }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not revoke session.");
+      setSessions((current) => allOther ? current.filter((item) => item.isCurrent) : current.filter((item) => item.id !== sessionId));
+      setMessage(allOther ? `Signed out of ${json.revoked ?? 0} other session(s).` : "Session revoked.");
+    } catch (requestError) {
+      setMessage(requestError instanceof Error ? requestError.message : "Could not revoke session.");
     }
   }
 
@@ -1462,9 +1496,21 @@ function SettingsPage() {
 
         {session?.user ? (
           <Card>
-            <h2 className="text-sm font-black">Session</h2>
-            <p className="mt-2 text-xs leading-5 text-gray-400">End the current session on this device.</p>
-            <button onClick={()=>void signOut()} className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-700 hover:bg-gray-50">Sign out</button>
+            <div className="flex items-center justify-between gap-3">
+              <div><h2 className="text-sm font-black">Active sessions</h2><p className="mt-1 text-xs text-gray-400">Review devices signed in to your account.</p></div>
+              <button type="button" onClick={() => void revokeSession()} disabled={sessions.length <= 1} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[11px] font-black text-gray-700 disabled:cursor-not-allowed disabled:opacity-40">Sign out other devices</button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {loadingSessions ? <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-400">Loading sessions…</div> :
+               sessions.length ? sessions.map((item) => (
+                <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-gray-100 p-3">
+                  <span className={"grid size-9 place-items-center rounded-xl " + (item.isCurrent ? "bg-[#eeebff] text-[#5a4be8]" : "bg-gray-100 text-gray-500")}><Shield size={16}/></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{item.isCurrent ? "Current device" : item.userAgent?.slice(0, 70) || "Other session"}</span><span className="block mt-0.5 text-[10px] text-gray-400">{item.ipAddress ? item.ipAddress + " · " : ""}{new Date(item.updatedAt).toLocaleString()}</span></span>
+                  {!item.isCurrent ? <button type="button" onClick={() => void revokeSession(item.id)} className="rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-[10px] font-black text-gray-600 hover:bg-gray-50">Revoke</button> : null}
+                </div>
+              )) : <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-400">No active sessions were found.</div>}
+            </div>
+            <button onClick={()=>void signOut()} className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-700 hover:bg-gray-50">Sign out current device</button>
           </Card>
         ) : null}
 
