@@ -709,6 +709,9 @@ type ChatMessage = {
   senderId: string;
   content: string;
   createdAt: string;
+  editedAt?: string | null;
+  deletedAt?: string | null;
+  replyTo?: { id: string; content: string; senderId: string; sender: { id: string; name: string; username: string | null } } | null;
   sender: { id: string; name: string; username: string | null; image: string | null };
   attachments?: Array<{ id: string; url: string; kind: string }>;
   reactions?: Array<{ id: string; emoji: string; userId: string; user: { id: string; name: string; image: string | null } }>;
@@ -719,6 +722,8 @@ type ConversationData = {
   title: string | null;
   isGroup: boolean;
   unreadCount?: number;
+  mutedUntil?: string | null;
+  archivedAt?: string | null;
   members: Array<{
     userId: string;
     role: string;
@@ -736,6 +741,8 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [draft, setDraft] = useState("");
   const [messageSearch, setMessageSearch] = useState("");
+  const [showConversationOptions, setShowConversationOptions] = useState(false);
+  const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -959,6 +966,20 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
   }
 
+  async function updateConversationAction(action: "archive" | "unarchive" | "mute" | "unmute") {
+    if (!activeId) return;
+    const response = await fetch(`/api/conversations/${activeId}/messages`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) { setError(json.error ?? "Could not update conversation."); return; }
+    setConversations((current) => current.map((item) => item.id === activeId ? { ...item, ...(action === "archive" || action === "unarchive" ? { archivedAt: json.archivedAt } : { mutedUntil: json.mutedUntil }) } : item));
+    setShowConversationOptions(false);
+    if (action === "archive") setActiveId(null);
+  }
+
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!activeId || (!draft.trim() && !pendingAttachments.length) || !session?.user || sending) return;
@@ -969,13 +990,14 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       const response = await fetch(`/api/conversations/${activeId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: draft.trim(), attachments: pendingAttachments }),
+        body: JSON.stringify({ content: draft.trim(), attachments: pendingAttachments, replyToId: replyingToMessage?.id ?? null }),
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not send message.");
       setMessages((current) => [...current, json.message as ChatMessage]);
       setDraft("");
       setPendingAttachments([]);
+      setReplyingToMessage(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not send message.");
     } finally {
@@ -1024,7 +1046,13 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         <div className="flex items-center gap-3 border-b border-gray-100 p-4">
           <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} />
           <div className="flex-1"><p className="text-sm font-black">{activeName}</p><p className="text-[11px] text-gray-400">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
-          <button type="button" onClick={() => setMessageSearch("")} className="social-icon-button" aria-label="Clear message search"><Search size={17}/></button><button type="button" onClick={() => setError(active ? "Conversation options will be available here as messaging settings ship." : "Select a conversation first.")} className="social-icon-button" aria-label="Conversation options"><MoreHorizontal size={18}/></button>
+          <button type="button" onClick={() => setMessageSearch("")} className="social-icon-button" aria-label="Clear message search"><Search size={17}/></button>
+          <div className="relative"><button type="button" onClick={() => setShowConversationOptions((value) => !value)} disabled={!active} className="social-icon-button disabled:opacity-40" aria-label="Conversation options"><MoreHorizontal size={18}/></button>
+            {showConversationOptions && active ? <div className="absolute right-0 top-11 z-30 w-44 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl">
+              <button type="button" onClick={() => void updateConversationAction(active.archivedAt ? "unarchive" : "archive")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.archivedAt ? "Unarchive" : "Archive"}</button>
+              <button type="button" onClick={() => void updateConversationAction(active.mutedUntil ? "unmute" : "mute")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.mutedUntil ? "Unmute" : "Mute for 7 days"}</button>
+            </div> : null}
+          </div>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
@@ -1058,7 +1086,9 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
                 <div className={"mt-1 flex items-center gap-2 " + (mine ? "justify-end" : "")}>
                   {message.editedAt && !message.deletedAt ? <span className="text-[9px] text-gray-400">edited</span> : null}
                   {message.reactions?.length ? <span className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px]">{message.reactions.map((reaction)=>reaction.emoji).join("")}</span> : null}
+                  {message.replyTo && !message.deletedAt ? <div className="w-full max-w-xs rounded-xl border border-gray-200 bg-white/80 px-2.5 py-2 text-[10px] text-gray-500"><span className="font-black">Replying to {message.replyTo.sender.name}</span><p className="mt-0.5 truncate">{message.replyTo.content}</p></div> : null}
                   {!message.deletedAt ? <button type="button" onClick={() => void reactToMessage(message.id)} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px] text-gray-500 hover:bg-gray-50" aria-label="React with heart">❤️</button> : null}
+                  {!message.deletedAt ? <button type="button" onClick={() => { setReplyingToMessage(message); setDraft(""); }} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px] text-gray-500 hover:bg-gray-50" aria-label="Reply to message"><MessageCircle size={11}/></button> : null}
                   {mine && !message.deletedAt ? <>
                     <button type="button" onClick={() => { setEditingMessageId(message.id); setEditingMessageText(message.content); }} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-gray-500 hover:bg-gray-50" aria-label="Edit message"><Pencil size={11}/></button>
                     <button type="button" onClick={() => void deleteMessage(message.id)} className="rounded-full border border-red-100 bg-white px-2 py-1 text-red-500 hover:bg-red-50" aria-label="Delete message"><Trash2 size={11}/></button>
@@ -1072,6 +1102,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         </div>
 
         <form onSubmit={sendMessage} className="border-t border-gray-100 p-3">
+          {replyingToMessage ? <div className="mb-2 flex items-center justify-between rounded-xl bg-[#f4f2ff] px-3 py-2"><div className="min-w-0"><p className="text-[10px] font-black text-[#5a4be8]">Replying to {replyingToMessage.sender.name}</p><p className="truncate text-[10px] text-gray-500">{replyingToMessage.content || "Media message"}</p></div><button type="button" onClick={() => setReplyingToMessage(null)} className="grid size-7 place-items-center rounded-lg bg-white text-gray-400" aria-label="Cancel reply"><X size={13}/></button></div>
           <input ref={attachmentRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={(event) => { void uploadAttachment(event.target.files?.[0]); event.currentTarget.value = ""; }} />
           {pendingAttachments.length ? <div className="mb-2 flex gap-2 overflow-x-auto">{pendingAttachments.map((url, index)=><div key={url} className="relative shrink-0"><img src={url} alt="Pending attachment" className="size-16 rounded-xl object-cover"/><button type="button" onClick={() => setPendingAttachments((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-gray-950 text-white"><X size={11}/></button></div>)}</div> : null}
           <div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2"><button type="button" onClick={() => attachmentRef.current?.click()} disabled={!active || uploadingAttachment || pendingAttachments.length >= 4} className="grid size-10 place-items-center rounded-xl bg-white text-gray-500 disabled:opacity-40" aria-label="Attach image"><Paperclip size={16}/></button><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={1} disabled={!active || !session?.user || sending} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60" placeholder={active ? "Write a message…" : "Select a conversation first"}/><button type="submit" disabled={!active || (!draft.trim() && !pendingAttachments.length) || !session?.user || sending} className="grid size-10 place-items-center rounded-xl bg-gray-950 text-white disabled:cursor-not-allowed disabled:opacity-50"><Send size={16}/></button></div>
