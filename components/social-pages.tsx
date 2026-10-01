@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
 import { MobileMenu } from "@/components/mobile-menu";
@@ -11,7 +11,7 @@ import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
   KeyRound, Lock, LogIn, Mail, MessageCircle, MoreHorizontal, Pencil, Plus,
-  Search, Send, Settings, Shield, Sparkles, Trash2, UserPlus, Users, X
+  Paperclip, Search, Send, Settings, Shield, Sparkles, Trash2, UserPlus, Users, X
 } from "lucide-react";
 
 type Screen = { kind: string; username?: string; section?: string; search?: string };
@@ -91,6 +91,12 @@ function Auth({ signup = false }: { signup?: boolean }) {
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState("");
+  const [newConversationOpen, setNewConversationOpen] = useState(false);
+  const [userQuery, setUserQuery] = useState("");
+  const [people, setPeople] = useState<Array<{ id: string; name: string; username: string | null; image: string | null }>>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const attachmentRef = useRef<HTMLInputElement | null>(null);
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"form" | "verify-signup" | "forgot" | "forgot-verify">("form");
@@ -708,6 +714,8 @@ type ChatMessage = {
   content: string;
   createdAt: string;
   sender: { id: string; name: string; username: string | null; image: string | null };
+  attachments?: Array<{ id: string; url: string; kind: string }>;
+  reactions?: Array<{ id: string; emoji: string; userId: string; user: { id: string; name: string; image: string | null } }>;
 };
 
 type ConversationData = {
@@ -773,6 +781,74 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   }, [session?.user?.id, initialConversationId]);
 
   useEffect(() => {
+    if (!newConversationOpen || !session?.user) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void fetch("/api/users?q=" + encodeURIComponent(userQuery) + "&take=8", { cache: "no-store" })
+        .then(async (response) => {
+          const json = await response.json().catch(() => ({}));
+          if (response.ok && !cancelled) setPeople(json.users ?? []);
+        })
+        .catch(() => {});
+    }, userQuery.trim() ? 250 : 0);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [newConversationOpen, userQuery, session?.user?.id]);
+
+  async function startConversation(userId: string) {
+    if (!session?.user) return;
+    try {
+      const response = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberIds: [userId], isGroup: false }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not start conversation.");
+      const conversation = json.conversation as ConversationData;
+      setConversations((current) => current.some((item) => item.id === conversation.id) ? current : [conversation, ...current]);
+      setActiveId(conversation.id);
+      setNewConversationOpen(false);
+      setUserQuery("");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not start conversation.");
+    }
+  }
+
+  async function uploadAttachment(file: File | undefined) {
+    if (!file || uploadingAttachment || pendingAttachments.length >= 4) return;
+    setUploadingAttachment(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/uploads", { method: "POST", body: formData });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not upload attachment.");
+      setPendingAttachments((current) => [...current, json.url].slice(0, 4));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not upload attachment.");
+    } finally {
+      setUploadingAttachment(false);
+    }
+  }
+
+  async function reactToMessage(messageId: string, emoji = "❤️") {
+    const existing = messages.find((message) => message.id === messageId)?.reactions?.find((reaction) => reaction.userId === session?.user?.id);
+    const response = await fetch("/api/messages/" + messageId + "/reaction", {
+      method: existing ? "DELETE" : "POST",
+      headers: existing ? undefined : { "Content-Type": "application/json" },
+      body: existing ? undefined : JSON.stringify({ emoji }),
+    });
+    if (response.ok) {
+      const json = existing ? {} : await response.json().catch(() => ({}));
+      setMessages((current) => current.map((message) => {
+        if (message.id !== messageId) return message;
+        const reactions = message.reactions ?? [];
+        return { ...message, reactions: existing ? reactions.filter((reaction) => reaction.userId !== session?.user?.id) : [...reactions, json.reaction] };
+      }));
+    }
+  }
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadMessages() {
@@ -829,12 +905,13 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       const response = await fetch(`/api/conversations/${activeId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: draft.trim() }),
+        body: JSON.stringify({ content: draft.trim(), attachments: pendingAttachments }),
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not send message.");
       setMessages((current) => [...current, json.message as ChatMessage]);
       setDraft("");
+      setPendingAttachments([]);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not send message.");
     } finally {
@@ -850,9 +927,11 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     ) : null}
     {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
+    {newConversationOpen ? <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4"><div className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h2 className="text-base font-black">New message</h2><p className="mt-1 text-xs text-gray-400">Choose a real Socialhub account to start a chat.</p></div><button type="button" onClick={() => setNewConversationOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={16}/></button></div><div className="p-4"><label className="relative block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input autoFocus value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Search people…" className="h-10 w-full rounded-xl bg-gray-50 pl-9 pr-3 text-xs font-semibold outline-none"/></label><div className="mt-3 space-y-1">{people.length ? people.map((person)=><button type="button" key={person.id} onClick={() => void startConversation(person.id)} className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-gray-50"><Avatar initials={person.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><span className="min-w-0"><span className="block truncate text-xs font-black">{person.name}</span><span className="block truncate text-[10px] text-gray-400">@{person.username ?? "member"}</span></span></button>) : <p className="p-6 text-center text-xs text-gray-400">{userQuery.trim() ? "No people found." : "Search for someone to message."}</p>}</div></div></div></div> : null}
+
     <div className="grid min-h-[620px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:grid-cols-[330px_1fr]">
       <aside className="border-b border-gray-100 lg:border-b-0 lg:border-r">
-        <div className="flex items-center justify-between border-b border-gray-100 p-4"><h2 className="text-sm font-black">Inbox</h2><button type="button" onClick={() => { window.location.href = "/discover"; }} className="social-icon-button" aria-label="Start a new message"><Pencil size={17}/></button></div>
+        <div className="flex items-center justify-between border-b border-gray-100 p-4"><h2 className="text-sm font-black">Inbox</h2><button type="button" onClick={() => setNewConversationOpen(true)} className="social-icon-button" aria-label="Start a new message"><Pencil size={17}/></button></div>
         <label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages" aria-label="Search messages"/></label>
 
         <div className="space-y-1 p-2">
@@ -889,7 +968,16 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
             const mine = message.senderId === session?.user?.id;
             return <div key={message.id} className={mine ? "flex justify-end" : "flex items-end gap-2"}>
               {!mine ? <Avatar initials={message.sender.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} size="sm"/> : null}
-              <div className={mine ? "max-w-[76%] rounded-2xl rounded-br-md bg-[#6d5dfc] px-4 py-3 text-sm leading-6 text-white" : "max-w-[76%] rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700"}>{message.content}</div>
+              <div className="max-w-[76%]">
+                <div className={mine ? "rounded-2xl rounded-br-md bg-[#6d5dfc] px-4 py-3 text-sm leading-6 text-white" : "rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700"}>
+                  {message.attachments?.length ? <div className="mb-2 grid gap-2">{message.attachments.map((attachment)=><img key={attachment.id} src={attachment.url} alt="Message attachment" className="max-h-72 w-full rounded-xl object-cover"/>)}</div> : null}
+                  {message.content ? <span>{message.content}</span> : null}
+                </div>
+                <div className={"mt-1 flex items-center gap-2 " + (mine ? "justify-end" : "")}>
+                  {message.reactions?.length ? <span className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px]">{message.reactions.map((reaction)=>reaction.emoji).join("")}</span> : null}
+                  <button type="button" onClick={() => void reactToMessage(message.id)} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px] text-gray-500 hover:bg-gray-50" aria-label="React with heart">❤️</button>
+                </div>
+              </div>
             </div>;
           }) : (
             <div className="flex h-full min-h-56 items-center justify-center text-center"><div><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={20}/></span><p className="mt-3 text-sm font-black">{active ? "No messages yet" : "Pick a conversation"}</p><p className="mt-1 text-xs text-gray-400">{active ? "Send the first message below." : "Choose a chat from your inbox to start."}</p></div></div>
@@ -897,7 +985,9 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         </div>
 
         <form onSubmit={sendMessage} className="border-t border-gray-100 p-3">
-          <div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2"><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={1} disabled={!active || !session?.user || sending} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60" placeholder={active ? "Write a message…" : "Select a conversation first"}/><button type="submit" disabled={!active || !draft.trim() || !session?.user || sending} className="grid size-10 place-items-center rounded-xl bg-gray-950 text-white disabled:cursor-not-allowed disabled:opacity-50"><Send size={16}/></button></div>
+          <input ref={attachmentRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={(event) => { void uploadAttachment(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+          {pendingAttachments.length ? <div className="mb-2 flex gap-2 overflow-x-auto">{pendingAttachments.map((url, index)=><div key={url} className="relative shrink-0"><img src={url} alt="Pending attachment" className="size-16 rounded-xl object-cover"/><button type="button" onClick={() => setPendingAttachments((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-gray-950 text-white"><X size={11}/></button></div>)}</div> : null}
+          <div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2"><button type="button" onClick={() => attachmentRef.current?.click()} disabled={!active || uploadingAttachment || pendingAttachments.length >= 4} className="grid size-10 place-items-center rounded-xl bg-white text-gray-500 disabled:opacity-40" aria-label="Attach image"><Paperclip size={16}/></button><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={1} disabled={!active || !session?.user || sending} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60" placeholder={active ? "Write a message…" : "Select a conversation first"}/><button type="submit" disabled={!active || (!draft.trim() && !pendingAttachments.length) || !session?.user || sending} className="grid size-10 place-items-center rounded-xl bg-gray-950 text-white disabled:cursor-not-allowed disabled:opacity-50"><Send size={16}/></button></div>
         </form>
       </section>
     </div>
