@@ -13,10 +13,14 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const take = Math.min(Math.max(Number(url.searchParams.get("take") ?? 20), 1), 50);
   const before = url.searchParams.get("before");
+  const mode = url.searchParams.get("mode") ?? "FOR_YOU";
+  const allowedModes = new Set(["FOR_YOU", "FOLLOWING", "FRIENDS", "LATEST", "SAVED"]);
+  const feedMode = allowedModes.has(mode) ? mode : "FOR_YOU";
   const session = await getSession();
 
   let blockedIds: string[] = [];
   let friendIds: string[] = [];
+  let followingIds: string[] = [];
   if (session?.user) {
     blockedIds = await getBlockedUserIds(session.user.id);
     friendIds = (
@@ -28,6 +32,13 @@ export async function GET(request: Request) {
         select: { senderId: true, receiverId: true },
       })
     ).map((row) => (row.senderId === session.user.id ? row.receiverId : row.senderId));
+
+    followingIds = (
+      await prisma.follow.findMany({
+        where: { followerId: session.user.id },
+        select: { followingId: true },
+      })
+    ).map((row) => row.followingId);
   }
 
   const posts = await prisma.post.findMany({
@@ -37,6 +48,15 @@ export async function GET(request: Request) {
         ...(blockedIds.length ? { id: { notIn: blockedIds } } : {}),
       },
       createdAt: before ? { lt: new Date(before) } : undefined,
+      ...(feedMode === "FOLLOWING"
+        ? { authorId: { in: session?.user ? followingIds : [] } }
+        : {}),
+      ...(feedMode === "FRIENDS"
+        ? { authorId: { in: session?.user ? [...friendIds, session.user.id] : [] } }
+        : {}),
+      ...(feedMode === "SAVED"
+        ? { savedBy: session?.user ? { some: { userId: session.user.id } } : { some: { userId: "__signed_out__" } } }
+        : {}),
       OR: [
         { visibility: "PUBLIC" },
         ...(session?.user
