@@ -578,10 +578,12 @@ export default function HomeFeed() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [feedMode, setFeedMode] = useState<"FOR_YOU" | "FOLLOWING" | "FRIENDS" | "LATEST" | "SAVED">("FOR_YOU");
+  const [feedModeOpen, setFeedModeOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   async function fetchFeed(before?: string | null, append = false) {
-    const query = new URLSearchParams({ take: "20" });
+    const query = new URLSearchParams({ take: "20", mode: feedMode });
     if (before) query.set("before", before);
     const response = await fetch(`/api/posts?${query.toString()}`, { cache: "no-store" });
     const json = await response.json();
@@ -626,7 +628,7 @@ export default function HomeFeed() {
     async function load() {
       try {
         const [feedResponse, storyResponse, usersResponse] = await Promise.all([
-          fetch("/api/posts?take=20", { cache: "no-store" }),
+          fetch("/api/posts?take=20&mode=" + encodeURIComponent(feedMode), { cache: "no-store" }),
           fetch("/api/stories", { cache: "no-store" }),
           fetch("/api/users?take=3", { cache: "no-store" }),
         ]);
@@ -673,7 +675,7 @@ export default function HomeFeed() {
     return () => {
       cancelled = true;
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, feedMode]);
 
   async function uploadPhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -820,9 +822,18 @@ export default function HomeFeed() {
         </aside>
 
         <section className="min-w-0">
-          <div className="mb-4 flex items-end justify-between">
+          <div className="relative mb-4 flex items-end justify-between">
             <div><p className="text-xs font-black uppercase tracking-[0.16em] text-[#6d5dfc]">Home</p><h1 className="mt-1 text-2xl font-black tracking-[-0.04em] text-gray-950">Your feed</h1></div>
-            <button className="social-icon-button bg-white/70" aria-label="Customize feed"><Sparkles size={17}/></button>
+            <button type="button" onClick={() => setFeedModeOpen((value) => !value)} className="social-icon-button bg-white/70" aria-label="Customize feed" aria-expanded={feedModeOpen}><Sparkles size={17}/></button>
+            {feedModeOpen ? <div className="absolute right-0 top-12 z-30 w-56 rounded-2xl border border-gray-200 bg-white p-2 shadow-xl">
+              {[
+                ["FOR_YOU", "For You"],
+                ["FOLLOWING", "Following"],
+                ["FRIENDS", "Friends"],
+                ["LATEST", "Latest"],
+                ["SAVED", "Saved"],
+              ].map(([value, label]) => <button key={value} type="button" onClick={() => { setFeedMode(value as typeof feedMode); setFeedModeOpen(false); }} className={"flex w-full items-center rounded-xl px-3 py-2.5 text-left text-xs font-bold " + (feedMode === value ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-600 hover:bg-gray-50")}>{label}</button>)}
+            </div> : null}
           </div>
 
           {feedError ? <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600"><span>{feedError}</span><button onClick={() => setFeedError("")} aria-label="Dismiss"><X size={14}/></button></div> : null}
