@@ -188,9 +188,6 @@ function CommentThread({
         if (!cancelled) {
           const next = (json.comments ?? []) as CommentItem[];
           setComments(next);
-          onCountChange(
-            next.reduce((total, item) => total + 1 + (item.replies?.length ?? 0), 0),
-          );
         }
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Could not load comments.");
@@ -948,7 +945,7 @@ export default function HomeFeed() {
           { Icon: Bell, label: "Alerts", active: false, href: "/notifications" },
           { Icon: Users, label: "Profile", active: false, href: profileHref },
         ].map(({ Icon, label, active, href }) => (
-          <Link href={href} key={label} className={[`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold transition ${active ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500"}`]}>
+          <Link href={href} key={label} className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold transition ${active ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500"}`}>
             <Icon size={18} strokeWidth={active ? 2.5 : 2}/>{label}
           </Link>
         ))}
