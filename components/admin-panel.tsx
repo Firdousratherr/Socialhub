@@ -185,6 +185,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
   const [busy,setBusy]=useState("");
   const [nextBefore,setNextBefore]=useState<string | null>(null);
   const [loadingMore,setLoadingMore]=useState(false);
+  const [currentAdminId,setCurrentAdminId]=useState<string|null>(null);
 
   async function load() {
     setLoading(true);
@@ -194,7 +195,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       const response=await fetch("/api/admin/reports?"+params.toString(),{cache:"no-store"});
       const json=await response.json();
       if(!response.ok) throw new Error(json.error??"Could not load moderation queue.");
-      setReports(json.reports??[]);setCounts(json.counts??{});setNextBefore(json.nextBefore??null);
+      setReports(json.reports??[]);setCounts(json.counts??{});setNextBefore(json.nextBefore??null);setCurrentAdminId(json.currentAdminId??null);
     } catch(e){onMessage(e instanceof Error?e.message:"Could not load moderation queue.");}
     finally{setLoading(false)}
   }
@@ -210,7 +211,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       const response=await fetch("/api/admin/reports?"+params.toString(),{cache:"no-store"});
       const json=await response.json();
       if(!response.ok) throw new Error(json.error??"Could not load more reports.");
-      setReports(items=>[...items,...(json.reports??[])]);
+      setReports(items=>[...items,...(json.reports??[])]);setCurrentAdminId(json.currentAdminId??currentAdminId);
       setNextBefore(json.nextBefore??null);
     } catch(e){onMessage(e instanceof Error?e.message:"Could not load more reports.");}
     finally{setLoadingMore(false)}
@@ -265,7 +266,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
         <div className="mt-3 rounded-2xl bg-gray-50 p-4 text-xs leading-5 text-gray-600">{report.reportedUser?<p>Profile: <strong>{report.reportedUser.name}</strong> @{report.reportedUser.username??"member"}</p>:null}{report.post?<p className="mt-1">Post: {report.post.content??"Media post"}</p>:null}{report.comment?<p className="mt-1">Comment: {report.comment.content}</p>:null}</div>
         <div className="mt-4 grid gap-3 sm:grid-cols-[auto_auto_1fr] sm:items-center">
           <select value={report.priority??"MEDIUM"} disabled={busy===report.id} onChange={(event)=>void updateMetadata(report.id,{priority:event.target.value})} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black"><option value="LOW">Low priority</option><option value="MEDIUM">Medium priority</option><option value="HIGH">High priority</option><option value="CRITICAL">Critical priority</option></select>
-          <button type="button" disabled={busy===report.id} onClick={()=>void updateMetadata(report.id,{assignedToId:null})} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black">{report.assignedTo?"Unassign":"Unassigned"}</button>
+          <button type="button" disabled={busy===report.id} onClick={()=>void updateMetadata(report.id,{assignedToId:report.assignedTo?.id===currentAdminId?null:currentAdminId})} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black">{report.assignedTo?.id===currentAdminId?"Unassign me":report.assignedTo?"Assigned to "+(report.assignedTo.username?"@"+report.assignedTo.username:report.assignedTo.name):"Assign to me"}</button>
           <input defaultValue={report.moderatorNote??""} onBlur={(event)=>{if(event.target.value!==(report.moderatorNote??""))void updateMetadata(report.id,{note:event.target.value})}} maxLength={1000} placeholder="Moderator note…" className="min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-semibold"/>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">{report.status==="PENDING"?<button disabled={busy===report.id} onClick={()=>void updateReport(report.id,"REVIEWED")} className="rounded-xl bg-gray-950 px-3 py-2 text-[10px] font-black text-white">Mark reviewed</button>:null}
