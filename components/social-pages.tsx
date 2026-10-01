@@ -933,12 +933,167 @@ function SettingsPage() {
   return <Page eyebrow="Settings" title="Make Socialhub yours" subtitle="Control account, privacy, notifications, and security from one place."><div className="grid gap-5 lg:grid-cols-[220px_1fr]"><Card className="h-fit !p-2">{[[Settings,"General"],[Lock,"Privacy"],[Bell,"Notifications"],[Shield,"Security"],[CircleHelp,"Help"]].map(([Icon,label],i)=><button key={String(label)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-xs font-black ${i===0?"bg-[#eeebff] text-[#5a4be8]":"text-gray-500 hover:bg-gray-50"}`}><Icon size={16}/>{String(label)}</button>)}</Card><div className="space-y-5"><Card><h2 className="text-sm font-black">Account</h2><div className="mt-4 space-y-3">{[["Email address","firdous@example.com",Mail],["Username","@firdous",AtSign],["Password","Last changed 14 days ago",KeyRound]].map(([a,b,Icon])=><button key={String(a)} className="flex w-full items-center gap-3 rounded-2xl border border-gray-100 p-3 text-left hover:bg-gray-50"><span className="grid size-9 place-items-center rounded-xl bg-gray-100 text-gray-500"><Icon size={16}/></span><span className="flex-1"><span className="block text-xs font-black">{String(a)}</span><span className="text-[11px] text-gray-400">{String(b)}</span></span><ChevronRight size={16} className="text-gray-400"/></button>)}</div></Card><Card><h2 className="text-sm font-black">Privacy & presence</h2>{[["Private account","Only approved followers can see your posts.",privateAccount,setPrivate],["Activity status","Show people when you are active.",activity,setActivity]].map(([a,b,v,s])=><div key={String(a)} className="flex items-center gap-4 border-b border-gray-100 py-4 last:border-0"><div className="flex-1"><p className="text-sm font-bold">{String(a)}</p><p className="text-xs text-gray-400">{String(b)}</p></div><Toggle value={Boolean(v)} set={s as (v:boolean)=>void}/></div>)}</Card><Card><div className="flex items-center gap-4"><div className="flex-1"><p className="text-sm font-bold">Push notifications</p><p className="text-xs text-gray-400">Likes, comments, messages, and friend requests.</p></div><Toggle value={push} set={setPush}/></div></Card><div className="rounded-3xl border border-red-100 bg-red-50 p-5"><div className="flex items-center gap-2 text-red-600"><Trash2 size={17}/><h2 className="text-sm font-black">Danger zone</h2></div><p className="mt-2 text-xs leading-5 text-red-500/75">Deleting your account is permanent and removes your profile, posts, and messages.</p><button className="mt-4 rounded-xl border border-red-200 bg-white px-3.5 py-2.5 text-xs font-black text-red-600">Delete account</button></div></div></div></Page>;
 }
 
-function Admin({ section="overview" }: { section?: string }) {
-  const [active,setActive]=useState(section);
-  const nav=[["overview","Overview",BarChart3],["users","Users",Users],["posts","Posts",MessageCircle],["reports","Reports",Shield]] as const;
-  return <Page eyebrow="Admin" title="Socialhub control center" subtitle="Moderate the community, review reports, and monitor platform health."><div className="grid gap-5 lg:grid-cols-[220px_1fr]"><Card className="h-fit !p-2">{nav.map(([k,l,I])=><button key={k} onClick={()=>setActive(k)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-xs font-black ${active===k?"bg-[#eeebff] text-[#5a4be8]":"text-gray-500 hover:bg-gray-50"}`}><I size={16}/>{l}</button>)}</Card><div className="space-y-5">{active==="overview"?<><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[["Members","12,482","+8.2%"],["Posts today","2,391","+4.9%"],["Reports","17","Needs review"],["Active now","1,284","+6.1%"]].map(x=><Card key={x[0]}><p className="text-xs font-bold text-gray-400">{x[0]}</p><div className="mt-2 flex items-end gap-2"><p className="text-3xl font-black tracking-[-.05em]">{x[1]}</p><span className="text-[10px] font-black text-emerald-500">{x[2]}</span></div></Card>)}</div><Card><div className="flex items-center justify-between"><h2 className="text-sm font-black">Platform health</h2><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-600">All systems nominal</span></div><div className="mt-5 grid gap-3 sm:grid-cols-3">{[["API latency","126 ms"],["Error rate","0.12%"],["Media processing","98.7%"]].map(x=><div key={x[0]} className="rounded-2xl bg-gray-50 p-4"><p className="text-[11px] text-gray-400">{x[0]}</p><p className="mt-2 text-lg font-black">{x[1]}</p></div>)}</div></Card></>:<Card className="!p-0 overflow-hidden"><div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h2 className="text-sm font-black capitalize">{active}</h2><p className="mt-1 text-xs text-gray-400">Review {active} with moderation-safe actions.</p></div><button className="rounded-xl bg-gray-950 px-3.5 py-2.5 text-xs font-black text-white">Review queue</button></div><div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left text-xs"><thead className="bg-gray-50 text-[10px] font-black uppercase tracking-[.12em] text-gray-400"><tr><th className="px-5 py-3">Item</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Activity</th><th className="px-5 py-3 text-right">Action</th></tr></thead><tbody>{Array.from({length:6}).map((_,i)=><tr key={i} className="border-t border-gray-100"><td className="px-5 py-4 font-bold">{active==="users"?people[i%4][1]:`Report #${2841+i}`}</td><td className="px-5 py-4"><span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-600">{active==="reports"?"Pending":"Active"}</span></td><td className="px-5 py-4 text-gray-400">{i+2}h ago</td><td className="px-5 py-4 text-right"><button className="rounded-lg border border-gray-200 px-3 py-1.5 text-[10px] font-black">Review</button></td></tr>)}</tbody></table></div></Card>}</div></div></Page>;
-}
+type AdminUser = {
+  id: string;
+  name: string;
+  username: string | null;
+  email: string;
+  image: string | null;
+  role: "USER" | "MODERATOR" | "ADMIN";
+  isActive: boolean;
+  createdAt: string;
+  _count: { posts: number; followers: number; following: number };
+};
 
+type AdminPost = {
+  id: string;
+  content: string | null;
+  createdAt: string;
+  author: { id: string; name: string; username: string | null; image: string | null };
+  _count: { likes: number; comments: number; reports: number };
+};
+
+type AdminReport = {
+  id: string;
+  reason: string;
+  status: "PENDING" | "REVIEWED" | "RESOLVED" | "DISMISSED";
+  createdAt: string;
+  reporter: { id: string; name: string; username: string | null; image: string | null };
+  reportedUser: { id: string; name: string; username: string | null } | null;
+  post: { id: string; content: string | null; mediaUrl: string | null } | null;
+  comment: { id: string; content: string } | null;
+};
+
+function Admin({ section="overview" }: { section?: string }) {
+  const { data: session } = authClient.useSession();
+  const [active, setActive] = useState(section);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [posts, setPosts] = useState<AdminPost[]>([]);
+  const [reports, setReports] = useState<AdminReport[]>([]);
+  const [counts, setCounts] = useState({ pending: 0, reviewed: 0, resolved: 0, dismissed: 0 });
+  const [loading, setLoading] = useState(false);
+  const [accessError, setAccessError] = useState("");
+
+  useEffect(() => {
+    if (section && section !== active) setActive(section);
+  }, [section]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAdminData() {
+      if (!session?.user) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setAccessError("");
+
+      try {
+        if (active === "users") {
+          const response = await fetch("/api/admin/users", { cache: "no-store" });
+          const json = await response.json();
+          if (!response.ok) throw new Error(json.error ?? "Could not load users.");
+          if (!cancelled) setUsers(json.users ?? []);
+        } else if (active === "posts") {
+          const response = await fetch("/api/admin/posts", { cache: "no-store" });
+          const json = await response.json();
+          if (!response.ok) throw new Error(json.error ?? "Could not load posts.");
+          if (!cancelled) setPosts(json.posts ?? []);
+        } else if (active === "reports") {
+          const response = await fetch("/api/admin/reports", { cache: "no-store" });
+          const json = await response.json();
+          if (!response.ok) throw new Error(json.error ?? "Could not load reports.");
+          if (!cancelled) {
+            setReports(json.reports ?? []);
+            setCounts(json.counts ?? { pending: 0, reviewed: 0, resolved: 0, dismissed: 0 });
+          }
+        }
+      } catch (requestError) {
+        if (!cancelled) setAccessError(requestError instanceof Error ? requestError.message : "Could not load admin data.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadAdminData();
+    return () => {
+      cancelled = true;
+    };
+  }, [active, session?.user?.id]);
+
+  async function updateReport(id: string, status: AdminReport["status"]) {
+    const response = await fetch("/api/admin/reports", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status }),
+    });
+    if (!response.ok) return;
+
+    setReports((items) => items.map((item) => item.id === id ? { ...item, status } : item));
+    setCounts((current) => ({
+      ...current,
+      pending: status === "PENDING" ? current.pending : Math.max(0, current.pending - 1),
+      reviewed: status === "REVIEWED" ? current.reviewed + 1 : current.reviewed,
+      resolved: status === "RESOLVED" ? current.resolved + 1 : current.resolved,
+      dismissed: status === "DISMISSED" ? current.dismissed + 1 : current.dismissed,
+    }));
+  }
+
+  const nav = [["overview","Overview",BarChart3],["users","Users",Users],["posts","Posts",MessageCircle],["reports","Reports",Shield]] as const;
+
+  return <Page eyebrow="Admin" title="Socialhub control center" subtitle="Moderate the community, review reports, and monitor platform health.">
+    {!session?.user ? (
+      <div className="mb-5 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-4 py-3 text-xs font-semibold text-[#5a4be8]">Sign in with an admin or moderator account to open this area.</div>
+    ) : null}
+    {accessError ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{accessError}</div> : null}
+
+    <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
+      <Card className="h-fit !p-2">
+        {nav.map(([key,label,Icon]) => (
+          <button key={key} onClick={()=>setActive(key)} className={"flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-xs font-black " + (active===key ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500 hover:bg-gray-50")}>
+            <Icon size={16}/>{label}
+          </button>
+        ))}
+      </Card>
+
+      <div className="space-y-5">
+        {active === "overview" ? (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <Card><p className="text-xs font-bold text-gray-400">Members</p><p className="mt-2 text-3xl font-black">Live</p><p className="mt-1 text-xs text-gray-400">From protected admin data</p></Card>
+              <Card><p className="text-xs font-bold text-gray-400">Reports pending</p><p className="mt-2 text-3xl font-black">{counts.pending}</p><p className="mt-1 text-xs text-gray-400">Requires review</p></Card>
+              <Card><p className="text-xs font-bold text-gray-400">Reports resolved</p><p className="mt-2 text-3xl font-black">{counts.resolved}</p><p className="mt-1 text-xs text-gray-400">Resolved</p></Card>
+              <Card><p className="text-xs font-bold text-gray-400">Current role</p><p className="mt-2 text-xl font-black">{session?.user ? "Authenticated" : "Signed out"}</p><p className="mt-1 text-xs text-gray-400">Server authorization decides access</p></Card>
+            </div>
+            <Card>
+              <div className="flex items-center justify-between"><h2 className="text-sm font-black">Moderation health</h2><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-600">Protected APIs active</span></div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                {[["Pending",counts.pending],["Reviewed",counts.reviewed],["Resolved",counts.resolved]].map((item)=><div key={item[0]} className="rounded-2xl bg-gray-50 p-4"><p className="text-[11px] text-gray-400">{item[0]}</p><p className="mt-2 text-lg font-black">{item[1]}</p></div>)}
+              </div>
+            </Card>
+          </>
+        ) : active === "users" ? (
+          <Card className="!p-0 overflow-hidden">
+            <div className="border-b border-gray-100 p-5"><h2 className="text-sm font-black">Users</h2><p className="mt-1 text-xs text-gray-400">Authenticated users from the protected admin endpoint.</p></div>
+            {loading ? <div className="p-6 text-xs text-gray-400">Loading users…</div> : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-xs"><thead className="bg-gray-50 text-[10px] font-black uppercase tracking-[.12em] text-gray-400"><tr><th className="px-5 py-3">User</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Posts</th><th className="px-5 py-3">Status</th></tr></thead><tbody>{users.map((user)=><tr key={user.id} className="border-t border-gray-100"><td className="px-5 py-4"><p className="font-black">{user.name}</p><p className="mt-1 text-gray-400">@{user.username ?? "member"} · {user.email}</p></td><td className="px-5 py-4"><span className="rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-600">{user.role}</span></td><td className="px-5 py-4 text-gray-500">{user._count.posts}</td><td className="px-5 py-4">{user.isActive ? <span className="text-emerald-600">Active</span> : <span className="text-red-600">Disabled</span>}</td></tr>)}</tbody></table></div>}
+          </Card>
+        ) : active === "posts" ? (
+          <Card className="!p-0 overflow-hidden">
+            <div className="border-b border-gray-100 p-5"><h2 className="text-sm font-black">Posts</h2><p className="mt-1 text-xs text-gray-400">Latest content visible to moderators.</p></div>
+            {loading ? <div className="p-6 text-xs text-gray-400">Loading posts…</div> : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-xs"><thead className="bg-gray-50 text-[10px] font-black uppercase tracking-[.12em] text-gray-400"><tr><th className="px-5 py-3">Author</th><th className="px-5 py-3">Content</th><th className="px-5 py-3">Engagement</th><th className="px-5 py-3">Reports</th></tr></thead><tbody>{posts.map((post)=><tr key={post.id} className="border-t border-gray-100"><td className="px-5 py-4 font-black">{post.author.name}</td><td className="max-w-[420px] px-5 py-4 text-gray-500">{post.content ?? "Media post"}</td><td className="px-5 py-4 text-gray-500">{post._count.likes} likes · {post._count.comments} comments</td><td className="px-5 py-4 font-bold">{post._count.reports}</td></tr>)}</tbody></table></div>}
+          </Card>
+        ) : (
+          <Card className="!p-0 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h2 className="text-sm font-black">Reports</h2><p className="mt-1 text-xs text-gray-400">{counts.pending} pending · {counts.resolved} resolved · {counts.dismissed} dismissed</p></div></div>
+            {loading ? <div className="p-6 text-xs text-gray-400">Loading reports…</div> : reports.length === 0 ? <div className="p-10 text-center text-xs text-gray-400">No moderation reports found.</div> : <div className="divide-y divide-gray-100">{reports.map((report)=><div key={report.id} className="p-5"><div className="flex flex-col gap-4 md:flex-row md:items-start"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-600">{report.status}</span><span className="text-[10px] font-medium text-gray-400">{new Date(report.createdAt).toLocaleString()}</span></div><p className="mt-2 text-sm font-black">Report reason: {report.reason}</p><p className="mt-1 text-xs text-gray-500">Filed by {report.reporter.name}{report.reportedUser ? " · Target: " + report.reportedUser.name : ""}</p><p className="mt-3 rounded-2xl bg-gray-50 p-3 text-xs leading-5 text-gray-600">{report.post?.content ?? report.comment?.content ?? "Reported profile or media item"}</p></div><div className="flex shrink-0 gap-2"><button onClick={()=>void updateReport(report.id,"REVIEWED")} className="rounded-xl border border-gray-200 px-3 py-2 text-[10px] font-black">Review</button><button onClick={()=>void updateReport(report.id,"RESOLVED")} className="rounded-xl bg-emerald-500 px-3 py-2 text-[10px] font-black text-white">Resolve</button><button onClick={()=>void updateReport(report.id,"DISMISSED")} className="rounded-xl bg-gray-950 px-3 py-2 text-[10px] font-black text-white">Dismiss</button></div></div></div>)}</div>}
+          </Card>
+        )}
+      </div>
+    </div>
+  </Page>;
+}
 export function SocialPages({ screen }: { screen: Screen }) {
   if (screen.kind==="login") return <Auth/>;
   if (screen.kind==="signup") return <Auth signup/>;
