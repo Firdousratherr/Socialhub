@@ -680,10 +680,13 @@ function Profile({ username = "firdous" }: { username?: string }) {
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           {(profile?.posts ?? []).filter((post) => profileTab === "posts" || Boolean(post.mediaUrl)).length > 0 ? (
             profile?.posts?.map((post) => (
-              <article key={post.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                <div className="flex items-center gap-3">
+              <article key={post.id} className={"rounded-2xl border p-4 " + (post.isPinned ? "border-[#d9d4ff] bg-[#f8f7ff]" : "border-gray-100 bg-gray-50")}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
                   {profile?.image ? <img src={profile.image} alt="" className="size-9 rounded-full object-cover" /> : <Avatar initials={initials} size="sm" />}
                   <div><p className="text-xs font-black">{displayName}</p><p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p></div>
+                  </div>
+                  {isOwner ? <button type="button" onClick={async () => { const response = await fetch("/api/posts/" + post.id + "/pin", { method: post.isPinned ? "DELETE" : "POST" }); if (response.ok) setProfile((current) => current ? { ...current, posts: (current.posts ?? []).map((item) => ({ ...item, isPinned: item.id === post.id ? !post.isPinned : post.isPinned ? item.isPinned : false })) } : current); }} className={"rounded-xl px-2.5 py-1.5 text-[10px] font-black " + (post.isPinned ? "bg-[#6d5dfc] text-white" : "bg-white text-gray-500 border border-gray-200")}>{post.isPinned ? "Pinned" : "Pin"}</button> : post.isPinned ? <span className="rounded-full bg-[#eeebff] px-2.5 py-1 text-[10px] font-black text-[#5a4be8]">Pinned</span> : null}
                 </div>
                 {post.content ? <p className="mt-3 text-sm leading-6 text-gray-600">{post.content}</p> : null}
                 {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
