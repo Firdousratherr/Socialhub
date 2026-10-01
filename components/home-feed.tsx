@@ -55,6 +55,8 @@ type Post = {
   shares: number;
   liked: boolean;
   saved: boolean;
+  reactions: Array<{ emoji: string; count: number }>;
+  myReaction: string | null;
   accent: string;
 };
 
@@ -382,6 +384,9 @@ function PostCard({
   const [likeCount, setLikeCount] = useState(post.likes);
   const [commentCount, setCommentCount] = useState(post.comments);
   const [shareCount, setShareCount] = useState(post.shares);
+  const [reactions, setReactions] = useState(post.reactions ?? []);
+  const [myReaction, setMyReaction] = useState<string | null>(post.myReaction ?? null);
+  const [reactionMenuOpen, setReactionMenuOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(post.copy);
@@ -398,6 +403,8 @@ function PostCard({
     setLikeCount(post.likes);
     setCommentCount(post.comments);
     setShareCount(post.shares);
+    setReactions(post.reactions ?? []);
+    setMyReaction(post.myReaction ?? null);
     setEditText(post.copy);
     setEditVisibility(post.visibility);
   }, [post]);
@@ -408,6 +415,33 @@ function PostCard({
     if (response.ok) {
       setLiked(Boolean(json.liked));
       setLikeCount(Number(json.count ?? likeCount));
+    }
+  }
+
+  async function reactToPost(emoji: string) {
+    const response = await fetch(`/api/posts/${post.id}/reaction`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emoji }),
+    });
+    const json = await response.json().catch(() => ({}));
+    if (response.ok) {
+      setReactions((current) => {
+        const filtered = current.map((item) => item.emoji === myReaction ? { ...item, count: item.count - 1 } : item).filter((item) => item.count > 0);
+        const existing = filtered.find((item) => item.emoji === emoji);
+        return existing ? filtered.map((item) => item.emoji === emoji ? { ...item, count: item.count + 1 } : item) : [...filtered, { emoji, count: 1 }];
+      });
+      setMyReaction(emoji);
+      setReactionMenuOpen(false);
+    }
+  }
+
+  async function removePostReaction() {
+    const response = await fetch(`/api/posts/${post.id}/reaction`, { method: "DELETE" });
+    if (response.ok) {
+      setReactions((current) => current.map((item) => item.emoji === myReaction ? { ...item, count: item.count - 1 } : item).filter((item) => item.count > 0));
+      setMyReaction(null);
+      setReactionMenuOpen(false);
     }
   }
 
