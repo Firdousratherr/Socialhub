@@ -66,11 +66,11 @@ const posts: Post[] = [
 ];
 
 const navItems = [
-  { label: "Home", icon: Home, active: true },
-  { label: "Discover", icon: Compass },
-  { label: "Friends", icon: Users },
-  { label: "Messages", icon: MessageCircle },
-  { label: "Notifications", icon: Bell, badge: 3 },
+  { label: "Home", icon: Home, active: true, href: "/home" },
+  { label: "Discover", icon: Compass, href: "/discover" },
+  { label: "Friends", icon: Users, href: "/friends" },
+  { label: "Messages", icon: MessageCircle, href: "/messages" },
+  { label: "Notifications", icon: Bell, href: "/notifications", badge: 3 },
 ];
 
 function Avatar({
@@ -246,7 +246,7 @@ export default function HomeFeed() {
             <div className="mb-4 rounded-3xl border border-white/70 bg-white/70 p-2.5 shadow-sm backdrop-blur">
               <div className="flex items-center gap-3 rounded-2xl bg-[#f5f2ff] p-3"><Link href="/profile/firdous"><Avatar initials="FR" large /></Link><div className="min-w-0"><p className="truncate text-sm font-extrabold">Your profile</p><p className="truncate text-xs font-medium text-gray-400">@firdous</p></div></div>
               <nav className="mt-2 space-y-1" aria-label="Primary navigation">
-                {navItems.map(({ label, icon: Icon, active, badge }) => <Link key={label} href={{Home:"/home",Discover:"/discover",Friends:"/friends",Messages:"/messages",Notifications:"/notifications"}[label]} data-active={active} className="social-nav-link justify-between"><span className="flex items-center gap-3"><Icon size={18} strokeWidth={active ? 2.4 : 2}/><span className="text-sm">{label}</span></span>{badge ? <span className="grid size-5 place-items-center rounded-full bg-[#6d5dfc] text-[10px] font-black text-white">{badge}</span> : null}</Link>)}
+                {navItems.map(({ label, icon: Icon, active, badge, href }) => <Link key={label} href={href} data-active={active} className="social-nav-link justify-between"><span className="flex items-center gap-3"><Icon size={18} strokeWidth={active ? 2.4 : 2}/><span className="text-sm">{label}</span></span>{badge ? <span className="grid size-5 place-items-center rounded-full bg-[#6d5dfc] text-[10px] font-black text-white">{badge}</span> : null}</Link>)}
               </nav>
               <div className="my-3 border-t border-gray-100"/>
               <Link href="/settings" className="social-nav-link"><Settings size={18}/><span className="text-sm font-semibold">Settings</span></Link>
