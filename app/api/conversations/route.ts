@@ -63,6 +63,49 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "One or more members do not exist." }, { status: 400 });
   }
 
+  if (!parsed.data.isGroup && memberIds.length === 2) {
+    const blocked = await prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: session.user.id, blockedId: memberIds.find((id) => id !== session.user.id)! },
+          { blockerId: memberIds.find((id) => id !== session.user.id)!, blockedId: session.user.id },
+        ],
+      },
+      select: { blockerId: true },
+    });
+    if (blocked) {
+      return NextResponse.json({ error: "You cannot start a conversation while a block is active." }, { status: 403 });
+    }
+
+    const existingCandidates = await prisma.conversation.findMany({
+      where: {
+        isGroup: false,
+        members: {
+          some: { userId: session.user.id },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 50,
+      include: {
+        members: {
+          select: {
+            userId: true,
+            role: true,
+            user: { select: { id: true, name: true, username: true, image: true } },
+          },
+        },
+      },
+    });
+
+    const otherId = memberIds.find((id) => id !== session.user.id);
+    const existing = existingCandidates.find(
+      (conversation) =>
+        conversation.members.length === 2 &&
+        conversation.members.some((member) => member.userId === otherId),
+    );
+    if (existing) return NextResponse.json({ conversation: existing, existing: true });
+  }
+
   const conversation = await prisma.conversation.create({
     data: {
       title: parsed.data.title ?? null,
