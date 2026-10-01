@@ -31,7 +31,23 @@ export async function GET() {
     },
   });
 
-  return NextResponse.json({ conversations });
+  const conversationsWithUnread = await Promise.all(
+    conversations.map(async (conversation) => {
+      const member = conversation.members.find((item) => item.userId === session.user.id);
+      const unreadCount = member?.lastReadAt
+        ? await prisma.message.count({
+            where: { conversationId: conversation.id, createdAt: { gt: member.lastReadAt } },
+          })
+        : await prisma.message.count({ where: { conversationId: conversation.id } });
+
+      return {
+        ...conversation,
+        unreadCount,
+      };
+    }),
+  );
+
+  return NextResponse.json({ conversations: conversationsWithUnread });
 }
 
 export async function POST(request: Request) {
