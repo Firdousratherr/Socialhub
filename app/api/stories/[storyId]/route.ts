@@ -8,8 +8,41 @@ async function getSession() {
   return auth.api.getSession({ headers: await headers() });
 }
 
-export async function POST(
+export async function GET(
   _request: Request,
+  { params }: { params: Promise<{ storyId: string }> },
+) {
+  const session = await getSession();
+  if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const { storyId } = await params;
+  const story = await prisma.story.findUnique({
+    where: { id: storyId },
+    select: { id: true, authorId: true, audience: true, expiresAt: true, author: { select: { isActive: true } } },
+  });
+  if (!story || !story.author.isActive || story.expiresAt <= new Date()) return NextResponse.json({ error: "Story not found." }, { status: 404 });
+  if (story.authorId !== session.user.id && await isBlocked(session.user.id, story.authorId)) return NextResponse.json({ error: "Story unavailable." }, { status: 404 });
+  if (story.authorId !== session.user.id && story.audience === "FRIENDS" && !(await areFriends(session.user.id, story.authorId))) return NextResponse.json({ error: "Story unavailable." }, { status: 403 });
+
+  const [replies, reactions, mine] = await Promise.all([
+    prisma.storyReply.findMany({
+      where: { storyId },
+      orderBy: { createdAt: "asc" },
+      take: 100,
+      include: { author: { select: { id: true, name: true, username: true, image: true } } },
+    }),
+    prisma.storyReaction.findMany({
+      where: { storyId },
+      orderBy: { createdAt: "asc" },
+      include: { user: { select: { id: true, name: true, image: true } } },
+    }),
+    prisma.storyReaction.findUnique({ where: { storyId_userId: { storyId, userId: session.user.id } } }),
+  ]);
+
+  return NextResponse.json({ replies, reactions, myReaction: mine });
+}
+
+export async function POST(
+  request: Request,
   { params }: { params: Promise<{ storyId: string }> },
 ) {
   const session = await getSession();
@@ -20,23 +53,43 @@ export async function POST(
     where: { id: storyId },
     select: { id: true, authorId: true, audience: true, expiresAt: true, author: { select: { isActive: true } } },
   });
-  if (!story || !story.author.isActive || story.expiresAt <= new Date()) {
-    return NextResponse.json({ error: "Story not found." }, { status: 404 });
-  }
-  if (story.authorId !== session.user.id && await isBlocked(session.user.id, story.authorId)) {
-    return NextResponse.json({ error: "Story unavailable." }, { status: 404 });
-  }
-  if (story.authorId !== session.user.id && story.audience === "FRIENDS" && !(await areFriends(session.user.id, story.authorId))) {
-    return NextResponse.json({ error: "Story unavailable." }, { status: 403 });
+  if (!story || !story.author.isActive || story.expiresAt <= new Date()) return NextResponse.json({ error: "Story not found." }, { status: 404 });
+  if (story.authorId !== session.user.id && await isBlocked(session.user.id, story.authorId)) return NextResponse.json({ error: "Story unavailable." }, { status: 404 });
+  if (story.authorId !== session.user.id && story.audience === "FRIENDS" && !(await areFriends(session.user.id, story.authorId))) return NextResponse.json({ error: "Story unavailable." }, { status: 403 });
+
+  const body = await request.json().catch(() => null) as { action?: string; content?: string; emoji?: string } | null;
+  if (!body?.action) {
+    await prisma.storyView.upsert({
+      where: { storyId_viewerId: { storyId, viewerId: session.user.id } },
+      create: { storyId, viewerId: session.user.id },
+      update: { viewedAt: new Date() },
+    });
+    return NextResponse.json({ viewed: true });
   }
 
-  await prisma.storyView.upsert({
-    where: { storyId_viewerId: { storyId, viewerId: session.user.id } },
-    create: { storyId, viewerId: session.user.id },
-    update: { viewedAt: new Date() },
-  });
+  if (body.action === "reply") {
+    const content = typeof body.content === "string" ? body.content.trim() : "";
+    if (!content || content.length > 500) return NextResponse.json({ error: "Reply must be 1–500 characters." }, { status: 400 });
+    const reply = await prisma.storyReply.create({
+      data: { storyId, authorId: session.user.id, content },
+      include: { author: { select: { id: true, name: true, username: true, image: true } } },
+    });
+    return NextResponse.json({ reply }, { status: 201 });
+  }
 
-  return NextResponse.json({ viewed: true });
+  if (body.action === "reaction") {
+    const emoji = typeof body.emoji === "string" ? body.emoji : "";
+    if (!["❤️","😂","😮","😢","🔥","👍"].includes(emoji)) return NextResponse.json({ error: "Unsupported reaction." }, { status: 400 });
+    const reaction = await prisma.storyReaction.upsert({
+      where: { storyId_userId: { storyId, userId: session.user.id } },
+      create: { storyId, userId: session.user.id, emoji },
+      update: { emoji },
+      include: { user: { select: { id: true, name: true, image: true } } },
+    });
+    return NextResponse.json({ reaction });
+  }
+
+  return NextResponse.json({ error: "Unsupported story action." }, { status: 400 });
 }
 
 export async function DELETE(
@@ -47,6 +100,11 @@ export async function DELETE(
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
   const { storyId } = await params;
+  const body = await _request.json().catch(() => null) as { action?: string } | null;
+  if (body?.action === "reaction") {
+    await prisma.storyReaction.deleteMany({ where: { storyId, userId: session.user.id } });
+    return NextResponse.json({ reaction: null });
+  }
   const story = await prisma.story.findUnique({
     where: { id: storyId },
     select: { authorId: true },
