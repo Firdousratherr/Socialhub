@@ -307,6 +307,14 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [profileTab, setProfileTab] = useState<"posts" | "photos" | "friends">("posts");
   const [friends, setFriends] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; bio: string | null }>>([]);
   const [friendsHidden, setFriendsHidden] = useState(false);
+  const [relationshipView, setRelationshipView] = useState<"followers" | "following" | "mutual" | null>(null);
+  const [relationships, setRelationships] = useState<{
+    followers: Array<{ id: string; name: string; username: string | null; image: string | null }>;
+    following: Array<{ id: string; name: string; username: string | null; image: string | null }>;
+    mutual: Array<{ id: string; name: string; username: string | null; image: string | null }>;
+    hidden?: boolean;
+  } | null>(null);
+  const [loadingRelationships, setLoadingRelationships] = useState(false);
   const [form, setForm] = useState({
     name: "Firdous Rather",
     username,
@@ -377,6 +385,24 @@ function Profile({ username = "firdous" }: { username?: string }) {
       });
     return () => { cancelled = true; };
   }, [isOwner, profileTab, profile?.id]);
+
+  async function openRelationships(view: "followers" | "following" | "mutual") {
+    if (!profile) return;
+    setRelationshipView(view);
+    if (relationships) return;
+    setLoadingRelationships(true);
+    try {
+      const response = await fetch("/api/users/" + encodeURIComponent(profile.id) + "/relationships", { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not load relationships.");
+      setRelationships(json);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not load relationships.");
+      setRelationshipView(null);
+    } finally {
+      setLoadingRelationships(false);
+    }
+  }
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -602,7 +628,12 @@ function Profile({ username = "firdous" }: { username?: string }) {
         ) : (
           <>
             <p className="mt-5 max-w-2xl text-sm leading-6 text-gray-600">{profile?.bio ?? form.bio}</p>
-            <div className="mt-5 flex gap-6 text-sm"><span><strong className="font-black">{postCount}</strong> <span className="text-gray-400">posts</span></span><span><strong className="font-black">{followerCount}</strong> <span className="text-gray-400">followers</span></span><span><strong className="font-black">{followingCount}</strong> <span className="text-gray-400">following</span></span></div>
+            <div className="mt-5 flex flex-wrap gap-2 text-sm">
+  <span className="rounded-xl bg-gray-50 px-3 py-2"><strong className="font-black">{postCount}</strong> <span className="text-gray-400">posts</span></span>
+  <button type="button" onClick={() => void openRelationships("followers")} className="rounded-xl bg-gray-50 px-3 py-2 hover:bg-[#eeebff]"><strong className="font-black">{followerCount}</strong> <span className="text-gray-400">followers</span></button>
+  <button type="button" onClick={() => void openRelationships("following")} className="rounded-xl bg-gray-50 px-3 py-2 hover:bg-[#eeebff]"><strong className="font-black">{followingCount}</strong> <span className="text-gray-400">following</span></button>
+  {!isOwner && session?.user && relationships?.mutual?.length ? <button type="button" onClick={() => void openRelationships("mutual")} className="rounded-xl bg-[#eeebff] px-3 py-2 font-bold text-[#5a4be8]">{relationships.mutual.length} mutual</button> : null}
+</div>
           </>
         )}
 
@@ -612,6 +643,25 @@ function Profile({ username = "firdous" }: { username?: string }) {
           <span className="rounded-full bg-gray-50 px-3 py-1.5 text-[11px] font-bold text-gray-500">Joined {new Date(profile?.createdAt ?? Date.now()).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span>
           <button type="button" onClick={() => void shareProfile()} className="rounded-full bg-gray-950 px-3 py-1.5 text-[11px] font-black text-white">Share profile</button>
         </div>
+        {relationshipView ? (
+          <div className="fixed inset-0 z-[70] grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label={relationshipView}>
+            <div className="max-h-[80vh] w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h3 className="text-base font-black">{relationshipView === "followers" ? "Followers" : relationshipView === "following" ? "Following" : "Mutual friends"}</h3><p className="mt-1 text-[11px] text-gray-400">Real account relationships</p></div><button type="button" onClick={() => setRelationshipView(null)} className="grid size-9 place-items-center rounded-xl bg-gray-100" aria-label="Close"><X size={16}/></button></div>
+              {loadingRelationships ? <div className="p-8 text-center text-xs text-gray-400">Loading…</div> : (
+                <div className="max-h-[60vh] overflow-y-auto p-3">
+                  {(() => {
+                    const list = relationships?.[relationshipView] ?? [];
+                    return list.length ? list.map((person) => <Link key={person.id} href={"/profile/" + encodeURIComponent(person.username ?? person.id)} onClick={() => setRelationshipView(null)} className="flex items-center gap-3 rounded-2xl p-3 hover:bg-gray-50">
+                      {person.image ? <img src={person.image} alt="" className="size-11 rounded-full object-cover"/> : <span className="grid size-11 place-items-center rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{person.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()}</span>}
+                      <span className="min-w-0"><span className="block truncate text-sm font-black">{person.name}</span><span className="block truncate text-xs text-gray-400">@{person.username ?? "member"}</span></span>
+                    </Link>) : <div className="p-8 text-center text-xs text-gray-400">No accounts to show.</div>;
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-7 flex gap-6 border-b border-gray-100 pb-3 text-xs font-black">
           {(["posts","photos","friends"] as const).map((tab) => <button key={tab} type="button" onClick={() => setProfileTab(tab)} className={profileTab === tab ? "border-b-2 border-[#6d5dfc] pb-3 text-[#5a4be8]" : "pb-3 text-gray-400"}>{tab[0].toUpperCase() + tab.slice(1)}</button>)}
         </div>
