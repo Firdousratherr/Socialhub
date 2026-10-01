@@ -66,16 +66,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
     return NextResponse.json({ error: "Moderators cannot modify administrator accounts." }, { status: 403 });
   }
 
-  if (patch.role === "ADMIN" && before.role !== "ADMIN") {
-    const existingAdmin = await prisma.user.findFirst({
-      where: { role: "ADMIN", id: { not: userId } },
-      select: { id: true },
-    });
-    if (!existingAdmin && before.role !== "ADMIN") {
-      // Normal role promotion remains available after bootstrap; this branch just makes the policy explicit.
-    }
-  }
-
   const user = await prisma.user.update({ where: { id: userId }, data: patch });
 
   await prisma.adminAuditLog.create({
