@@ -23,13 +23,6 @@ const colors = [
   "from-amber-400 to-rose-500",
 ];
 
-const people = [
-  ["NP", "Nora Patel", "@norapatel", "12 mutuals"],
-  ["DK", "Dev Kapoor", "@devk", "8 mutuals"],
-  ["ZS", "Zoya Shah", "@zoyas", "5 mutuals"],
-  ["AK", "Aarav Khan", "@aaravk", "21 mutuals"],
-];
-
 function Avatar({ initials, color = colors[0], size = "md" }: { initials: string; color?: string; size?: "sm"|"md"|"lg"|"xl" }) {
   const sizes = { sm: "size-8 text-[10px]", md: "size-10 text-xs", lg: "size-14 text-sm", xl: "size-24 text-2xl" };
   return <div className={`grid shrink-0 place-items-center rounded-full bg-gradient-to-br ${color} ${sizes[size]} font-black text-white shadow-sm`}>{initials}</div>;
@@ -211,7 +204,14 @@ function Auth({ signup = false }: { signup?: boolean }) {
         <section className="hidden bg-[radial-gradient(circle_at_top,#7d70ff,transparent_55%),linear-gradient(145deg,#171426,#30275d)] p-10 text-white lg:flex lg:flex-col lg:justify-between">
           <Link href="/" className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-2xl bg-white/10"><Sparkles size={18}/></span><span className="font-black">Socialhub</span></Link>
           <div><p className="text-xs font-black uppercase tracking-[.18em] text-white/50">Connect. Share. Belong.</p><h1 className="mt-5 max-w-md text-5xl font-black leading-[.96] tracking-[-.055em]">A social space that feels like yours.</h1><p className="mt-6 max-w-md text-sm leading-7 text-white/65">Keep your people close, share the moments that matter, and discover conversations worth having.</p></div>
-          <div className="grid grid-cols-3 gap-3">{[["12.4k","members"],["48k","posts"],["9.8k","daily chats"]].map(x=><div key={x[1]} className="rounded-2xl border border-white/10 bg-white/10 p-3"><p className="font-black">{x[0]}</p><p className="text-[10px] text-white/50">{x[1]}</p></div>)}</div>
+          <div className="grid grid-cols-3 gap-3">
+  {[["Private by design","Respectful defaults"],["Real connections","No fake activity"],["Built to evolve","Features ship in milestones"]].map(([title,text]) => (
+    <div key={title} className="rounded-2xl border border-white/10 bg-white/10 p-3">
+      <p className="text-xs font-black">{title}</p>
+      <p className="mt-1 text-[10px] leading-4 text-white/50">{text}</p>
+    </div>
+  ))}
+</div>
         </section>
 
         <section className="flex items-center p-6 sm:p-10">
@@ -450,9 +450,9 @@ function Profile({ username = "firdous" }: { username?: string }) {
 
   const displayName = profile?.name ?? form.name;
   const displayUsername = profile?.username ?? form.username ?? username;
-  const postCount = profile?.visibleCounts?.posts ?? profile?._count.posts ?? 184;
-  const followerCount = profile?.visibleCounts?.followers ?? profile?._count.followers ?? 1800;
-  const followingCount = profile?.visibleCounts?.following ?? profile?._count.following ?? 426;
+  const postCount = profile?._count.posts ?? profile?._count.posts ?? 184;
+  const followerCount = profile?._count.followers ?? profile?._count.followers ?? 1800;
+  const followingCount = profile?._count.following ?? profile?._count.following ?? 426;
   const initials = displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase() || "SH";
 
   async function toggleFollow() {
@@ -915,9 +915,9 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
           <input value={q} onChange={(e)=>setQ(e.target.value)} className="h-12 w-full rounded-2xl bg-gray-50 pl-11 text-sm font-semibold outline-none focus:bg-white" placeholder="Search people and usernames…"/>
         </div>
-        <div className="mt-4 flex gap-2">
-          <button className="rounded-xl bg-[#eeebff] px-3.5 py-2 text-xs font-black text-[#5a4be8]">People</button>
-          {["Posts","Topics","Communities"].map((x)=><button key={x} className="rounded-xl px-3.5 py-2 text-xs font-bold text-gray-500 hover:bg-gray-50">{x}</button>)}
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <span className="rounded-xl bg-[#eeebff] px-3.5 py-2 text-xs font-black text-[#5a4be8]">People</span>
+          <span className="text-[11px] font-semibold text-gray-400">Posts, topics and communities will be added with their own search indexes.</span>
         </div>
       </Card>
 
