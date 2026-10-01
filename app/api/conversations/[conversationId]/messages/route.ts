@@ -16,7 +16,7 @@ async function isMember(conversationId: string, userId: string) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ conversationId: string }> },
 ) {
   const session = await getSession();
@@ -27,10 +27,27 @@ export async function GET(
     return NextResponse.json({ error: "Conversation access denied." }, { status: 403 });
   }
 
-  const messages = await prisma.message.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: "asc" },
-    take: 100,
+  const before = new URL(request.url).searchParams.get("before");
+  let cursor: { createdAt: Date; id: string } | null = null;
+  if (before) {
+    try {
+      const decoded = JSON.parse(Buffer.from(before, "base64url").toString("utf8")) as { createdAt?: string; id?: string };
+      if (!decoded.createdAt || !decoded.id) throw new Error("invalid");
+      const createdAt = new Date(decoded.createdAt);
+      if (Number.isNaN(createdAt.getTime())) throw new Error("invalid");
+      cursor = { createdAt, id: decoded.id };
+    } catch {
+      return NextResponse.json({ error: "Invalid message cursor." }, { status: 400 });
+    }
+  }
+
+  const rows = await prisma.message.findMany({
+    where: {
+      conversationId,
+      ...(cursor ? { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] } : {}),
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: 51,
     include: {
       sender: { select: { id: true, name: true, username: true, image: true } },
       attachments: { orderBy: { createdAt: "asc" } },
@@ -38,7 +55,12 @@ export async function GET(
     },
   });
 
-  return NextResponse.json({ messages });
+  const hasMore = rows.length > 50;
+  const page = rows.slice(0, 50).reverse();
+  const oldest = page[0];
+  const nextBefore = hasMore && oldest ? Buffer.from(JSON.stringify({ createdAt: oldest.createdAt.toISOString(), id: oldest.id })).toString("base64url") : null;
+
+  return NextResponse.json({ messages: page, nextBefore });
 }
 
 export async function POST(

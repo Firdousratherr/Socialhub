@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notificationUpdateSchema } from "@/lib/validation";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
@@ -26,13 +26,28 @@ export async function GET() {
     preferences.system ? "SYSTEM" : null,
   ].filter(Boolean) as Array<"LIKE"|"COMMENT"|"FOLLOW"|"FRIEND_REQUEST"|"FRIEND_ACCEPTED"|"MESSAGE"|"MENTION"|"SHARE"|"SYSTEM">;
 
-  const notifications = await prisma.notification.findMany({
+  const before = new URL(request.url).searchParams.get("before");
+  let cursor: { createdAt: Date; id: string } | null = null;
+  if (before) {
+    try {
+      const decoded = JSON.parse(Buffer.from(before, "base64url").toString("utf8")) as { createdAt?: string; id?: string };
+      if (!decoded.createdAt || !decoded.id) throw new Error("invalid");
+      const createdAt = new Date(decoded.createdAt);
+      if (Number.isNaN(createdAt.getTime())) throw new Error("invalid");
+      cursor = { createdAt, id: decoded.id };
+    } catch {
+      return NextResponse.json({ error: "Invalid notification cursor." }, { status: 400 });
+    }
+  }
+
+  const rows = await prisma.notification.findMany({
     where: {
       userId: session.user.id,
       ...(enabledTypes.length ? { type: { in: enabledTypes } } : { id: { in: [] } }),
+      ...(cursor ? { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] } : {}),
     },
-    orderBy: { createdAt: "desc" },
-    take: 100,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: 51,
     include: {
       actor: { select: { id: true, name: true, username: true, image: true } },
       post: { select: { id: true, content: true, mediaUrl: true } },
@@ -41,7 +56,12 @@ export async function GET() {
     },
   });
 
-  return NextResponse.json({ notifications });
+  const hasMore = rows.length > 50;
+  const notifications = rows.slice(0, 50);
+  const oldest = notifications.at(-1);
+  const nextBefore = hasMore && oldest ? Buffer.from(JSON.stringify({ createdAt: oldest.createdAt.toISOString(), id: oldest.id })).toString("base64url") : null;
+
+  return NextResponse.json({ notifications, nextBefore });
 }
 
 export async function PATCH(request: Request) {

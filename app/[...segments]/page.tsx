@@ -2,7 +2,6 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { AdminBootstrap } from "@/components/admin-bootstrap";
 import { SocialPages } from "@/components/social-pages";
 
 export default async function CatchAllPage({
@@ -38,9 +37,6 @@ export default async function CatchAllPage({
     return <SocialPages screen={{ kind: "profile", username: segments[1] ?? "firdous" }} />;
   }
 
-  if (first === "admin" && segments[1] === "setup") {
-    return <AdminBootstrap />;
-  }
 
   if (first === "admin") {
     const session = await auth.api.getSession({ headers: await headers() });

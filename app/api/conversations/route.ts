@@ -32,30 +32,22 @@ export async function GET() {
     },
   });
 
-  const conversationsWithUnread = await Promise.all(
-    conversations.map(async (conversation) => {
-      const member = conversation.members.find((item) => item.userId === session.user.id);
-      const unreadCount = member?.lastReadAt
-        ? await prisma.message.count({
-            where: {
-              conversationId: conversation.id,
-              createdAt: { gt: member.lastReadAt },
-              senderId: { not: session.user.id },
-            },
-          })
-        : await prisma.message.count({
-            where: {
-              conversationId: conversation.id,
-              senderId: { not: session.user.id },
-            },
-          });
+  const unreadRows = await prisma.$queryRaw<Array<{ conversationId: string; unreadCount: bigint }>>`
+    SELECT m."conversationId" AS "conversationId", COUNT(*)::bigint AS "unreadCount"
+    FROM "Message" m
+    INNER JOIN "ConversationMember" cm
+      ON cm."conversationId" = m."conversationId"
+     AND cm."userId" = ${session.user.id}
+    WHERE m."senderId" <> ${session.user.id}
+      AND (cm."lastReadAt" IS NULL OR m."createdAt" > cm."lastReadAt")
+    GROUP BY m."conversationId"
+  `;
+  const unreadByConversation = new Map(unreadRows.map((row) => [row.conversationId, Number(row.unreadCount)]));
 
-      return {
-        ...conversation,
-        unreadCount,
-      };
-    }),
-  );
+  const conversationsWithUnread = conversations.map((conversation) => ({
+    ...conversation,
+    unreadCount: unreadByConversation.get(conversation.id) ?? 0,
+  }));
 
   return NextResponse.json({ conversations: conversationsWithUnread });
 }
