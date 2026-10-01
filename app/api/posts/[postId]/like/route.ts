@@ -19,25 +19,20 @@ export async function POST(
   const access = await canViewPost(postId, session.user.id);
   if (!access.allowed || !access.post) return NextResponse.json({ error: "Post unavailable." }, { status: 404 });
 
-  const existing = await prisma.like.findUnique({
-    where: { postId_userId: { postId, userId: session.user.id } },
+  const result = await prisma.like.createMany({
+    data: [{ postId, userId: session.user.id }],
+    skipDuplicates: true,
   });
 
-  if (!existing) {
-    await prisma.like.create({
-      data: { postId, userId: session.user.id },
+  if (result.count > 0 && access.post.authorId !== session.user.id) {
+    await prisma.notification.create({
+      data: {
+        userId: access.post.authorId,
+        actorId: session.user.id,
+        type: "LIKE",
+        postId,
+      },
     });
-
-    if (access.post.authorId !== session.user.id) {
-      await prisma.notification.create({
-        data: {
-          userId: access.post.authorId,
-          actorId: session.user.id,
-          type: "LIKE",
-          postId,
-        },
-      });
-    }
   }
 
   const count = await prisma.like.count({ where: { postId } });
