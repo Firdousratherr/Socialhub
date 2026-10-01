@@ -13,6 +13,7 @@ export const profileInputSchema = z.object({
   name: z.string().trim().min(2).max(80).optional(),
   username: z.string().trim().regex(/^[A-Za-z0-9_]{3,30}$/).nullable().optional(),
   bio: z.string().trim().max(500).nullable().optional(),
+  image: z.string().url().max(2048).nullable().optional(),
   coverImage: z.string().url().max(2048).nullable().optional(),
   website: z.string().url().max(2048).nullable().optional(),
   location: z.string().trim().max(120).nullable().optional(),
