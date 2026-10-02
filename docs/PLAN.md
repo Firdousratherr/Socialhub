@@ -25,7 +25,7 @@ Authenticated desktop:
 Authenticated mobile:
 - Home
 - Discover
-- Create
+- Messages
 - Notifications
 - Profile
 
