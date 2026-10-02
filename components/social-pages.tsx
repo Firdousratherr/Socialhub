@@ -784,6 +784,17 @@ function Profile({ username = "firdous" }: { username?: string }) {
     }
   }
 
+  if (!profile) {
+    return (
+      <Page eyebrow="Profile" title={`@${displayUsername}`}>
+        {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
+        <div className="rounded-[2rem] border border-gray-200/70 bg-white p-8 text-center text-sm font-semibold text-gray-500 shadow-[0_14px_40px_rgba(20,24,40,.06)]">
+          {error ? "Profile unavailable." : "Loading profile…"}
+        </div>
+      </Page>
+    );
+  }
+
   return <Page eyebrow="Profile" title={`@${displayUsername}`}>
     {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
