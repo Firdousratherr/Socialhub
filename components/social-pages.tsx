@@ -1341,12 +1341,13 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [editingMessageText, setEditingMessageText] = useState("");
   const [savingMessage, setSavingMessage] = useState(false);
   const attachmentRef = useRef<HTMLInputElement | null>(null);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadConversations() {
-      setLoading(true);
+    async function loadConversations(silent = false) {
+      if (!silent) setLoading(true);
       setError("");
       if (!session?.user) {
         setConversations([]);
@@ -1375,7 +1376,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
 
     void loadConversations();
-    const timer = window.setInterval(() => { void loadConversations(); }, 5000);
+    const timer = window.setInterval(() => { void loadConversations(true); }, 5000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -1463,7 +1464,18 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         const response = await fetch(`/api/conversations/${activeId}/messages`, { cache: "no-store" });
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not load messages.");
-        if (!cancelled) { setMessages(json.messages as ChatMessage[]); setNextMessagesCursor(json.nextBefore ?? null); }
+        if (!cancelled) {
+          const nextMessages = json.messages as ChatMessage[];
+          const container = messageListRef.current;
+          const nearBottom = !container || container.scrollHeight - container.scrollTop - container.clientHeight < 140;
+          setMessages(nextMessages);
+          setNextMessagesCursor(json.nextBefore ?? null);
+          if (nearBottom) {
+            window.requestAnimationFrame(() => {
+              if (messageListRef.current) messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+            });
+          }
+        }
         void fetch(`/api/conversations/${activeId}/messages`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -1825,7 +1837,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
           </div>
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-5">
+        <div ref={messageListRef} className="flex-1 space-y-4 overflow-y-auto p-5">
           {nextMessagesCursor ? <div className="flex justify-center"><button type="button" onClick={() => void loadOlderMessages()} disabled={loadingOlderMessages} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-[10px] font-black text-gray-600 shadow-sm disabled:opacity-50">{loadingOlderMessages ? "Loading older messages…" : "Load older messages"}</button></div> : null}
           {active && messages.length > 0 ? messages.map((message) => {
             const mine = message.senderId === session?.user?.id;
