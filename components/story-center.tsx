@@ -253,7 +253,7 @@ export function StoryCenter({
                   <input value={replyText} onChange={(event) => setReplyText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void replyToStory(); } }} maxLength={500} className="min-w-0 flex-1 rounded-xl bg-white/10 px-3 py-2 text-xs text-white outline-none placeholder:text-white/50" placeholder="Reply to story…"/>
                   <button type="button" onClick={() => void replyToStory()} disabled={!replyText.trim() || interactionLoading} className="rounded-xl bg-white px-3 py-2 text-[10px] font-black text-gray-950 disabled:opacity-40">Reply</button>
                 </div> : null}
-                {storyReplies.length ? <div className="mt-3 max-h-24 space-y-1 overflow-y-auto">{storyReplies.slice(-3).map((reply) => <p key={reply.id} className="text-[10px] text-white/80"><span className="font-black">{reply.author.name}:</span> {reply.content}</p>)}</div> : null}
+                {storyReplies.length ? <div className="mt-3 max-h-24 space-y-1 overflow-y-auto">{storyReplies.slice(-3).map((reply) => <p key={reply.id} className="text-[10px] text-white/80"><span className="inline-flex items-center gap-1 font-black">{reply.author.name}<AccountBadge verified={reply.author.isVerified} owner={reply.author.isOwner}/></span> {reply.content}</p>)}</div> : null}
                 {active.author.id === session?.user?.id ? <button type="button" onClick={() => void removeStory()} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-[11px] font-bold"><Trash2 size={14}/> Delete</button> : null}
               </div>
             </div>
