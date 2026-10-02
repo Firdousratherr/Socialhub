@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { MobileMenu } from "@/components/mobile-menu";
+import { subscribePostSync } from "@/lib/post-sync";
 import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
 import { useRouter } from "next/navigation";
@@ -137,6 +138,49 @@ function timeLabel(createdAt: string) {
   if (hours < 24) return hours + "h";
   const days = Math.floor(hours / 24);
   return days + "d";
+}
+
+function mapApiPostToFeedPost(
+  item: {
+    id: string;
+    authorId: string;
+    content: string | null;
+    mediaUrl: string | null;
+    visibility: Post["visibility"];
+    createdAt: string;
+    shareCount: number;
+    liked: boolean;
+    saved: boolean;
+    reactions: Array<{ emoji: string; count: number }>;
+    myReaction: string | null;
+    author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
+    _count: { likes: number; comments: number };
+    displayCounts?: { likes: number; comments: number; shares: number };
+  },
+  index: number,
+): Post {
+  return {
+    id: item.id,
+    authorId: item.authorId,
+    name: item.author.name,
+    handle: `@${item.author.username ?? "member"}`,
+    initials: item.author.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
+    authorImage: item.author.image,
+    authorVerified: Boolean(item.author.isVerified),
+    authorOwner: Boolean(item.author.isOwner),
+    timestamp: timeLabel(item.createdAt),
+    copy: item.content ?? "Shared a new moment.",
+    mediaUrl: item.mediaUrl,
+    visibility: item.visibility,
+    accent: ["from-violet-500 via-fuchsia-400 to-amber-300","from-sky-500 via-cyan-400 to-emerald-300","from-emerald-400 via-cyan-400 to-sky-400","from-amber-400 via-rose-400 to-fuchsia-400"][index % 4],
+    likes: item.displayCounts?.likes ?? item._count.likes,
+    comments: item.displayCounts?.comments ?? item._count.comments,
+    shares: item.displayCounts?.shares ?? item.shareCount ?? 0,
+    liked: Boolean(item.liked),
+    saved: Boolean(item.saved),
+    reactions: item.reactions ?? [],
+    myReaction: item.myReaction ?? null,
+  };
 }
 
 function CommentThread({
@@ -702,43 +746,7 @@ export default function HomeFeed() {
     const response = await fetch(`/api/posts?${query.toString()}`, { cache: "no-store" });
     const json = await response.json();
     if (!response.ok) throw new Error(json.error ?? "Could not load your feed.");
-    const mapped = (json.posts ?? []).map((item: {
-      id: string;
-      authorId: string;
-      content: string | null;
-      mediaUrl: string | null;
-      visibility: Post["visibility"];
-      createdAt: string;
-      shareCount: number;
-      liked: boolean;
-      saved: boolean;
-      reactions: Array<{ emoji: string; count: number }>;
-      myReaction: string | null;
-      author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
-      _count: { likes: number; comments: number };
-      displayCounts?: { likes: number; comments: number; shares: number };
-    }, index: number) => ({
-      id: item.id,
-      authorId: item.authorId,
-      name: item.author.name,
-      handle: `@${item.author.username ?? "member"}`,
-      initials: item.author.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
-      authorImage: item.author.image,
-      authorVerified: Boolean(item.author.isVerified),
-      authorOwner: Boolean(item.author.isOwner),
-      timestamp: timeLabel(item.createdAt),
-      copy: item.content ?? "Shared a new moment.",
-      mediaUrl: item.mediaUrl,
-      visibility: item.visibility,
-      accent: ["from-violet-500 via-fuchsia-400 to-amber-300","from-sky-500 via-cyan-400 to-emerald-300","from-emerald-400 via-cyan-400 to-sky-400","from-amber-400 via-rose-400 to-fuchsia-400"][index % 4],
-      likes: item.displayCounts?.likes ?? item._count.likes,
-      comments: item.displayCounts?.comments ?? item._count.comments,
-      shares: item.displayCounts?.shares ?? item.shareCount ?? 0,
-      liked: Boolean(item.liked),
-      saved: Boolean(item.saved),
-      reactions: item.reactions ?? [],
-      myReaction: item.myReaction ?? null,
-    }));
+    const mapped = (json.posts ?? []).map(mapApiPostToFeedPost);
 
     setNextBefore(json.nextBefore ?? null);
     setFeedPosts((current) => (append ? [...current, ...mapped] : mapped));
@@ -759,33 +767,7 @@ export default function HomeFeed() {
         if (cancelled) return;
 
         if (feedResponse.ok) {
-          const mapped = (feedJson.posts ?? []).map((item: {
-            id: string; authorId: string; content: string | null; mediaUrl: string | null; visibility: Post["visibility"]; createdAt: string;
-            shareCount: number; liked: boolean; saved: boolean;
-            reactions: Array<{ emoji: string; count: number }>; myReaction: string | null;
-            author: { id: string; name: string; username: string | null; image: string | null };
-            _count: { likes: number; comments: number };
-      displayCounts?: { likes: number; comments: number; shares: number };
-          }, index: number) => ({
-            id: item.id,
-            authorId: item.authorId,
-            name: item.author.name,
-            handle: `@${item.author.username ?? "member"}`,
-            initials: item.author.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase(),
-            authorImage: item.author.image,
-            timestamp: timeLabel(item.createdAt),
-            copy: item.content ?? "Shared a new moment.",
-            mediaUrl: item.mediaUrl,
-            visibility: item.visibility,
-            accent: ["from-violet-500 via-fuchsia-400 to-amber-300","from-sky-500 via-cyan-400 to-emerald-300","from-emerald-400 via-cyan-400 to-sky-400","from-amber-400 via-rose-400 to-fuchsia-400"][index % 4],
-            likes: item.displayCounts?.likes ?? item._count.likes,
-            comments: item.displayCounts?.comments ?? item._count.comments,
-            shares: item.displayCounts?.shares ?? item.shareCount ?? 0,
-            liked: Boolean(item.liked),
-            saved: Boolean(item.saved),
-            reactions: item.reactions ?? [],
-            myReaction: item.myReaction ?? null,
-          }));
+          const mapped = (feedJson.posts ?? []).map(mapApiPostToFeedPost);
           setFeedPosts(mapped);
           setNextBefore(feedJson.nextBefore ?? null);
         }
@@ -801,6 +783,35 @@ export default function HomeFeed() {
       cancelled = true;
     };
   }, [session?.user?.id, feedMode]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void fetchFeed().catch((loadError) => {
+        setFeedError(loadError instanceof Error ? loadError.message : "Could not refresh your feed.");
+      });
+    };
+
+    const unsubscribe = subscribePostSync((event) => {
+      if (event.type === "deleted") {
+        setFeedPosts((current) => current.filter((post) => post.id !== event.postId));
+        return;
+      }
+      refresh();
+    });
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    const onPageShow = () => refresh();
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      unsubscribe();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, [feedMode]);
 
   async function uploadPhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
