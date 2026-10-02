@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { postInputSchema } from "@/lib/validation";
 import { getBlockedUserIds } from "@/lib/social-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { getPostDisplayCountsMap } from "@/lib/post-metrics";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
