@@ -35,8 +35,9 @@ export async function POST(
     });
   }
 
-  const count = await prisma.like.count({ where: { postId } });
-  return NextResponse.json({ liked: true, count });
+  const actualCount = await prisma.like.count({ where: { postId } });
+  const override = await prisma.adminPostMetricOverride.findUnique({ where: { postId }, select: { likes: true } });
+  return NextResponse.json({ liked: true, count: override?.likes ?? actualCount });
 }
 
 export async function DELETE(
@@ -63,6 +64,7 @@ export async function DELETE(
     },
   });
 
-  const count = await prisma.like.count({ where: { postId } });
-  return NextResponse.json({ liked: false, count });
+  const actualCount = await prisma.like.count({ where: { postId } });
+  const override = await prisma.adminPostMetricOverride.findUnique({ where: { postId }, select: { likes: true } });
+  return NextResponse.json({ liked: false, count: override?.likes ?? actualCount });
 }
