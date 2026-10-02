@@ -28,6 +28,13 @@ export async function GET(
     return NextResponse.json({ error: "This profile is unavailable." }, { status: 404 });
   }
 
+  const [override, actualLikesReceived, actualCommentsReceived, actualShares] = await Promise.all([
+    prisma.adminMetricOverride.findUnique({ where: { userId: user.id } }),
+    prisma.like.count({ where: { post: { authorId: user.id } } }),
+    prisma.comment.count({ where: { post: { authorId: user.id } } }),
+    prisma.post.aggregate({ where: { authorId: user.id }, _sum: { shareCount: true } }),
+  ]);
+
   const friends = Boolean(session?.user && await areFriends(session.user.id, user.id));
   const [acceptedFriendship, pendingFriendRequest] = session?.user && !isSelf
     ? await Promise.all([
@@ -103,6 +110,15 @@ export async function GET(
       canMessage,
       canSendFriendRequest: !isSelf && (!user.privacySetting || user.privacySetting.allowFriendRequests),
       canFollow: !isSelf && (!user.isPrivate || friends),
+      visibleCounts: {
+        posts: override?.posts ?? user._count.posts,
+        followers: override?.followers ?? user._count.followers,
+        following: override?.following ?? user._count.following,
+        likesReceived: override?.likesReceived ?? actualLikesReceived,
+        commentsReceived: override?.commentsReceived ?? actualCommentsReceived,
+        shares: override?.shares ?? (actualShares._sum.shareCount ?? 0),
+        profileViews: override?.profileViews ?? 0,
+      },
     },
   });
 }
