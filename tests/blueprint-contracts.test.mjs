@@ -323,3 +323,14 @@ test("admin post deletion cleans media and broadcasts feed invalidation", () => 
   assert.match(panel, /emitPostSyncEvent/);
   assert.match(panel, /type: "deleted", postId: id/);
 });
+
+
+test("profile metadata endpoints do not duplicate the dedicated post feed query", () => {
+  const publicProfile = read("app/api/users/[username]/route.ts");
+  const ownProfile = read("app/api/profile/route.ts");
+  const page = read("components/social-pages.tsx");
+  assert.doesNotMatch(publicProfile, /const posts = await prisma\.post\.findMany/);
+  assert.doesNotMatch(ownProfile, /posts: \{/);
+  assert.match(page, /\/api\/users\/\+ encodeURIComponent\(profile\.username \?\? username\) \+ "\/posts\?take=20"/);
+  assert.match(page, /setProfile\(\(current\) => current \? \{ \.\.\.current, posts: json\.posts \?\? \[\] \} : current\)/);
+});
