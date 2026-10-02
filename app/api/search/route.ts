@@ -42,7 +42,7 @@ export async function GET(request: Request) {
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take,
       select: {
-        id: true, name: true, username: true, image: true, bio: true, isPrivate: true,
+        id: true, name: true, username: true, image: true, bio: true, isPrivate: true, isVerified: true, isOwner: true,
         _count: { select: { followers: true } },
       },
     }),
@@ -64,7 +64,7 @@ export async function GET(request: Request) {
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take,
       include: {
-        author: { select: { id: true, name: true, username: true, image: true } },
+        author: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } },
         _count: { select: { likes: true, comments: true } },
       },
     }),
