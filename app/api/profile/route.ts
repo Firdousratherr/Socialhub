@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { profileInputSchema } from "@/lib/validation";
 import { safeDeleteBlob } from "@/lib/blob-cleanup";
+import { getPostDisplayCountsMap } from "@/lib/post-metrics";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -45,6 +46,19 @@ export async function GET() {
     prisma.post.aggregate({ where: { authorId: profile.id }, _sum: { shareCount: true } }),
     prisma.profileView.count({ where: { profileId: profile.id } }),
   ]);
+
+  const postDisplayCounts = await getPostDisplayCountsMap(profile.posts.map((post) => post.id));
+  const visiblePosts = profile.posts.map((post) => {
+    const display = postDisplayCounts.get(post.id);
+    return {
+      ...post,
+      displayCounts: {
+        likes: display?.likes ?? post._count.likes,
+        comments: display?.comments ?? post._count.comments,
+        shares: display?.shares ?? post.shareCount,
+      },
+    };
+  });
 
   return NextResponse.json({
     profile: {
