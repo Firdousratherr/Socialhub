@@ -40,6 +40,16 @@ node scripts/repository-smoke.mjs
 npm run build:ci
 ```
 
+## Database migrations
+
+Production application builds intentionally do not run Prisma migrations. Use the explicit migration command during a controlled release:
+
+```bash
+npm run db:migrate
+```
+
+This keeps deployment builds deterministic and prevents a non-empty production database from blocking the Next.js build.
+
 ## Project documents
 
 - `docs/PLAN.md` — product and engineering roadmap
