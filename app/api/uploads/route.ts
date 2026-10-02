@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { safeDeleteBlob } from "@/lib/blob-cleanup";
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_DAILY_UPLOAD_BYTES = Number(process.env.MAX_DAILY_UPLOAD_BYTES ?? 25 * 1024 * 1024);

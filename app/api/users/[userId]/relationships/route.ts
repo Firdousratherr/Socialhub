@@ -98,39 +98,57 @@ export async function GET(
     if (listIsHidden) {
       return NextResponse.json({ followers: [], following: [], mutual: [], hidden: false, nextBefore: null });
     }
-    const relationRows = await prisma.follow.findMany({
+
+    if (isFollowers) {
+      const rows = await prisma.follow.findMany({
+        where: {
+          followingId: userId,
+          ...(before ? {
+            OR: [
+              { createdAt: { lt: before.createdAt } },
+              { createdAt: before.createdAt, followerId: { lt: before.id } },
+            ],
+          } : {}),
+        },
+        orderBy: [{ createdAt: "desc" }, { followerId: "desc" }],
+        take: take + 1,
+        select: { createdAt: true, follower: { select: personSelect } },
+      });
+      const hasMore = rows.length > take;
+      const page = rows.slice(0, take);
+      const last = page.at(-1);
+      return NextResponse.json({
+        hidden: false,
+        followers: page.map((row) => row.follower),
+        following: [],
+        mutual: [],
+        nextBefore: hasMore && last ? encodeCursor(last.createdAt, last.follower.id) : null,
+      });
+    }
+
+    const rows = await prisma.follow.findMany({
       where: {
-        ...(isFollowers ? { followingId: userId } : { followerId: userId }),
+        followerId: userId,
         ...(before ? {
           OR: [
             { createdAt: { lt: before.createdAt } },
-            {
-              createdAt: before.createdAt,
-              ...(isFollowers ? { followerId: { lt: before.id } } : { followingId: { lt: before.id } }),
-            },
+            { createdAt: before.createdAt, followingId: { lt: before.id } },
           ],
         } : {}),
       },
-      orderBy: [{ createdAt: "desc" }, isFollowers ? { followerId: "desc" } : { followingId: "desc" }],
+      orderBy: [{ createdAt: "desc" }, { followingId: "desc" }],
       take: take + 1,
-      select: isFollowers
-        ? { createdAt: true, follower: { select: personSelect } }
-        : { createdAt: true, following: { select: personSelect } },
+      select: { createdAt: true, following: { select: personSelect } },
     });
-
-    const hasMore = relationRows.length > take;
-    const page = relationRows.slice(0, take);
+    const hasMore = rows.length > take;
+    const page = rows.slice(0, take);
     const last = page.at(-1);
-    const nextBefore = hasMore && last
-      ? encodeCursor(last.createdAt, isFollowers ? last.follower.id : last.following.id)
-      : null;
-
     return NextResponse.json({
       hidden: false,
-      followers: isFollowers ? page.map((row) => row.follower) : [],
-      following: isFollowers ? [] : page.map((row) => row.following),
+      followers: [],
+      following: page.map((row) => row.following),
       mutual: [],
-      nextBefore,
+      nextBefore: hasMore && last ? encodeCursor(last.createdAt, last.following.id) : null,
     });
   }
 
