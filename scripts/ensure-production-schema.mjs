@@ -49,7 +49,7 @@ try {
 
   if (output.includes("P3009")) {
     const failedMigration =
-      listMigrations().find((migration) => output.includes(`migration `${migration}``) && /failed/i.test(output)) ??
+      listMigrations().find((migration) => output.includes("migration `" + migration + "`") && /failed/i.test(output)) ??
       output.match(/The `([^`]+)` migration(?: started .*?)? failed/i)?.[1];
 
     if (!failedMigration) {
