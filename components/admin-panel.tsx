@@ -117,7 +117,7 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
   }
 
   const nav = [
-    ["overview", "Dashboard", BarChart3], ["moderation", "Moderation", Shield], ["users", "Users", Users],
+    ["overview", "Dashboard", BarChart3], ["moderation", "Moderation", Shield], ["verification", "Verification", ShieldCheck], ["users", "Users", Users],
     ["user360", "User 360", UserRound], ["content", "Content", FileText], ["analytics", "Analytics", Activity], ["audit", "Audit logs", History],
   ] as const;
 
@@ -138,6 +138,7 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
             {active === "analytics" ? <Analytics dashboard={dashboard} loading={loading}/> : null}
             {active === "audit" ? <Audit/> : null}
             {active === "moderation" ? <ModerationQueue onMessage={setMessage}/> : null}
+            {active === "verification" ? <VerificationQueue onMessage={setMessage}/> : null}
             {active === "content" ? <ContentManager onMessage={setMessage}/> : null}
             {active === "user360" ? <AdminInspection/> : null}
             {active === "users" && !selectedId ? <><Card><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><div><h2 className="text-sm font-black">User management</h2><p className="mt-1 text-xs text-gray-400">Search, inspect and manage real Socialhub accounts.</p></div><div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, username or email" className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-xs outline-none focus:border-[#a79dff] sm:w-72"/></div><select value={trustFilter} onChange={(e) => { setTrustFilter(e.target.value as typeof trustFilter); setUsersBefore(null); }} className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs font-black text-gray-600 outline-none"><option value="all">All trust states</option><option value="verified">Blue tick</option><option value="unverified">Standard</option><option value="owner">Owner</option></select></div></div></Card><Card className="!p-0 overflow-hidden"><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-gray-50 text-[10px] font-black uppercase tracking-[.12em] text-gray-400"><tr><th className="px-5 py-3">User</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Trust</th><th className="px-5 py-3">Posts</th><th className="px-5 py-3">Followers</th><th className="px-5 py-3">Status</th><th className="px-5 py-3"></th></tr></thead><tbody>{loading ? <tr><td colSpan={7} className="p-8 text-center text-gray-400">Loading users…</td></tr> : users.map((user) => <tr key={user.id} className="border-t border-gray-100"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-xs font-black text-white">{initials(user.name)}</span><div><p className="font-black">{user.name}</p><p className="mt-0.5 text-[11px] text-gray-400">@{user.username ?? "member"} · {user.email}</p></div></div></td><td className="px-5 py-4"><span className="rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-600">{user.role}</span></td><td className="px-5 py-4"><AccountBadge verified={user.isVerified} owner={user.isOwner} showLabel size="md"/></td><td className="px-5 py-4 text-gray-500">{user._count.posts}</td><td className="px-5 py-4 text-gray-500">{user._count.followers}</td><td className="px-5 py-4">{user.isActive ? <span className="text-emerald-600">Active</span> : <span className="text-red-600">Disabled</span>}</td><td className="px-5 py-4"><button onClick={() => void openUser(user.id)} className="rounded-xl bg-gray-950 px-3 py-2 text-[10px] font-black text-white">Open</button></td></tr>)}{!loading && users.length === 0 ? <tr><td colSpan={7} className="p-8 text-center text-xs text-gray-400">No users match this search.</td></tr> : null}</tbody></table></div>{usersBefore ? <div className="border-t border-gray-100 p-4 text-center"><button type="button" onClick={() => void loadMoreUsers()} disabled={loadingMoreUsers} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[11px] font-black text-gray-700 disabled:opacity-40">{loadingMoreUsers ? "Loading…" : "Load more users"}</button></div> : null}</Card></> : null}
@@ -181,6 +182,45 @@ function UserEditor({ user, details, onBack, onSaveUser }: { user: UserRow; deta
 function MiniSignal({label,value}:{label:string;value:string}){return <div className="rounded-2xl bg-gray-50 p-3"><p className="text-[9px] font-black uppercase tracking-[.12em] text-gray-400">{label}</p><p className="mt-1 truncate text-xs font-black text-gray-700">{value}</p></div>}
 function Field({label,value,onSave}:{label:string;value:string;onSave:(value:string)=>void}){const[draft,setDraft]=useState(value);const[editing,setEditing]=useState(false);return <div className="rounded-2xl bg-gray-50 p-4"><label className="text-[11px] font-black text-gray-500">{label}</label>{editing?<div className="mt-2 flex gap-2"><input value={draft} onChange={e=>setDraft(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold"/><button onClick={()=>{onSave(draft);setEditing(false)}} className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white"><Check size={14}/></button><button onClick={()=>setEditing(false)} className="grid size-9 place-items-center rounded-xl bg-white text-gray-500"><X size={14}/></button></div>:<button onClick={()=>{setDraft(value);setEditing(true)}} className="mt-2 flex w-full items-center justify-between text-left text-sm font-black">{value||"Not set"}<span className="text-[10px] text-gray-400">Edit</span></button>}</div>}
 
+function VerificationQueue({onMessage}:{onMessage:(value:string)=>void}) {
+  const [status,setStatus]=useState<"PENDING"|"APPROVED"|"REJECTED"|"ALL">("PENDING");
+  const [requests,setRequests]=useState<any[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [busy,setBusy]=useState("");
+
+  async function load() {
+    setLoading(true);
+    try {
+      const response=await fetch("/api/admin/verification-requests?status="+status,{cache:"no-store"});
+      const json=await response.json();
+      if(!response.ok) throw new Error(json.error??"Could not load verification requests.");
+      setRequests(json.requests??[]);
+    } catch(error) { onMessage(error instanceof Error?error.message:"Could not load verification requests."); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(()=>{void load()},[status]);
+
+  async function review(requestId:string, nextStatus:"APPROVED"|"REJECTED") {
+    if(busy) return;
+    const note=nextStatus==="REJECTED" ? window.prompt("Optional reason for rejecting this verification request:") ?? "" : "";
+    if(nextStatus==="APPROVED" && !window.confirm("Approve this verification request and give the blue tick?")) return;
+    setBusy(requestId);
+    try {
+      const response=await fetch("/api/admin/verification-requests",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({requestId,status:nextStatus,note:note.trim()||undefined})});
+      const json=await response.json();
+      if(!response.ok) throw new Error(json.error??"Could not review verification request.");
+      setRequests((items)=>items.filter((item)=>item.id!==requestId));
+      onMessage(nextStatus==="APPROVED"?"Verification approved and blue tick granted.":"Verification request rejected.");
+    } catch(error) { onMessage(error instanceof Error?error.message:"Could not review verification request."); }
+    finally { setBusy(""); }
+  }
+
+  return <div className="space-y-5">
+    <Card><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-sm font-black">Verification requests</h2><p className="mt-1 text-xs text-gray-400">Review user-submitted requests without changing owner status.</p></div><select value={status} onChange={(e)=>setStatus(e.target.value as typeof status)} className="rounded-2xl border border-gray-200 bg-white px-3 py-2.5 text-xs font-black text-gray-600 outline-none"><option value="PENDING">Pending</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option><option value="ALL">All</option></select></div></Card>
+    <div className="space-y-3">{loading?<Card><p className="text-xs text-gray-400">Loading verification requests…</p></Card>:requests.length?requests.map((item)=><Card key={item.id}><div className="flex flex-col gap-4"><div className="flex items-start gap-3"><span className="grid size-11 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-xs font-black text-white">{initials(item.user.name)}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-black">{item.user.name}</p><AccountBadge verified={item.user.isVerified} owner={item.user.isOwner} size="sm"/><span className="text-[10px] text-gray-400">@{item.user.username??"member"}</span></div><p className="mt-1 text-[10px] text-gray-400">{item.user.email} · {new Date(item.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-blue-50 px-2.5 py-1 text-[9px] font-black text-blue-700">{item.status}</span></div><div className="rounded-2xl bg-gray-50 p-4"><p className="text-[10px] font-black uppercase tracking-[.12em] text-gray-400">Applicant reason</p><p className="mt-2 text-xs leading-5 text-gray-600">{item.reason||"No reason supplied."}</p></div>{item.adminNote?<div className="text-[10px] text-gray-400">Review note: {item.adminNote}</div>:null}{item.status==="PENDING"?<div className="flex flex-wrap gap-2"><button type="button" disabled={busy===item.id} onClick={()=>void review(item.id,"APPROVED")} className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">Approve & give blue tick</button><button type="button" disabled={busy===item.id} onClick={()=>void review(item.id,"REJECTED")} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-700 disabled:opacity-50">Reject</button></div>:null}</div></Card>):<Card><p className="py-6 text-center text-xs text-gray-400">No verification requests in this state.</p></Card>}</div>
+  </div>;
+}
 function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
   const [reports,setReports]=useState<ReportRow[]>([]);
   const [counts,setCounts]=useState<Record<string,number>>({});
