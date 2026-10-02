@@ -370,6 +370,7 @@ type ProfileData = {
     id: string;
     content: string | null;
     mediaUrl: string | null;
+    isPinned: boolean;
     createdAt: string;
     _count: { likes: number; comments: number };
   }>;
@@ -757,10 +758,37 @@ function Profile({ username = "firdous" }: { username?: string }) {
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           {(profile?.posts ?? []).filter((post) => profileTab === "posts" || Boolean(post.mediaUrl)).length > 0 ? (
             profile?.posts?.map((post) => (
-              <article key={post.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                <div className="flex items-center gap-3">
-                  {profile?.image ? <img src={profile.image} alt="" className="size-9 rounded-full object-cover" /> : <Avatar initials={initials} size="sm" />}
-                  <div><p className="flex items-center gap-1 text-xs font-black">{displayName}<AccountBadge verified={profile?.isVerified} owner={profile?.isOwner}/></p><p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p></div>
+              <article key={post.id} className={"rounded-2xl border p-4 " + (post.isPinned ? "border-[#d9d4ff] bg-[#f8f7ff]" : "border-gray-100 bg-gray-50")}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    {profile?.image ? <img src={profile.image} alt="" className="size-9 rounded-full object-cover" /> : <Avatar initials={initials} size="sm" />}
+                    <div className="min-w-0"><p className="flex items-center gap-1 text-xs font-black">{displayName}<AccountBadge verified={profile?.isVerified} owner={profile?.isOwner}/></p><p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p></div>
+                  </div>
+                  {isOwner ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const response = await fetch("/api/posts/" + post.id + "/pin", { method: post.isPinned ? "DELETE" : "POST" });
+                        if (!response.ok) {
+                          const json = await response.json().catch(() => ({}));
+                          setError(json.error ?? "Could not update pinned post.");
+                          return;
+                        }
+                        setProfile((current) => current ? {
+                          ...current,
+                          posts: (current.posts ?? []).map((item) => ({
+                            ...item,
+                            isPinned: item.id === post.id ? !post.isPinned : post.isPinned ? item.isPinned : false,
+                          })),
+                        } : current);
+                      }}
+                      className={"shrink-0 rounded-xl px-2.5 py-1.5 text-[10px] font-black " + (post.isPinned ? "bg-[#6d5dfc] text-white" : "border border-gray-200 bg-white text-gray-500")}
+                    >
+                      {post.isPinned ? "Pinned" : "Pin"}
+                    </button>
+                  ) : post.isPinned ? (
+                    <span className="shrink-0 rounded-full bg-[#eeebff] px-2.5 py-1 text-[10px] font-black text-[#5a4be8]">Pinned</span>
+                  ) : null}
                 </div>
                 {post.content ? <p className="mt-3 text-sm leading-6 text-gray-600">{post.content}</p> : null}
                 {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
