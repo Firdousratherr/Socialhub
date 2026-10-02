@@ -6,10 +6,13 @@ export async function GET() {
   const access = await requireAdmin();
   if (access.response) return access.response;
 
-  const [users, activeUsers, posts, likes, comments, follows, messages, stories, pendingReports, recentUsers, recentPosts, recentAudit] =
+  const [users, activeUsers, verifiedUsers, ownerUsers, pendingVerificationRequests, posts, likes, comments, follows, messages, stories, pendingReports, recentUsers, recentPosts, recentAudit] =
     await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isActive: true } }),
+      prisma.user.count({ where: { isVerified: true, isOwner: false } }),
+      prisma.user.count({ where: { isOwner: true } }),
+      prisma.verificationRequest.count({ where: { status: "PENDING" } }),
       prisma.post.count(),
       prisma.like.count(),
       prisma.comment.count(),
@@ -23,7 +26,7 @@ export async function GET() {
     ]);
 
   return NextResponse.json({
-    stats: { users, activeUsers, posts, likes, comments, follows, messages, stories, pendingReports },
+    stats: { users, activeUsers, verifiedUsers, ownerUsers, pendingVerificationRequests, posts, likes, comments, follows, messages, stories, pendingReports },
     recentUsers,
     recentPosts,
     recentAudit,
