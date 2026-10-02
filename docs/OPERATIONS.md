@@ -7,7 +7,7 @@
 4. Verify `/`, authentication, feed, messaging, stories, notifications, and `/admin/login` after deployment.
 
 ## Database changes
-Production builds run Prisma migrations before the Next.js build. Never edit an applied migration. Add a new timestamped migration for every schema change.
+Production builds do not run Prisma migrations. Apply the explicit timestamped migration command during a controlled release before or alongside application promotion. Never edit an applied migration. Add a new timestamped migration for every schema change.
 
 Before merging a schema change:
 - run Prisma validation and type checking in CI;
