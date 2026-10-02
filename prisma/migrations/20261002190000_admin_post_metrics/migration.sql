@@ -1,3 +1,5 @@
+ALTER TYPE "AdminPermissionKey" ADD VALUE IF NOT EXISTS 'CONTENT_METRICS';
+
 -- Add post-level administrative display metric overrides.
 CREATE TABLE IF NOT EXISTS "AdminPostMetricOverride" (
   "id" TEXT NOT NULL,
