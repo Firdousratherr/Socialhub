@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import * as z from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireAdminOnly } from "@/app/api/admin/_auth";
+import { requireAdminPermission } from "@/lib/admin-permissions";
 
 const settingSchema = z.object({ key: z.string().trim().regex(/^[A-Za-z0-9_.-]{2,80}$/), value: z.string().max(10000), description: z.string().max(300).nullable().optional() });
 const flagSchema = z.object({ key: z.string().trim().regex(/^[A-Za-z0-9_.-]{2,80}$/), enabled: z.boolean(), description: z.string().max(300).nullable().optional() });
 const announcementSchema = z.object({ title: z.string().trim().min(2).max(120), body: z.string().trim().min(2).max(5000), audience: z.string().trim().max(40).default("ALL"), status: z.enum(["DRAFT","PUBLISHED","ARCHIVED"]).default("DRAFT"), startsAt: z.string().datetime().nullable().optional(), endsAt: z.string().datetime().nullable().optional() });
 
 export async function GET() {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("SECURITY_MANAGE");
   if (access.response) return access.response;
   const [settings, flags, announcements, adminSessions, failedAttempts, admins] = await Promise.all([
     prisma.systemSetting.findMany({ orderBy: { key: "asc" } }),
@@ -22,10 +22,11 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const access = await requireAdminOnly();
-  if (access.response) return access.response;
   const body = await request.json().catch(() => null);
   const kind = body?.kind;
+  const permission = kind === "setting" ? "PLATFORM_SETTINGS" : kind === "flag" ? "FEATURE_FLAGS" : kind === "announcement" ? "ANNOUNCEMENTS" : "PLATFORM_SETTINGS";
+  const access = await requireAdminPermission(permission);
+  if (access.response) return access.response;
   if (kind === "setting") {
     const parsed = settingSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error:"Invalid setting." }, { status:400 });
