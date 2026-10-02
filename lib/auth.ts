@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth";
-import { emailOTP } from "better-auth/plugins";
+import { emailOTP, twoFactor } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
 import { sendTransactionalEmail } from "@/lib/email";
@@ -38,6 +38,7 @@ async function createAvailableUsername(email: string) {
 }
 
 export const auth = betterAuth({
+  appName: "Socialhub",
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
@@ -90,6 +91,7 @@ export const auth = betterAuth({
       }
     : {}),
   plugins: [
+    twoFactor({ issuer: "Socialhub" }),
     emailOTP({
       otpLength: 6,
       expiresIn: 600,
