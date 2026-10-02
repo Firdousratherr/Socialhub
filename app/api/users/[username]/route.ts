@@ -16,6 +16,7 @@ export async function GET(
     select: {
       id: true, name: true, username: true, email: true, bio: true, image: true,
       coverImage: true, website: true, location: true, isPrivate: true, isVerified: true, isOwner: true, verifiedAt: true, ownerSince: true, createdAt: true,
+      privacySetting: { select: { allowMessagesEveryone: true } },
       _count: { select: { posts: true, followers: true, following: true } },
     },
   });
@@ -28,6 +29,40 @@ export async function GET(
   }
 
   const friends = Boolean(session?.user && await areFriends(session.user.id, user.id));
+  const [acceptedFriendship, pendingFriendRequest] = session?.user && !isSelf
+    ? await Promise.all([
+        prisma.friendRequest.findFirst({
+          where: {
+            status: "ACCEPTED",
+            OR: [
+              { senderId: session.user.id, receiverId: user.id },
+              { senderId: user.id, receiverId: session.user.id },
+            ],
+          },
+          select: { id: true },
+        }),
+        prisma.friendRequest.findFirst({
+          where: {
+            status: "PENDING",
+            OR: [
+              { senderId: session.user.id, receiverId: user.id },
+              { senderId: user.id, receiverId: session.user.id },
+            ],
+          },
+          orderBy: { updatedAt: "desc" },
+          select: { id: true, senderId: true, receiverId: true },
+        }),
+      ])
+    : [null, null] as const;
+  const friendRequestStatus = isSelf
+    ? "SELF"
+    : acceptedFriendship
+      ? "FRIENDS"
+      : pendingFriendRequest?.senderId === session?.user?.id
+        ? "OUTGOING_PENDING"
+        : pendingFriendRequest
+          ? "INCOMING_PENDING"
+          : "NONE";
   const following = Boolean(
     session?.user &&
       await prisma.follow.findUnique({
@@ -61,6 +96,11 @@ export async function GET(
       posts: user.isPrivate && !isSelf && !friends ? [] : posts,
       isFollowing: following,
       isFriend: friends,
+      friendRequestStatus,
+      friendRequestId: pendingFriendRequest?.id ?? null,
+      canMessage: isSelf
+        ? false
+        : !user.privacySetting || user.privacySetting.allowMessagesEveryone || friends,
     },
   });
 }
