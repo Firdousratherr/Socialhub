@@ -2018,9 +2018,9 @@ function SettingsPage() {
     {message ? <div role="status" className="mb-5 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-xs font-semibold text-gray-600">{message}</div> : null}
 
     <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-      <Card id="settings-navigation" className="h-fit !p-4 lg:sticky lg:top-24">
-        <p className="text-[10px] font-black uppercase tracking-[.14em] text-gray-400">Settings areas</p>
-        <div className="mt-3 space-y-1">
+      <Card id="settings-navigation" className="h-fit !p-3 lg:sticky lg:top-24">
+        <p className="px-1 text-[10px] font-black uppercase tracking-[.14em] text-gray-400">Settings areas</p>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
           {[
             ["general", "General"],
             ["privacy", "Privacy"],
