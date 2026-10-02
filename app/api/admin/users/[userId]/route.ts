@@ -55,6 +55,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
     prisma.like.count({ where: { post: { authorId: userId } } }),
     prisma.comment.count({ where: { post: { authorId: userId } } }),
     prisma.post.aggregate({ where: { authorId: userId }, _sum: { shareCount: true } }),
+    prisma.profileView.count({ where: { profileId: userId } }),
     prisma.report.findMany({
       where: { OR: [{ reporterId: userId }, { reportedUserId: userId }] },
       orderBy: { createdAt: "desc" },
@@ -111,12 +112,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ userId: string }> }) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("USERS_EDIT");
   if (access.response) return access.response;
   const { userId } = await params;
-
-  const editAccess = await requireAdminPermission("USERS_EDIT");
-  if (editAccess.response) return editAccess.response;
 
   const body = await request.json().catch(() => null);
   const parsed = updateSchema.safeParse(body);
