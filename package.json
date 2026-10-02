@@ -14,7 +14,8 @@
     "db:push": "prisma db push",
     "build:ci": "prisma generate && next build",
     "build:with-migrations": "prisma migrate deploy && prisma generate && next build",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "lint": "eslint ."
   },
   "dependencies": {
     "lucide-react": "1.48.0",
@@ -40,7 +41,9 @@
     "tailwindcss": "4.1.14",
     "typescript": "5.9.3",
     "prisma": "7.10.0",
-    "@types/pg": "8.15.5"
+    "@types/pg": "8.15.5",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "16.3.8"
   },
   "engines": {
     "node": ">=20.9.0"
