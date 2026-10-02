@@ -34,10 +34,11 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          npm run typecheck 2>&1 | tee typecheck.log
-          status=${PIPESTATUS[0]}
-          echo "status=${status}" >> "$GITHUB_OUTPUT"
-          exit "${status}"
+          npm run typecheck > typecheck.log 2>&1
+          status=$?
+          cat typecheck.log
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
 
       - name: Upload typecheck diagnostics
         if: always()
