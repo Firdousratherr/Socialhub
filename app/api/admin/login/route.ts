@@ -48,6 +48,7 @@ async function clearAttempts(key: string) {
 export async function POST(request: Request) {
   const configuredEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const configuredPassword = process.env.ADMIN_PASSWORD;
+  const configuredOwnerEmail = (process.env.SOCIALHUB_OWNER_EMAIL?.trim().toLowerCase() || configuredEmail);
 
   if (!configuredEmail || !configuredPassword) {
     return NextResponse.json(
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
 
   let user = await prisma.user.findUnique({
     where: { email: configuredEmail },
-    select: { id: true },
+    select: { id: true, isOwner: true, ownerSince: true },
   });
 
   if (!user) {
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
 
       user = await prisma.user.findUnique({
         where: { email: configuredEmail },
-        select: { id: true },
+        select: { id: true, isOwner: true, ownerSince: true },
       });
     } catch {
       return NextResponse.json({ error: "Could not create the administrator account." }, { status: 500 });
@@ -131,10 +132,23 @@ export async function POST(request: Request) {
       );
     }
 
+    const shouldOwn = configuredEmail === configuredOwnerEmail;
+    const becameOwner = shouldOwn && !user.isOwner;
     await prisma.user.update({
       where: { id: user.id },
-      data: { role: "ADMIN", isActive: true, emailVerified: true },
+      data: {
+        role: "ADMIN",
+        isActive: true,
+        emailVerified: true,
+        isOwner: shouldOwn,
+        ownerSince: shouldOwn ? (user.ownerSince ?? new Date()) : null,
+      },
     });
+    if (becameOwner) {
+      await prisma.verificationAudit.create({
+        data: { userId: user.id, adminId: user.id, action: "OWNER_GRANTED", reason: "Configured Socialhub owner account." },
+      });
+    }
 
     clearAttempts(key);
     return signInResponse;
