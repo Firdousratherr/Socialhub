@@ -141,6 +141,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
           userId,
           actorId: access.session!.user.id,
           type: "SYSTEM",
+          title: patch.isVerified ? "Verification approved" : "Verification removed",
+          body: patch.isVerified ? "Your account has received the blue verification badge." : "Your blue verification badge was removed by an administrator.",
         },
       });
     }
