@@ -244,7 +244,7 @@ export function StoryCenter({
             <div className="relative max-h-full max-w-[min(90vw,520px)] overflow-hidden rounded-[2rem] bg-black shadow-2xl">
               <img src={active.mediaUrl} alt={active.caption ?? "Story"} className="max-h-[88vh] w-auto max-w-full object-contain" />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-5 pt-16 text-white">
-                <p className="text-sm font-black">{active.author.name}</p>
+                <p className="flex items-center gap-1.5 text-sm font-black">{active.author.name}<AccountBadge verified={active.author.isVerified} owner={active.author.isOwner}/></p>
                 {active.caption ? <p className="mt-1 text-xs leading-5 text-white/85">{active.caption}</p> : null}
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {["❤️","😂","😮","😢","🔥","👍"].map((emoji) => <button key={emoji} type="button" onClick={() => myStoryReaction === emoji ? void removeStoryReaction() : void reactToStory(emoji)} className={"rounded-full px-2.5 py-1.5 text-sm " + (myStoryReaction === emoji ? "bg-white text-black" : "bg-white/10 text-white")}>{emoji}</button>)}
