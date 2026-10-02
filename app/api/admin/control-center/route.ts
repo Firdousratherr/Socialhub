@@ -54,11 +54,12 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const access = await requireAdminOnly();
-  if (access.response) return access.response;
   const url = new URL(request.url);
   const type = url.searchParams.get("type");
   const id = url.searchParams.get("id");
+  const permission = type === "session" ? "SECURITY_MANAGE" : type === "announcement" ? "ANNOUNCEMENTS" : "PLATFORM_SETTINGS";
+  const access = await requireAdminPermission(permission);
+  if (access.response) return access.response;
   if (type === "session" && id) {
     const target = await prisma.session.findUnique({where:{id},select:{id:true,userId:true}});
     if (!target) return NextResponse.json({error:"Session not found."},{status:404});
