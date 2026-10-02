@@ -142,6 +142,17 @@ test("two-factor authentication is wired through server, client and route", () =
 });
 
 
+test("production schema recovery handles Prisma failed-migration state without Prisma 7 db push flags", () => {
+  const script = read("scripts/ensure-production-schema.mjs");
+  const pinnedMigration = read("prisma/migrations/20261002140000_pinned_posts/migration.sql");
+  assert.match(script, /P3009/);
+  assert.match(script, /db", "push/);
+  assert.doesNotMatch(script, /--skip-generate/);
+  assert.match(script, /migrate", "resolve", "--applied/);
+  assert.match(pinnedMigration, /ADD COLUMN IF NOT EXISTS/);
+  assert.match(pinnedMigration, /CREATE INDEX IF NOT EXISTS/);
+});
+
 test("mobile primary navigation exposes direct messages in the bottom bar", () => {
   const nav = read("components/bottom-nav.tsx");
   assert.match(nav, /href: "\/messages"/);
