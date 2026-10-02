@@ -33,7 +33,7 @@ export function StoryCenter({
   const [uploading, setUploading] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
-  const [storyReplies, setStoryReplies] = useState<Array<{ id: string; content: string; createdAt: string; author: { id: string; name: string; image: string | null } }>>([]);
+  const [storyReplies, setStoryReplies] = useState<Array<{ id: string; content: string; createdAt: string; author: { id: string; name: string; image: string | null; isVerified?: boolean; isOwner?: boolean } }>>([]);
   const [storyReactions, setStoryReactions] = useState<Array<{ id: string; emoji: string; userId: string }>>([]);
   const [myStoryReaction, setMyStoryReaction] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
