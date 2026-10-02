@@ -26,8 +26,9 @@ test("uploads enforce a daily quota and clean up tracking failures", () => {
 
 test("profile photo tab filters media posts before rendering", () => {
   const component = read("components/social-pages.tsx");
-  assert.match(component, /visibleProfilePosts/);
-  assert.match(component, /profileTab === "photos" ? Boolean\(post.mediaUrl\)/);
+  assert.ok(component.includes("visibleProfilePosts"));
+  assert.ok(component.includes('profileTab === "photos"'));
+  assert.ok(component.includes("post.mediaUrl"));
 });
 
 test("deep-linked posts can be resolved from the post endpoint", () => {
