@@ -81,8 +81,8 @@ function Page({
   );
 }
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <section className={`social-card rounded-3xl p-5 ${className}`}>{children}</section>;
+function Card({ children, className = "", id }: { children: React.ReactNode; className?: string; id?: string }) {
+  return <section id={id} className={`social-card rounded-3xl p-5 ${className}`}>{children}</section>;
 }
 
 function Auth({ signup = false }: { signup?: boolean }) {
