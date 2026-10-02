@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import * as z from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/app/api/admin/_auth";
+import { requireAdminPermission } from "@/lib/admin-permissions";
 
 const metricSchema = z.object({
   posts: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
@@ -25,7 +25,7 @@ const updateSchema = z.object({
 });
 
 export async function GET(_request: Request, { params }: { params: Promise<{ userId: string }> }) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("USERS_VIEW");
   if (access.response) return access.response;
   const { userId } = await params;
 
@@ -110,6 +110,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
   const access = await requireAdmin();
   if (access.response) return access.response;
   const { userId } = await params;
+
+  const editAccess = await requireAdminPermission("USERS_EDIT");
+  if (editAccess.response) return editAccess.response;
 
   const body = await request.json().catch(() => null);
   const parsed = updateSchema.safeParse(body);
