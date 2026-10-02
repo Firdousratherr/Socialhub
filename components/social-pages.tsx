@@ -317,9 +317,9 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [friendsHidden, setFriendsHidden] = useState(false);
   const [relationshipView, setRelationshipView] = useState<"followers" | "following" | "mutual" | null>(null);
   const [relationships, setRelationships] = useState<{
-    followers: Array<{ id: string; name: string; username: string | null; image: string | null }>;
-    following: Array<{ id: string; name: string; username: string | null; image: string | null }>;
-    mutual: Array<{ id: string; name: string; username: string | null; image: string | null }>;
+    followers: Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }>;
+    following: Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }>;
+    mutual: Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }>;
     hidden?: boolean;
   } | null>(null);
   const [loadingRelationships, setLoadingRelationships] = useState(false);
@@ -678,7 +678,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {friendsHidden ? <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><Lock className="mx-auto text-gray-400" size={20}/><p className="mt-3 text-sm font-black">Friends are private</p><p className="mt-1 text-xs text-gray-400">Only the account owner and accepted friends can view this list.</p></div> : friends.length ? friends.map((friend) => <Link key={friend.id} href={"/profile/" + encodeURIComponent(friend.username ?? friend.id)} className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white">
               {friend.image ? <img src={friend.image} alt="" className="size-11 rounded-full object-cover"/> : <Avatar initials={friend.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="md"/>}
-              <span className="min-w-0"><span className="block truncate text-sm font-black">{friend.name}</span><span className="block truncate text-xs text-gray-400">@{friend.username ?? "member"}</span></span>
+              <span className="min-w-0"><span className="flex items-center gap-1 truncate text-sm font-black">{friend.name}<AccountBadge verified={friend.isVerified} owner={friend.isOwner}/></span><span className="block truncate text-xs text-gray-400">@{friend.username ?? "member"}</span></span>
             </Link>) : <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><p className="text-sm font-black">No friends to show yet</p><p className="mt-1 text-xs text-gray-400">Accepted connections will appear here.</p></div>}
           </div>
         ) : (
