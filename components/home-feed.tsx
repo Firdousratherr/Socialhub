@@ -6,6 +6,7 @@ import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { MobileMenu } from "@/components/mobile-menu";
 import { BottomNav } from "@/components/bottom-nav";
+import { useUnreadSummary } from "@/hooks/use-unread-summary";
 import { emitPostSyncEvent, subscribePostSync } from "@/lib/post-sync";
 import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
@@ -724,6 +725,7 @@ function PostCard({
 export default function HomeFeed() {
   const { data: session } = authClient.useSession();
   const router = useRouter();
+  const { summary: unreadSummary } = useUnreadSummary();
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [suggestedUsers, setSuggestedUsers] = useState<SuggestedUser[]>([]);
@@ -984,10 +986,10 @@ export default function HomeFeed() {
 
           <div className="ml-auto flex items-center gap-1.5">
             <button type="button" onClick={() => setSearchOpen((value) => !value)} className="social-icon-button rounded-2xl border border-transparent bg-gray-50 md:hidden" aria-label="Search" aria-expanded={searchOpen}><Search size={19}/></button>
-            <Link href="/messages" className="social-icon-button rounded-2xl border border-transparent bg-gray-50 hover:border-[#e3defe] hover:bg-[#f8f6ff]" aria-label="Messages"><MessageCircle size={19}/></Link>
+            <Link href="/messages" className="social-icon-button relative rounded-2xl border border-transparent bg-gray-50 hover:border-[#e3defe] hover:bg-[#f8f6ff]" aria-label="Messages"><MessageCircle size={19}/>{unreadSummary.messages > 0 ? <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[8px] font-black leading-4 text-white">{Math.min(99, unreadSummary.messages)}</span> : null}</Link>
             <Link href="/notifications" className="social-icon-button relative rounded-2xl border border-transparent bg-gray-50 hover:border-[#e3defe] hover:bg-[#f8f6ff]" aria-label="Notifications">
               <Bell size={19}/>
-              <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-[#6d5dfc] ring-2 ring-white"/>
+              {unreadSummary.notifications > 0 ? <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[8px] font-black leading-4 text-white">{Math.min(99, unreadSummary.notifications)}</span> : null}
             </Link>
             <Link href={profileHref} className="ml-0.5 rounded-2xl p-0.5 transition hover:bg-[#eeebff]">
               <Avatar name={session?.user?.name ?? "You"} image={session?.user?.image}/>
