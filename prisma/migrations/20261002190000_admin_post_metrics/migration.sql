@@ -1,3 +1,4 @@
+ALTER TYPE "AdminPermissionKey" ADD VALUE IF NOT EXISTS 'STORAGE_MANAGE';
 ALTER TYPE "AdminPermissionKey" ADD VALUE IF NOT EXISTS 'CONTENT_METRICS';
 
 -- Add post-level administrative display metric overrides.
