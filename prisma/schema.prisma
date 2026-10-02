@@ -226,6 +226,7 @@ model Post {
   savedBy    SavedPost[]
   notifications Notification[]
   reports    Report[]
+  postMetricOverride AdminPostMetricOverride?
 
   @@index([authorId, isPinned, createdAt])
   @@index([visibility, createdAt])
