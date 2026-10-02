@@ -369,6 +369,8 @@ type ProfileData = {
   friendRequestStatus?: "SELF" | "NONE" | "FRIENDS" | "OUTGOING_PENDING" | "INCOMING_PENDING";
   friendRequestId?: string | null;
   canMessage?: boolean;
+  canSendFriendRequest?: boolean;
+  canFollow?: boolean;
   posts?: Array<{
     id: string;
     content: string | null;
@@ -388,6 +390,8 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [friendRequestStatus, setFriendRequestStatus] = useState<"SELF" | "NONE" | "FRIENDS" | "OUTGOING_PENDING" | "INCOMING_PENDING">("NONE");
   const [friendRequestId, setFriendRequestId] = useState<string | null>(null);
   const [canMessage, setCanMessage] = useState(true);
+  const [canSendFriendRequest, setCanSendFriendRequest] = useState(true);
+  const [canFollow, setCanFollow] = useState(true);
   const [actionLoading, setActionLoading] = useState<"follow" | "friend" | "cancel-friend" | "accept-friend" | "decline-friend" | "unfriend" | "message" | "report" | "block" | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
@@ -446,6 +450,8 @@ function Profile({ username = "firdous" }: { username?: string }) {
         setFriendRequestStatus(next.friendRequestStatus ?? (next.isFriend ? "FRIENDS" : "NONE"));
         setFriendRequestId(next.friendRequestId ?? null);
         setCanMessage(next.canMessage ?? true);
+        setCanSendFriendRequest(next.canSendFriendRequest ?? true);
+        setCanFollow(next.canFollow ?? true);
         setFriends([]);
         setFriendsHidden(false);
         setRelationships(null);
@@ -607,7 +613,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
   }
 
   async function sendFriendRequest() {
-    if (!profile || isOwner || !session?.user || actionLoading) return;
+    if (!profile || isOwner || !session?.user || !canSendFriendRequest || actionLoading) return;
     setActionLoading("friend");
     try {
       const response = await fetch("/api/friend-requests", {
@@ -871,9 +877,9 @@ function Profile({ username = "firdous" }: { username?: string }) {
                       <button type="button" onClick={() => void cancelFriendRequest()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><X size={15}/>{actionLoading === "cancel-friend" ? "Cancelling…" : "Cancel request"}</button>
                     </>
                   ) : (
-                    <button type="button" onClick={() => void sendFriendRequest()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white disabled:opacity-50"><UserPlus size={15}/>{actionLoading === "friend" ? "Sending…" : "Add friend"}</button>
+                    <button type="button" onClick={() => void sendFriendRequest()} disabled={!canSendFriendRequest || Boolean(actionLoading)} className={"inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-xs font-black " + (canSendFriendRequest ? "bg-[#6d5dfc] text-white disabled:opacity-50" : "cursor-not-allowed bg-gray-100 text-gray-400")}><UserPlus size={15}/>{actionLoading === "friend" ? "Sending…" : canSendFriendRequest ? "Add friend" : "Friend requests off"}</button>
                   )}
-                  {friendRequestStatus !== "FRIENDS" && (!profile?.isPrivate || friendRequestStatus === "INCOMING_PENDING") ? (
+                  {friendRequestStatus !== "FRIENDS" && canFollow && (!profile?.isPrivate || friendRequestStatus === "INCOMING_PENDING") ? (
                     <button type="button" onClick={() => void toggleFollow()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><Users size={15}/>{actionLoading === "follow" ? "Updating…" : following ? "Following" : "Follow"}</button>
                   ) : null}
                   <button type="button" onClick={() => void startMessage()} disabled={!canMessage || Boolean(actionLoading)} className={"inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-xs font-black " + (canMessage ? "border-gray-200 bg-white text-gray-700 disabled:opacity-50" : "cursor-not-allowed border-gray-100 bg-gray-100 text-gray-400")}><MessageCircle size={15}/>{actionLoading === "message" ? "Opening…" : canMessage ? "Message" : "Messages off"}</button>
