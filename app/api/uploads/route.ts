@@ -2,6 +2,7 @@ import { put } from "@vercel/blob";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -59,6 +60,14 @@ export async function POST(request: Request) {
     addRandomSuffix: false,
     contentType: file.type,
   });
+
+  try {
+    await prisma.uploadUsage.create({
+      data: { userId: session.user.id, bytes: file.size },
+    });
+  } catch (trackingError) {
+    console.error("Could not record upload usage.", trackingError);
+  }
 
   return NextResponse.json({ url: blob.url, pathname: blob.pathname }, { status: 201 });
 }
