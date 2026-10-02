@@ -33,11 +33,11 @@ function extensionFor(type: string) {
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) {
-  const rl = await consumeRateLimit(rateLimitKey("  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {", request, session.user.id), 10, 60);
-  if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
+
+  const rl = await consumeRateLimit(rateLimitKey("upload", request, session.user.id), 20, 60);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
 
   const formData = await request.formData().catch(() => null);
   const file = formData?.get("file");
