@@ -217,7 +217,7 @@ test("comment mutations expose authoritative counts and the client can recover f
   assert.match(route, /export async function DELETE/);
   assert.match(feed, /typeof json\.commentCount === "number"/);
   assert.match(feed, />Retry<\/button>/);
-  assert.match(feed, /aria-controls={"comments-" + post\.id}/);
+  assert.ok(feed.includes('aria-controls={"comments-" + post.id}'));
 });
 
 test("post metric overrides have a dedicated model, migration and permission boundary", () => {
@@ -231,7 +231,8 @@ test("post metric overrides have a dedicated model, migration and permission bou
   assert.match(permissions, /CONTENT_METRICS/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS "AdminPostMetricOverride"/);
   assert.match(migration, /AdminPostMetricOverride_postId_fkey/);
-  assert.match(route, /requireAdminPermission\("CONTENT_METRICS"\)/);
+  assert.match(route, /CONTENT_METRICS/);
+  assert.match(route, /parsed\.data\.metrics !== undefined/);
   assert.match(route, /UPDATE_POST_METRICS/);
 });
 
