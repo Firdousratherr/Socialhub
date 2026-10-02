@@ -10,6 +10,7 @@ const updateSchema = z.object({
   isActive: z.boolean().optional(),
   isPrivate: z.boolean().optional(),
   emailVerified: z.boolean().optional(),
+  isVerified: z.boolean().optional(),
 });
 
 export async function GET(_request: Request, { params }: { params: Promise<{ userId: string }> }) {
@@ -21,8 +22,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
     where: { id: userId },
     select: {
       id: true, name: true, username: true, email: true, image: true, bio: true, coverImage: true,
-      website: true, location: true, role: true, isActive: true, isPrivate: true,
-      emailVerified: true, createdAt: true, updatedAt: true,
+      website: true, location: true, role: true, isActive: true, isPrivate: true, isVerified: true, isOwner: true,
+      verifiedAt: true, ownerSince: true, emailVerified: true, createdAt: true, updatedAt: true,
       _count: {
         select: {
           posts: true, likes: true, comments: true, followers: true, following: true,
@@ -79,11 +80,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
 
   const before = await prisma.user.findUnique({
     where: { id: userId },
-    select: { name: true, username: true, role: true, isActive: true, isPrivate: true, emailVerified: true },
+    select: { name: true, username: true, role: true, isActive: true, isPrivate: true, emailVerified: true, isVerified: true, isOwner: true },
   });
   if (!before) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
   const patch = parsed.data;
+  if (patch.isVerified !== undefined && patch.isVerified !== before.isVerified && access.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Only administrators can change verification status." }, { status: 403 });
+  }
+  if (before.isOwner && patch.isVerified === false) {
+    return NextResponse.json({ error: "The owner account cannot have its verification badge removed." }, { status: 400 });
+  }
   if (patch.role && patch.role !== before.role && access.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Only administrators can change user roles." }, { status: 403 });
   }
@@ -95,15 +102,30 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
   }
 
   try {
+    const verificationChanged = patch.isVerified !== undefined && patch.isVerified !== before.isVerified;
     const user = await prisma.user.update({
       where: { id: userId },
-      data: patch,
+      data: {
+        ...patch,
+        ...(verificationChanged ? { verifiedAt: patch.isVerified ? new Date() : null } : {}),
+      },
       select: {
         id: true, name: true, username: true, email: true, image: true, role: true,
-        isActive: true, isPrivate: true, emailVerified: true, createdAt: true,
+        isActive: true, isPrivate: true, isVerified: true, isOwner: true, verifiedAt: true, ownerSince: true, emailVerified: true, createdAt: true,
         _count: { select: { posts: true, followers: true, following: true } },
       },
     });
+
+    if (verificationChanged) {
+      await prisma.verificationAudit.create({
+        data: {
+          userId,
+          adminId: access.session!.user.id,
+          action: patch.isVerified ? "GRANTED" : "REVOKED",
+          reason: patch.isVerified ? "Verified by an administrator." : "Verification removed by an administrator.",
+        },
+      });
+    }
 
     await prisma.adminAuditLog.create({
       data: {
