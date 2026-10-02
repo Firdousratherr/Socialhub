@@ -313,7 +313,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
   const [error, setError] = useState("");
   const [profileTab, setProfileTab] = useState<"posts" | "photos" | "friends">("posts");
-  const [friends, setFriends] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; bio: string | null }>>([]);
+  const [friends, setFriends] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; bio: string | null; isVerified?: boolean; isOwner?: boolean }>>([]);
   const [friendsHidden, setFriendsHidden] = useState(false);
   const [relationshipView, setRelationshipView] = useState<"followers" | "following" | "mutual" | null>(null);
   const [relationships, setRelationships] = useState<{
@@ -662,7 +662,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
                     const list = relationships?.[relationshipView] ?? [];
                     return list.length ? list.map((person) => <Link key={person.id} href={"/profile/" + encodeURIComponent(person.username ?? person.id)} onClick={() => setRelationshipView(null)} className="flex items-center gap-3 rounded-2xl p-3 hover:bg-gray-50">
                       {person.image ? <img src={person.image} alt="" className="size-11 rounded-full object-cover"/> : <span className="grid size-11 place-items-center rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{person.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()}</span>}
-                      <span className="min-w-0"><span className="block truncate text-sm font-black">{person.name}</span><span className="block truncate text-xs text-gray-400">@{person.username ?? "member"}</span></span>
+                      <span className="min-w-0"><span className="flex items-center gap-1 truncate text-sm font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-xs text-gray-400">@{person.username ?? "member"}</span></span>
                     </Link>) : <div className="p-8 text-center text-xs text-gray-400">No accounts to show.</div>;
                   })()}
                 </div>
