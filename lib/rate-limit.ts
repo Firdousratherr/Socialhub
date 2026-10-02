@@ -35,3 +35,10 @@ export function rateLimitKey(prefix: string, request: Request, subject?: string)
   const ip = forwarded || request.headers.get("x-real-ip") || "unknown";
   return [prefix, subject || ip].join(":");
 }
+
+export function rateLimitResponse(retryAfter: number) {
+  return new Response(JSON.stringify({ error: "Too many requests. Please try again shortly." }), {
+    status: 429,
+    headers: { "Content-Type": "application/json", "Retry-After": String(retryAfter) },
+  });
+}
