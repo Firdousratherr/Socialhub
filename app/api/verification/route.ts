@@ -52,6 +52,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Please wait 14 days after a rejected request before applying again." }, { status: 429 });
   }
 
+  const recentRequests = await prisma.verificationRequest.count({
+    where: { userId: user.id, createdAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } },
+  });
+  if (recentRequests >= 3) {
+    return NextResponse.json({ error: "You have reached the verification request limit for the last 90 days." }, { status: 429 });
+  }
+
   const created = await prisma.verificationRequest.create({
     data: { userId: user.id, reason: parsed.data.reason },
     select: { id: true, status: true, reason: true, createdAt: true, reviewedAt: true, adminNote: true },
