@@ -101,6 +101,8 @@ export async function GET(
       friendRequestStatus,
       friendRequestId: pendingFriendRequest?.id ?? null,
       canMessage,
+      canSendFriendRequest: !isSelf && (!user.privacySetting || user.privacySetting.allowFriendRequests),
+      canFollow: !isSelf && (!user.isPrivate || friends),
     },
   });
 }
