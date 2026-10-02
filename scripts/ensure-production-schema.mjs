@@ -48,8 +48,16 @@ try {
   const output = errorOutput(error);
 
   if (output.includes("P3009")) {
-    const failedMigration = output.match(/The `([^`]+)` migration started .* failed/)?.[1];
-    if (!failedMigration) throw error;
+    const failedMigration =
+      listMigrations().find((migration) => output.includes(`migration `${migration}``) && /failed/i.test(output)) ??
+      output.match(/The `([^`]+)` migration(?: started .*?)? failed/i)?.[1];
+
+    if (!failedMigration) {
+      throw new Error(
+        `Prisma reported P3009 but the failed migration could not be identified. Raw output:\n${output}`,
+        { cause: error },
+      );
+    }
 
     console.warn(`Recovering failed production migration ${failedMigration}.`);
     run(["migrate", "resolve", "--rolled-back", failedMigration]);

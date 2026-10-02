@@ -1,4 +1,5 @@
-ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "twoFactorEnabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "User"
+  ADD COLUMN IF NOT EXISTS "twoFactorEnabled" BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS "TwoFactor" (
   "id" TEXT NOT NULL,
@@ -14,6 +15,17 @@ CREATE TABLE IF NOT EXISTS "TwoFactor" (
 CREATE UNIQUE INDEX IF NOT EXISTS "TwoFactor_userId_key" ON "TwoFactor"("userId");
 CREATE INDEX IF NOT EXISTS "TwoFactor_userId_idx" ON "TwoFactor"("userId");
 
-ALTER TABLE "TwoFactor"
-  ADD CONSTRAINT "TwoFactor_userId_fkey"
-  FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'TwoFactor_userId_fkey'
+      AND conrelid = '"TwoFactor"'::regclass
+  ) THEN
+    ALTER TABLE "TwoFactor"
+      ADD CONSTRAINT "TwoFactor_userId_fkey"
+      FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END
+$$;
