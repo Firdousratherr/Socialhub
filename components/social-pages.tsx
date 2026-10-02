@@ -1307,6 +1307,7 @@ type ConversationData = {
     userId: string;
     role: string;
     user: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
+    lastReadAt?: string | null;
   }>;
   messages: Array<{ id: string; senderId: string; content: string; createdAt: string }>;
 };
