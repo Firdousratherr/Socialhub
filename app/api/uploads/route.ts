@@ -1,4 +1,5 @@
 import { put } from "@vercel/blob";
+import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
@@ -32,6 +33,9 @@ function extensionFor(type: string) {
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) {
+  const rl = await consumeRateLimit(rateLimitKey("  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) {", request, session.user.id), 10, 60);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
