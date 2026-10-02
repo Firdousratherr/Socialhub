@@ -35,7 +35,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   });
   if (!user) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
-  const [override, recentReports, recentAudit, recentSessions] = await Promise.all([
+  const [override, recentReports, recentAudit, recentSessions, recentVerification] = await Promise.all([
     prisma.adminMetricOverride.findUnique({ where: { userId } }),
     prisma.report.findMany({
       where: { OR: [{ reporterId: userId }, { reportedUserId: userId }] },
@@ -55,6 +55,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
       take: 10,
       select: { id: true, createdAt: true, updatedAt: true, expiresAt: true, ipAddress: true, userAgent: true },
     }),
+    prisma.verificationAudit.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { id: true, action: true, reason: true, createdAt: true, adminId: true },
+    }),
   ]);
 
   await prisma.adminAuditLog.create({
@@ -66,7 +72,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
     },
   });
 
-  return NextResponse.json({ user, override, recentReports, recentAudit, recentSessions });
+  return NextResponse.json({ user, override, recentReports, recentAudit, recentSessions, recentVerification });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ userId: string }> }) {
