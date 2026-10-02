@@ -47,7 +47,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ post
     postId,
     ...blockedAuthorWhere(viewerId),
   };
-  const [comments, commentCount] = await Promise.all([
+  const [comments, commentCount, override] = await Promise.all([
     prisma.comment.findMany({
       where: {
         postId,
@@ -73,12 +73,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ post
     },
     }),
     prisma.comment.count({ where: countWhere }),
+    prisma.adminPostMetricOverride.findUnique({ where: { postId }, select: { comments: true } }),
   ]);
+
 
   const hasMore = comments.length > take;
   const page = comments.slice(0, take).reverse();
   const nextBefore = hasMore && page.length ? encodeCursor(page[0].createdAt, page[0].id) : null;
-  return NextResponse.json({ comments: page, nextBefore, commentCount });
+  return NextResponse.json({ comments: page, nextBefore, commentCount: override?.comments ?? commentCount });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ postId: string }> }) {
@@ -122,7 +124,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ pos
     });
   }
   const commentCount = await prisma.comment.count({ where: { postId } });
-  return NextResponse.json({ comment, commentCount }, { status: 201 });
+  const override = await prisma.adminPostMetricOverride.findUnique({ where: { postId }, select: { comments: true } });
+  return NextResponse.json({ comment, commentCount: override?.comments ?? commentCount }, { status: 201 });
 }
 
 
@@ -175,5 +178,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ p
 
   await prisma.comment.delete({ where: { id: commentId } });
   const commentCount = await prisma.comment.count({ where: { postId } });
-  return NextResponse.json({ success: true, commentId, commentCount });
+  const override = await prisma.adminPostMetricOverride.findUnique({ where: { postId }, select: { comments: true } });
+  return NextResponse.json({ success: true, commentId, commentCount: override?.comments ?? commentCount });
 }
