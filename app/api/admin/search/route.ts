@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/app/api/admin/_auth";
+import { requireAdminPermission } from "@/lib/admin-permissions";
 
 export async function GET(request: Request) {
-  const access=await requireAdmin(); if(access.response)return access.response;
+  const access=await requireAdminPermission("USERS_VIEW"); if(access.response)return access.response;
   const q=(new URL(request.url).searchParams.get("q")??"").trim().slice(0,80);
   if(q.length<2)return NextResponse.json({users:[],posts:[],comments:[],reports:[],messages:[]});
   const [users,posts,comments,reports,messages]=await Promise.all([
