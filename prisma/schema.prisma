@@ -346,6 +346,8 @@ model Notification {
   postId    String?
   commentId String?
   messageId String?
+  title     String?
+  body      String?
   readAt    DateTime?
   createdAt DateTime         @default(now())
 
