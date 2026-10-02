@@ -140,3 +140,24 @@ test("two-factor authentication is wired through server, client and route", () =
   assert.match(client, /twoFactorClient/);
   assert.match(page, /verifyTotp/);
 });
+
+
+test("mobile primary navigation exposes direct messages in the bottom bar", () => {
+  const nav = read("components/bottom-nav.tsx");
+  assert.match(nav, /href: "\/messages"/);
+  assert.match(nav, /fixed inset-x-0 bottom-0/);
+  assert.match(nav, /MessageCircle/);
+});
+
+test("messaging has live refresh, typing presence, and read receipts", () => {
+  const component = read("components/social-pages.tsx");
+  const typing = read("app/api/conversations/[conversationId]/typing/route.ts");
+  assert.match(component, /setInterval\(\(\) => \{ void loadMessages\(\); \}, 2000\)/);
+  assert.match(component, /setInterval\(\(\) => \{ void refreshTyping\(\); \}, 2000\)/);
+  assert.match(component, /is typing/);
+  assert.match(component, /Seen/);
+  assert.match(typing, /export async function GET/);
+  assert.match(typing, /export async function POST/);
+  assert.match(typing, /export async function DELETE/);
+  assert.match(typing, /typing:/);
+});
