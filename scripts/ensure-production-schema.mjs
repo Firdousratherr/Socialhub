@@ -27,6 +27,11 @@ const listMigrations = () =>
     .filter((name) => name !== "migration_lock.toml")
     .sort();
 
+const failedMigrationFrom = (output) =>
+  listMigrations().find(
+    (migration) => output.includes("migration `" + migration + "`") && /failed/i.test(output),
+  ) ?? output.match(/The `([^`]+)` migration(?: started .*?)? failed/i)?.[1];
+
 const markMigrationsAppliedFrom = (migrationName) => {
   for (const migration of listMigrations().filter((name) => name >= migrationName)) {
     run(["migrate", "resolve", "--applied", migration]);
@@ -41,49 +46,46 @@ const bootstrapExistingSchema = () => {
   }
 };
 
+const recoverMigrationFailure = (output) => {
+  const failedMigration = failedMigrationFrom(output);
+  if (failedMigration) {
+    console.warn(`Recovering failed production migration ${failedMigration}.`);
+    run(["migrate", "resolve", "--rolled-back", failedMigration]);
+  } else {
+    console.warn("Prisma reported a failed migration but did not expose its migration name; reconciling the committed schema.");
+  }
+
+  bootstrapExistingSchema();
+};
+
 try {
   run(["migrate", "deploy"]);
   process.exit(0);
 } catch (error) {
   const output = errorOutput(error);
 
-  if (output.includes("P3009")) {
-    const failedMigration =
-      listMigrations().find((migration) => output.includes("migration `" + migration + "`") && /failed/i.test(output)) ??
-      output.match(/The `([^`]+)` migration(?: started .*?)? failed/i)?.[1];
-
-    if (!failedMigration) {
-      throw new Error(
-        `Prisma reported P3009 but the failed migration could not be identified. Raw output:\n${output}`,
-        { cause: error },
-      );
-    }
-
-    console.warn(`Recovering failed production migration ${failedMigration}.`);
-    run(["migrate", "resolve", "--rolled-back", failedMigration]);
-
+  if (output.includes("P3009") || output.includes("P3018")) {
     try {
-      run(["migrate", "deploy"]);
+      recoverMigrationFailure(output);
       process.exit(0);
-    } catch (retryError) {
-      const retryOutput = errorOutput(retryError);
-      if (retryOutput.includes("P3005") || retryOutput.includes("database schema is not empty")) {
-        bootstrapExistingSchema();
-        process.exit(0);
-      }
-      if (retryOutput.includes("P3009")) {
-        console.warn(`Migration ${failedMigration} still cannot be replayed; reconciling the live schema instead.`);
-        run(["db", "push"]);
-        markMigrationsAppliedFrom(failedMigration);
-        process.exit(0);
-      }
-      throw retryError;
+    } catch (recoveryError) {
+      throw new Error(
+        `Prisma migration recovery failed. Raw migration output:\n${output}\nRecovery output:\n${errorOutput(recoveryError)}`,
+        { cause: recoveryError },
+      );
     }
   }
 
   if (output.includes("P3005") || output.includes("database schema is not empty")) {
-    bootstrapExistingSchema();
-    process.exit(0);
+    try {
+      bootstrapExistingSchema();
+      process.exit(0);
+    } catch (recoveryError) {
+      throw new Error(
+        `Prisma production schema bootstrap failed. Raw migration output:\n${output}\nBootstrap output:\n${errorOutput(recoveryError)}`,
+        { cause: recoveryError },
+      );
+    }
   }
 
   throw error;
