@@ -112,7 +112,7 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
     const json = await response.json();
     if (!response.ok) { setMessage(json.error ?? "Could not update user."); return; }
     setSelected((current) => current ? { ...current, ...json.user } : current);
-    setSelectedDetails((current) => current ? {
+    setSelectedDetails((current: any) => current ? {
       ...current,
       override: json.override ?? (patch.metrics !== undefined ? null : current.override),
     } : current);
