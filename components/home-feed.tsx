@@ -703,7 +703,7 @@ export default function HomeFeed() {
       saved: boolean;
       reactions: Array<{ emoji: string; count: number }>;
       myReaction: string | null;
-      author: { id: string; name: string; username: string | null; image: string | null };
+      author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
       _count: { likes: number; comments: number };
     }, index: number) => ({
       id: item.id,
