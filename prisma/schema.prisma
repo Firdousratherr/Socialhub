@@ -115,6 +115,8 @@ model User {
   blockedBy     Block[]            @relation("Blocked")
   verificationAudits VerificationAudit[] @relation("VerificationTarget")
   performedVerificationAudits VerificationAudit[] @relation("VerificationAdmin")
+  verificationRequests VerificationRequest[] @relation("VerificationRequester")
+  reviewedVerificationRequests VerificationRequest[] @relation("VerificationReviewer")
 
   @@index([createdAt])
   @@index([role])
@@ -582,4 +584,29 @@ model VerificationAudit {
 
   @@index([userId, createdAt])
   @@index([adminId, createdAt])
+}
+
+enum VerificationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model VerificationRequest {
+  id         String                   @id @default(cuid())
+  userId     String
+  reviewerId String?
+  status     VerificationRequestStatus @default(PENDING)
+  reason     String?
+  adminNote  String?
+  createdAt  DateTime                 @default(now())
+  reviewedAt DateTime?
+  updatedAt  DateTime                 @updatedAt
+
+  user     User  @relation("VerificationRequester", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("VerificationReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt])
+  @@index([status, createdAt])
 }
