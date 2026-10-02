@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, ChevronLeft, ChevronRight, Image as ImageIcon, Loader2, Plus, Trash2, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { AccountBadge } from "@/components/account-badge";
 
 type Story = {
   id: string;
@@ -10,7 +11,7 @@ type Story = {
   caption: string | null;
   expiresAt: string;
   hasViewed?: boolean;
-  author: { id: string; name: string; username: string | null; image: string | null };
+  author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
 };
 
 export function StoryCenter({
@@ -204,7 +205,7 @@ export function StoryCenter({
                   {author.image ? <img src={author.image} alt="" className="size-14 rounded-[.9rem] object-cover" /> : <span className="grid size-14 place-items-center rounded-[.9rem] bg-gradient-to-br from-violet-500 to-sky-400 text-sm font-black text-white">{author.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()}</span>}
                 </div>
               </div>
-              <span className="mt-2 block truncate text-[10px] font-bold text-gray-500">{author.id === session?.user?.id ? "Your story" : author.name.split(" ")[0]}</span>
+              <span className="mt-2 flex items-center justify-center gap-1 truncate text-[10px] font-bold text-gray-500">{author.id === session?.user?.id ? "Your story" : author.name.split(" ")[0]}<AccountBadge verified={author.isVerified} owner={author.isOwner} /></span>
             </button>
           )) : (
             <div className="flex items-center gap-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3">
