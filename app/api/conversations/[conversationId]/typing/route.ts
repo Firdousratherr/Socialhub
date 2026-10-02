@@ -61,7 +61,7 @@ export async function POST(
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
-  const rl = await consumeRateLimit(rateLimitKey("typing", request, session.user.id), 30, 60);
+  const rl = await consumeRateLimit(rateLimitKey("typing", request, session.user.id), 90, 60);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
 
   const { conversationId } = await params;
