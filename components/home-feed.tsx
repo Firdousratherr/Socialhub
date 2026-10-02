@@ -715,7 +715,8 @@ export default function HomeFeed() {
       reactions: Array<{ emoji: string; count: number }>;
       myReaction: string | null;
       author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
-      _count: { likes: number; comments: number };\n      displayCounts?: { likes: number; comments: number; shares: number };
+      _count: { likes: number; comments: number };
+      displayCounts?: { likes: number; comments: number; shares: number };
     }, index: number) => ({
       id: item.id,
       authorId: item.authorId,
