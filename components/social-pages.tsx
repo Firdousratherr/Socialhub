@@ -2340,7 +2340,7 @@ function Notifications() {
     } else if (item.post?.id) {
       router.push("/home#post-" + encodeURIComponent(item.post.id));
     } else {
-      window.location.href = "/home";
+      router.push("/home");
     }
   }
 
