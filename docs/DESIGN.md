@@ -23,9 +23,9 @@ Socialhub should feel energetic, modern, trustworthy, and human — not corporat
 
 ### Mobile
 - Sticky compact header.
-- Bottom navigation with five primary actions.
+- Shared bottom navigation with five primary actions: Home, Discover, Messages, Notifications, Profile.
 - Full-width feed cards.
-- Composer opens as a focused sheet/modal.
+- The composer and post actions remain accessible without being covered by fixed navigation.
 - Avoid fixed elements covering CTAs or text inputs.
 
 ## Components
@@ -79,7 +79,7 @@ A post card contains:
 4. Media, when available
 5. Reaction summary
 6. Action row
-7. Comment preview/input
+7. Collapsed comment entry point, with the full thread expanded on demand
 
 Actions should preserve stable layout dimensions to prevent content jumping.
 
