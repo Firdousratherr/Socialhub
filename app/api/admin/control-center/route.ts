@@ -16,7 +16,7 @@ export async function GET() {
     prisma.announcement.findMany({ orderBy: { createdAt: "desc" }, take: 20, select: { id:true,title:true,body:true,audience:true,status:true,startsAt:true,endsAt:true,createdAt:true,updatedAt:true,createdBy:{select:{id:true,name:true,username:true}} } }),
     prisma.session.findMany({ where: { user: { role: { in: ["ADMIN","MODERATOR"] }, isActive: true } }, orderBy: { updatedAt: "desc" }, take: 50, select: { id:true,userId:true,createdAt:true,updatedAt:true,expiresAt:true,ipAddress:true,userAgent:true,user:{select:{id:true,name:true,username:true,role:true}} } }),
     prisma.adminLoginAttempt.findMany({ orderBy: { updatedAt: "desc" }, take: 50 }),
-    prisma.user.findMany({ where: { role: { in: ["ADMIN","MODERATOR"] } }, orderBy: { createdAt: "asc" }, select: { id:true,name:true,username:true,email:true,role:true,isActive:true,isOwner:true } }),
+    prisma.user.findMany({ where: { role: { in: ["ADMIN","MODERATOR"] } }, orderBy: { createdAt: "asc" }, select: { id:true,name:true,username:true,email:true,role:true,isActive:true,isOwner:true,twoFactorEnabled:true } }),
   ]);
   return NextResponse.json({ settings, flags, announcements, adminSessions, failedAttempts, admins, currentAdminId: access.user.id });
 }
