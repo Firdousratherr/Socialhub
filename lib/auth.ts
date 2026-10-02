@@ -59,6 +59,18 @@ export const auth = betterAuth({
         }),
       },
     },
+    session: {
+      create: {
+        before: async (session) => {
+          const row = await prisma.user.findUnique({
+            where: { id: session.userId },
+            select: { isActive: true, deletedAt: true, suspendedUntil: true },
+          });
+          if (!row?.isActive || row.deletedAt || (row.suspendedUntil && row.suspendedUntil > new Date())) return false;
+          return { data: session };
+        },
+      },
+    },
   },
   ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
     ? {
