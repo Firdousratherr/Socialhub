@@ -52,7 +52,7 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
     take: 100,
     include: {
-      author: { select: { id: true, name: true, username: true, image: true } },
+      author: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } },
     },
   });
 
