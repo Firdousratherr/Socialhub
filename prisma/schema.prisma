@@ -151,6 +151,7 @@ model User {
   changedFeatureFlags FeatureFlag[] @relation("FeatureFlagChanger")
   changedSystemSettings SystemSetting[] @relation("SystemSettingChanger")
   twoFactor TwoFactor?
+  adminMetricOverride AdminMetricOverride?
   profileViewsReceived ProfileView[] @relation("ProfileViewProfile")
   profileViewsMade ProfileView[] @relation("ProfileViewViewer")
   adminAuditLogs AdminAuditLog[] @relation("AdminAuditActor")
