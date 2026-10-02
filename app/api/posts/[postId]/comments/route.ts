@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { commentInputSchema } from "@/lib/validation";
 import { canViewPost } from "@/lib/post-access";
+import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 function decodeCursor(value: string | null) {
   if (!value) return null;
@@ -76,6 +77,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ post
 export async function POST(request: Request, { params }: { params: Promise<{ postId: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const rl = await consumeRateLimit(rateLimitKey("comments", request, session.user.id), 20, 60);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
   const { postId } = await params;
   const access = await canViewPost(postId, session.user.id);
   if (!access.allowed) return NextResponse.json({ error: "Post unavailable." }, { status: 404 });
