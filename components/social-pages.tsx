@@ -1073,6 +1073,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
             return <div key={message.id} className={mine ? "flex justify-end" : "flex items-end gap-2"}>
               {!mine ? <Avatar initials={message.sender.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} size="sm"/> : null}
               <div className="max-w-[76%]">
+                {!mine ? <p className="mb-1 flex items-center gap-1 pl-1 text-[10px] font-black text-gray-500">{message.sender.name}<AccountBadge verified={message.sender.isVerified} owner={message.sender.isOwner}/></p> : null}
                 {editingMessageId === message.id ? (
                   <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2 shadow-sm">
                     <textarea
