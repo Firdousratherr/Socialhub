@@ -18,6 +18,10 @@ const updateSchema = z.object({
   username: z.string().trim().regex(/^[A-Za-z0-9_]{3,30}$/).nullable().optional(),
   role: z.enum(["USER", "MODERATOR", "ADMIN"]).optional(),
   isActive: z.boolean().optional(),
+  suspensionReason: z.string().trim().max(500).nullable().optional(),
+  suspendedUntil: z.coerce.date().nullable().optional(),
+  deletedAt: z.coerce.date().nullable().optional(),
+  forcePasswordResetAt: z.coerce.date().nullable().optional(),
   isPrivate: z.boolean().optional(),
   emailVerified: z.boolean().optional(),
   isVerified: z.boolean().optional(),
@@ -46,7 +50,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   });
   if (!user) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
-  const [override, actualLikesReceived, actualCommentsReceived, actualShares, recentReports, recentAudit, recentSessions, recentVerification] = await Promise.all([
+  const [override, actualLikesReceived, actualCommentsReceived, actualShares, actualProfileViews, recentReports, recentAudit, recentSessions, recentVerification] = await Promise.all([
     prisma.adminMetricOverride.findUnique({ where: { userId } }),
     prisma.like.count({ where: { post: { authorId: userId } } }),
     prisma.comment.count({ where: { post: { authorId: userId } } }),
@@ -97,7 +101,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
       likesReceived: actualLikesReceived,
       commentsReceived: actualCommentsReceived,
       shares: actualShares._sum.shareCount ?? 0,
-      profileViews: 0,
+      profileViews: actualProfileViews,
     },
     recentReports,
     recentAudit,
@@ -223,6 +227,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
         details: JSON.stringify({ before, after: patch }),
       },
     });
+
+    if (patch.isActive === false) {
+      await prisma.session.deleteMany({ where: { userId } });
+    }
 
     const override = await prisma.adminMetricOverride.findUnique({ where: { userId } });
     return NextResponse.json({ user, override });
