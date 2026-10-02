@@ -6,6 +6,7 @@ import {
   ShieldCheck, Trash2, UserRound, Users, X,
 } from "lucide-react";
 import { AdminInspection } from "@/components/admin-inspection";
+import { AdminControlCenter } from "@/components/admin-control-center";
 import { AccountBadge } from "@/components/account-badge";
 
 type UserRow = {
@@ -141,6 +142,7 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
             {active === "overview" ? <Dashboard dashboard={dashboard} loading={loading}/> : null}
             {active === "analytics" ? <Analytics dashboard={dashboard} loading={loading}/> : null}
             {active === "audit" ? <Audit/> : null}
+            {active === "control" ? <AdminControlCenter/> : null}
             {active === "moderation" ? <ModerationQueue onMessage={setMessage}/> : null}
             {active === "verification" ? <VerificationQueue onMessage={setMessage}/> : null}
             {active === "content" ? <ContentManager onMessage={setMessage}/> : null}
