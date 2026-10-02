@@ -10,14 +10,12 @@ import { AccountBadge } from "@/components/account-badge";
 import { MobileMenu } from "@/components/mobile-menu";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
-  ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
+  ChevronRight, CircleHelp, Compass, Heart, Image as ImageIcon,
   KeyRound, Lock, LogIn, Mail, MessageCircle, MoreHorizontal, Pencil, Plus,
   Paperclip, Search, Send, Settings, Shield, ShieldOff, Sparkles, Trash2, UserPlus, Users, X
 } from "lucide-react";
 
 type Screen = { kind: string; username?: string; section?: string; search?: string };
-
-const googleAuthEnabled = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true";
 
 const colors = [
   "from-violet-500 to-sky-400",
