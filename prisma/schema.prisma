@@ -13,6 +13,29 @@ enum UserRole {
   ADMIN
 }
 
+
+enum AdminPermissionKey {
+  USERS_VIEW
+  USERS_EDIT
+  USERS_SECURITY
+  USERS_BULK
+  CONTENT_VIEW
+  CONTENT_MODERATE
+  MESSAGES_VIEW
+  REPORTS_MANAGE
+  VERIFICATION_MANAGE
+  ANALYTICS_VIEW
+  AUDIT_VIEW
+  AUDIT_EXPORT
+  PLATFORM_SETTINGS
+  FEATURE_FLAGS
+  ANNOUNCEMENTS
+  STORAGE_VIEW
+  SECURITY_MANAGE
+  ADMIN_MANAGE
+  PRIVACY_OPERATIONS
+}
+
 enum PostVisibility {
   PUBLIC
   FRIENDS
@@ -118,6 +141,10 @@ model User {
   performedVerificationAudits VerificationAudit[] @relation("VerificationAdmin")
   verificationRequests VerificationRequest[] @relation("VerificationRequester")
   reviewedVerificationRequests VerificationRequest[] @relation("VerificationReviewer")
+  adminPermissions AdminPermission[] @relation("AdminPermissionUser")
+  createdAnnouncements Announcement[] @relation("AnnouncementCreator")
+  changedFeatureFlags FeatureFlag[] @relation("FeatureFlagChanger")
+  changedSystemSettings SystemSetting[] @relation("SystemSettingChanger")
 
   @@index([createdAt])
   @@index([role])
@@ -627,4 +654,56 @@ model UploadUsage {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+
+model AdminPermission {
+  id         String             @id @default(cuid())
+  adminId    String
+  permission AdminPermissionKey
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  admin      User               @relation("AdminPermissionUser", fields: [adminId], references: [id], onDelete: Cascade)
+  @@unique([adminId, permission])
+  @@index([permission])
+}
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedBy   User?    @relation("SystemSettingChanger", fields: [updatedById], references: [id], onDelete: SetNull)
+  @@index([updatedById])
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  enabled     Boolean  @default(false)
+  description String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedBy   User?    @relation("FeatureFlagChanger", fields: [updatedById], references: [id], onDelete: SetNull)
+  @@index([updatedById])
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  body        String
+  audience    String   @default("ALL")
+  status      String   @default("DRAFT")
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   User     @relation("AnnouncementCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  @@index([status, startsAt])
+  @@index([createdById, createdAt])
 }
