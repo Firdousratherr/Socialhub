@@ -158,6 +158,7 @@ test("production schema recovery handles Prisma failed-migration state without P
   const script = read("scripts/ensure-production-schema.mjs");
   const pinnedMigration = read("prisma/migrations/20261002140000_pinned_posts/migration.sql");
   assert.match(script, /P3009/);
+  assert.match(script, /P3018/);
   assert.match(script, /db", "push/);
   assert.doesNotMatch(script, /--skip-generate/);
   assert.match(script, /migrate", "resolve", "--applied/);
