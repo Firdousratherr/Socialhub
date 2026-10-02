@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdminOnly } from "@/app/api/admin/_auth";
+import { requireAdminPermission } from "@/lib/admin-permissions";
 
 export async function GET(request: Request) {
-  const authResult = await requireAdminOnly();
+  const authResult = await requireAdminPermission("USERS_VIEW");
   if (authResult.response) return authResult.response;
 
   const url = new URL(request.url);
