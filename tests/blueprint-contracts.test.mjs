@@ -312,3 +312,13 @@ test("home feed uses one shared post mapper and one shared mobile navigation", (
   assert.doesNotMatch(home, /fixed inset-x-2 bottom-2/);
   assert.match(nav, /href: "\/messages"/);
 });
+
+
+test("admin post deletion cleans media and broadcasts feed invalidation", () => {
+  const route = read("app/api/admin/posts/route.ts");
+  const panel = read("components/admin-panel.tsx");
+  assert.match(route, /safeDeleteBlob\(post\.mediaUrl\)/);
+  assert.match(route, /mediaUrl: true/);
+  assert.match(panel, /emitPostSyncEvent/);
+  assert.match(panel, /type: "deleted", postId: id/);
+});
