@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { areFriends, isBlocked } from "@/lib/social-access";
+import { getPostDisplayCountsMap } from "@/lib/post-metrics";
 
 function decodeCursor(value: string | null) {
   if (!value) return null;
@@ -85,8 +86,20 @@ export async function GET(
 
   const hasMore = rows.length > take;
   const posts = rows.slice(0, take);
+  const postDisplayCounts = await getPostDisplayCountsMap(posts.map((post) => post.id));
+  const visiblePosts = posts.map((post) => {
+    const display = postDisplayCounts.get(post.id);
+    return {
+      ...post,
+      displayCounts: {
+        likes: display?.likes ?? post._count.likes,
+        comments: display?.comments ?? post._count.comments,
+        shares: display?.shares ?? post.shareCount,
+      },
+    };
+  });
   return NextResponse.json({
-    posts,
+    posts: visiblePosts,
     nextBefore: hasMore && posts.length ? encodeCursor(posts.at(-1)!.createdAt, posts.at(-1)!.id) : null,
   });
 }
