@@ -18,7 +18,7 @@ export async function GET() {
     select: {
       id: true, name: true, email: true, username: true, bio: true,
       image: true, coverImage: true, website: true, location: true,
-      isPrivate: true, role: true, createdAt: true,
+      isPrivate: true, role: true, isVerified: true, isOwner: true, verifiedAt: true, ownerSince: true, createdAt: true,
       _count: { select: { posts: true, followers: true, following: true } },
       posts: {
         orderBy: { createdAt: "desc" },
@@ -69,7 +69,7 @@ export async function PATCH(request: Request) {
       select: {
         id: true, name: true, email: true, username: true, bio: true,
         image: true, coverImage: true, website: true, location: true,
-        isPrivate: true, role: true,
+        isPrivate: true, role: true, isVerified: true, isOwner: true, verifiedAt: true, ownerSince: true,
       },
     });
 
