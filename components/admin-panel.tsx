@@ -112,8 +112,12 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
     const json = await response.json();
     if (!response.ok) { setMessage(json.error ?? "Could not update user."); return; }
     setSelected((current) => current ? { ...current, ...json.user } : current);
+    setSelectedDetails((current) => current ? {
+      ...current,
+      override: json.override ?? (patch.metrics !== undefined ? null : current.override),
+    } : current);
     setUsers((items) => items.map((item) => item.id === selectedId ? { ...item, ...json.user } : item));
-    setMessage("User updated.");
+    setMessage(patch.metrics !== undefined ? "Profile metrics updated and audited." : "User updated.");
   }
 
   const nav = [
@@ -190,6 +194,7 @@ function UserEditor({ user, details, onBack, onSaveUser }: { user: UserRow; deta
 function MetricControlCard({details,saving,onSave}:{details:any;saving:boolean;onSave:(metrics:Record<string,number|null>)=>void}) {
   const actual=details?.actualMetrics ?? {};
   const override=details?.override ?? {};
+  const canEditMetrics=details?.canEditMetrics !== false;
   const fields=[
     ["posts","Posts"],["followers","Followers"],["following","Following"],
     ["likesReceived","Likes received"],["commentsReceived","Comments received"],
@@ -211,18 +216,18 @@ function MetricControlCard({details,saving,onSave}:{details:any;saving:boolean;o
   return <Card>
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div><h3 className="text-sm font-black">Profile metrics control</h3><p className="mt-1 text-xs text-gray-400">Set public profile counters without changing real relationship, post, like or comment records. Blank values use live database totals.</p></div>
-      <span className="rounded-full bg-violet-50 px-3 py-1.5 text-[10px] font-black text-violet-700">Admin only</span>
+      <span className={"rounded-full px-3 py-1.5 text-[10px] font-black "+(canEditMetrics?"bg-violet-50 text-violet-700":"bg-gray-100 text-gray-500")}>{canEditMetrics?"Admin only":"View only"}</span>
     </div>
     <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {fields.map(([key,label])=><div key={key} className="rounded-2xl bg-gray-50 p-4">
         <div className="flex items-center justify-between gap-2"><label className="text-[10px] font-black uppercase tracking-[.1em] text-gray-400">{label}</label><span className="text-[10px] font-bold text-gray-400">Live {actual[key] ?? 0}</span></div>
-        <input inputMode="numeric" value={draft[key] ?? ""} onChange={e=>update(key,e.target.value)} placeholder={String(actual[key] ?? 0)} disabled={saving} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-black outline-none focus:border-[#a79dff]" />
+        <input inputMode="numeric" value={draft[key] ?? ""} onChange={e=>update(key,e.target.value)} placeholder={String(actual[key] ?? 0)} disabled={saving || !canEditMetrics} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-black outline-none focus:border-[#a79dff]" />
         <p className="mt-1 text-[9px] text-gray-400">{override[key] == null ? "Using live value" : "Override active"}</p>
       </div>)}
     </div>
     <div className="mt-4 flex flex-wrap gap-2">
-      <button type="button" disabled={saving} onClick={save} className="rounded-xl bg-gray-950 px-4 py-2.5 text-[10px] font-black text-white disabled:opacity-50">Save metrics</button>
-      <button type="button" disabled={saving} onClick={reset} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[10px] font-black text-gray-700 disabled:opacity-50">Reset all to live</button>
+      <button type="button" disabled={saving || !canEditMetrics} onClick={save} className="rounded-xl bg-gray-950 px-4 py-2.5 text-[10px] font-black text-white disabled:opacity-50">Save metrics</button>
+      <button type="button" disabled={saving || !canEditMetrics} onClick={reset} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[10px] font-black text-gray-700 disabled:opacity-50">Reset all to live</button>
     </div>
   </Card>;
 }
