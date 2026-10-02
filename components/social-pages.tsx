@@ -8,6 +8,7 @@ import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
 import { MobileMenu } from "@/components/mobile-menu";
+import { BottomNav } from "@/components/bottom-nav";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
@@ -55,7 +56,7 @@ function Page({
   }
 
   return (
-    <main className="min-h-screen pb-8">
+    <main className="min-h-screen pb-24 md:pb-8">
       <div className="mx-auto max-w-[1100px] px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="mb-6 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
@@ -75,6 +76,7 @@ function Page({
         </div>
         {children}
       </div>
+      <BottomNav />
     </main>
   );
 }
