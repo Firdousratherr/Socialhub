@@ -97,6 +97,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
   if (before.isOwner && patch.isVerified === false) {
     return NextResponse.json({ error: "The owner account cannot have its verification badge removed." }, { status: 400 });
   }
+  if (before.isOwner && access.user.id !== userId && (patch.role !== undefined || patch.isActive !== undefined || patch.emailVerified !== undefined)) {
+    return NextResponse.json({ error: "The owner account is protected from role, activation and email-verification changes by other administrators." }, { status: 403 });
+  }
   if (patch.role && patch.role !== before.role && access.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Only administrators can change user roles." }, { status: 403 });
   }
@@ -129,6 +132,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
           adminId: access.session!.user.id,
           action: patch.isVerified ? "GRANTED" : "REVOKED",
           reason: patch.isVerified ? "Verified by an administrator." : "Verification removed by an administrator.",
+        },
+      });
+    }
+    if (verificationChanged) {
+      await prisma.notification.create({
+        data: {
+          userId,
+          actorId: access.session!.user.id,
+          type: "SYSTEM",
         },
       });
     }
