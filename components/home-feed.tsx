@@ -833,6 +833,8 @@ export default function HomeFeed() {
         handle: `@${item.author.username ?? "member"}`,
         initials: item.author.name.split(" ").map((part: string) => part[0]).join("").slice(0, 2).toUpperCase(),
         authorImage: item.author.image,
+        authorVerified: Boolean(item.author.isVerified),
+        authorOwner: Boolean(item.author.isOwner),
         timestamp: "just now",
         copy: item.content ?? "Shared a new moment.",
         mediaUrl: item.mediaUrl,
