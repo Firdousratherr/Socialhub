@@ -6,13 +6,35 @@ ALTER TABLE "User"
   ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3),
   ADD COLUMN IF NOT EXISTS "forcePasswordResetAt" TIMESTAMP(3);
 
-ALTER TABLE "AdminMetricOverride"
-  ADD CONSTRAINT "AdminMetricOverride_userId_fkey"
-  FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'AdminMetricOverride_userId_fkey'
+      AND conrelid = '"AdminMetricOverride"'::regclass
+  ) THEN
+    ALTER TABLE "AdminMetricOverride"
+      ADD CONSTRAINT "AdminMetricOverride_userId_fkey"
+      FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END
+$$;
 
-ALTER TABLE "AdminAuditLog"
-  ADD CONSTRAINT "AdminAuditLog_adminId_fkey"
-  FOREIGN KEY ("adminId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'AdminAuditLog_adminId_fkey'
+      AND conrelid = '"AdminAuditLog"'::regclass
+  ) THEN
+    ALTER TABLE "AdminAuditLog"
+      ADD CONSTRAINT "AdminAuditLog_adminId_fkey"
+      FOREIGN KEY ("adminId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END
+$$;
 
 ALTER TABLE "UploadUsage"
   ADD COLUMN IF NOT EXISTS "url" TEXT,
@@ -32,13 +54,35 @@ CREATE TABLE IF NOT EXISTS "ProfileView" (
 CREATE INDEX IF NOT EXISTS "ProfileView_profileId_viewedAt_idx" ON "ProfileView"("profileId","viewedAt");
 CREATE INDEX IF NOT EXISTS "ProfileView_viewerId_viewedAt_idx" ON "ProfileView"("viewerId","viewedAt");
 
-ALTER TABLE "ProfileView"
-  ADD CONSTRAINT "ProfileView_profileId_fkey"
-  FOREIGN KEY ("profileId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'ProfileView_profileId_fkey'
+      AND conrelid = '"ProfileView"'::regclass
+  ) THEN
+    ALTER TABLE "ProfileView"
+      ADD CONSTRAINT "ProfileView_profileId_fkey"
+      FOREIGN KEY ("profileId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END
+$$;
 
-ALTER TABLE "ProfileView"
-  ADD CONSTRAINT "ProfileView_viewerId_fkey"
-  FOREIGN KEY ("viewerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'ProfileView_viewerId_fkey'
+      AND conrelid = '"ProfileView"'::regclass
+  ) THEN
+    ALTER TABLE "ProfileView"
+      ADD CONSTRAINT "ProfileView_viewerId_fkey"
+      FOREIGN KEY ("viewerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS "RateLimitBucket" (
   "id" TEXT NOT NULL,

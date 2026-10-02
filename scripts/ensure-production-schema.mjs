@@ -27,56 +27,35 @@ const listMigrations = () =>
     .filter((name) => name !== "migration_lock.toml")
     .sort();
 
-const markMigrationsAppliedFrom = (migrationName) => {
-  for (const migration of listMigrations().filter((name) => name >= migrationName)) {
-    run(["migrate", "resolve", "--applied", migration]);
+const markAllMigrationsApplied = () => {
+  for (const migration of listMigrations()) {
+    try {
+      run(["migrate", "resolve", "--applied", migration]);
+    } catch (error) {
+      const output = errorOutput(error);
+      if (!output.includes("P3008") && !/already recorded as applied/i.test(output)) {
+        throw error;
+      }
+    }
   }
 };
 
-const bootstrapExistingSchema = () => {
+const synchronizeProductionSchema = () => {
   console.warn("Synchronizing the committed Prisma schema with the existing production database.");
   run(["db", "push"]);
-  for (const migration of listMigrations()) {
-    run(["migrate", "resolve", "--applied", migration]);
-  }
+  markAllMigrationsApplied();
 };
 
 try {
-  run(["migrate", "deploy"]);
+  // Production already contains the application schema and may have migration-history
+  // failures from earlier deployments. Reconcile the actual schema first, then make
+  // Prisma's migration ledger reflect that schema. This avoids retrying a known-bad
+  // migration during a Vercel build.
+  synchronizeProductionSchema();
   process.exit(0);
 } catch (error) {
-  const output = errorOutput(error);
-
-  if (output.includes("P3009")) {
-    const failedMigration = output.match(/The `([^`]+)` migration started .* failed/)?.[1];
-    if (!failedMigration) throw error;
-
-    console.warn(`Recovering failed production migration ${failedMigration}.`);
-    run(["migrate", "resolve", "--rolled-back", failedMigration]);
-
-    try {
-      run(["migrate", "deploy"]);
-      process.exit(0);
-    } catch (retryError) {
-      const retryOutput = errorOutput(retryError);
-      if (retryOutput.includes("P3005") || retryOutput.includes("database schema is not empty")) {
-        bootstrapExistingSchema();
-        process.exit(0);
-      }
-      if (retryOutput.includes("P3009")) {
-        console.warn(`Migration ${failedMigration} still cannot be replayed; reconciling the live schema instead.`);
-        run(["db", "push"]);
-        markMigrationsAppliedFrom(failedMigration);
-        process.exit(0);
-      }
-      throw retryError;
-    }
-  }
-
-  if (output.includes("P3005") || output.includes("database schema is not empty")) {
-    bootstrapExistingSchema();
-    process.exit(0);
-  }
-
-  throw error;
+  throw new Error(
+    `Prisma production schema synchronization failed.\n${errorOutput(error)}`,
+    { cause: error },
+  );
 }

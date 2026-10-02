@@ -142,13 +142,26 @@ test("two-factor authentication is wired through server, client and route", () =
 });
 
 
-test("production schema recovery handles Prisma failed-migration state without Prisma 7 db push flags", () => {
+test("production hardening migrations tolerate already-present foreign keys", () => {
+  const hardening = read("prisma/migrations/20261002170000_production_hardening/migration.sql");
+  const twoFactor = read("prisma/migrations/20261002172000_two_factor/migration.sql");
+  assert.match(hardening, /pg_constraint/);
+  assert.match(hardening, /AdminMetricOverride_userId_fkey/);
+  assert.match(hardening, /AdminAuditLog_adminId_fkey/);
+  assert.match(hardening, /ProfileView_profileId_fkey/);
+  assert.match(hardening, /ProfileView_viewerId_fkey/);
+  assert.match(twoFactor, /pg_constraint/);
+  assert.match(twoFactor, /TwoFactor_userId_fkey/);
+});
+
+test("production schema recovery synchronizes the committed schema before reconciling Prisma migration history", () => {
   const script = read("scripts/ensure-production-schema.mjs");
   const pinnedMigration = read("prisma/migrations/20261002140000_pinned_posts/migration.sql");
-  assert.match(script, /P3009/);
-  assert.match(script, /db", "push/);
+  assert.match(script, /const synchronizeProductionSchema/);
+  assert.match(script, /run\(\["db", "push"\]\);/);
+  assert.match(script, /markAllMigrationsApplied\(\);/);
+  assert.doesNotMatch(script, /migrate", "deploy/);
   assert.doesNotMatch(script, /--skip-generate/);
-  assert.match(script, /migrate", "resolve", "--applied/);
   assert.match(pinnedMigration, /ADD COLUMN IF NOT EXISTS/);
   assert.match(pinnedMigration, /CREATE INDEX IF NOT EXISTS/);
 });
