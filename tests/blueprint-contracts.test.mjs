@@ -34,7 +34,7 @@ test("deep-linked posts can be resolved from the post endpoint", () => {
   const feed = read("components/home-feed.tsx");
   const route = read("app/api/posts/[postId]/route.ts");
   assert.match(feed, /startsWith\("post-"\)/);
-  assert.match(feed, /fetch\("/api/posts/"/);
+  assert.ok(feed.includes('fetch("/api/posts/'));
   assert.match(route, /export async function GET/);
 });
 
