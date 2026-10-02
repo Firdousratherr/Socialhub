@@ -43,29 +43,23 @@ export async function GET(request: Request, { params }: { params: Promise<{ post
   const url = new URL(request.url);
   const cursor = decodeCursor(url.searchParams.get("before"));
   const take = Math.min(Math.max(Number(url.searchParams.get("take") ?? 30), 1), 50);
-  const where = {
+  const countWhere = {
     postId,
     ...blockedAuthorWhere(viewerId),
-    ...(cursor ? {
-      OR: [
-        { createdAt: { lt: cursor.createdAt } },
-        { createdAt: cursor.createdAt, id: { lt: cursor.id } },
-      ],
-    } : {}),
   };
   const [comments, commentCount] = await Promise.all([
     prisma.comment.findMany({
-    where: {
-      postId,
-      parentId: null,
-      ...blockedAuthorWhere(viewerId),
-      ...(cursor ? {
-        OR: [
-          { createdAt: { lt: cursor.createdAt } },
-          { createdAt: cursor.createdAt, id: { lt: cursor.id } },
-        ],
-      } : {}),
-    },
+      where: {
+        postId,
+        parentId: null,
+        ...blockedAuthorWhere(viewerId),
+        ...(cursor ? {
+          OR: [
+            { createdAt: { lt: cursor.createdAt } },
+            { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+          ],
+        } : {}),
+      },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: take + 1,
     include: {
@@ -78,7 +72,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ post
       },
     },
     }),
-    prisma.comment.count({ where }),
+    prisma.comment.count({ where: countWhere }),
   ]);
 
   const hasMore = comments.length > take;
