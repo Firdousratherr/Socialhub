@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/app/api/admin/_auth";
+import { requireAdminPermission } from "@/lib/admin-permissions";
 
 export async function GET() {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("ANALYTICS_VIEW");
   if (access.response) return access.response;
 
   const [users, activeUsers, verifiedUsers, ownerUsers, pendingVerificationRequests, posts, likes, comments, follows, messages, stories, pendingReports, recentUsers, recentPosts, recentAudit] =
