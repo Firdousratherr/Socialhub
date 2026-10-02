@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: 51,
     include: {
-      actor: { select: { id: true, name: true, username: true, image: true } },
+      actor: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } },
       post: { select: { id: true, content: true, mediaUrl: true } },
       comment: { select: { id: true, content: true } },
       message: { select: { id: true, conversationId: true } },
