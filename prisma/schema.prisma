@@ -105,6 +105,10 @@ model User {
   verifiedAt    DateTime?
   isOwner       Boolean   @default(false)
   ownerSince    DateTime?
+  suspensionReason String?
+  suspendedUntil DateTime?
+  deletedAt DateTime?
+  forcePasswordResetAt DateTime?
 
   sessions      Session[]
   accounts      Account[]
@@ -145,6 +149,9 @@ model User {
   createdAnnouncements Announcement[] @relation("AnnouncementCreator")
   changedFeatureFlags FeatureFlag[] @relation("FeatureFlagChanger")
   changedSystemSettings SystemSetting[] @relation("SystemSettingChanger")
+  profileViewsReceived ProfileView[] @relation("ProfileViewProfile")
+  profileViewsMade ProfileView[] @relation("ProfileViewViewer")
+  adminAuditLogs AdminAuditLog[] @relation("AdminAuditActor")
 
   @@index([createdAt])
   @@index([role])
@@ -510,6 +517,7 @@ model Block {
 model AdminMetricOverride {
   id              String   @id @default(cuid())
   userId          String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   followers       Int?
   following       Int?
   posts           Int?
@@ -526,6 +534,7 @@ model AdminMetricOverride {
 model AdminAuditLog {
   id          String   @id @default(cuid())
   adminId     String
+  admin       User   @relation("AdminAuditActor", fields: [adminId], references: [id], onDelete: Cascade)
   action      String
   targetType  String
   targetId    String?
@@ -649,11 +658,15 @@ model UploadUsage {
   id        String   @id @default(cuid())
   userId    String
   bytes     Int
+  url       String?
+  pathname  String?
+  mimeType  String?
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([createdAt, bytes])
 }
 
 
@@ -706,4 +719,29 @@ model Announcement {
   createdBy   User     @relation("AnnouncementCreator", fields: [createdById], references: [id], onDelete: Cascade)
   @@index([status, startsAt])
   @@index([createdById, createdAt])
+}
+
+
+model ProfileView {
+  id        String   @id @default(cuid())
+  profileId String
+  viewerId  String?
+  viewedAt  DateTime @default(now())
+
+  profile User @relation("ProfileViewProfile", fields: [profileId], references: [id], onDelete: Cascade)
+  viewer  User? @relation("ProfileViewViewer", fields: [viewerId], references: [id], onDelete: SetNull)
+
+  @@index([profileId, viewedAt])
+  @@index([viewerId, viewedAt])
+}
+
+model RateLimitBucket {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  count     Int      @default(0)
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
 }
