@@ -76,7 +76,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("CONTENT_MODERATE");
   if (access.response) return access.response;
 
   const body = await request.json().catch(() => null);
@@ -117,7 +117,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("CONTENT_MODERATE");
   if (access.response) return access.response;
 
   const body = await request.json().catch(() => null);
