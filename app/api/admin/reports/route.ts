@@ -89,7 +89,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("REPORTS_MANAGE");
   if (access.response) return access.response;
 
   const parsed = updateSchema.safeParse(await request.json().catch(() => null));
@@ -131,7 +131,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("REPORTS_MANAGE");
   if (access.response) return access.response;
 
   const parsed = actionSchema.safeParse(await request.json().catch(() => null));
