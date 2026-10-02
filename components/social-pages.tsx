@@ -377,9 +377,178 @@ type ProfileData = {
     mediaUrl: string | null;
     isPinned: boolean;
     createdAt: string;
+    shareCount?: number;
+    liked?: boolean;
+    saved?: boolean;
     _count: { likes: number; comments: number };
   }>;
 };
+
+function ProfilePostCard({
+  post,
+  displayName,
+  image,
+  verified,
+  owner,
+  isOwner,
+  onRemove,
+  onPinnedChange,
+}: {
+  post: NonNullable<ProfileData["posts"]>[number];
+  displayName: string;
+  image: string | null;
+  verified: boolean;
+  owner: boolean;
+  isOwner: boolean;
+  onRemove: (postId: string) => void;
+  onPinnedChange: (postId: string, pinned: boolean) => void;
+}) {
+  const router = useRouter();
+  const [liked, setLiked] = useState(Boolean(post.liked));
+  const [saved, setSaved] = useState(Boolean(post.saved));
+  const [likeCount, setLikeCount] = useState(post._count.likes);
+  const [shareCount, setShareCount] = useState(post.shareCount ?? 0);
+  const [pinned, setPinned] = useState(post.isPinned);
+  const [busy, setBusy] = useState<"like" | "save" | "share" | "report" | "delete" | "pin" | null>(null);
+  const [message, setMessage] = useState("");
+
+  async function toggleLike() {
+    if (busy) return;
+    setBusy("like");
+    try {
+      const response = await fetch("/api/posts/" + post.id + "/like", { method: liked ? "DELETE" : "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not update like.");
+      setLiked(Boolean(json.liked));
+      setLikeCount(Number(json.count ?? likeCount + (json.liked ? 1 : -1)));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update like.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function toggleSave() {
+    if (busy) return;
+    setBusy("save");
+    try {
+      const response = await fetch("/api/posts/" + post.id + "/save", { method: saved ? "DELETE" : "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not update saved status.");
+      setSaved(Boolean(json.saved));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update saved status.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sharePost() {
+    if (busy) return;
+    const url = window.location.origin + "/home#post-" + post.id;
+    setBusy("share");
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Socialhub post",
+          text: (post.content ?? "Shared a new moment.").slice(0, 120),
+          url,
+        });
+      } else {
+        await navigator.clipboard.writeText(url);
+      }
+      const response = await fetch("/api/posts/" + post.id + "/share", { method: "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (response.ok) setShareCount(Number(json.shareCount ?? shareCount + 1));
+      setMessage("Post link ready to share.");
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setMessage(error instanceof Error ? error.message : "Could not share post.");
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function reportPost() {
+    const reason = window.prompt("Why are you reporting this post?", "Spam or misleading content");
+    if (!reason?.trim() || busy) return;
+    setBusy("report");
+    try {
+      const response = await fetch("/api/posts/" + post.id + "/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not report this post.");
+      setMessage("Report submitted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not report this post.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function togglePin() {
+    if (!isOwner || busy) return;
+    setBusy("pin");
+    try {
+      const response = await fetch("/api/posts/" + post.id + "/pin", { method: pinned ? "DELETE" : "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not update pinned state.");
+      const next = !pinned;
+      setPinned(next);
+      onPinnedChange(post.id, next);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update pinned state.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deletePost() {
+    if (!isOwner || busy || !window.confirm("Delete this post permanently?")) return;
+    setBusy("delete");
+    try {
+      const response = await fetch("/api/posts/" + post.id, { method: "DELETE" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not delete this post.");
+      onRemove(post.id);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not delete this post.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <article className={"rounded-2xl border p-4 " + (pinned ? "border-[#d9d4ff] bg-[#f8f7ff]" : "border-gray-100 bg-gray-50")}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          {image ? <img src={image} alt="" className="size-9 rounded-full object-cover"/> : <Avatar initials={displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="sm"/>}
+          <div className="min-w-0">
+            <p className="flex items-center gap-1 text-xs font-black">{displayName}<AccountBadge verified={verified} owner={owner}/></p>
+            <p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {isOwner ? <button type="button" onClick={() => void togglePin()} disabled={Boolean(busy)} className={"rounded-xl px-2.5 py-1.5 text-[10px] font-black " + (pinned ? "bg-[#6d5dfc] text-white" : "border border-gray-200 bg-white text-gray-500")}>{busy === "pin" ? "…" : pinned ? "Pinned" : "Pin"}</button> : pinned ? <span className="rounded-full bg-[#eeebff] px-2.5 py-1 text-[10px] font-black text-[#5a4be8]">Pinned</span> : null}
+          {isOwner ? <button type="button" onClick={() => void deletePost()} disabled={Boolean(busy)} className="grid size-8 place-items-center rounded-xl border border-red-100 bg-white text-red-500" aria-label="Delete post"><Trash2 size={14}/></button> : <button type="button" onClick={() => void reportPost()} disabled={Boolean(busy)} className="grid size-8 place-items-center rounded-xl border border-gray-200 bg-white text-gray-500" aria-label="Report post"><Shield size={14}/></button>}
+        </div>
+      </div>
+      {post.content ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-600">{post.content}</p> : null}
+      {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+        <button type="button" onClick={() => void toggleLike()} disabled={Boolean(busy)} className={"inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[10px] font-black " + (liked ? "bg-rose-50 text-rose-600" : "bg-white text-gray-500")}><Heart size={14} fill={liked ? "currentColor" : "none"}/>{likeCount}</button>
+        <button type="button" onClick={() => router.push("/home#post-" + encodeURIComponent(post.id))} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[10px] font-black text-gray-500"><MessageCircle size={14}/>{post._count.comments}</button>
+        <button type="button" onClick={() => void toggleSave()} disabled={Boolean(busy)} className={"inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[10px] font-black " + (saved ? "bg-[#eeebff] text-[#5a4be8]" : "bg-white text-gray-500")}><Bookmark size={14} fill={saved ? "currentColor" : "none"}/>Save</button>
+        <button type="button" onClick={() => void sharePost()} disabled={Boolean(busy)} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[10px] font-black text-gray-500"><Share2 size={14}/>Share{shareCount ? " · " + shareCount : ""}</button>
+      </div>
+      {message ? <p className="mt-2 text-[10px] font-bold text-[#5a4be8]">{message}</p> : null}
+    </article>
+  );
+}
 
 function Profile({ username = "firdous" }: { username?: string }) {
   const { data: session } = authClient.useSession();
@@ -410,6 +579,10 @@ function Profile({ username = "firdous" }: { username?: string }) {
     mutualHidden?: boolean;
   } | null>(null);
   const [loadingRelationships, setLoadingRelationships] = useState(false);
+  const [nextRelationshipBefore, setNextRelationshipBefore] = useState<string | null>(null);
+  const [loadingMoreRelationships, setLoadingMoreRelationships] = useState(false);
+  const [nextProfilePostsCursor, setNextProfilePostsCursor] = useState<string | null>(null);
+  const [loadingMoreProfilePosts, setLoadingMoreProfilePosts] = useState(false);
   const [form, setForm] = useState({
     name: "",
     username,
@@ -476,6 +649,40 @@ function Profile({ username = "firdous" }: { username?: string }) {
   }, [session?.user?.id, username]);
 
   useEffect(() => {
+    if (!profile) return;
+    let cancelled = false;
+    void fetch("/api/users/" + encodeURIComponent(profile.username ?? username) + "/posts?take=20", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(json.error ?? "Could not load profile posts.");
+        if (!cancelled) {
+          setProfile((current) => current ? { ...current, posts: json.posts ?? [] } : current);
+          setNextProfilePostsCursor(json.nextBefore ?? null);
+        }
+      })
+      .catch((requestError) => {
+        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load profile posts.");
+      });
+    return () => { cancelled = true; };
+  }, [profile?.id, profile?.username, username]);
+
+  async function loadMoreProfilePosts() {
+    if (!profile || !nextProfilePostsCursor || loadingMoreProfilePosts) return;
+    setLoadingMoreProfilePosts(true);
+    try {
+      const response = await fetch("/api/users/" + encodeURIComponent(profile.username ?? username) + "/posts?take=20&before=" + encodeURIComponent(nextProfilePostsCursor), { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not load older profile posts.");
+      setProfile((current) => current ? { ...current, posts: [...(current.posts ?? []), ...(json.posts ?? [])] } : current);
+      setNextProfilePostsCursor(json.nextBefore ?? null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not load older profile posts.");
+    } finally {
+      setLoadingMoreProfilePosts(false);
+    }
+  }
+
+  useEffect(() => {
     if (profileTab !== "friends" || !profile) return;
     let cancelled = false;
     void fetch(isOwner ? "/api/friends" : "/api/users/" + encodeURIComponent(profile.id) + "/friends", { cache: "no-store" })
@@ -503,11 +710,31 @@ function Profile({ username = "firdous" }: { username?: string }) {
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error ?? "Could not load relationships.");
       setRelationships(json);
+      setNextRelationshipBefore(view === "followers" ? (json.nextFollowersBefore ?? null) : view === "following" ? (json.nextFollowingBefore ?? null) : null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not load relationships.");
       setRelationshipView(null);
     } finally {
       setLoadingRelationships(false);
+    }
+  }
+
+  async function loadMoreRelationships(view: "followers" | "following") {
+    if (!profile || !nextRelationshipBefore || loadingMoreRelationships) return;
+    setLoadingMoreRelationships(true);
+    try {
+      const response = await fetch("/api/users/" + encodeURIComponent(profile.id) + "/relationships?list=" + view + "&take=50&before=" + encodeURIComponent(nextRelationshipBefore), { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not load more relationships.");
+      setRelationships((current) => current ? {
+        ...current,
+        [view]: [...(current[view] ?? []), ...(json[view] ?? [])],
+      } : current);
+      setNextRelationshipBefore(json.nextBefore ?? null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not load more relationships.");
+    } finally {
+      setLoadingMoreRelationships(false);
     }
   }
 
@@ -587,6 +814,9 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const postCount = profile?._count.posts ?? 0;
   const followerCount = profile?._count.followers ?? 0;
   const followingCount = profile?._count.following ?? 0;
+  const visibleProfilePosts = (profile?.posts ?? []).filter((post) =>
+    profileTab === "photos" ? Boolean(post.mediaUrl) : true,
+  );
   const initials = displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase() || "SH";
 
   async function toggleFollow() {
@@ -949,10 +1179,13 @@ function Profile({ username = "firdous" }: { username?: string }) {
                     if (hidden) {
                       return <div className="p-8 text-center"><Lock className="mx-auto text-gray-400" size={20}/><p className="mt-3 text-sm font-black">This list is private</p><p className="mt-1 text-xs text-gray-400">The account owner has chosen not to show this relationship list.</p></div>;
                     }
-                    return list.length ? list.map((person) => <Link key={person.id} href={"/profile/" + encodeURIComponent(person.username ?? person.id)} onClick={() => setRelationshipView(null)} className="flex items-center gap-3 rounded-2xl p-3 hover:bg-gray-50">
-                      {person.image ? <img src={person.image} alt="" className="size-11 rounded-full object-cover"/> : <span className="grid size-11 place-items-center rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{person.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()}</span>}
-                      <span className="min-w-0"><span className="flex items-center gap-1 truncate text-sm font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-xs text-gray-400">@{person.username ?? "member"}</span></span>
-                    </Link>) : <div className="p-8 text-center text-xs text-gray-400">No accounts to show.</div>;
+                    return list.length ? <>
+                      {list.map((person) => <Link key={person.id} href={"/profile/" + encodeURIComponent(person.username ?? person.id)} onClick={() => setRelationshipView(null)} className="flex items-center gap-3 rounded-2xl p-3 hover:bg-gray-50">
+                        {person.image ? <img src={person.image} alt="" className="size-11 rounded-full object-cover"/> : <span className="grid size-11 place-items-center rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{person.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()}</span>}
+                        <span className="min-w-0"><span className="flex items-center gap-1 truncate text-sm font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-xs text-gray-400">@{person.username ?? "member"}</span></span>
+                      </Link>)}
+                      {nextRelationshipBefore && relationshipView !== "mutual" ? <button type="button" onClick={() => void loadMoreRelationships(relationshipView)} disabled={loadingMoreRelationships} className="mx-auto my-2 block rounded-xl border border-gray-200 bg-white px-4 py-2 text-[10px] font-black text-gray-600 disabled:opacity-50">{loadingMoreRelationships ? "Loading…" : "Load more"}</button> : null}
+                    </> : <div className="p-8 text-center text-xs text-gray-400">No accounts to show.</div>;
                   })()}
                 </div>
               )}
@@ -972,54 +1205,45 @@ function Profile({ username = "firdous" }: { username?: string }) {
           </div>
         ) : (
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          {(profile?.posts ?? []).filter((post) => profileTab === "posts" || Boolean(post.mediaUrl)).length > 0 ? (
-            profile?.posts?.map((post) => (
-              <article key={post.id} className={"rounded-2xl border p-4 " + (post.isPinned ? "border-[#d9d4ff] bg-[#f8f7ff]" : "border-gray-100 bg-gray-50")}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    {profile?.image ? <img src={profile.image} alt="" className="size-9 rounded-full object-cover" /> : <Avatar initials={initials} size="sm" />}
-                    <div className="min-w-0"><p className="flex items-center gap-1 text-xs font-black">{displayName}<AccountBadge verified={profile?.isVerified} owner={profile?.isOwner}/></p><p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p></div>
-                  </div>
-                  {isOwner ? (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const response = await fetch("/api/posts/" + post.id + "/pin", { method: post.isPinned ? "DELETE" : "POST" });
-                        if (!response.ok) {
-                          const json = await response.json().catch(() => ({}));
-                          setError(json.error ?? "Could not update pinned post.");
-                          return;
-                        }
-                        setProfile((current) => current ? {
-                          ...current,
-                          posts: (current.posts ?? []).map((item) => ({
-                            ...item,
-                            isPinned: item.id === post.id ? !post.isPinned : post.isPinned ? item.isPinned : false,
-                          })),
-                        } : current);
-                      }}
-                      className={"shrink-0 rounded-xl px-2.5 py-1.5 text-[10px] font-black " + (post.isPinned ? "bg-[#6d5dfc] text-white" : "border border-gray-200 bg-white text-gray-500")}
-                    >
-                      {post.isPinned ? "Pinned" : "Pin"}
-                    </button>
-                  ) : post.isPinned ? (
-                    <span className="shrink-0 rounded-full bg-[#eeebff] px-2.5 py-1 text-[10px] font-black text-[#5a4be8]">Pinned</span>
-                  ) : null}
-                </div>
-                {post.content ? <p className="mt-3 text-sm leading-6 text-gray-600">{post.content}</p> : null}
-                {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
-                <div className="mt-4 flex gap-5 text-xs font-semibold text-gray-400">
-                  <span className="inline-flex items-center gap-1"><Heart size={14}/> {post._count.likes}</span>
-                  <span className="inline-flex items-center gap-1"><MessageCircle size={14}/> {post._count.comments}</span>
-                </div>
-              </article>
-            ))
-          ) : (
+          {visibleProfilePosts.length > 0 ? (
+            visibleProfilePosts.map((post) => (
+              <ProfilePostCard
+                key={post.id}
+                post={post}
+                displayName={displayName}
+                image={profile?.image ?? null}
+                verified={Boolean(profile?.isVerified)}
+                owner={Boolean(profile?.isOwner)}
+                isOwner={isOwner}
+                onRemove={(postId) => {
+                  setProfile((current) => current ? {
+                    ...current,
+                    posts: (current.posts ?? []).filter((item) => item.id !== postId),
+                  } : current);
+                }}
+                onPinnedChange={(postId, pinned) => {
+                  setProfile((current) => current ? {
+                    ...current,
+                    posts: (current.posts ?? []).map((item) => ({
+                      ...item,
+                      isPinned: item.id === postId ? pinned : pinned ? false : item.isPinned,
+                    })),
+                  } : current);
+                }}
+              />
+            ))          ) : (
             <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center">
               <p className="text-sm font-black">{profileTab === "photos" ? "No photos yet" : "No public posts yet"}</p>
               <p className="mt-1 text-xs text-gray-400">{isOwner ? "Share your first post from the home feed." : "This profile has not shared any public posts."}</p>
             </div>
           )}
+          {nextProfilePostsCursor ? (
+            <div className="mt-4 flex justify-center">
+              <button type="button" onClick={() => void loadMoreProfilePosts()} disabled={loadingMoreProfilePosts} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[10px] font-black text-gray-600 disabled:opacity-50">
+                {loadingMoreProfilePosts ? "Loading older posts…" : "Load older posts"}
+              </button>
+            </div>
+          ) : null}
         </div>
         )}
       </div>
@@ -1066,6 +1290,11 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [messageSearch, setMessageSearch] = useState("");
   const [showArchivedConversations, setShowArchivedConversations] = useState(false);
   const [showConversationOptions, setShowConversationOptions] = useState(false);
+  const [showGroupInfo, setShowGroupInfo] = useState(false);
+  const [groupTitleDraft, setGroupTitleDraft] = useState("");
+  const [groupUserQuery, setGroupUserQuery] = useState("");
+  const [groupPeople, setGroupPeople] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }>>([]);
+  const [groupActionLoading, setGroupActionLoading] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -1290,6 +1519,105 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
   }
 
+  const activeGroupAdmin = Boolean(
+    active?.isGroup &&
+    active.members.some((member) => member.userId === session?.user?.id && member.role === "ADMIN"),
+  );
+
+  useEffect(() => {
+    if (!showGroupInfo || !active?.isGroup || !session?.user) return;
+    setGroupTitleDraft(active.title ?? "");
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void fetch("/api/users?q=" + encodeURIComponent(groupUserQuery) + "&take=8", { cache: "no-store" })
+        .then(async (response) => {
+          const json = await response.json().catch(() => ({}));
+          if (!cancelled && response.ok) {
+            const memberIds = new Set(active.members.map((member) => member.userId));
+            setGroupPeople((json.users ?? []).filter((user: { id: string }) => !memberIds.has(user.id)));
+          }
+        })
+        .catch(() => {});
+    }, groupUserQuery.trim() ? 200 : 0);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [showGroupInfo, active?.id, active?.isGroup, active?.title, active?.members, session?.user?.id, groupUserQuery]);
+
+  async function updateGroupTitle() {
+    if (!activeId || !active?.isGroup || !activeGroupAdmin || !groupTitleDraft.trim() || groupActionLoading) return;
+    setGroupActionLoading(true);
+    try {
+      const response = await fetch("/api/conversations/" + activeId, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: groupTitleDraft.trim() }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not rename the group.");
+      setConversations((current) => current.map((item) => item.id === activeId ? { ...item, title: json.conversation.title } : item));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not rename the group.");
+    } finally {
+      setGroupActionLoading(false);
+    }
+  }
+
+  async function addGroupMember(userId: string) {
+    if (!activeId || !activeGroupAdmin || groupActionLoading) return;
+    setGroupActionLoading(true);
+    try {
+      const response = await fetch("/api/conversations/" + activeId, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not add this member.");
+      setConversations((current) => current.map((item) => item.id === activeId ? { ...item, members: [...item.members, json.membership] } : item));
+      setGroupPeople((current) => current.filter((person) => person.id !== userId));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not add this member.");
+    } finally {
+      setGroupActionLoading(false);
+    }
+  }
+
+  async function removeGroupMember(userId: string) {
+    if (!activeId || !activeGroupAdmin || groupActionLoading) return;
+    setGroupActionLoading(true);
+    try {
+      const response = await fetch("/api/conversations/" + activeId, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not remove this member.");
+      setConversations((current) => current.map((item) => item.id === activeId ? { ...item, members: item.members.filter((member) => member.userId !== userId) } : item));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not remove this member.");
+    } finally {
+      setGroupActionLoading(false);
+    }
+  }
+
+  async function leaveGroup() {
+    if (!activeId || !active?.isGroup || groupActionLoading) return;
+    if (!window.confirm("Leave this group?")) return;
+    setGroupActionLoading(true);
+    try {
+      const response = await fetch("/api/conversations/" + activeId, { method: "DELETE" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not leave the group.");
+      setConversations((current) => current.filter((item) => item.id !== activeId));
+      setActiveId(null);
+      setShowGroupInfo(false);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not leave the group.");
+    } finally {
+      setGroupActionLoading(false);
+    }
+  }
+
   async function updateConversationAction(action: "archive" | "unarchive" | "mute" | "unmute") {
     if (!activeId) return;
     const response = await fetch(`/api/conversations/${activeId}/messages`, {
@@ -1339,6 +1667,32 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
 
     {newConversationOpen ? <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4"><div className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h2 className="text-base font-black">New message</h2><p className="mt-1 text-xs text-gray-400">Choose a real Socialhub account to start a chat.</p></div><button type="button" onClick={() => setNewConversationOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={16}/></button></div><div className="p-4"><label className="relative block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input autoFocus value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Search people…" className="h-10 w-full rounded-xl bg-gray-50 pl-9 pr-3 text-xs font-semibold outline-none"/></label><div className="mt-3 space-y-1">{people.length ? people.map((person)=><button type="button" key={person.id} onClick={() => void startConversation(person.id)} className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-gray-50"><Avatar initials={person.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><span className="min-w-0"><span className="flex items-center gap-1 truncate text-xs font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-[10px] text-gray-400">@{person.username ?? "member"}</span></span></button>) : <p className="p-6 text-center text-xs text-gray-400">{userQuery.trim() ? "No people found." : "Search for someone to message."}</p>}</div></div></div></div> : null}
 
+    {showGroupInfo && active?.isGroup ? (
+      <div className="fixed inset-0 z-[85] grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label="Group information">
+        <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-[2rem] bg-white shadow-2xl">
+          <div className="flex items-center justify-between border-b border-gray-100 p-5">
+            <div><h2 className="text-base font-black">Group info</h2><p className="mt-1 text-xs text-gray-400">{active.members.length} members</p></div>
+            <button type="button" onClick={() => setShowGroupInfo(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100" aria-label="Close group info"><X size={16}/></button>
+          </div>
+          <div className="space-y-4 p-5">
+            {activeGroupAdmin ? <div className="flex gap-2"><input value={groupTitleDraft} onChange={(event) => setGroupTitleDraft(event.target.value)} maxLength={100} className="h-11 flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-semibold"/><button type="button" onClick={() => void updateGroupTitle()} disabled={groupActionLoading || !groupTitleDraft.trim()} className="rounded-xl bg-gray-950 px-4 text-xs font-black text-white disabled:opacity-40">Rename</button></div> : null}
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3">
+              <p className="text-[10px] font-black uppercase tracking-[.12em] text-gray-400">Members</p>
+              <div className="mt-2 space-y-2">{active.members.map((member) => (
+                <div key={member.userId} className="flex items-center gap-3 rounded-xl bg-white p-2.5">
+                  <Avatar initials={member.user.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="sm"/>
+                  <div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate text-xs font-black">{member.user.name}<AccountBadge verified={member.user.isVerified} owner={member.user.isOwner}/></p><p className="text-[10px] text-gray-400">{member.role === "ADMIN" ? "Administrator" : "Member"}</p></div>
+                  {activeGroupAdmin && member.userId !== session?.user?.id && member.role !== "ADMIN" ? <button type="button" onClick={() => void removeGroupMember(member.userId)} disabled={groupActionLoading} className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-[10px] font-black text-red-600 disabled:opacity-40">Remove</button> : null}
+                </div>
+              ))}</div>
+            </div>
+            {activeGroupAdmin ? <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-gray-400">Add member</p><input value={groupUserQuery} onChange={(event) => setGroupUserQuery(event.target.value)} placeholder="Search people…" className="mt-2 h-10 w-full rounded-xl bg-gray-50 px-3 text-xs font-semibold outline-none"/><div className="mt-2 space-y-1">{groupPeople.slice(0,5).map((person) => <button type="button" key={person.id} onClick={() => void addGroupMember(person.id)} disabled={groupActionLoading} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-gray-50 disabled:opacity-50"><Avatar initials={person.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="sm"/><span className="flex-1 truncate text-xs font-black">{person.name}</span><Plus size={15}/></button>)}</div></div> : null}
+            <button type="button" onClick={() => void leaveGroup()} disabled={groupActionLoading} className="w-full rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-black text-red-600 disabled:opacity-40">Leave group</button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+
     <div className="grid min-h-[620px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:grid-cols-[330px_1fr]">
       <aside className="border-b border-gray-100 lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between border-b border-gray-100 p-4">
@@ -1378,6 +1732,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
             {showConversationOptions && active ? <div className="absolute right-0 top-11 z-30 w-44 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl">
               <button type="button" onClick={() => void updateConversationAction(active.archivedAt ? "unarchive" : "archive")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.archivedAt ? "Unarchive" : "Archive"}</button>
               <button type="button" onClick={() => void updateConversationAction(active.mutedUntil ? "unmute" : "mute")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.mutedUntil ? "Unmute" : "Mute for 7 days"}</button>
+              {active.isGroup ? <button type="button" onClick={() => { setShowGroupInfo(true); setShowConversationOptions(false); }} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">Group info</button> : null}
             </div> : null}
           </div>
         </div>
@@ -1448,6 +1803,9 @@ type DiscoverUser = {
   isPrivate?: boolean;
   isFollowing?: boolean;
   isFriend?: boolean;
+  friendRequestStatus?: "NONE" | "OUTGOING_PENDING" | "INCOMING_PENDING";
+  canFollow?: boolean;
+  canSendFriendRequest?: boolean;
   isVerified?: boolean;
   isOwner?: boolean;
   _count: { followers: number; following: number };
@@ -1520,7 +1878,21 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
       return;
     }
 
+    if (user.isPrivate && user.canSendFriendRequest && user.friendRequestStatus === "NONE") {
+      const friendResponse = await fetch("/api/friend-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiverId: user.id }),
+      });
+      if (!friendResponse.ok) {
+        const json = await friendResponse.json().catch(() => ({}));
+        setError(json.error ?? "Could not send friend request.");
+      }
+      return;
+    }
+
     const isFollowing = following.has(user.id);
+    if (!isFollowing && user.canFollow === false) return;
     const response = await fetch("/api/users/" + user.id + "/follow", {
       method: isFollowing ? "DELETE" : "POST",
     });
@@ -1532,16 +1904,9 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
         else next.add(user.id);
         return next;
       });
-    } else if (user.isPrivate) {
-      const friendResponse = await fetch("/api/friend-requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receiverId: user.id }),
-      });
-      if (!friendResponse.ok) {
-        const json = await friendResponse.json().catch(() => ({}));
-        setError(json.error ?? "Could not send friend request.");
-      }
+    } else {
+      const json = await response.json().catch(() => ({}));
+      setError(json.error ?? "Could not update this connection.");
     }
   }
 
@@ -1572,7 +1937,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
             return <div key={user.id} className="flex items-center gap-3">
               <Link href={"/profile/" + (user.username ?? user.id)}><Avatar initials={initials} color={colors[i % colors.length]}/></Link>
               <div className="min-w-0 flex-1"><Link href={"/profile/" + (user.username ?? user.id)} className="flex items-center gap-1.5 truncate text-xs font-black hover:text-[#5a4be8]">{user.name}<AccountBadge verified={user.isVerified} owner={user.isOwner}/></Link><p className="truncate text-[11px] text-gray-400">@{user.username ?? "member"} · {user._count.followers} followers</p></div>
-              <button onClick={()=>void toggleFollow(user)} className={isFollowing ? "grid size-9 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" : "grid size-9 place-items-center rounded-xl bg-gray-950 text-white"} aria-label={isFollowing ? "Unfollow" : "Follow"}>{isFollowing ? <Check size={15}/> : <UserPlus size={15}/>}</button>
+              <button onClick={()=>void toggleFollow(user)} disabled={user.friendRequestStatus === "OUTGOING_PENDING" || user.friendRequestStatus === "INCOMING_PENDING"} className={isFollowing ? "grid size-9 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600 disabled:opacity-50" : "grid size-9 place-items-center rounded-xl bg-gray-950 text-white disabled:opacity-50"} aria-label={isFollowing ? "Unfollow" : user.friendRequestStatus === "OUTGOING_PENDING" ? "Friend request sent" : user.isPrivate ? "Add friend" : "Follow"}>{isFollowing ? <Check size={15}/> : user.friendRequestStatus === "OUTGOING_PENDING" ? <Check size={15}/> : user.isPrivate ? <UserPlus size={15}/> : <UserPlus size={15}/>}</button>
             </div>;
           })}</div>
         </Card> : discoverTab === "posts" ? <Card>

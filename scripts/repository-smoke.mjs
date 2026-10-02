@@ -20,6 +20,7 @@ const requiredFiles = [
   "app/api/uploads/route.ts",
   "app/api/users/route.ts",
   "app/api/users/[username]/route.ts",
+  "app/api/users/[username]/posts/route.ts",
   "app/api/users/[userId]/relationships/route.ts",
   "app/api/security/sessions/route.ts",
   "lib/auth.ts",

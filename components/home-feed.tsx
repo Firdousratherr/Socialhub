@@ -883,6 +883,58 @@ export default function HomeFeed() {
   const canSubmit = Boolean(session?.user && (newPost.trim() || mediaUrl) && !publishing && !uploading);
   const visibleStories = useMemo(() => stories.filter((story) => new Date(story.expiresAt) > new Date()).slice(0, 6), [stories]);
 
+  useEffect(() => {
+    const target = window.location.hash.replace(/^#/, "");
+    if (!target.startsWith("post-")) return;
+    let cancelled = false;
+
+    async function resolveTarget() {
+      const scrollToTarget = () => document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (document.getElementById(target)) {
+        scrollToTarget();
+        return;
+      }
+
+      const postId = target.slice("post-".length);
+      try {
+        const response = await fetch("/api/posts/" + encodeURIComponent(postId), { cache: "no-store" });
+        const json = await response.json().catch(() => ({}));
+        if (cancelled || !response.ok || !json.post) return;
+
+        const item = json.post;
+        const mapped: Post = {
+          id: item.id,
+          authorId: item.authorId,
+          name: item.author.name,
+          handle: "@" + (item.author.username ?? "member"),
+          initials: item.author.name.split(" ").map((part: string) => part[0]).join("").slice(0, 2).toUpperCase(),
+          authorImage: item.author.image,
+          authorVerified: Boolean(item.author.isVerified),
+          authorOwner: Boolean(item.author.isOwner),
+          timestamp: timeLabel(item.createdAt),
+          copy: item.content ?? "Shared a new moment.",
+          mediaUrl: item.mediaUrl,
+          visibility: item.visibility,
+          accent: "from-violet-500 via-fuchsia-400 to-sky-400",
+          likes: item._count.likes,
+          comments: item._count.comments,
+          shares: item.shareCount ?? 0,
+          liked: Boolean(item.liked),
+          saved: Boolean(item.saved),
+          reactions: item.reactions ?? [],
+          myReaction: item.myReaction ?? null,
+        };
+        setFeedPosts((current) => current.some((post) => post.id === mapped.id) ? current : [mapped, ...current]);
+        window.setTimeout(scrollToTarget, 120);
+      } catch {
+        // The target may have been deleted or may be inaccessible.
+      }
+    }
+
+    void resolveTarget();
+    return () => { cancelled = true; };
+  }, [feedPosts.length]);
+
   return (
     <main className="min-h-screen bg-transparent pb-20 md:pb-6">
       <header className="sticky top-0 z-30 border-b border-white/70 bg-white/88 shadow-[0_10px_35px_rgba(23,20,45,.06)] backdrop-blur-2xl">

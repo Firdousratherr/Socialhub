@@ -1,9 +1,48 @@
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ postId: string }> },
+) {
+  const { postId } = await params;
+  const session = await getSession();
+  const access = await canViewPost(postId, session?.user?.id);
+  if (!access.allowed) return NextResponse.json({ error: "Post not found." }, { status: 404 });
+
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    include: {
+      author: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } },
+      _count: { select: { likes: true, comments: true } },
+    },
+  });
+  if (!post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
+
+  const [liked, saved, reactions, mine] = session?.user
+    ? await Promise.all([
+        prisma.like.findUnique({ where: { postId_userId: { postId, userId: session.user.id } }, select: { id: true } }),
+        prisma.savedPost.findUnique({ where: { userId_postId: { userId: session.user.id, postId } }, select: { id: true } }),
+        prisma.postReaction.groupBy({ by: ["emoji"], where: { postId }, _count: { _all: true } }),
+        prisma.postReaction.findUnique({ where: { postId_userId: { postId, userId: session.user.id } }, select: { emoji: true } }),
+      ])
+    : [null, null, await prisma.postReaction.groupBy({ by: ["emoji"], where: { postId }, _count: { _all: true } }), null];
+
+  return NextResponse.json({
+    post: {
+      ...post,
+      liked: Boolean(liked),
+      saved: Boolean(saved),
+      reactions: reactions.map((row) => ({ emoji: row.emoji, count: row._count._all })),
+      myReaction: mine?.emoji ?? null,
+    },
+  });
+}
+
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { postInputSchema } from "@/lib/validation";
 import { safeDeleteBlob } from "@/lib/blob-cleanup";
+import { canViewPost } from "@/lib/post-access";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
