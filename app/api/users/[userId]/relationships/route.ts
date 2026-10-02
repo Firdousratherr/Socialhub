@@ -44,12 +44,33 @@ export async function GET(
 
   let mutual: Array<{ id: string; name: string; username: string | null; image: string | null; bio: string | null }> = [];
   if (viewerId && viewerId !== userId) {
-    const viewerFollowing = await prisma.follow.findMany({
-      where: { followerId: viewerId },
-      select: { followingId: true },
-    });
-    const targetFollowerIds = new Set(followers.map((row) => row.follower.id));
-    const mutualIds = viewerFollowing.map((row) => row.followingId).filter((id) => targetFollowerIds.has(id)).slice(0, 20);
+    const [viewerFriendships, targetFriendships] = await Promise.all([
+      prisma.friendRequest.findMany({
+        where: {
+          status: "ACCEPTED",
+          OR: [
+            { senderId: viewerId },
+            { receiverId: viewerId },
+          ],
+        },
+        select: { senderId: true, receiverId: true },
+      }),
+      prisma.friendRequest.findMany({
+        where: {
+          status: "ACCEPTED",
+          OR: [
+            { senderId: userId },
+            { receiverId: userId },
+          ],
+        },
+        select: { senderId: true, receiverId: true },
+      }),
+    ]);
+    const friendIds = (rows: typeof viewerFriendships, ownId: string) =>
+      new Set(rows.map((row) => row.senderId === ownId ? row.receiverId : row.senderId));
+    const viewerFriendIds = friendIds(viewerFriendships, viewerId);
+    const targetFriendIds = friendIds(targetFriendships, userId);
+    const mutualIds = Array.from(viewerFriendIds).filter((id) => targetFriendIds.has(id)).slice(0, 20);
     if (mutualIds.length) {
       const users = await prisma.user.findMany({
         where: { id: { in: mutualIds }, isActive: true },
