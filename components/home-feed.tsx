@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { MobileMenu } from "@/components/mobile-menu";
+import { BottomNav } from "@/components/bottom-nav";
 import { subscribePostSync } from "@/lib/post-sync";
 import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
@@ -550,6 +551,7 @@ function PostCard({
       setEditText(json.post.content ?? "");
       setEditVisibility(json.post.visibility);
       setEditing(false);
+      emitPostSyncEvent({ type: "updated", postId: post.id });
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not update post.");
     } finally {
@@ -873,6 +875,7 @@ export default function HomeFeed() {
         myReaction: null,
       };
       setFeedPosts((current) => [created, ...current]);
+      emitPostSyncEvent({ type: "created", postId: created.id });
       setNewPost("");
       setVisibility("PUBLIC");
       setMediaUrl(null);
@@ -1128,23 +1131,7 @@ export default function HomeFeed() {
         </aside>
       </div>
 
-      <nav className="fixed inset-x-2 bottom-2 z-40 grid grid-cols-5 gap-1 rounded-[1.4rem] border border-white/80 bg-[#141225]/96 p-1.5 shadow-[0_18px_55px_rgba(20,18,44,.28)] backdrop-blur-2xl md:hidden" aria-label="Mobile navigation">
-        <Link href="/home" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl bg-white/12 text-[10px] font-black text-white" aria-current="page">
-          <Home size={18} strokeWidth={2.5}/><span>Home</span>
-        </Link>
-        <Link href="/discover" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white">
-          <Compass size={18}/><span>Discover</span>
-        </Link>
-        <Link href="/messages" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white" aria-label="Messages">
-          <MessageCircle size={18}/><span>Messages</span>
-        </Link>
-        <Link href="/notifications" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white">
-          <Bell size={18}/><span>Alerts</span>
-        </Link>
-        <Link href={profileHref} className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white">
-          <Users size={18}/><span>Profile</span>
-        </Link>
-      </nav>
+      <BottomNav />
     </main>
   );
 }
