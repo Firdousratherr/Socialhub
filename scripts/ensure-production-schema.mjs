@@ -22,19 +22,22 @@ const run = (args) => {
 
 const errorOutput = (error) => `${error?.stdout ?? ""}\n${error?.stderr ?? ""}`;
 
-const bootstrapSchema = () => {
-  console.warn("Synchronizing the committed Prisma schema with the existing production database.");
-  // Prisma 7 no longer accepts --skip-generate for db push.
-  run(["db", "push"]);
-
-  const migrationsDir = join("prisma", "migrations");
-  const migrations = readdirSync(migrationsDir)
+const listMigrations = () =>
+  readdirSync(join("prisma", "migrations"))
     .filter((name) => name !== "migration_lock.toml")
     .sort();
 
-  for (const migration of migrations) {
+const markAllMigrationsApplied = () => {
+  for (const migration of listMigrations()) {
     run(["migrate", "resolve", "--applied", migration]);
   }
+};
+
+const bootstrapSchema = (reason) => {
+  console.warn(`Synchronizing the committed Prisma schema with the existing production database: ${reason}`);
+  // Prisma 7 removed the --skip-generate option from db push.
+  run(["db", "push"]);
+  markAllMigrationsApplied();
 };
 
 try {
@@ -43,32 +46,18 @@ try {
 } catch (error) {
   const output = errorOutput(error);
 
+  // P3009 means the migration history contains a failed migration. Retrying
+  // the same SQL can fail again when that migration was partially applied.
+  // Reconcile the actual database schema with the committed Prisma schema
+  // instead, then mark the committed migration set as applied.
   if (output.includes("P3009")) {
-    const failedMigration = output.match(/The \`([^\`]+)\` migration started .* failed/)?.[1];
-
-    if (!failedMigration) {
-      throw error;
-    }
-
-    console.warn(`Found failed production migration ${failedMigration}; marking it rolled back and retrying migration deployment.`);
-    run(["migrate", "resolve", "--rolled-back", failedMigration]);
-
-    try {
-      run(["migrate", "deploy"]);
-      process.exit(0);
-    } catch (retryError) {
-      const retryOutput = errorOutput(retryError);
-      if (!retryOutput.includes("P3005") && !retryOutput.includes("P3009")) {
-        throw retryError;
-      }
-      bootstrapSchema();
-      process.exit(0);
-    }
+    bootstrapSchema("Prisma reported a previously failed production migration (P3009).");
+    process.exit(0);
   }
 
+  // P3005 means the existing database schema predates Prisma Migrate history.
   if (output.includes("P3005") || output.includes("database schema is not empty")) {
-    console.warn("The existing production schema is not migration-managed; performing a one-time schema bootstrap.");
-    bootstrapSchema();
+    bootstrapSchema("the existing database schema is not migration-managed (P3005).");
     process.exit(0);
   }
 
