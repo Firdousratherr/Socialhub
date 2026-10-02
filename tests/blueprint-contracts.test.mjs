@@ -157,10 +157,9 @@ test("production hardening migrations tolerate already-present foreign keys", ()
 test("production schema recovery synchronizes the committed schema before reconciling Prisma migration history", () => {
   const script = read("scripts/ensure-production-schema.mjs");
   const pinnedMigration = read("prisma/migrations/20261002140000_pinned_posts/migration.sql");
-  const pushIndex = script.indexOf('run(["db", "push"])');
-  const resolveIndex = script.indexOf('run(["migrate", "resolve", "--applied"');
-  assert.ok(pushIndex >= 0, "production recovery must synchronize the schema");
-  assert.ok(resolveIndex > pushIndex, "migration history must be reconciled after schema synchronization");
+  const synchronizeBlock = script.match(/const synchronizeProductionSchema = \(\) => \{([\\s\\S]*?)\n\};/)?.[1] ?? "";
+  assert.match(synchronizeBlock, /run\(\["db", "push"\]\);/);
+  assert.match(synchronizeBlock, /run\(\["db", "push"\]\);[\\s\\S]*markAllMigrationsApplied\(\);/);
   assert.doesNotMatch(script, /--skip-generate/);
   assert.match(pinnedMigration, /ADD COLUMN IF NOT EXISTS/);
   assert.match(pinnedMigration, /CREATE INDEX IF NOT EXISTS/);
