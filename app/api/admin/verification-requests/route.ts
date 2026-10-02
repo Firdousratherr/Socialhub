@@ -62,7 +62,7 @@ export async function PATCH(request: Request) {
       data: {
         userId: current.userId,
         adminId: access.user.id,
-        action: approved ? "GRANTED" : "REVOKED",
+        action: approved ? "REQUEST_APPROVED" : "REQUEST_REJECTED",
         reason: approved ? "Verification request approved by an administrator." : "Verification request rejected by an administrator.",
       },
     });
