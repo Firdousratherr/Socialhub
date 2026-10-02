@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { AdminInspection } from "@/components/admin-inspection";
 import { AdminControlCenter } from "@/components/admin-control-center";
+import { emitPostSyncEvent } from "@/lib/post-sync";
 import { AccountBadge } from "@/components/account-badge";
 
 type UserRow = {
@@ -466,6 +467,7 @@ function ContentManager({onMessage}:{onMessage:(value:string)=>void}) {
     const json=await response.json();
     if(!response.ok){onMessage(json.error??"Could not delete post.");return}
     setPosts(items=>items.filter(item=>item.id!==id));
+    emitPostSyncEvent({ type: "deleted", postId: id });
     onMessage("Post deleted.");
   }
 
