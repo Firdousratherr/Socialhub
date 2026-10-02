@@ -1672,6 +1672,44 @@ function SettingsPage() {
       .catch((requestError) => setMessage(requestError instanceof Error ? requestError.message : "Could not load privacy settings."));
   }, [session?.user?.id]);
 
+  useEffect(() => {
+    if (!session?.user) return;
+    void fetch("/api/verification", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(json.error ?? "Could not load verification status.");
+        setVerification({
+          isVerified: Boolean(json.user?.isVerified),
+          isOwner: Boolean(json.user?.isOwner),
+          status: json.request?.status ?? null,
+          reason: json.request?.reason ?? null,
+          adminNote: json.request?.adminNote ?? null,
+          createdAt: json.request?.createdAt ?? null,
+        });
+      })
+      .catch((requestError) => setMessage(requestError instanceof Error ? requestError.message : "Could not load verification status."));
+  }, [session?.user?.id]);
+
+  async function submitVerificationRequest() {
+    if (!session?.user || verificationSubmitting) return;
+    setVerificationSubmitting(true);
+    try {
+      const response = await fetch("/api/verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: verificationReason.trim() }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not submit verification request.");
+      setVerification((current) => ({ ...current, status: json.request?.status ?? "PENDING", reason: json.request?.reason ?? verificationReason.trim(), createdAt: json.request?.createdAt ?? new Date().toISOString() }));
+      setVerificationReason("");
+      setMessage("Verification request submitted for admin review.");
+    } catch (requestError) {
+      setMessage(requestError instanceof Error ? requestError.message : "Could not submit verification request.");
+    } finally {
+      setVerificationSubmitting(false);
+    }
+  }
   async function updatePrivacySetting(key: "showFriendsList" | "showFollowersList" | "showFollowingList" | "allowMessagesEveryone" | "allowFriendRequests", value: boolean) {
     if (!session?.user || savingPrivacySetting) return;
     setSavingPrivacySetting(key);
