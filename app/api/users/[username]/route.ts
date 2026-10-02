@@ -46,10 +46,10 @@ export async function GET(
         ...(isSelf ? [{ visibility: "PRIVATE" as const }] : []),
       ],
     },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     take: 20,
     select: {
-      id: true, content: true, mediaUrl: true, visibility: true, createdAt: true,
+      id: true, content: true, mediaUrl: true, visibility: true, isPinned: true, createdAt: true,
       _count: { select: { likes: true, comments: true } },
     },
   });
