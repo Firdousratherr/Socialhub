@@ -21,6 +21,7 @@ enum AdminPermissionKey {
   USERS_BULK
   CONTENT_VIEW
   CONTENT_MODERATE
+  CONTENT_METRICS
   MESSAGES_VIEW
   REPORTS_MANAGE
   VERIFICATION_MANAGE
@@ -516,6 +517,19 @@ model Block {
   @@index([blockedId])
 }
 
+
+model AdminPostMetricOverride {
+  id        String   @id @default(cuid())
+  postId    String   @unique
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  likes     Int?
+  comments  Int?
+  shares    Int?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@index([updatedAt])
+}
 
 model AdminMetricOverride {
   id              String   @id @default(cuid())
