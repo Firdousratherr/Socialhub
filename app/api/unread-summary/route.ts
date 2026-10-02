@@ -53,7 +53,7 @@ export async function GET() {
     `,
   ]);
 
-  const messages = Number(unreadRows[0]?.unreadCount ?? 0n);
+  const messages = Number(unreadRows[0]?.unreadCount ?? BigInt(0));
   const notifications = notificationCount;
   const friendRequests = friendRequestCount;
 
