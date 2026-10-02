@@ -1316,6 +1316,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [conversations, setConversations] = useState<ConversationData[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [typingUsers, setTypingUsers] = useState<Array<{ id: string; name: string; image: string | null }>>([]);
   const [nextMessagesCursor, setNextMessagesCursor] = useState<string | null>(null);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [draft, setDraft] = useState("");
@@ -1374,8 +1375,10 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
 
     void loadConversations();
+    const timer = window.setInterval(() => { void loadConversations(); }, 5000);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
   }, [session?.user?.id, initialConversationId, showArchivedConversations]);
 
@@ -1476,12 +1479,64 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
 
     void loadMessages();
-    const timer = window.setInterval(() => { void loadMessages(); }, 8000);
+    const timer = window.setInterval(() => { void loadMessages(); }, 2000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
   }, [activeId, session?.user?.id]);
+
+  useEffect(() => {
+    if (!activeId || !session?.user) {
+      setTypingUsers([]);
+      return;
+    }
+
+    let cancelled = false;
+    async function refreshTyping() {
+      try {
+        const response = await fetch("/api/conversations/" + activeId + "/typing", { cache: "no-store" });
+        const json = await response.json().catch(() => ({}));
+        if (!cancelled && response.ok) setTypingUsers(json.typing ?? []);
+      } catch {
+        // Typing presence is best-effort and must never block messaging.
+      }
+    }
+
+    void refreshTyping();
+    const timer = window.setInterval(() => { void refreshTyping(); }, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      setTypingUsers([]);
+    };
+  }, [activeId, session?.user?.id]);
+
+  useEffect(() => {
+    if (!activeId || !session?.user || !draft.trim()) {
+      if (activeId && session?.user) {
+        void fetch("/api/conversations/" + activeId + "/typing", { method: "DELETE" }).catch(() => {});
+      }
+      return;
+    }
+
+    let cancelled = false;
+    const publish = async () => {
+      if (cancelled) return;
+      try {
+        await fetch("/api/conversations/" + activeId + "/typing", { method: "POST" });
+      } catch {
+        // Best-effort presence.
+      }
+    };
+    const initial = window.setTimeout(() => void publish(), 180);
+    const heartbeat = window.setInterval(() => void publish(), 2500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(initial);
+      window.clearInterval(heartbeat);
+    };
+  }, [activeId, session?.user?.id, draft]);
 
   const filteredConversations = conversations.filter((conversation) => {
     const other = conversation.members.find((member) => member.userId !== session?.user?.id)?.user;
@@ -1680,6 +1735,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       if (!response.ok) throw new Error(json.error ?? "Could not send message.");
       setMessages((current) => [...current, json.message as ChatMessage]);
       setDraft("");
+      void fetch("/api/conversations/" + activeId + "/typing", { method: "DELETE" }).catch(() => {});
       setPendingAttachments([]);
       setReplyingToMessage(null);
     } catch (requestError) {
@@ -1816,6 +1872,14 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
           )}
         </div>
 
+        {typingUsers.length ? (
+          <div className="px-5 pb-2 text-[11px] font-semibold text-gray-400" aria-live="polite">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1.5">
+              <span className="flex gap-0.5" aria-hidden="true"><i className="size-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-.3s]"/><i className="size-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-.15s]"/><i className="size-1.5 animate-bounce rounded-full bg-gray-400"/></span>
+              {typingUsers.length === 1 ? typingUsers[0].name + " is typing…" : typingUsers.slice(0, 2).map((user) => user.name).join(" and ") + " are typing…"}
+            </span>
+          </div>
+        ) : null}
         <form onSubmit={sendMessage} className="border-t border-gray-100 p-3">
           {replyingToMessage ? <div className="mb-2 flex items-center justify-between rounded-xl bg-[#f4f2ff] px-3 py-2"><div className="min-w-0"><p className="text-[10px] font-black text-[#5a4be8]">Replying to {replyingToMessage.sender.name}</p><p className="truncate text-[10px] text-gray-500">{replyingToMessage.content || "Media message"}</p></div><button type="button" onClick={() => setReplyingToMessage(null)} className="grid size-7 place-items-center rounded-lg bg-white text-gray-400" aria-label="Cancel reply"><X size={13}/></button></div> : null}
           <input ref={attachmentRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={(event) => { void uploadAttachment(event.target.files?.[0]); event.currentTarget.value = ""; }} />
