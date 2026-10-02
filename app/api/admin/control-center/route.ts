@@ -24,7 +24,7 @@ export async function GET() {
 export async function PATCH(request: Request) {
   const body = await request.json().catch(() => null);
   const kind = body?.kind;
-  const permission = kind === "setting" ? "PLATFORM_SETTINGS" : kind === "flag" ? "FEATURE_FLAGS" : kind === "announcement" ? "ANNOUNCEMENTS" : "PLATFORM_SETTINGS";
+  const permission = kind === "setting" ? "PLATFORM_SETTINGS" : kind === "flag" ? "FEATURE_FLAGS" : kind === "announcement" || kind === "announcement.update" ? "ANNOUNCEMENTS" : "PLATFORM_SETTINGS";
   const access = await requireAdminPermission(permission);
   if (access.response) return access.response;
   if (kind === "setting") {
@@ -49,6 +49,23 @@ export async function PATCH(request: Request) {
     const item = await prisma.announcement.create({data:{...parsed.data,startsAt:parsed.data.startsAt?new Date(parsed.data.startsAt):null,endsAt:parsed.data.endsAt?new Date(parsed.data.endsAt):null,createdById:access.user.id}});
     await prisma.adminAuditLog.create({data:{adminId:access.user.id,action:"CREATE_ANNOUNCEMENT",targetType:"ANNOUNCEMENT",targetId:item.id,details:JSON.stringify({title:item.title,status:item.status,audience:item.audience})}});
     return NextResponse.json({announcement:item});
+  }
+  if (kind === "announcement.update") {
+    const parsed = announcementSchema.partial().extend({ id: z.string().min(1) }).safeParse(body);
+    if (!parsed.success) return NextResponse.json({ error: "Invalid announcement update." }, { status: 400 });
+    const { id, ...patch } = parsed.data;
+    const before = await prisma.announcement.findUnique({ where: { id } });
+    if (!before) return NextResponse.json({ error: "Announcement not found." }, { status: 404 });
+    const item = await prisma.announcement.update({
+      where: { id },
+      data: {
+        ...patch,
+        ...(patch.startsAt !== undefined ? { startsAt: patch.startsAt ? new Date(patch.startsAt) : null } : {}),
+        ...(patch.endsAt !== undefined ? { endsAt: patch.endsAt ? new Date(patch.endsAt) : null } : {}),
+      },
+    });
+    await prisma.adminAuditLog.create({ data: { adminId: access.user.id, action: "UPDATE_ANNOUNCEMENT", targetType: "ANNOUNCEMENT", targetId: id, details: JSON.stringify({ before, after: item }) } });
+    return NextResponse.json({ announcement: item });
   }
   return NextResponse.json({error:"Unknown control operation."},{status:400});
 }
