@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { areFriends, isBlocked } from "@/lib/social-access";
+import { getPostDisplayCountsMap } from "@/lib/post-metrics";
 
 export async function GET(
   _request: Request,
@@ -109,11 +110,24 @@ export async function GET(
     },
   });
 
+  const postDisplayCounts = await getPostDisplayCountsMap(posts.map((post) => post.id));
+  const visiblePosts = posts.map((post) => {
+    const display = postDisplayCounts.get(post.id);
+    return {
+      ...post,
+      displayCounts: {
+        likes: display?.likes ?? post._count.likes,
+        comments: display?.comments ?? post._count.comments,
+        shares: display?.shares ?? post.shareCount,
+      },
+    };
+  });
+
   return NextResponse.json({
     profile: {
       ...safeUser,
       email: isSelf ? safeUser.email : undefined,
-      posts: user.isPrivate && !isSelf && !friends ? [] : posts,
+      posts: user.isPrivate && !isSelf && !friends ? [] : visiblePosts,
       isFollowing: following,
       isFriend: friends,
       friendRequestStatus,
