@@ -109,6 +109,7 @@ model User {
   suspendedUntil DateTime?
   deletedAt DateTime?
   forcePasswordResetAt DateTime?
+  twoFactorEnabled Boolean @default(false)
 
   sessions      Session[]
   accounts      Account[]
@@ -149,6 +150,7 @@ model User {
   createdAnnouncements Announcement[] @relation("AnnouncementCreator")
   changedFeatureFlags FeatureFlag[] @relation("FeatureFlagChanger")
   changedSystemSettings SystemSetting[] @relation("SystemSettingChanger")
+  twoFactor TwoFactor?
   profileViewsReceived ProfileView[] @relation("ProfileViewProfile")
   profileViewsMade ProfileView[] @relation("ProfileViewViewer")
   adminAuditLogs AdminAuditLog[] @relation("AdminAuditActor")
@@ -744,4 +746,16 @@ model RateLimitBucket {
   updatedAt DateTime @updatedAt
 
   @@index([resetAt])
+}
+
+model TwoFactor {
+  id String @id
+  userId String @unique
+  secret String
+  backupCodes String
+  verified Boolean @default(false)
+  failedVerificationCount Int @default(0)
+  lockedUntil DateTime?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
 }
