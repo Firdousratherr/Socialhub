@@ -104,7 +104,7 @@ export async function POST(request: Request) {
       expiresAt: parsed.data.expiresAt,
     },
     include: {
-      author: { select: { id: true, name: true, username: true, image: true } },
+      author: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } },
     },
   });
 
