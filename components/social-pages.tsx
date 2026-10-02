@@ -403,6 +403,7 @@ type ProfileData = {
     shareCount?: number;
     liked?: boolean;
     saved?: boolean;
+    displayCounts?: { likes: number; comments: number; shares: number };
     _count: { likes: number; comments: number };
   }>;
 };
@@ -429,8 +430,8 @@ function ProfilePostCard({
   const router = useRouter();
   const [liked, setLiked] = useState(Boolean(post.liked));
   const [saved, setSaved] = useState(Boolean(post.saved));
-  const [likeCount, setLikeCount] = useState(post._count.likes);
-  const [shareCount, setShareCount] = useState(post.shareCount ?? 0);
+  const [likeCount, setLikeCount] = useState(post.displayCounts?.likes ?? post._count.likes);
+  const [shareCount, setShareCount] = useState(post.displayCounts?.shares ?? post.shareCount ?? 0);
   const [pinned, setPinned] = useState(post.isPinned);
   const [busy, setBusy] = useState<"like" | "save" | "share" | "report" | "delete" | "pin" | null>(null);
   const [message, setMessage] = useState("");
@@ -564,7 +565,7 @@ function ProfilePostCard({
       {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
         <button type="button" onClick={() => void toggleLike()} disabled={Boolean(busy)} className={"inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[10px] font-black " + (liked ? "bg-rose-50 text-rose-600" : "bg-white text-gray-500")}><Heart size={14} fill={liked ? "currentColor" : "none"}/>{likeCount}</button>
-        <button type="button" onClick={() => router.push("/home#post-" + encodeURIComponent(post.id))} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[10px] font-black text-gray-500"><MessageCircle size={14}/>{post._count.comments}</button>
+        <button type="button" onClick={() => router.push("/home#post-" + encodeURIComponent(post.id))} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[10px] font-black text-gray-500"><MessageCircle size={14}/>{post.displayCounts?.comments ?? post._count.comments}</button>
         <button type="button" onClick={() => void toggleSave()} disabled={Boolean(busy)} className={"inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[10px] font-black " + (saved ? "bg-[#eeebff] text-[#5a4be8]" : "bg-white text-gray-500")}><Bookmark size={14} fill={saved ? "currentColor" : "none"}/>Save</button>
         <button type="button" onClick={() => void sharePost()} disabled={Boolean(busy)} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[10px] font-black text-gray-500"><Share2 size={14}/>Share{shareCount ? " · " + shareCount : ""}</button>
       </div>
