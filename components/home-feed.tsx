@@ -885,29 +885,43 @@ export default function HomeFeed() {
 
   return (
     <main className="min-h-screen bg-transparent pb-20 md:pb-6">
-      <header className="sticky top-0 z-30 border-b border-gray-200/70 bg-white/85 backdrop-blur-xl">
-        <div className="mx-auto flex h-[72px] max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Socialhub">
-            <span className="grid size-9 place-items-center rounded-xl bg-[#6d5dfc] text-white shadow-md shadow-[#6d5dfc]/20"><Sparkles size={17}/></span>
-            <span className="hidden text-base font-black tracking-[-0.03em] text-gray-950 sm:block">Socialhub</span>
+      <header className="sticky top-0 z-30 border-b border-white/70 bg-white/88 shadow-[0_10px_35px_rgba(23,20,45,.06)] backdrop-blur-2xl">
+        <div className="h-0.5 bg-gradient-to-r from-[#6d5dfc] via-[#9c7cff] to-[#36b8ff]" />
+        <div className="mx-auto flex h-[74px] max-w-[1440px] items-center gap-3 px-3 sm:px-6 lg:px-8">
+          <Link href="/home" className="group flex min-w-0 shrink-0 items-center gap-2.5 rounded-2xl px-1 py-1" aria-label="Socialhub home">
+            <span className="grid size-10 place-items-center rounded-[14px] bg-gradient-to-br from-[#6d5dfc] via-[#856fff] to-[#36b8ff] text-white shadow-lg shadow-[#6d5dfc]/25 transition duration-200 group-hover:-translate-y-0.5">
+              <Sparkles size={18} strokeWidth={2.2}/>
+            </span>
+            <span className="hidden min-w-0 sm:block">
+              <span className="block truncate text-[15px] font-black tracking-[-.035em] text-gray-950">Socialhub</span>
+              <span className="block text-[9px] font-bold uppercase tracking-[.18em] text-[#7c72c8]">Connect · Share · Belong</span>
+            </span>
           </Link>
-          <form onSubmit={submitSearch} className="relative mx-auto hidden max-w-md flex-1 md:block">
+
+          <form onSubmit={submitSearch} className="relative mx-auto hidden w-full max-w-lg flex-1 md:block">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/>
-            <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-11 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm font-medium outline-none transition placeholder:text-gray-400 focus:border-[#bdb6ff] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Search people…" aria-label="Search people"/>
+            <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-11 w-full rounded-2xl border border-gray-200/80 bg-gray-50/90 pl-11 pr-4 text-sm font-medium outline-none transition placeholder:text-gray-400 focus:border-[#bbb3ff] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Search people, posts and hashtags…" aria-label="Search Socialhub"/>
           </form>
+
           <div className="ml-auto flex items-center gap-1.5">
-            <button type="button" onClick={() => setSearchOpen((value) => !value)} className="social-icon-button md:hidden" aria-label="Search" aria-expanded={searchOpen}><Search size={19}/></button>
-            <Link href="/messages" className="social-icon-button" aria-label="Messages"><MessageCircle size={19}/></Link>
-            <Link href="/notifications" className="social-icon-button relative" aria-label="Notifications"><Bell size={19}/><span className="absolute right-2 top-2 size-2 rounded-full bg-[#6d5dfc] ring-2 ring-white"/></Link>
-            <Link href={profileHref}><Avatar name={session?.user?.name ?? "You"} image={session?.user?.image}/></Link>
+            <button type="button" onClick={() => setSearchOpen((value) => !value)} className="social-icon-button rounded-2xl border border-transparent bg-gray-50 md:hidden" aria-label="Search" aria-expanded={searchOpen}><Search size={19}/></button>
+            <Link href="/messages" className="social-icon-button rounded-2xl border border-transparent bg-gray-50 hover:border-[#e3defe] hover:bg-[#f8f6ff]" aria-label="Messages"><MessageCircle size={19}/></Link>
+            <Link href="/notifications" className="social-icon-button relative rounded-2xl border border-transparent bg-gray-50 hover:border-[#e3defe] hover:bg-[#f8f6ff]" aria-label="Notifications">
+              <Bell size={19}/>
+              <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-[#6d5dfc] ring-2 ring-white"/>
+            </Link>
+            <Link href={profileHref} className="ml-0.5 rounded-2xl p-0.5 transition hover:bg-[#eeebff]">
+              <Avatar name={session?.user?.name ?? "You"} image={session?.user?.image}/>
+            </Link>
             <MobileMenu />
           </div>
         </div>
+
         {searchOpen ? (
-          <form onSubmit={submitSearch} className="border-t border-gray-100 px-4 py-3 md:hidden">
+          <form onSubmit={submitSearch} className="border-t border-gray-100 bg-white/95 px-3 py-3 sm:px-6 md:hidden">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/>
-              <input autoFocus value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-11 w-full rounded-2xl bg-gray-50 pl-11 pr-4 text-sm font-medium outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Search people…" aria-label="Search people"/>
+              <input autoFocus value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-11 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm font-medium outline-none focus:border-[#bbb3ff] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Search Socialhub…" aria-label="Search Socialhub"/>
             </div>
           </form>
         ) : null}
@@ -1038,18 +1052,23 @@ export default function HomeFeed() {
         </aside>
       </div>
 
-      <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 gap-1 rounded-2xl border border-gray-200 bg-white/95 p-1.5 shadow-2xl shadow-gray-900/10 backdrop-blur-xl md:hidden" aria-label="Mobile navigation">
-        {[
-          { Icon: Home, label: "Home", active: true, href: "/home" },
-          { Icon: Compass, label: "Discover", active: false, href: "/discover" },
-          { Icon: Plus, label: "Create", active: false, href: "#create-post" },
-          { Icon: Bell, label: "Alerts", active: false, href: "/notifications" },
-          { Icon: Users, label: "Profile", active: false, href: profileHref },
-        ].map(({ Icon, label, active, href }) => (
-          <Link href={href} key={label} className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold transition ${active ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500"}`}>
-            <Icon size={18} strokeWidth={active ? 2.5 : 2}/>{label}
-          </Link>
-        ))}
+      <nav className="fixed inset-x-2 bottom-2 z-40 grid grid-cols-5 gap-1 rounded-[1.4rem] border border-white/80 bg-[#141225]/96 p-1.5 shadow-[0_18px_55px_rgba(20,18,44,.28)] backdrop-blur-2xl md:hidden" aria-label="Mobile navigation">
+        <Link href="/home" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl bg-white/12 text-[10px] font-black text-white" aria-current="page">
+          <Home size={18} strokeWidth={2.5}/><span>Home</span>
+        </Link>
+        <Link href="/discover" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white">
+          <Compass size={18}/><span>Discover</span>
+        </Link>
+        <Link href="#create-post" className="group -mt-5 flex min-h-14 flex-col items-center justify-center gap-0.5 text-[10px] font-black text-white" aria-label="Create a post">
+          <span className="grid size-12 place-items-center rounded-2xl border-4 border-[#141225] bg-gradient-to-br from-[#6d5dfc] to-[#36b8ff] text-white shadow-[0_10px_30px_rgba(109,93,252,.45)] transition duration-200 group-hover:-translate-y-0.5"><Plus size={21} strokeWidth={2.5}/></span>
+          <span className="mt-0.5">Create</span>
+        </Link>
+        <Link href="/notifications" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white">
+          <Bell size={18}/><span>Alerts</span>
+        </Link>
+        <Link href={profileHref} className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white">
+          <Users size={18}/><span>Profile</span>
+        </Link>
       </nav>
     </main>
   );
