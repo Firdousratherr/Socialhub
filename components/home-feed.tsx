@@ -392,6 +392,7 @@ function PostCard({
   const [reactionMenuOpen, setReactionMenuOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [displayCopy, setDisplayCopy] = useState(post.copy);
   const [editText, setEditText] = useState(post.copy);
   const [editVisibility, setEditVisibility] = useState(post.visibility);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -408,6 +409,7 @@ function PostCard({
     setShareCount(post.shares);
     setReactions(post.reactions ?? []);
     setMyReaction(post.myReaction ?? null);
+    setDisplayCopy(post.copy);
     setEditText(post.copy);
     setEditVisibility(post.visibility);
   }, [post]);
@@ -492,8 +494,9 @@ function PostCard({
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not update post.");
-      post.copy = json.post.content ?? "";
-      post.visibility = json.post.visibility;
+      setDisplayCopy(json.post.content ?? "");
+      setEditText(json.post.content ?? "");
+      setEditVisibility(json.post.visibility);
       setEditing(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not update post.");
@@ -613,7 +616,7 @@ function PostCard({
             </div>
           </form>
         ) : (
-          <p className="mt-4 text-[15px] leading-6 text-gray-700">{post.copy}</p>
+          <p className="mt-4 text-[15px] leading-6 text-gray-700">{displayCopy}</p>
         )}
 
         {post.mediaUrl ? (
