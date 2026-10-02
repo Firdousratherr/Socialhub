@@ -366,6 +366,9 @@ type ProfileData = {
   visibleCounts?: { posts: number; followers: number; following: number };
   isFollowing?: boolean;
   isFriend?: boolean;
+  friendRequestStatus?: "SELF" | "NONE" | "FRIENDS" | "OUTGOING_PENDING" | "INCOMING_PENDING";
+  friendRequestId?: string | null;
+  canMessage?: boolean;
   posts?: Array<{
     id: string;
     content: string | null;
@@ -382,6 +385,10 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [editing, setEditing] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [following, setFollowing] = useState(false);
+  const [friendRequestStatus, setFriendRequestStatus] = useState<"SELF" | "NONE" | "FRIENDS" | "OUTGOING_PENDING" | "INCOMING_PENDING">("NONE");
+  const [friendRequestId, setFriendRequestId] = useState<string | null>(null);
+  const [canMessage, setCanMessage] = useState(true);
+  const [actionLoading, setActionLoading] = useState<"follow" | "friend" | "cancel-friend" | "accept-friend" | "decline-friend" | "unfriend" | "message" | "report" | "block" | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
   const [error, setError] = useState("");
@@ -394,6 +401,9 @@ function Profile({ username = "firdous" }: { username?: string }) {
     following: Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }>;
     mutual: Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }>;
     hidden?: boolean;
+    followersHidden?: boolean;
+    followingHidden?: boolean;
+    mutualHidden?: boolean;
   } | null>(null);
   const [loadingRelationships, setLoadingRelationships] = useState(false);
   const [form, setForm] = useState({
@@ -433,6 +443,13 @@ function Profile({ username = "firdous" }: { username?: string }) {
         setProfile(next);
         setIsOwner(owner);
         setFollowing(Boolean(next.isFollowing));
+        setFriendRequestStatus(next.friendRequestStatus ?? (next.isFriend ? "FRIENDS" : "NONE"));
+        setFriendRequestId(next.friendRequestId ?? null);
+        setCanMessage(next.canMessage ?? true);
+        setFriends([]);
+        setFriendsHidden(false);
+        setRelationships(null);
+        setRelationshipView(null);
         setForm({
           name: next.name,
           username: next.username ?? "",
@@ -459,7 +476,10 @@ function Profile({ username = "firdous" }: { username?: string }) {
       .then(async (response) => {
         const json = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(json.error ?? "Could not load friends.");
-        if (!cancelled) setFriends(json.friends ?? []);
+        if (!cancelled) {
+          setFriends(json.friends ?? []);
+          setFriendsHidden(Boolean(json.hidden));
+        }
       })
       .catch((requestError) => {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load friends.");
@@ -564,18 +584,146 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const initials = displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase() || "SH";
 
   async function toggleFollow() {
-    if (!session?.user || isOwner || !profile) return;
-    const response = await fetch("/api/users/" + profile.id + "/follow", { method: following ? "DELETE" : "POST" });
-    const json = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setError(json.error ?? "Could not update follow status.");
-      return;
+    if (!session?.user || isOwner || !profile || actionLoading) return;
+    setActionLoading("follow");
+    try {
+      const response = await fetch("/api/users/" + profile.id + "/follow", { method: following ? "DELETE" : "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not update follow status.");
+      const nextFollowing = Boolean(json.following);
+      setFollowing(nextFollowing);
+      setProfile((current) => current ? {
+        ...current,
+        _count: {
+          ...current._count,
+          followers: Math.max(0, current._count.followers + (nextFollowing ? 1 : -1)),
+        },
+      } : current);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not update follow status.");
+    } finally {
+      setActionLoading(null);
     }
-    setFollowing(Boolean(json.following));
+  }
+
+  async function sendFriendRequest() {
+    if (!profile || isOwner || !session?.user || actionLoading) return;
+    setActionLoading("friend");
+    try {
+      const response = await fetch("/api/friend-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiverId: profile.id }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not send friend request.");
+      setFriendRequestStatus("OUTGOING_PENDING");
+      setFriendRequestId(json.friendRequest?.id ?? null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not send friend request.");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function cancelFriendRequest() {
+    if (!friendRequestId || actionLoading) return;
+    setActionLoading("cancel-friend");
+    try {
+      const response = await fetch("/api/friend-requests/" + encodeURIComponent(friendRequestId), { method: "DELETE" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not cancel friend request.");
+      setFriendRequestStatus("NONE");
+      setFriendRequestId(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not cancel friend request.");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function acceptFriendRequest() {
+    if (!friendRequestId || actionLoading) return;
+    setActionLoading("accept-friend");
+    try {
+      const response = await fetch("/api/friend-requests/" + encodeURIComponent(friendRequestId), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ACCEPTED" }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not accept friend request.");
+      setFriendRequestStatus("FRIENDS");
+      setFriendRequestId(null);
+      setFollowing(true);
+      setCanMessage(true);
+      setProfile((current) => current ? {
+        ...current,
+        isFriend: true,
+        _count: {
+          ...current._count,
+          followers: current._count.followers + 1,
+          following: current._count.following + 1,
+        },
+      } : current);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not accept friend request.");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function declineFriendRequest() {
+    if (!friendRequestId || actionLoading) return;
+    setActionLoading("decline-friend");
+    try {
+      const response = await fetch("/api/friend-requests/" + encodeURIComponent(friendRequestId), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "DECLINED" }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not decline friend request.");
+      setFriendRequestStatus("NONE");
+      setFriendRequestId(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not decline friend request.");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function unfriendUser() {
+    if (!profile || isOwner || actionLoading) return;
+    if (!window.confirm("Remove this person from your friends?")) return;
+    setActionLoading("unfriend");
+    try {
+      const response = await fetch("/api/friends/" + encodeURIComponent(profile.id), { method: "DELETE" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not remove this friendship.");
+      setFriendRequestStatus("NONE");
+      setFriendRequestId(null);
+      setFollowing(false);
+      setCanMessage(false);
+      setProfile((current) => current ? {
+        ...current,
+        isFriend: false,
+        _count: {
+          ...current._count,
+          followers: Math.max(0, current._count.followers - 1),
+          following: Math.max(0, current._count.following - 1),
+        },
+      } : current);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not remove this friendship.");
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   async function startMessage() {
-    if (!profile || isOwner || !session?.user) return;
+    if (!profile || isOwner || !session?.user || !canMessage || actionLoading) return;
+    setActionLoading("message");
     try {
       const response = await fetch("/api/conversations", {
         method: "POST",
@@ -587,48 +735,51 @@ function Profile({ username = "firdous" }: { username?: string }) {
       window.location.href = "/messages?conversation=" + encodeURIComponent(json.conversation.id);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not start a conversation.");
+      setActionLoading(null);
     }
   }
 
   async function reportUser() {
-    if (!profile || isOwner) return;
+    if (!profile || isOwner || actionLoading) return;
     const reason = window.prompt("Why are you reporting this profile?", "Spam or misleading profile");
     if (!reason?.trim()) return;
-    const response = await fetch("/api/users/" + profile.id + "/report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: reason.trim() }),
-    });
-    if (response.ok) setError("Report submitted. Thank you for helping keep Socialhub safe.");
-    else setError("Could not submit the report.");
+    setActionLoading("report");
+    try {
+      const response = await fetch("/api/users/" + profile.id + "/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      if (!response.ok) {
+        const json = await response.json().catch(() => ({}));
+        throw new Error(json.error ?? "Could not submit the report.");
+      }
+      setError("Report submitted. Thank you for helping keep Socialhub safe.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not submit the report.");
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   async function blockUser() {
-    if (!profile || isOwner) return;
+    if (!profile || isOwner || actionLoading) return;
     if (!window.confirm("Block this user? Their content will no longer appear for you.")) return;
-    const response = await fetch("/api/users/" + profile.id + "/block", { method: "POST" });
-    if (response.ok) setError("User blocked.");
-    else setError("Could not block this user.");
+    setActionLoading("block");
+    try {
+      const response = await fetch("/api/users/" + profile.id + "/block", { method: "POST" });
+      if (!response.ok) {
+        const json = await response.json().catch(() => ({}));
+        throw new Error(json.error ?? "Could not block this user.");
+      }
+      window.location.href = "/home";
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not block this user.");
+      setActionLoading(null);
+    }
   }
 
-  return <Page eyebrow="Profile" title={`@${displayUsername}`} action={
-    isOwner ? (
-      <button onClick={() => setEditing((value) => !value)} className="flex h-10 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white">
-        <Pencil size={15}/>{editing ? "Cancel" : "Edit profile"}
-      </button>
-    ) : session?.user ? (
-      <div className="flex gap-2">
-        <button onClick={() => void toggleFollow()} className={following ? "h-10 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700" : "h-10 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white"}>
-          {following ? "Following" : "Follow"}
-        </button>
-        <button onClick={() => void startMessage()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Message profile" title="Message"><MessageCircle size={15}/></button>
-        <button onClick={() => void reportUser()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Report profile"><Shield size={15}/></button>
-        <button onClick={() => void blockUser()} className="grid size-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" aria-label="Block profile"><ShieldOff size={15}/></button>
-      </div>
-    ) : (
-      <Link href="/login" className="flex h-10 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white"><LogIn size={15}/>Sign in</Link>
-    )
-  }>
+  return <Page eyebrow="Profile" title={`@${displayUsername}`}>
     {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
     <div className="overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)]">
@@ -697,6 +848,47 @@ function Profile({ username = "firdous" }: { username?: string }) {
 
         {uploading === "avatar" ? <p className="mt-3 text-[11px] font-bold text-[#5a4be8]">Uploading profile picture…</p> : null}
 
+        {!editing ? (
+          <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50/80 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[10px] font-black uppercase tracking-[.16em] text-gray-400">Profile actions</span>
+              {friendRequestStatus === "FRIENDS" ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700"><Check size={12}/>Friends</span> : null}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {isOwner ? (
+                <button type="button" onClick={() => setEditing(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white shadow-sm"><Pencil size={15}/>Edit profile</button>
+              ) : session?.user ? (
+                <>
+                  {friendRequestStatus === "FRIENDS" ? (
+                    <button type="button" onClick={() => void unfriendUser()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><Users size={15}/>{actionLoading === "unfriend" ? "Removing…" : "Unfriend"}</button>
+                  ) : friendRequestStatus === "INCOMING_PENDING" ? (
+                    <>
+                      <button type="button" onClick={() => void acceptFriendRequest()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white disabled:opacity-50"><Check size={15}/>{actionLoading === "accept-friend" ? "Accepting…" : "Accept friend"}</button>
+                      <button type="button" onClick={() => void declineFriendRequest()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><X size={15}/>{actionLoading === "decline-friend" ? "Declining…" : "Decline"}</button>
+                    </>
+                  ) : friendRequestStatus === "OUTGOING_PENDING" ? (
+                    <>
+                      <button type="button" disabled className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#d9d4ff] bg-[#f6f3ff] px-4 text-xs font-black text-[#5a4be8]"><Check size={15}/>Request sent</button>
+                      <button type="button" onClick={() => void cancelFriendRequest()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><X size={15}/>{actionLoading === "cancel-friend" ? "Cancelling…" : "Cancel request"}</button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => void sendFriendRequest()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white disabled:opacity-50"><UserPlus size={15}/>{actionLoading === "friend" ? "Sending…" : "Add friend"}</button>
+                  )}
+                  {friendRequestStatus !== "FRIENDS" && (!profile.isPrivate || friendRequestStatus === "INCOMING_PENDING") ? (
+                    <button type="button" onClick={() => void toggleFollow()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><Users size={15}/>{actionLoading === "follow" ? "Updating…" : following ? "Following" : "Follow"}</button>
+                  ) : null}
+                  <button type="button" onClick={() => void startMessage()} disabled={!canMessage || Boolean(actionLoading)} className={"inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-xs font-black " + (canMessage ? "border-gray-200 bg-white text-gray-700 disabled:opacity-50" : "cursor-not-allowed border-gray-100 bg-gray-100 text-gray-400")}><MessageCircle size={15}/>{actionLoading === "message" ? "Opening…" : canMessage ? "Message" : "Messages off"}</button>
+                  <button type="button" onClick={() => void reportUser()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><Shield size={15}/>Report</button>
+                  <button type="button" onClick={() => void blockUser()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 text-xs font-black text-red-600 disabled:opacity-50"><ShieldOff size={15}/>Block</button>
+                </>
+              ) : (
+                <Link href="/login" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white"><LogIn size={15}/>Sign in to interact</Link>
+              )}
+              <button type="button" onClick={() => void shareProfile()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700"><ArrowRight size={15}/>Share</button>
+            </div>
+          </div>
+        ) : null}
+
         {editing ? (
           <form onSubmit={saveProfile} className="mt-6 grid gap-4 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] p-4 sm:grid-cols-2">
             <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Display name</span><input value={form.name} onChange={(e)=>setForm((value)=>({...value,name:e.target.value}))} className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
@@ -733,6 +925,14 @@ function Profile({ username = "firdous" }: { username?: string }) {
                 <div className="max-h-[60vh] overflow-y-auto p-3">
                   {(() => {
                     const list = relationships?.[relationshipView] ?? [];
+                    const hidden = relationshipView === "followers"
+                      ? relationships?.followersHidden
+                      : relationshipView === "following"
+                        ? relationships?.followingHidden
+                        : relationships?.mutualHidden;
+                    if (hidden) {
+                      return <div className="p-8 text-center"><Lock className="mx-auto text-gray-400" size={20}/><p className="mt-3 text-sm font-black">This list is private</p><p className="mt-1 text-xs text-gray-400">The account owner has chosen not to show this relationship list.</p></div>;
+                    }
                     return list.length ? list.map((person) => <Link key={person.id} href={"/profile/" + encodeURIComponent(person.username ?? person.id)} onClick={() => setRelationshipView(null)} className="flex items-center gap-3 rounded-2xl p-3 hover:bg-gray-50">
                       {person.image ? <img src={person.image} alt="" className="size-11 rounded-full object-cover"/> : <span className="grid size-11 place-items-center rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{person.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()}</span>}
                       <span className="min-w-0"><span className="flex items-center gap-1 truncate text-sm font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-xs text-gray-400">@{person.username ?? "member"}</span></span>
