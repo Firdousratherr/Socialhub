@@ -54,3 +54,12 @@ test("paginated relationship lists still honor list-level privacy", () => {
   assert.match(route, /showFollowingList/);
   assert.match(route, /listIsHidden/);
 });
+
+test("configured administrator is verified before Better Auth password sign-in", () => {
+  const route = read("app/api/admin/login/route.ts");
+  const verifiedIndex = route.indexOf("emailVerified: true");
+  const signInIndex = route.indexOf("auth.api.signInEmail");
+  assert.ok(verifiedIndex >= 0, "admin login must explicitly verify the configured admin account");
+  assert.ok(signInIndex >= 0, "admin login must use Better Auth sign-in");
+  assert.ok(verifiedIndex < signInIndex, "admin verification must happen before Better Auth enforces email verification");
+});
