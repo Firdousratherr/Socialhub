@@ -72,6 +72,8 @@ export async function GET(
   );
 
   const canSeeFriendsPosts = isSelf || friends;
+  const canMessage = !isSelf && (!user.privacySetting || user.privacySetting.allowMessagesEveryone || friends);
+  const { privacySetting: _privacySetting, ...safeUser } = user;
   const posts = await prisma.post.findMany({
     where: {
       authorId: user.id,
@@ -91,16 +93,14 @@ export async function GET(
 
   return NextResponse.json({
     profile: {
-      ...user,
-      email: isSelf ? user.email : undefined,
+      ...safeUser,
+      email: isSelf ? safeUser.email : undefined,
       posts: user.isPrivate && !isSelf && !friends ? [] : posts,
       isFollowing: following,
       isFriend: friends,
       friendRequestStatus,
       friendRequestId: pendingFriendRequest?.id ?? null,
-      canMessage: isSelf
-        ? false
-        : !user.privacySetting || user.privacySetting.allowMessagesEveryone || friends,
+      canMessage,
     },
   });
 }
