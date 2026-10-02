@@ -184,6 +184,16 @@ test("mobile primary navigation exposes direct messages in the bottom bar", () =
   assert.match(nav, /MessageCircle/);
 });
 
+
+test("feed mobile navigation uses messages instead of the legacy create-plus slot", () => {
+  const nav = read("components/bottom-nav.tsx");
+  const page = read("components/social-pages.tsx");
+  assert.ok(nav.includes('{ href: "/messages", label: "Messages", Icon: MessageCircle }'));
+  assert.ok(nav.includes('grid-cols-5'));
+  assert.ok(page.includes('<BottomNav />'));
+  assert.doesNotMatch(nav, /\bPlus\b/);
+});
+
 test("messaging has live refresh, typing presence, and read receipts", () => {
   const component = read("components/social-pages.tsx");
   const typing = read("app/api/conversations/[conversationId]/typing/route.ts");
