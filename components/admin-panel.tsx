@@ -170,7 +170,15 @@ function UserEditor({ user, details, onBack, onSaveUser }: { user: UserRow; deta
     </Card>
     <div className="grid gap-4 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7"><Stat label="Posts" value={counts.posts??0} icon={FileText}/><Stat label="Likes" value={counts.likes??0} icon={Activity}/><Stat label="Comments" value={counts.comments??0} icon={Eye}/><Stat label="Followers" value={counts.followers??0} icon={Users}/><Stat label="Following" value={counts.following??0} icon={Users}/><Stat label="Reports filed" value={counts.filedReports??0} icon={Shield}/><Stat label="Reported in" value={counts.reportedIn??0} icon={ShieldCheck}/></div>
     <Card><div className="grid gap-4 sm:grid-cols-2"><Field label="Display name" value={user.name} onSave={(value)=>void save({name:value})}/><Field label="Username" value={user.username??""} onSave={(value)=>void save({username:value||null})}/></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><button disabled={saving || user.isOwner} onClick={()=>void save({isActive:!user.isActive})} className={"rounded-2xl px-4 py-3 text-xs font-black "+(user.isActive?"bg-red-50 text-red-600":"bg-emerald-50 text-emerald-600")}>{user.isActive?"Disable account":"Activate account"}</button><select value={user.role} disabled={saving || user.isOwner} onChange={(e)=>void save({role:e.target.value})} className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-xs font-black"><option value="USER">USER</option><option value="MODERATOR">MODERATOR</option><option value="ADMIN">ADMIN</option></select></div>{user.isOwner?<p className="mt-3 text-[10px] font-bold text-amber-700">Owner account role and activation are protected from this panel.</p>:null}</Card>
+    <MetricControlCard details={details} saving={saving} onSave={(metrics)=>void save({metrics})}/>
     <Card><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="text-sm font-black">Account trust</h3><p className="mt-1 text-xs text-gray-400">Manage the public blue verification badge. Owner status is separate and protected.</p></div><AccountBadge verified={user.isVerified} owner={user.isOwner} showLabel size="md"/></div><div className="mt-4 flex flex-wrap gap-3"><button disabled={saving || user.isOwner} onClick={()=>void save({isVerified:!user.isVerified})} className={"rounded-2xl px-4 py-3 text-xs font-black "+(user.isVerified?"bg-red-50 text-red-600":"bg-blue-50 text-blue-700")}>{user.isVerified?"Remove blue tick":"Give blue tick"}</button>{user.isOwner?<span className="rounded-2xl bg-amber-50 px-4 py-3 text-xs font-black text-amber-700">Owner badge is protected</span>:null}</div></Card>
+    <Card>
+      <div><h3 className="text-sm font-black">Account controls</h3><p className="mt-1 text-xs text-gray-400">Operational controls for privacy and email verification. Existing server-side owner and role protections remain active.</p></div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <button disabled={saving || user.isOwner} onClick={()=>void save({isPrivate:!user.isPrivate})} className={"rounded-2xl px-4 py-3 text-xs font-black "+(user.isPrivate?"bg-amber-50 text-amber-700":"bg-gray-950 text-white")}>{user.isPrivate?"Make profile public":"Make profile private"}</button>
+        <button disabled={saving || user.isOwner} onClick={()=>void save({emailVerified:!user.emailVerified})} className={"rounded-2xl px-4 py-3 text-xs font-black "+(user.emailVerified?"bg-amber-50 text-amber-700":"bg-emerald-50 text-emerald-700")}>{user.emailVerified?"Mark email unverified":"Mark email verified"}</button>
+      </div>
+    </Card>
     <div className="grid gap-5 xl:grid-cols-2">
       <Card><div className="flex items-center justify-between"><div><h3 className="text-sm font-black">Account activity</h3><p className="mt-1 text-xs text-gray-400">Recent reports involving this account.</p></div><Shield size={17} className="text-gray-300"/></div><div className="mt-4 divide-y divide-gray-100">{reports.length?reports.map((report:any)=><div key={report.id} className="py-3"><div className="flex items-center justify-between gap-3"><p className="text-xs font-black">{report.reason}</p><span className="text-[10px] font-black text-gray-400">{report.status}</span></div><p className="mt-1 text-[10px] text-gray-400">{formatDate(report.createdAt)} · {report.reportedUserId===user.id?"reported this account":"filed this report"}</p></div>):<p className="py-6 text-xs text-gray-400">No recent reports.</p>}</div></Card>
       <Card><div className="flex items-center justify-between"><div><h3 className="text-sm font-black">Admin history</h3><p className="mt-1 text-xs text-gray-400">Recent audited actions targeting this user.</p></div><History size={17} className="text-gray-300"/></div><div className="mt-4 divide-y divide-gray-100">{audits.length?audits.map((log:any)=><div key={log.id} className="py-3"><p className="text-xs font-black">{log.action}</p><p className="mt-1 text-[10px] text-gray-400">{formatDate(log.createdAt)} · Admin {log.adminId}</p></div>):<p className="py-6 text-xs text-gray-400">No recent admin actions.</p>}</div></Card>
@@ -179,6 +187,46 @@ function UserEditor({ user, details, onBack, onSaveUser }: { user: UserRow; deta
     <Card><div className="flex items-center justify-between"><div><h3 className="text-sm font-black">Recent sessions</h3><p className="mt-1 text-xs text-gray-400">Latest session metadata available to administrators.</p></div><ShieldCheck size={17} className="text-gray-300"/></div><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[620px] text-left text-xs"><thead className="text-[10px] font-black uppercase tracking-[.12em] text-gray-400"><tr><th className="pb-2 pr-4">Last updated</th><th className="pb-2 pr-4">IP</th><th className="pb-2">User agent</th></tr></thead><tbody>{sessions.length?sessions.map((session:any)=><tr key={session.id} className="border-t border-gray-100"><td className="py-3 pr-4 font-bold text-gray-600">{formatDate(session.updatedAt)}</td><td className="py-3 pr-4 text-gray-500">{session.ipAddress||"Unavailable"}</td><td className="max-w-[420px] truncate py-3 text-gray-500">{session.userAgent||"Unavailable"}</td></tr>):<tr><td colSpan={3} className="py-6 text-xs text-gray-400">No recent sessions.</td></tr>}</tbody></table></div></Card>
   </div>;
 }
+function MetricControlCard({details,saving,onSave}:{details:any;saving:boolean;onSave:(metrics:Record<string,number|null>)=>void}) {
+  const actual=details?.actualMetrics ?? {};
+  const override=details?.override ?? {};
+  const fields=[
+    ["posts","Posts"],["followers","Followers"],["following","Following"],
+    ["likesReceived","Likes received"],["commentsReceived","Comments received"],
+    ["shares","Shares"],["profileViews","Profile views"],
+  ] as const;
+  const [draft,setDraft]=useState<Record<string,string>>({});
+  useEffect(()=>{
+    const next:Record<string,string>={};
+    for(const [key] of fields) next[key]=override[key] == null ? "" : String(override[key]);
+    setDraft(next);
+  },[details?.override?.id, details?.override?.updatedAt]);
+  function update(key:string,value:string){setDraft(current=>({...current,[key]:value.replace(/[^0-9]/g,"").slice(0,10)}))}
+  function save(){
+    const metrics:Record<string,number|null>={};
+    for(const [key] of fields) metrics[key]=draft[key]==="" ? null : Number(draft[key]);
+    onSave(metrics);
+  }
+  function reset(){onSave(Object.fromEntries(fields.map(([key])=>[key,null])))}
+  return <Card>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div><h3 className="text-sm font-black">Profile metrics control</h3><p className="mt-1 text-xs text-gray-400">Set public profile counters without changing real relationship, post, like or comment records. Blank values use live database totals.</p></div>
+      <span className="rounded-full bg-violet-50 px-3 py-1.5 text-[10px] font-black text-violet-700">Admin only</span>
+    </div>
+    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {fields.map(([key,label])=><div key={key} className="rounded-2xl bg-gray-50 p-4">
+        <div className="flex items-center justify-between gap-2"><label className="text-[10px] font-black uppercase tracking-[.1em] text-gray-400">{label}</label><span className="text-[10px] font-bold text-gray-400">Live {actual[key] ?? 0}</span></div>
+        <input inputMode="numeric" value={draft[key] ?? ""} onChange={e=>update(key,e.target.value)} placeholder={String(actual[key] ?? 0)} disabled={saving} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-black outline-none focus:border-[#a79dff]" />
+        <p className="mt-1 text-[9px] text-gray-400">{override[key] == null ? "Using live value" : "Override active"}</p>
+      </div>)}
+    </div>
+    <div className="mt-4 flex flex-wrap gap-2">
+      <button type="button" disabled={saving} onClick={save} className="rounded-xl bg-gray-950 px-4 py-2.5 text-[10px] font-black text-white disabled:opacity-50">Save metrics</button>
+      <button type="button" disabled={saving} onClick={reset} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[10px] font-black text-gray-700 disabled:opacity-50">Reset all to live</button>
+    </div>
+  </Card>;
+}
+
 function MiniSignal({label,value}:{label:string;value:string}){return <div className="rounded-2xl bg-gray-50 p-3"><p className="text-[9px] font-black uppercase tracking-[.12em] text-gray-400">{label}</p><p className="mt-1 truncate text-xs font-black text-gray-700">{value}</p></div>}
 function Field({label,value,onSave}:{label:string;value:string;onSave:(value:string)=>void}){const[draft,setDraft]=useState(value);const[editing,setEditing]=useState(false);return <div className="rounded-2xl bg-gray-50 p-4"><label className="text-[11px] font-black text-gray-500">{label}</label>{editing?<div className="mt-2 flex gap-2"><input value={draft} onChange={e=>setDraft(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold"/><button onClick={()=>{onSave(draft);setEditing(false)}} className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white"><Check size={14}/></button><button onClick={()=>setEditing(false)} className="grid size-9 place-items-center rounded-xl bg-white text-gray-500"><X size={14}/></button></div>:<button onClick={()=>{setDraft(value);setEditing(true)}} className="mt-2 flex w-full items-center justify-between text-left text-sm font-black">{value||"Not set"}<span className="text-[10px] text-gray-400">Edit</span></button>}</div>}
 
