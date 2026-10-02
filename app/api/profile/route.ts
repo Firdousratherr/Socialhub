@@ -4,7 +4,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { profileInputSchema } from "@/lib/validation";
 import { safeDeleteBlob } from "@/lib/blob-cleanup";
-import { getPostDisplayCountsMap } from "@/lib/post-metrics";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -21,20 +20,7 @@ export async function GET() {
       image: true, coverImage: true, website: true, location: true,
       isPrivate: true, role: true, isVerified: true, isOwner: true, verifiedAt: true, ownerSince: true, createdAt: true,
       _count: { select: { posts: true, followers: true, following: true } },
-      posts: {
-        orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
-        take: 50,
-        select: {
-          id: true,
-          content: true,
-          mediaUrl: true,
-          visibility: true,
-          shareCount: true,
-          isPinned: true,
-          createdAt: true,
-          _count: { select: { likes: true, comments: true } },
-        },
-      },
+
     },
   });
 
@@ -48,23 +34,9 @@ export async function GET() {
     prisma.profileView.count({ where: { profileId: profile.id } }),
   ]);
 
-  const postDisplayCounts = await getPostDisplayCountsMap(profile.posts.map((post) => post.id));
-  const visiblePosts = profile.posts.map((post) => {
-    const display = postDisplayCounts.get(post.id);
-    return {
-      ...post,
-      displayCounts: {
-        likes: display?.likes ?? post._count.likes,
-        comments: display?.comments ?? post._count.comments,
-        shares: display?.shares ?? post.shareCount,
-      },
-    };
-  });
-
   return NextResponse.json({
     profile: {
       ...profile,
-      posts: visiblePosts,
       visibleCounts: {
         posts: override?.posts ?? profile._count.posts,
         followers: override?.followers ?? profile._count.followers,
