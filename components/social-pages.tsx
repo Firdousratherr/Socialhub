@@ -132,12 +132,24 @@ function Auth({ signup = false }: { signup?: boolean }) {
     } finally { setLoading(false); }
   }
 
+  async function requestPasswordResetCode() {
+    const normalizedEmail = email.trim().toLowerCase();
+    const response = await fetch("/api/auth/request-password-reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: normalizedEmail }),
+    });
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(json.error || "Could not start password recovery.");
+    }
+  }
+
   async function requestPasswordReset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (loading) return;
     setLoading(true); setError(""); setNotice("");
     try {
-      const result = await authClient.emailOtp.requestPasswordReset({ email: email.trim() });
-      if (result.error) throw new Error(result.error.message || "Could not start password recovery.");
+      await requestPasswordResetCode();
       setStep("forgot-verify"); setOtp(""); setCooldown(30);
       setNotice("Check your email for a 6-digit password reset code.");
     } catch (requestError) {
@@ -147,10 +159,9 @@ function Auth({ signup = false }: { signup?: boolean }) {
 
   async function resendPasswordReset() {
     if (cooldown || loading) return;
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setNotice("");
     try {
-      const result = await authClient.emailOtp.requestPasswordReset({ email: email.trim() });
-      if (result.error) throw new Error(result.error.message || "Could not send a new reset code.");
+      await requestPasswordResetCode();
       setCooldown(30); setNotice("A fresh reset code has been sent.");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not send a new reset code.");

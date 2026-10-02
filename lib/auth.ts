@@ -79,13 +79,11 @@ export const auth = betterAuth({
       overrideDefaultEmailVerification: true,
       async sendVerificationOTP({ email, otp, type }) {
         const purpose = type === "forget-password" ? "password reset" : "email verification";
-        void sendTransactionalEmail({
+        await sendTransactionalEmail({
           to: email,
           subject: type === "forget-password" ? "Your Socialhub password reset code" : "Your Socialhub verification code",
           text: `Your Socialhub ${purpose} code is ${otp}. This code expires in 10 minutes. If you did not request this, you can ignore this email.`,
           html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>Socialhub ${purpose}</h2><p>Your verification code is:</p><p style="font-size:30px;font-weight:800;letter-spacing:8px">${otp}</p><p>This code expires in 10 minutes.</p><p>If you did not request this, you can ignore this email.</p></div>`,
-        }).catch((error) => {
-          console.error("Socialhub OTP email failed", error);
         });
       },
     }),
@@ -109,7 +107,7 @@ export const auth = betterAuth({
     requireEmailVerification: true,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
-      void sendTransactionalEmail({
+      await sendTransactionalEmail({
         to: user.email,
         subject: "Reset your Socialhub password",
         text: [
@@ -121,8 +119,6 @@ export const auth = betterAuth({
           "This link expires in 1 hour. If you did not request this, you can ignore this email.",
         ].join("\n"),
         html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>Reset your Socialhub password</h2><p>Hi ${user.name},</p><p>We received a request to reset your password.</p><p><a href="${url}">Reset your password</a></p><p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p></div>`,
-      }).catch((error) => {
-        console.error("Socialhub password reset email failed", error);
       });
     },
   },
