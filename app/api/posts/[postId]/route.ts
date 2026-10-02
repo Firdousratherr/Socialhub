@@ -15,6 +15,11 @@ export async function GET(
     },
   });
   if (!post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
+  const displayCounts = await getPostDisplayCounts(post.id, {
+    likes: post._count.likes,
+    comments: post._count.comments,
+    shares: post.shareCount,
+  });
 
   const [liked, saved, reactions, mine] = session?.user
     ? await Promise.all([
@@ -28,6 +33,7 @@ export async function GET(
   return NextResponse.json({
     post: {
       ...post,
+      displayCounts,
       liked: Boolean(liked),
       saved: Boolean(saved),
       reactions: reactions.map((row) => ({ emoji: row.emoji, count: row._count._all })),
@@ -43,6 +49,7 @@ import { prisma } from "@/lib/prisma";
 import { postInputSchema } from "@/lib/validation";
 import { safeDeleteBlob } from "@/lib/blob-cleanup";
 import { canViewPost } from "@/lib/post-access";
+import { getPostDisplayCounts } from "@/lib/post-metrics";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
