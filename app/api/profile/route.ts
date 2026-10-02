@@ -63,6 +63,7 @@ export async function GET() {
   return NextResponse.json({
     profile: {
       ...profile,
+      posts: visiblePosts,
       visibleCounts: {
         posts: override?.posts ?? profile._count.posts,
         followers: override?.followers ?? profile._count.followers,
