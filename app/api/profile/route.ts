@@ -96,6 +96,11 @@ export async function DELETE() {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
+  const current = await prisma.user.findUnique({ where: { id: session.user.id }, select: { isOwner: true } });
+  if (current?.isOwner) {
+    return NextResponse.json({ error: "The Socialhub owner account cannot be deleted from the standard account flow." }, { status: 403 });
+  }
+
   await prisma.user.delete({
     where: { id: session.user.id },
   });
