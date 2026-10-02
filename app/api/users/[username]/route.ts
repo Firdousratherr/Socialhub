@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { areFriends, isBlocked } from "@/lib/social-access";
-import { getPostDisplayCountsMap } from "@/lib/post-metrics";
 
 export async function GET(
   _request: Request,
@@ -93,41 +92,10 @@ export async function GET(
   const canSeeFriendsPosts = isSelf || friends;
   const { privacySetting, ...safeUser } = user;
   const canMessage = !isSelf && (!privacySetting || privacySetting.allowMessagesEveryone || friends);
-  const posts = await prisma.post.findMany({
-    where: {
-      authorId: user.id,
-      OR: [
-        { visibility: "PUBLIC" },
-        ...(canSeeFriendsPosts ? [{ visibility: "FRIENDS" as const }] : []),
-        ...(isSelf ? [{ visibility: "PRIVATE" as const }] : []),
-      ],
-    },
-    orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }, { id: "desc" }],
-    take: 20,
-    select: {
-      id: true, content: true, mediaUrl: true, visibility: true, shareCount: true, isPinned: true, createdAt: true,
-      _count: { select: { likes: true, comments: true } },
-    },
-  });
-
-  const postDisplayCounts = await getPostDisplayCountsMap(posts.map((post) => post.id));
-  const visiblePosts = posts.map((post) => {
-    const display = postDisplayCounts.get(post.id);
-    return {
-      ...post,
-      displayCounts: {
-        likes: display?.likes ?? post._count.likes,
-        comments: display?.comments ?? post._count.comments,
-        shares: display?.shares ?? post.shareCount,
-      },
-    };
-  });
-
   return NextResponse.json({
     profile: {
       ...safeUser,
       email: isSelf ? safeUser.email : undefined,
-      posts: user.isPrivate && !isSelf && !friends ? [] : visiblePosts,
       isFollowing: following,
       isFriend: friends,
       friendRequestStatus,

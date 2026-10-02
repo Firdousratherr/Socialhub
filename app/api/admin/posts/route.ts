@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { safeDeleteBlob } from "@/lib/blob-cleanup";
 import { requireAdminPermission } from "@/lib/admin-permissions";
 import * as z from "zod";
 
@@ -160,11 +161,12 @@ export async function DELETE(request: Request) {
 
   const post = await prisma.post.findUnique({
     where: { id },
-    select: { id: true, authorId: true },
+    select: { id: true, authorId: true, mediaUrl: true },
   });
   if (!post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
 
   await prisma.post.delete({ where: { id } });
+  void safeDeleteBlob(post.mediaUrl);
 
   await prisma.adminAuditLog.create({
     data: {

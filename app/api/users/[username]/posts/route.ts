@@ -8,17 +8,17 @@ import { getPostDisplayCountsMap } from "@/lib/post-metrics";
 function decodeCursor(value: string | null) {
   if (!value) return null;
   try {
-    const payload = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as { createdAt?: string; id?: string };
-    if (!payload.createdAt || !payload.id) return null;
+    const payload = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as { isPinned?: boolean; createdAt?: string; id?: string };
+    if (typeof payload.isPinned !== "boolean" || !payload.createdAt || !payload.id) return null;
     const createdAt = new Date(payload.createdAt);
-    return Number.isNaN(createdAt.getTime()) ? null : { createdAt, id: payload.id };
+    return Number.isNaN(createdAt.getTime()) ? null : { isPinned: payload.isPinned, createdAt, id: payload.id };
   } catch {
     return null;
   }
 }
 
-function encodeCursor(createdAt: Date, id: string) {
-  return Buffer.from(JSON.stringify({ createdAt: createdAt.toISOString(), id }), "utf8").toString("base64url");
+function encodeCursor(isPinned: boolean, createdAt: Date, id: string) {
+  return Buffer.from(JSON.stringify({ isPinned, createdAt: createdAt.toISOString(), id }), "utf8").toString("base64url");
 }
 
 export async function GET(
@@ -62,12 +62,28 @@ export async function GET(
       authorId: user.id,
       AND: [
         { OR: visible },
-        ...(cursor ? [{
-          OR: [
-            { createdAt: { lt: cursor.createdAt } },
-            { createdAt: cursor.createdAt, id: { lt: cursor.id } },
-          ],
-        }] : []),
+        ...(cursor
+          ? [cursor.isPinned
+              ? {
+                  OR: [
+                    { isPinned: false },
+                    {
+                      isPinned: true,
+                      OR: [
+                        { createdAt: { lt: cursor.createdAt } },
+                        { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+                      ],
+                    },
+                  ],
+                }
+              : {
+                  isPinned: false,
+                  OR: [
+                    { createdAt: { lt: cursor.createdAt } },
+                    { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+                  ],
+                }]
+          : []),
       ],
     },
     orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }, { id: "desc" }],
@@ -100,6 +116,6 @@ export async function GET(
   });
   return NextResponse.json({
     posts: visiblePosts,
-    nextBefore: hasMore && posts.length ? encodeCursor(posts.at(-1)!.createdAt, posts.at(-1)!.id) : null,
+    nextBefore: hasMore && posts.length ? encodeCursor(posts.at(-1)!.isPinned, posts.at(-1)!.createdAt, posts.at(-1)!.id) : null,
   });
 }

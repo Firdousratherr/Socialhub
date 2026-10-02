@@ -5,6 +5,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { MobileMenu } from "@/components/mobile-menu";
+import { BottomNav } from "@/components/bottom-nav";
+import { useUnreadSummary } from "@/hooks/use-unread-summary";
+import { emitPostSyncEvent, subscribePostSync } from "@/lib/post-sync";
 import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
 import { useRouter } from "next/navigation";
@@ -137,6 +140,49 @@ function timeLabel(createdAt: string) {
   if (hours < 24) return hours + "h";
   const days = Math.floor(hours / 24);
   return days + "d";
+}
+
+function mapApiPostToFeedPost(
+  item: {
+    id: string;
+    authorId: string;
+    content: string | null;
+    mediaUrl: string | null;
+    visibility: Post["visibility"];
+    createdAt: string;
+    shareCount: number;
+    liked: boolean;
+    saved: boolean;
+    reactions: Array<{ emoji: string; count: number }>;
+    myReaction: string | null;
+    author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
+    _count: { likes: number; comments: number };
+    displayCounts?: { likes: number; comments: number; shares: number };
+  },
+  index: number,
+): Post {
+  return {
+    id: item.id,
+    authorId: item.authorId,
+    name: item.author.name,
+    handle: `@${item.author.username ?? "member"}`,
+    initials: item.author.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
+    authorImage: item.author.image,
+    authorVerified: Boolean(item.author.isVerified),
+    authorOwner: Boolean(item.author.isOwner),
+    timestamp: timeLabel(item.createdAt),
+    copy: item.content ?? "Shared a new moment.",
+    mediaUrl: item.mediaUrl,
+    visibility: item.visibility,
+    accent: ["from-violet-500 via-fuchsia-400 to-amber-300","from-sky-500 via-cyan-400 to-emerald-300","from-emerald-400 via-cyan-400 to-sky-400","from-amber-400 via-rose-400 to-fuchsia-400"][index % 4],
+    likes: item.displayCounts?.likes ?? item._count.likes,
+    comments: item.displayCounts?.comments ?? item._count.comments,
+    shares: item.displayCounts?.shares ?? item.shareCount ?? 0,
+    liked: Boolean(item.liked),
+    saved: Boolean(item.saved),
+    reactions: item.reactions ?? [],
+    myReaction: item.myReaction ?? null,
+  };
 }
 
 function CommentThread({
@@ -506,6 +552,7 @@ function PostCard({
       setEditText(json.post.content ?? "");
       setEditVisibility(json.post.visibility);
       setEditing(false);
+      emitPostSyncEvent({ type: "updated", postId: post.id });
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not update post.");
     } finally {
@@ -678,6 +725,7 @@ function PostCard({
 export default function HomeFeed() {
   const { data: session } = authClient.useSession();
   const router = useRouter();
+  const { summary: unreadSummary } = useUnreadSummary();
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [suggestedUsers, setSuggestedUsers] = useState<SuggestedUser[]>([]);
@@ -702,43 +750,7 @@ export default function HomeFeed() {
     const response = await fetch(`/api/posts?${query.toString()}`, { cache: "no-store" });
     const json = await response.json();
     if (!response.ok) throw new Error(json.error ?? "Could not load your feed.");
-    const mapped = (json.posts ?? []).map((item: {
-      id: string;
-      authorId: string;
-      content: string | null;
-      mediaUrl: string | null;
-      visibility: Post["visibility"];
-      createdAt: string;
-      shareCount: number;
-      liked: boolean;
-      saved: boolean;
-      reactions: Array<{ emoji: string; count: number }>;
-      myReaction: string | null;
-      author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
-      _count: { likes: number; comments: number };
-      displayCounts?: { likes: number; comments: number; shares: number };
-    }, index: number) => ({
-      id: item.id,
-      authorId: item.authorId,
-      name: item.author.name,
-      handle: `@${item.author.username ?? "member"}`,
-      initials: item.author.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
-      authorImage: item.author.image,
-      authorVerified: Boolean(item.author.isVerified),
-      authorOwner: Boolean(item.author.isOwner),
-      timestamp: timeLabel(item.createdAt),
-      copy: item.content ?? "Shared a new moment.",
-      mediaUrl: item.mediaUrl,
-      visibility: item.visibility,
-      accent: ["from-violet-500 via-fuchsia-400 to-amber-300","from-sky-500 via-cyan-400 to-emerald-300","from-emerald-400 via-cyan-400 to-sky-400","from-amber-400 via-rose-400 to-fuchsia-400"][index % 4],
-      likes: item.displayCounts?.likes ?? item._count.likes,
-      comments: item.displayCounts?.comments ?? item._count.comments,
-      shares: item.displayCounts?.shares ?? item.shareCount ?? 0,
-      liked: Boolean(item.liked),
-      saved: Boolean(item.saved),
-      reactions: item.reactions ?? [],
-      myReaction: item.myReaction ?? null,
-    }));
+    const mapped = (json.posts ?? []).map(mapApiPostToFeedPost);
 
     setNextBefore(json.nextBefore ?? null);
     setFeedPosts((current) => (append ? [...current, ...mapped] : mapped));
@@ -759,33 +771,7 @@ export default function HomeFeed() {
         if (cancelled) return;
 
         if (feedResponse.ok) {
-          const mapped = (feedJson.posts ?? []).map((item: {
-            id: string; authorId: string; content: string | null; mediaUrl: string | null; visibility: Post["visibility"]; createdAt: string;
-            shareCount: number; liked: boolean; saved: boolean;
-            reactions: Array<{ emoji: string; count: number }>; myReaction: string | null;
-            author: { id: string; name: string; username: string | null; image: string | null };
-            _count: { likes: number; comments: number };
-      displayCounts?: { likes: number; comments: number; shares: number };
-          }, index: number) => ({
-            id: item.id,
-            authorId: item.authorId,
-            name: item.author.name,
-            handle: `@${item.author.username ?? "member"}`,
-            initials: item.author.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase(),
-            authorImage: item.author.image,
-            timestamp: timeLabel(item.createdAt),
-            copy: item.content ?? "Shared a new moment.",
-            mediaUrl: item.mediaUrl,
-            visibility: item.visibility,
-            accent: ["from-violet-500 via-fuchsia-400 to-amber-300","from-sky-500 via-cyan-400 to-emerald-300","from-emerald-400 via-cyan-400 to-sky-400","from-amber-400 via-rose-400 to-fuchsia-400"][index % 4],
-            likes: item.displayCounts?.likes ?? item._count.likes,
-            comments: item.displayCounts?.comments ?? item._count.comments,
-            shares: item.displayCounts?.shares ?? item.shareCount ?? 0,
-            liked: Boolean(item.liked),
-            saved: Boolean(item.saved),
-            reactions: item.reactions ?? [],
-            myReaction: item.myReaction ?? null,
-          }));
+          const mapped = (feedJson.posts ?? []).map(mapApiPostToFeedPost);
           setFeedPosts(mapped);
           setNextBefore(feedJson.nextBefore ?? null);
         }
@@ -801,6 +787,35 @@ export default function HomeFeed() {
       cancelled = true;
     };
   }, [session?.user?.id, feedMode]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void fetchFeed().catch((loadError) => {
+        setFeedError(loadError instanceof Error ? loadError.message : "Could not refresh your feed.");
+      });
+    };
+
+    const unsubscribe = subscribePostSync((event) => {
+      if (event.type === "deleted") {
+        setFeedPosts((current) => current.filter((post) => post.id !== event.postId));
+        return;
+      }
+      refresh();
+    });
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    const onPageShow = () => refresh();
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      unsubscribe();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, [feedMode]);
 
   async function uploadPhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -862,6 +877,7 @@ export default function HomeFeed() {
         myReaction: null,
       };
       setFeedPosts((current) => [created, ...current]);
+      emitPostSyncEvent({ type: "created", postId: created.id });
       setNewPost("");
       setVisibility("PUBLIC");
       setMediaUrl(null);
@@ -970,10 +986,10 @@ export default function HomeFeed() {
 
           <div className="ml-auto flex items-center gap-1.5">
             <button type="button" onClick={() => setSearchOpen((value) => !value)} className="social-icon-button rounded-2xl border border-transparent bg-gray-50 md:hidden" aria-label="Search" aria-expanded={searchOpen}><Search size={19}/></button>
-            <Link href="/messages" className="social-icon-button rounded-2xl border border-transparent bg-gray-50 hover:border-[#e3defe] hover:bg-[#f8f6ff]" aria-label="Messages"><MessageCircle size={19}/></Link>
+            <Link href="/messages" className="social-icon-button relative rounded-2xl border border-transparent bg-gray-50 hover:border-[#e3defe] hover:bg-[#f8f6ff]" aria-label="Messages"><MessageCircle size={19}/>{unreadSummary.messages > 0 ? <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[8px] font-black leading-4 text-white">{Math.min(99, unreadSummary.messages)}</span> : null}</Link>
             <Link href="/notifications" className="social-icon-button relative rounded-2xl border border-transparent bg-gray-50 hover:border-[#e3defe] hover:bg-[#f8f6ff]" aria-label="Notifications">
               <Bell size={19}/>
-              <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-[#6d5dfc] ring-2 ring-white"/>
+              {unreadSummary.notifications > 0 ? <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[8px] font-black leading-4 text-white">{Math.min(99, unreadSummary.notifications)}</span> : null}
             </Link>
             <Link href={profileHref} className="ml-0.5 rounded-2xl p-0.5 transition hover:bg-[#eeebff]">
               <Avatar name={session?.user?.name ?? "You"} image={session?.user?.image}/>
@@ -1117,23 +1133,7 @@ export default function HomeFeed() {
         </aside>
       </div>
 
-      <nav className="fixed inset-x-2 bottom-2 z-40 grid grid-cols-5 gap-1 rounded-[1.4rem] border border-white/80 bg-[#141225]/96 p-1.5 shadow-[0_18px_55px_rgba(20,18,44,.28)] backdrop-blur-2xl md:hidden" aria-label="Mobile navigation">
-        <Link href="/home" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl bg-white/12 text-[10px] font-black text-white" aria-current="page">
-          <Home size={18} strokeWidth={2.5}/><span>Home</span>
-        </Link>
-        <Link href="/discover" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white">
-          <Compass size={18}/><span>Discover</span>
-        </Link>
-        <Link href="/messages" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white" aria-label="Messages">
-          <MessageCircle size={18}/><span>Messages</span>
-        </Link>
-        <Link href="/notifications" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white">
-          <Bell size={18}/><span>Alerts</span>
-        </Link>
-        <Link href={profileHref} className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white">
-          <Users size={18}/><span>Profile</span>
-        </Link>
-      </nav>
+      <BottomNav />
     </main>
   );
 }
