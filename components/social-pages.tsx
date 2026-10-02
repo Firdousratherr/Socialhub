@@ -8,6 +8,7 @@ import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
 import { MobileMenu } from "@/components/mobile-menu";
+import { emitPostSyncEvent } from "@/lib/post-sync";
 import { BottomNav } from "@/components/bottom-nav";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
@@ -524,6 +525,7 @@ function ProfilePostCard({
       const next = !pinned;
       setPinned(next);
       onPinnedChange(post.id, next);
+      emitPostSyncEvent({ type: "pinned", postId: post.id, pinned: next });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update pinned state.");
     } finally {
@@ -539,6 +541,7 @@ function ProfilePostCard({
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error ?? "Could not delete this post.");
       onRemove(post.id);
+      emitPostSyncEvent({ type: "deleted", postId: post.id });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not delete this post.");
     } finally {
