@@ -63,6 +63,7 @@ export async function GET(request: Request) {
     include: {
       author: { select: { id: true, name: true, username: true, image: true } },
       _count: { select: { likes: true, comments: true, reports: true } },
+      postMetricOverride: true,
     },
   });
 
@@ -80,15 +81,41 @@ export async function PATCH(request: Request) {
   if (access.response) return access.response;
 
   const body = await request.json().catch(() => null);
-  const parsed = z
-    .object({
-      id: z.string().min(1),
-      visibility: z.enum(["PUBLIC", "FRIENDS", "PRIVATE"]).optional(),
-    })
-    .safeParse(body);
+  const metricSchema = z.object({
+    likes: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+    comments: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+    shares: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+  });
+  const parsed = z.object({
+    id: z.string().min(1),
+    visibility: z.enum(["PUBLIC", "FRIENDS", "PRIVATE"]).optional(),
+    metrics: metricSchema.optional(),
+  }).safeParse(body);
 
-  if (!parsed.success || !parsed.data.visibility) {
-    return NextResponse.json({ error: "Provide a post id and visibility." }, { status: 400 });
+  if (!parsed.success || (parsed.data.visibility === undefined && parsed.data.metrics === undefined)) {
+    return NextResponse.json({ error: "Provide a post visibility or metrics update." }, { status: 400 });
+  }
+  if (parsed.data.metrics !== undefined) {
+    const access = await requireAdminPermission("CONTENT_METRICS");
+    if (access.response) return access.response;
+    const previous = await prisma.adminPostMetricOverride.findUnique({ where: { postId: parsed.data.id } });
+    const hasOverride = Object.values(parsed.data.metrics).some((value) => value !== null && value !== undefined);
+    const override = hasOverride
+      ? await prisma.adminPostMetricOverride.upsert({
+          where: { postId: parsed.data.id },
+          create: { postId: parsed.data.id, ...parsed.data.metrics },
+          update: { ...parsed.data.metrics },
+        })
+      : (await prisma.adminPostMetricOverride.deleteMany({ where: { postId: parsed.data.id } }), null);
+    await prisma.adminAuditLog.create({
+      data: {
+        adminId: access.user.id,
+        action: "UPDATE_POST_METRICS",
+        targetType: "POST",
+        targetId: parsed.data.id,
+        details: JSON.stringify({ before: previous, after: override, reset: !hasOverride }),
+      },
+    });
   }
 
   const before = await prisma.post.findUnique({
@@ -96,6 +123,11 @@ export async function PATCH(request: Request) {
     select: { id: true, visibility: true, authorId: true },
   });
   if (!before) return NextResponse.json({ error: "Post not found." }, { status: 404 });
+
+  if (parsed.data.visibility === undefined) {
+    const override = await prisma.adminPostMetricOverride.findUnique({ where: { postId: parsed.data.id } });
+    return NextResponse.json({ post: before, override });
+  }
 
   const post = await prisma.post.update({
     where: { id: parsed.data.id },
