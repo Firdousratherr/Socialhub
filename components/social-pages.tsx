@@ -688,7 +688,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
               <article key={post.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
                 <div className="flex items-center gap-3">
                   {profile?.image ? <img src={profile.image} alt="" className="size-9 rounded-full object-cover" /> : <Avatar initials={initials} size="sm" />}
-                  <div><p className="text-xs font-black">{displayName}</p><p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p></div>
+                  <div><p className="flex items-center gap-1 text-xs font-black">{displayName}<AccountBadge verified={profile?.isVerified} owner={profile?.isOwner}/></p><p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p></div>
                 </div>
                 {post.content ? <p className="mt-3 text-sm leading-6 text-gray-600">{post.content}</p> : null}
                 {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
@@ -1577,7 +1577,7 @@ function Notifications() {
         const Icon = iconFor(item.type);
         return <button key={item.id} onClick={() => void openNotification(item)} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
           <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(item.type)}`}><Icon size={17}/></span>
-          <span className="flex-1"><span className="block text-sm font-bold">{item.type === "SYSTEM" ? (item.title ?? "Account update") : (item.actor?.name ?? "Socialhub") + " " + (item.type === "LIKE" ? "liked your post." : item.type === "FOLLOW" ? "started following you." : item.type === "COMMENT" ? "commented on your post." : item.type === "FRIEND_REQUEST" ? "sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? "accepted your friend request." : item.type === "MESSAGE" ? "sent you a message." : item.type === "MENTION" ? "mentioned you." : "interacted with your content.")}</span><span className="mt-1 block text-xs text-gray-400">{item.type === "SYSTEM" && item.body ? item.body + " · " : ""}{new Date(item.createdAt).toLocaleString()}</span></span>
+          <span className="flex-1"><span className="block text-sm font-bold">{item.type === "SYSTEM" ? (item.title ?? "Account update") : <>{item.actor?.name ?? "Socialhub"} <AccountBadge verified={item.actor?.isVerified} owner={item.actor?.isOwner}/>{item.type === "LIKE" ? " liked your post." : item.type === "FOLLOW" ? " started following you." : item.type === "COMMENT" ? " commented on your post." : item.type === "FRIEND_REQUEST" ? " sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? " accepted your friend request." : item.type === "MESSAGE" ? " sent you a message." : item.type === "MENTION" ? " mentioned you." : " interacted with your content."}</>}</span><span className="mt-1 block text-xs text-gray-400">{item.type === "SYSTEM" && item.body ? item.body + " · " : ""}{new Date(item.createdAt).toLocaleString()}</span></span>
           {!item.readAt ? <span className="mt-2 size-2 shrink-0 rounded-full bg-[#6d5dfc]"/> : null}
         </button>;
         })}
