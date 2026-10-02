@@ -1866,7 +1866,9 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
                     {message.deletedAt ? <span className="italic opacity-70">Message deleted</span> : message.content ? <span>{message.content}</span> : null}
                   </div>
                 )}
-                <div className={"mt-1 flex items-center gap-2 " + (mine ? "justify-end" : "")}>
+                <div className={"mt-1 flex flex-wrap items-center gap-2 " + (mine ? "justify-end" : "")}>
+                  <span className="text-[9px] text-gray-400">{new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
+                  {mine && !active?.isGroup && active?.members.some((member) => member.userId !== session?.user?.id && member.lastReadAt && new Date(member.lastReadAt) >= new Date(message.createdAt)) ? <span className="text-[9px] font-bold text-[#5a4be8]">Seen</span> : null}
                   {message.editedAt && !message.deletedAt ? <span className="text-[9px] text-gray-400">edited</span> : null}
                   {message.reactions?.length ? <span className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px]">{message.reactions.map((reaction)=>reaction.emoji).join("")}</span> : null}
                   {message.replyTo && !message.deletedAt ? <div className="w-full max-w-xs rounded-xl border border-gray-200 bg-white/80 px-2.5 py-2 text-[10px] text-gray-500"><span className="font-black">Replying to {message.replyTo.sender.name}</span><p className="mt-0.5 truncate">{message.replyTo.content}</p></div> : null}
