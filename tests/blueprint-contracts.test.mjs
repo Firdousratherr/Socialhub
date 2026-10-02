@@ -277,3 +277,38 @@ test("search and profile post pagination expose display post metrics", () => {
   assert.match(userPosts, /getPostDisplayCountsMap/);
   assert.match(discover, /post\.displayCounts\?\.likes/);
 });
+
+
+test("post lifecycle changes synchronize feed and profile surfaces", () => {
+  const sync = read("lib/post-sync.ts");
+  const home = read("components/home-feed.tsx");
+  const pages = read("components/social-pages.tsx");
+  assert.match(sync, /BroadcastChannel/);
+  assert.match(sync, /"created"/);
+  assert.match(sync, /"updated"/);
+  assert.match(sync, /"deleted"/);
+  assert.match(home, /subscribePostSync/);
+  assert.match(home, /document\.addEventListener\("visibilitychange"/);
+  assert.match(home, /window\.addEventListener\("pageshow"/);
+  assert.match(home, /event\.type === "deleted"/);
+  assert.match(pages, /emitPostSyncEvent/);
+  assert.match(pages, /type: "deleted", postId: post\.id/);
+});
+
+test("profile post pagination cursor preserves pinned ordering", () => {
+  const route = read("app/api/users/[username]/posts/route.ts");
+  assert.match(route, /isPinned\?: boolean/);
+  assert.match(route, /isPinned: \{ lt: cursor\.isPinned \}/);
+  assert.match(route, /encodeCursor\(isPinned: boolean/);
+  assert.match(route, /encodeCursor\(posts\.at\(-1\)!\.isPinned/);
+});
+
+test("home feed uses one shared post mapper and one shared mobile navigation", () => {
+  const home = read("components/home-feed.tsx");
+  const nav = read("components/bottom-nav.tsx");
+  assert.equal((home.match(/function mapApiPostToFeedPost\(/g) ?? []).length, 1);
+  assert.equal((home.match(/\.map\(mapApiPostToFeedPost\)/g) ?? []).length, 2);
+  assert.match(home, /<BottomNav \/>/);
+  assert.doesNotMatch(home, /fixed inset-x-2 bottom-2/);
+  assert.match(nav, /href: "\/messages"/);
+});
