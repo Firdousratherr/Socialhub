@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { messageInputSchema } from "@/lib/validation";
+import { canSendMessageInConversation } from "@/lib/conversation-access";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -74,6 +75,11 @@ export async function POST(
   const { conversationId } = await params;
   if (!(await isMember(conversationId, session.user.id))) {
     return NextResponse.json({ error: "Conversation access denied." }, { status: 403 });
+  }
+
+  const sendAccess = await canSendMessageInConversation(conversationId, session.user.id);
+  if (!sendAccess.allowed) {
+    return NextResponse.json({ error: sendAccess.reason ?? "Messaging is unavailable in this conversation." }, { status: 403 });
   }
 
   const body = await request.json().catch(() => null);

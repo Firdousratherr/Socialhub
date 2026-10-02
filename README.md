@@ -37,6 +37,7 @@ Run the same core checks locally with:
 npm run db:validate
 npm run typecheck
 node scripts/repository-smoke.mjs
+npm test
 npm run build:ci
 ```
 

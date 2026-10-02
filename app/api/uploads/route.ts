@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const MAX_DAILY_UPLOAD_BYTES = Number(process.env.MAX_DAILY_UPLOAD_BYTES ?? 25 * 1024 * 1024);
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 function matches(bytes: Uint8Array, signature: number[], offset = 0) {
@@ -48,6 +49,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Image must be 4 MB or smaller." }, { status: 413 });
   }
 
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const usage = await prisma.uploadUsage.aggregate({
+    where: { userId: session.user.id, createdAt: { gte: dayStart } },
+    _sum: { bytes: true },
+  });
+  const usedBytes = usage._sum.bytes ?? 0;
+  if (usedBytes + file.size > MAX_DAILY_UPLOAD_BYTES) {
+    return NextResponse.json({ error: "Your daily upload limit has been reached. Try again tomorrow." }, { status: 429 });
+  }
+
   const bytes = new Uint8Array(await file.arrayBuffer());
   const detectedType = detectImageType(bytes);
   if (!detectedType || detectedType !== file.type) {
@@ -66,7 +78,9 @@ export async function POST(request: Request) {
       data: { userId: session.user.id, bytes: file.size },
     });
   } catch (trackingError) {
-    console.error("Could not record upload usage.", trackingError);
+    await safeDeleteBlob(blob.url);
+    console.error("Could not record upload usage; the uploaded blob was removed.", trackingError);
+    return NextResponse.json({ error: "Could not finish recording the upload. Please try again." }, { status: 500 });
   }
 
   return NextResponse.json({ url: blob.url, pathname: blob.pathname }, { status: 201 });

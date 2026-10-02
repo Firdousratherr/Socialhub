@@ -13,8 +13,16 @@ export async function GET(request: Request) {
 
   let blockedIds: string[] = [];
   let friendIds: string[] = [];
+  let pendingFriendRequests: Array<{ senderId: string; receiverId: string; id: string }> = [];
   if (viewerId) {
     blockedIds = await getBlockedUserIds(viewerId);
+    pendingFriendRequests = await prisma.friendRequest.findMany({
+      where: {
+        status: "PENDING",
+        OR: [{ senderId: viewerId }, { receiverId: viewerId }],
+      },
+      select: { senderId: true, receiverId: true, id: true },
+    });
     friendIds = (
       await prisma.friendRequest.findMany({
         where: {
@@ -77,6 +85,19 @@ export async function GET(request: Request) {
       })).map((row) => row.followingId))
     : new Set<string>();
 
+  const friendRequestMap = new Map<string, "SELF_PENDING" | "OUTGOING_PENDING" | "INCOMING_PENDING" | "NONE">();
+  for (const user of users) {
+    if (!viewerId) {
+      friendRequestMap.set(user.id, "NONE");
+      continue;
+    }
+    const pending = pendingFriendRequests.find((row) => row.senderId === user.id || row.receiverId === user.id);
+    friendRequestMap.set(
+      user.id,
+      !pending ? "NONE" : pending.senderId === viewerId ? "OUTGOING_PENDING" : "INCOMING_PENDING",
+    );
+  }
+
   const hashtags = new Map<string, number>();
   for (const post of posts) {
     for (const match of post.content?.matchAll(/(^|\s)#([A-Za-z0-9_]{2,40})/g) ?? []) {
@@ -86,7 +107,14 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
-    users: users.map((user) => ({ ...user, isFollowing: followingIds.has(user.id) })),
+    users: users.map((user) => ({
+      ...user,
+      isFollowing: followingIds.has(user.id),
+      isFriend: friendIds.includes(user.id),
+      friendRequestStatus: friendRequestMap.get(user.id) ?? "NONE",
+      canFollow: !user.isPrivate || friendIds.includes(user.id),
+      canSendFriendRequest: !friendIds.includes(user.id) && friendRequestMap.get(user.id) === "NONE",
+    })),
     posts,
     hashtags: [...hashtags.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))

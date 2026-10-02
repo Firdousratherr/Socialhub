@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { conversationInputSchema } from "@/lib/validation";
+import { canCreateGroupWith, canStartConversationWith } from "@/lib/conversation-access";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -98,39 +99,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "One or more members do not exist." }, { status: 400 });
   }
 
+  const access = parsed.data.isGroup
+    ? await canCreateGroupWith(session.user.id, memberIds.filter((id) => id !== session.user.id))
+    : await canStartConversationWith(session.user.id, memberIds.find((id) => id !== session.user.id)!);
+
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.reason ?? "You cannot start this conversation." }, { status: 403 });
+  }
+
   if (!parsed.data.isGroup && memberIds.length === 2) {
     const otherId = memberIds.find((id) => id !== session.user.id)!;
-    const other = await prisma.user.findUnique({
-      where: { id: otherId },
-      select: { privacySetting: { select: { allowMessagesEveryone: true } } },
-    });
-    if (other?.privacySetting && !other.privacySetting.allowMessagesEveryone) {
-      const friends = await prisma.friendRequest.findFirst({
-        where: {
-          status: "ACCEPTED",
-          OR: [
-            { senderId: session.user.id, receiverId: otherId },
-            { senderId: otherId, receiverId: session.user.id },
-          ],
-        },
-        select: { id: true },
-      });
-      if (!friends) return NextResponse.json({ error: "This user only accepts messages from friends." }, { status: 403 });
-    }
-
-    const blocked = await prisma.block.findFirst({
-      where: {
-        OR: [
-          { blockerId: session.user.id, blockedId: otherId },
-          { blockerId: otherId, blockedId: session.user.id },
-        ],
-      },
-      select: { blockerId: true },
-    });
-    if (blocked) {
-      return NextResponse.json({ error: "You cannot start a conversation while a block is active." }, { status: 403 });
-    }
-
     const directKey = [...memberIds].sort().join(":");
     const existingByKey = await prisma.conversation.findUnique({
       where: { directKey },
