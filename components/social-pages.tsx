@@ -873,7 +873,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
                   ) : (
                     <button type="button" onClick={() => void sendFriendRequest()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white disabled:opacity-50"><UserPlus size={15}/>{actionLoading === "friend" ? "Sending…" : "Add friend"}</button>
                   )}
-                  {friendRequestStatus !== "FRIENDS" && (!profile.isPrivate || friendRequestStatus === "INCOMING_PENDING") ? (
+                  {friendRequestStatus !== "FRIENDS" && (!profile?.isPrivate || friendRequestStatus === "INCOMING_PENDING") ? (
                     <button type="button" onClick={() => void toggleFollow()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><Users size={15}/>{actionLoading === "follow" ? "Updating…" : following ? "Following" : "Follow"}</button>
                   ) : null}
                   <button type="button" onClick={() => void startMessage()} disabled={!canMessage || Boolean(actionLoading)} className={"inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-xs font-black " + (canMessage ? "border-gray-200 bg-white text-gray-700 disabled:opacity-50" : "cursor-not-allowed border-gray-100 bg-gray-100 text-gray-400")}><MessageCircle size={15}/>{actionLoading === "message" ? "Opening…" : canMessage ? "Message" : "Messages off"}</button>
