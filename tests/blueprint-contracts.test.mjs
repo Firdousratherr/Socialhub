@@ -180,7 +180,7 @@ test("production schema recovery synchronizes the committed schema before reconc
 test("mobile primary navigation exposes direct messages in the bottom bar", () => {
   const nav = read("components/bottom-nav.tsx");
   assert.match(nav, /href: "\/messages"/);
-  assert.match(nav, /fixed inset-x-0 bottom-0/);
+  assert.match(nav, /fixed inset-x-2 bottom-2/);
   assert.match(nav, /MessageCircle/);
 });
 
@@ -239,14 +239,12 @@ test("post metric overrides have a dedicated model, migration and permission bou
 test("public post surfaces consume display metric overrides", () => {
   const feed = read("app/api/posts/route.ts");
   const detail = read("app/api/posts/[postId]/route.ts");
-  const profile = read("app/api/users/[username]/route.ts");
-  const ownProfile = read("app/api/profile/route.ts");
+  const profilePosts = read("app/api/users/[username]/posts/route.ts");
   const home = read("components/home-feed.tsx");
   const pages = read("components/social-pages.tsx");
   assert.match(feed, /displayCounts/);
   assert.match(detail, /getPostDisplayCounts/);
-  assert.match(profile, /getPostDisplayCountsMap/);
-  assert.match(ownProfile, /getPostDisplayCountsMap/);
+  assert.match(profilePosts, /getPostDisplayCountsMap/);
   assert.match(home, /item\.displayCounts\?\.likes/);
   assert.match(pages, /post\.displayCounts\?\.likes/);
 });
@@ -331,6 +329,6 @@ test("profile metadata endpoints do not duplicate the dedicated post feed query"
   const page = read("components/social-pages.tsx");
   assert.doesNotMatch(publicProfile, /const posts = await prisma\.post\.findMany/);
   assert.doesNotMatch(ownProfile, /posts: \{/);
-  assert.match(page, /\/api\/users\/\+ encodeURIComponent\(profile\.username \?\? username\) \+ "\/posts\?take=20"/);
-  assert.match(page, /setProfile\(\(current\) => current \? \{ \.\.\.current, posts: json\.posts \?\? \[\] \} : current\)/);
+  assert.ok(page.includes('fetch("/api/users/" + encodeURIComponent(profile.username ?? username) + "/posts?take=20"'));
+  assert.ok(page.includes('setProfile((current) => current ? { ...current, posts: json.posts ?? [] } : current)'));
 });
