@@ -731,7 +731,9 @@ export default function HomeFeed() {
       mediaUrl: item.mediaUrl,
       visibility: item.visibility,
       accent: ["from-violet-500 via-fuchsia-400 to-amber-300","from-sky-500 via-cyan-400 to-emerald-300","from-emerald-400 via-cyan-400 to-sky-400","from-amber-400 via-rose-400 to-fuchsia-400"][index % 4],
-      likes: item.displayCounts?.likes ?? item._count.likes,\n      comments: item.displayCounts?.comments ?? item._count.comments,\n      shares: item.displayCounts?.shares ?? item.shareCount ?? 0,
+      likes: item.displayCounts?.likes ?? item._count.likes,
+      comments: item.displayCounts?.comments ?? item._count.comments,
+      shares: item.displayCounts?.shares ?? item.shareCount ?? 0,
       liked: Boolean(item.liked),
       saved: Boolean(item.saved),
       reactions: item.reactions ?? [],
@@ -762,7 +764,8 @@ export default function HomeFeed() {
             shareCount: number; liked: boolean; saved: boolean;
             reactions: Array<{ emoji: string; count: number }>; myReaction: string | null;
             author: { id: string; name: string; username: string | null; image: string | null };
-            _count: { likes: number; comments: number };\n      displayCounts?: { likes: number; comments: number; shares: number };
+            _count: { likes: number; comments: number };
+      displayCounts?: { likes: number; comments: number; shares: number };
           }, index: number) => ({
             id: item.id,
             authorId: item.authorId,
