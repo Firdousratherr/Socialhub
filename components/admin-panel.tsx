@@ -122,7 +122,7 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
   }
 
   const nav = [
-    ["overview", "Dashboard", BarChart3], ["moderation", "Moderation", Shield], ["verification", "Verification", ShieldCheck], ["users", "Users", Users],
+    ["control", "Control center", Gauge], ["overview", "Dashboard", BarChart3], ["moderation", "Moderation", Shield], ["verification", "Verification", ShieldCheck], ["users", "Users", Users],
     ["user360", "User 360", UserRound], ["content", "Content", FileText], ["analytics", "Analytics", Activity], ["audit", "Audit logs", History],
   ] as const;
 
