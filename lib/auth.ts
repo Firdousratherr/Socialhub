@@ -1,8 +1,10 @@
 import { betterAuth } from "better-auth";
-import { emailOTP } from "better-auth/plugins";
+import { emailOTP, twoFactor } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
 import { sendTransactionalEmail } from "@/lib/email";
+import { getBooleanSetting } from "@/lib/platform-controls";
+import { APIError } from "better-auth/api";
 
 function usernameBaseFromEmail(email: string) {
   const localPart = email.split("@")[0] ?? "";
@@ -36,6 +38,7 @@ async function createAvailableUsername(email: string) {
 }
 
 export const auth = betterAuth({
+  appName: "Socialhub",
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
@@ -51,12 +54,29 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        before: async (user) => ({
-          data: {
-            ...user,
-            username: await createAvailableUsername(user.email),
-          },
-        }),
+        before: async (user) => {
+          if (!(await getBooleanSetting("registration.enabled", true))) {
+            throw new APIError("BAD_REQUEST", { message: "Registration is currently disabled." });
+          }
+          return {
+            data: {
+              ...user,
+              username: await createAvailableUsername(user.email),
+            },
+          };
+        },
+      },
+    },
+    session: {
+      create: {
+        before: async (session) => {
+          const row = await prisma.user.findUnique({
+            where: { id: session.userId },
+            select: { isActive: true, deletedAt: true, suspendedUntil: true },
+          });
+          if (!row?.isActive || row.deletedAt || (row.suspendedUntil && row.suspendedUntil > new Date())) return false;
+          return { data: session };
+        },
       },
     },
   },
@@ -71,6 +91,7 @@ export const auth = betterAuth({
       }
     : {}),
   plugins: [
+    twoFactor({ issuer: "Socialhub" }),
     emailOTP({
       otpLength: 6,
       expiresIn: 600,

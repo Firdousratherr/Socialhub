@@ -23,6 +23,14 @@ const requiredFiles = [
   "app/api/users/[username]/posts/route.ts",
   "app/api/users/[userId]/relationships/route.ts",
   "app/api/security/sessions/route.ts",
+  "app/api/admin/permissions/route.ts",
+  "app/api/admin/analytics/route.ts",
+  "app/api/admin/storage/route.ts",
+  "app/api/admin/comments/route.ts",
+  "app/api/admin/stories/route.ts",
+  "app/api/announcements/route.ts",
+  "app/two-factor/page.tsx",
+  "middleware.ts",
   "lib/auth.ts",
   "lib/post-access.ts",
   "lib/social-access.ts",
@@ -57,6 +65,13 @@ const requiredSchemaModels = [
   "model Block",
   "model VerificationRequest",
   "model UploadUsage",
+  "model AdminPermission",
+  "model SystemSetting",
+  "model FeatureFlag",
+  "model Announcement",
+  "model ProfileView",
+  "model RateLimitBucket",
+  "model TwoFactor",
 ];
 const missingModels = requiredSchemaModels.filter((marker) => !schema.includes(marker));
 if (missingModels.length) {

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/app/api/admin/_auth";
+import { requireAdminPermission } from "@/lib/admin-permissions";
 
 export async function GET(request: Request) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("AUDIT_VIEW");
   if (access.response) return access.response;
 
   const url = new URL(request.url);
@@ -23,6 +23,10 @@ export async function GET(request: Request) {
     } catch { return NextResponse.json({ error: "Invalid audit cursor." }, { status: 400 }); }
   }
   const isCsv = url.searchParams.get("format") === "csv";
+  if (isCsv) {
+    const exportAccess = await requireAdminPermission("AUDIT_EXPORT");
+    if (exportAccess.response) return exportAccess.response;
+  }
   const takeParam = Number(url.searchParams.get("take") ?? "50");
   const take = Number.isFinite(takeParam) ? Math.min(Math.max(Math.floor(takeParam), 1), 100) : 50;
 

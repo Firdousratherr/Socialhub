@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import * as z from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/app/api/admin/_auth";
+import { requireAdminPermission } from "@/lib/admin-permissions";
 
 const statusSchema = z.enum(["PENDING", "REVIEWED", "RESOLVED", "DISMISSED"]);
 const prioritySchema = z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
@@ -21,7 +21,7 @@ const actionSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("REPORTS_MANAGE");
   if (access.response) return access.response;
 
   const url = new URL(request.url);
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("REPORTS_MANAGE");
   if (access.response) return access.response;
 
   const parsed = updateSchema.safeParse(await request.json().catch(() => null));
@@ -131,7 +131,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("REPORTS_MANAGE");
   if (access.response) return access.response;
 
   const parsed = actionSchema.safeParse(await request.json().catch(() => null));

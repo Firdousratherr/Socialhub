@@ -38,11 +38,12 @@ export async function GET() {
 
   if (!profile) return NextResponse.json({ error: "Profile not found." }, { status: 404 });
 
-  const [override, likesReceived, commentsReceived, shares] = await Promise.all([
+  const [override, likesReceived, commentsReceived, shares, profileViews] = await Promise.all([
     prisma.adminMetricOverride.findUnique({ where: { userId: profile.id } }),
     prisma.like.count({ where: { post: { authorId: profile.id } } }),
     prisma.comment.count({ where: { post: { authorId: profile.id } } }),
     prisma.post.aggregate({ where: { authorId: profile.id }, _sum: { shareCount: true } }),
+    prisma.profileView.count({ where: { profileId: profile.id } }),
   ]);
 
   return NextResponse.json({
@@ -55,7 +56,7 @@ export async function GET() {
         likesReceived: override?.likesReceived ?? likesReceived,
         commentsReceived: override?.commentsReceived ?? commentsReceived,
         shares: override?.shares ?? (shares._sum.shareCount ?? 0),
-        profileViews: override?.profileViews ?? 0,
+        profileViews: override?.profileViews ?? profileViews,
       },
     },
   });
@@ -114,9 +115,13 @@ export async function DELETE() {
     return NextResponse.json({ error: "The Socialhub owner account cannot be deleted from the standard account flow." }, { status: 403 });
   }
 
-  await prisma.user.delete({
-    where: { id: session.user.id },
-  });
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: session.user.id },
+      data: { isActive: false, deletedAt: new Date(), suspensionReason: "Account deletion requested." },
+    }),
+    prisma.session.deleteMany({ where: { userId: session.user.id } }),
+  ]);
 
   return NextResponse.json({ success: true });
 }

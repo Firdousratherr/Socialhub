@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import * as z from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/app/api/admin/_auth";
+import { requireAdminPermission } from "@/lib/admin-permissions";
 
 const metricSchema = z.object({
   posts: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
@@ -18,6 +18,10 @@ const updateSchema = z.object({
   username: z.string().trim().regex(/^[A-Za-z0-9_]{3,30}$/).nullable().optional(),
   role: z.enum(["USER", "MODERATOR", "ADMIN"]).optional(),
   isActive: z.boolean().optional(),
+  suspensionReason: z.string().trim().max(500).nullable().optional(),
+  suspendedUntil: z.coerce.date().nullable().optional(),
+  deletedAt: z.coerce.date().nullable().optional(),
+  forcePasswordResetAt: z.coerce.date().nullable().optional(),
   isPrivate: z.boolean().optional(),
   emailVerified: z.boolean().optional(),
   isVerified: z.boolean().optional(),
@@ -25,7 +29,7 @@ const updateSchema = z.object({
 });
 
 export async function GET(_request: Request, { params }: { params: Promise<{ userId: string }> }) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("USERS_VIEW");
   if (access.response) return access.response;
   const { userId } = await params;
 
@@ -46,11 +50,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   });
   if (!user) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
-  const [override, actualLikesReceived, actualCommentsReceived, actualShares, recentReports, recentAudit, recentSessions, recentVerification] = await Promise.all([
+  const [override, actualLikesReceived, actualCommentsReceived, actualShares, actualProfileViews, recentReports, recentAudit, recentSessions, recentVerification] = await Promise.all([
     prisma.adminMetricOverride.findUnique({ where: { userId } }),
     prisma.like.count({ where: { post: { authorId: userId } } }),
     prisma.comment.count({ where: { post: { authorId: userId } } }),
     prisma.post.aggregate({ where: { authorId: userId }, _sum: { shareCount: true } }),
+    prisma.profileView.count({ where: { profileId: userId } }),
     prisma.report.findMany({
       where: { OR: [{ reporterId: userId }, { reportedUserId: userId }] },
       orderBy: { createdAt: "desc" },
@@ -97,7 +102,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
       likesReceived: actualLikesReceived,
       commentsReceived: actualCommentsReceived,
       shares: actualShares._sum.shareCount ?? 0,
-      profileViews: 0,
+      profileViews: actualProfileViews,
     },
     recentReports,
     recentAudit,
@@ -107,7 +112,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ userId: string }> }) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("USERS_EDIT");
   if (access.response) return access.response;
   const { userId } = await params;
 
@@ -220,6 +225,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
         details: JSON.stringify({ before, after: patch }),
       },
     });
+
+    if (patch.isActive === false) {
+      await prisma.session.deleteMany({ where: { userId } });
+    }
 
     const override = await prisma.adminMetricOverride.findUnique({ where: { userId } });
     return NextResponse.json({ user, override });

@@ -1,4 +1,5 @@
 import { put } from "@vercel/blob";
+import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
@@ -34,6 +35,9 @@ export async function POST(request: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
+
+  const rl = await consumeRateLimit(rateLimitKey("upload", request, session.user.id), 20, 60);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
 
   const formData = await request.formData().catch(() => null);
   const file = formData?.get("file");
@@ -76,7 +80,7 @@ export async function POST(request: Request) {
 
   try {
     await prisma.uploadUsage.create({
-      data: { userId: session.user.id, bytes: file.size },
+      data: { userId: session.user.id, bytes: file.size, url: blob.url, pathname: blob.pathname, mimeType: file.type },
     });
   } catch (trackingError) {
     await safeDeleteBlob(blob.url);

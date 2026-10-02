@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireAdminOnly } from "@/app/api/admin/_auth";
+import { requireAdminPermission } from "@/lib/admin-permissions";
 import * as z from "zod";
 
 const statusSchema = z.object({
@@ -10,7 +10,7 @@ const statusSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("VERIFICATION_MANAGE");
   if (access.response) return access.response;
 
   const url = new URL(request.url);
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const access = await requireAdminOnly();
+  const access = await requireAdminPermission("VERIFICATION_MANAGE");
   if (access.response) return access.response;
   const parsed = statusSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid verification review." }, { status: 400 });

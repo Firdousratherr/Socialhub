@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, Bell, Database, Flag, Search, Shield, Trash2, UserCog, Users, Wrench } from "lucide-react";
+import { Activity, Bell, Database, Flag, Search, Shield, Trash2, UserCog, Users, Wrench, BarChart3, HardDrive } from "lucide-react";
 
-type Tab="security"|"search"|"platform"|"moderation"|"health";
+type Tab="security"|"search"|"platform"|"moderation"|"analytics"|"storage"|"permissions"|"health";
 const tabs: {id:Tab;label:string}[]=[
- {id:"security",label:"Security"}, {id:"search",label:"Global search"}, {id:"platform",label:"Platform"}, {id:"moderation",label:"Operations"}, {id:"health",label:"System health"}
+ {id:"security",label:"Security"}, {id:"search",label:"Global search"}, {id:"platform",label:"Platform"}, {id:"moderation",label:"Operations"}, {id:"analytics",label:"Analytics"}, {id:"storage",label:"Storage"}, {id:"permissions",label:"Permissions"}, {id:"health",label:"System health"}
 ];
 
 function Card({children}:{children:React.ReactNode}){return <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_10px_35px_rgba(31,26,64,0.05)]">{children}</section>;}
 function Button({children,onClick,danger=false,disabled=false}:{children:React.ReactNode;onClick?:()=>void;danger?:boolean;disabled?:boolean}){return <button disabled={disabled} onClick={onClick} className={"rounded-xl px-3 py-2 text-[10px] font-black disabled:opacity-40 "+(danger?"bg-red-50 text-red-600":"bg-gray-950 text-white")}>{children}</button>;}
 
 export function AdminControlCenter(){
- const [tab,setTab]=useState<Tab>("security"); const [data,setData]=useState<any>(null); const [q,setQ]=useState(""); const [results,setResults]=useState<any>(null); const [health,setHealth]=useState<any>(null); const [notice,setNotice]=useState("");
+ const [tab,setTab]=useState<Tab>("security"); const [data,setData]=useState<any>(null); const [q,setQ]=useState(""); const [results,setResults]=useState<any>(null); const [health,setHealth]=useState<any>(null); const [analytics,setAnalytics]=useState<any>(null); const [storage,setStorage]=useState<any>(null); const [permissionData,setPermissionData]=useState<any>(null); const [notice,setNotice]=useState("");
  const [selected,setSelected]=useState<string[]>([]); const [flagKey,setFlagKey]=useState(""); const [flagEnabled,setFlagEnabled]=useState(false); const [settingKey,setSettingKey]=useState(""); const [settingValue,setSettingValue]=useState("");
  async function load(){setNotice(""); const r=await fetch("/api/admin/control-center",{cache:"no-store"}); const j=await r.json(); if(!r.ok){setNotice(j.error??"Could not load control center.");return;} setData(j);}
  useEffect(()=>{void load()},[]);
@@ -21,7 +21,10 @@ export function AdminControlCenter(){
  async function save(kind:"flag"|"setting"){const body=kind==="flag"?{kind,key:flagKey,enabled:flagEnabled}:{kind,key:settingKey,value:settingValue}; const r=await fetch("/api/admin/control-center",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); const j=await r.json(); setNotice(r.ok?"Saved and audited.":j.error??"Could not save."); if(r.ok)void load();}
  async function bulk(action:"ENABLE"|"DISABLE"|"VERIFY"|"UNVERIFY"|"REVOKE_SESSIONS"){if(!selected.length)return; const r=await fetch("/api/admin/bulk",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userIds:selected,action})}); const j=await r.json(); setNotice(r.ok?j.count+" users updated.":j.error??"Bulk action failed."); if(r.ok){setSelected([]);void search();}}
  async function loadHealth(){const r=await fetch("/api/admin/health",{cache:"no-store"});const j=await r.json();if(r.ok)setHealth(j);else setNotice(j.error??"Health check failed.");}
- useEffect(()=>{if(tab==="health")void loadHealth()},[tab]);
+ async function loadAnalytics(){const r=await fetch("/api/admin/analytics",{cache:"no-store"});const j=await r.json();if(r.ok)setAnalytics(j);else setNotice(j.error??"Analytics load failed.");}
+ async function loadStorage(){const r=await fetch("/api/admin/storage",{cache:"no-store"});const j=await r.json();if(r.ok)setStorage(j);else setNotice(j.error??"Storage load failed.");}
+ async function loadPermissions(){const r=await fetch("/api/admin/permissions",{cache:"no-store"});const j=await r.json();if(r.ok)setPermissionData(j);else setNotice(j.error??"Permission management is restricted.");}
+ useEffect(()=>{if(tab==="health")void loadHealth(); if(tab==="analytics")void loadAnalytics(); if(tab==="storage")void loadStorage(); if(tab==="permissions")void loadPermissions()},[tab]);
  const admins=data?.admins??[];
  return <div className="space-y-5">
   <Card><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="text-lg font-black">Admin Operations Center</h2><p className="mt-1 text-xs text-gray-400">Security, global search, platform controls and operational diagnostics in one workspace.</p></div><div className="flex flex-wrap gap-2">{tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} className={"rounded-xl px-3 py-2 text-[10px] font-black "+(tab===t.id?"bg-[#eeebff] text-[#5a4be8]":"bg-gray-50 text-gray-500")}>{t.label}</button>)}</div></div></Card>
@@ -30,6 +33,9 @@ export function AdminControlCenter(){
   {tab==="search"?<SearchPanel q={q} setQ={setQ} search={search} results={results} selected={selected} setSelected={setSelected} bulk={bulk}/>:null}
   {tab==="platform"?<Platform data={data} flagKey={flagKey} setFlagKey={setFlagKey} flagEnabled={flagEnabled} setFlagEnabled={setFlagEnabled} settingKey={settingKey} setSettingKey={setSettingKey} settingValue={settingValue} setSettingValue={setSettingValue} save={save}/>:null}
   {tab==="moderation"?<Operations results={results} setQ={setQ} search={search}/>:null}
+  {tab==="analytics"?<AnalyticsPanel data={analytics}/>:null}
+  {tab==="storage"?<StoragePanel data={storage}/>:null}
+  {tab==="permissions"?<PermissionPanel data={permissionData} setData={setPermissionData}/>:null}
   {tab==="health"?<Health health={health} reload={loadHealth}/>:null}
  </div>;
 }
@@ -37,7 +43,7 @@ export function AdminControlCenter(){
 function Security({data,admins,revoke}:{data:any;admins:any[];revoke:(id:string)=>void}){
  return <div className="grid gap-5 xl:grid-cols-2">
   <Card><div className="flex items-center gap-3"><Shield size={18}/><div><h3 className="text-sm font-black">Privileged sessions</h3><p className="text-[11px] text-gray-400">Review and revoke active administrator/moderator sessions.</p></div></div><div className="mt-4 space-y-2">{(data?.adminSessions??[]).map((s:any)=><div key={s.id} className="rounded-2xl bg-gray-50 p-3"><div className="flex items-start gap-3"><div className="flex-1"><p className="text-xs font-black">{s.user.name} <span className="text-violet-500">{s.user.role}</span></p><p className="mt-1 text-[10px] text-gray-400">{s.ipAddress??"IP unavailable"} · {new Date(s.updatedAt).toLocaleString()}</p><p className="mt-1 line-clamp-1 text-[10px] text-gray-400">{s.userAgent??"Unknown device"}</p></div><Button danger onClick={()=>revoke(s.id)}>Revoke</Button></div></div>)}{!data?.adminSessions?.length?<p className="text-xs text-gray-400">No privileged sessions found.</p>:null}</div></Card>
-  <Card><div className="flex items-center gap-3"><UserCog size={18}/><div><h3 className="text-sm font-black">Admins & moderators</h3><p className="text-[11px] text-gray-400">Current privileged accounts and activation state.</p></div></div><div className="mt-4 space-y-2">{admins.map(a=><div key={a.id} className="flex items-center gap-3 rounded-2xl bg-gray-50 p-3"><div className="flex-1"><p className="text-xs font-black">{a.name} <span className="text-gray-400">@{a.username??"member"}</span></p><p className="text-[10px] text-gray-400">{a.email}</p></div><span className="rounded-full bg-violet-50 px-2 py-1 text-[9px] font-black text-violet-600">{a.role}</span><span className={a.isActive?"text-emerald-600":"text-red-600"}>{a.isActive?"Active":"Disabled"}</span></div>)}</div></Card>
+  <Card><div className="flex items-center gap-3"><UserCog size={18}/><div><h3 className="text-sm font-black">Admins & moderators</h3><p className="text-[11px] text-gray-400">Current privileged accounts and activation state.</p></div></div><div className="mt-4 space-y-2">{admins.map(a=><div key={a.id} className="flex items-center gap-3 rounded-2xl bg-gray-50 p-3"><div className="flex-1"><p className="text-xs font-black">{a.name} <span className="text-gray-400">@{a.username??"member"}</span></p><p className="text-[10px] text-gray-400">{a.email}</p></div><span className="rounded-full bg-violet-50 px-2 py-1 text-[9px] font-black text-violet-600">{a.role}</span><span className={a.twoFactorEnabled?"text-emerald-600":"text-amber-600"}>{a.twoFactorEnabled?"2FA on":"2FA off"}</span><span className={a.isActive?"text-emerald-600":"text-red-600"}>{a.isActive?"Active":"Disabled"}</span></div>)}</div></Card>
   <Card><h3 className="text-sm font-black">Rate-limit state</h3><p className="mt-1 text-[11px] text-gray-400">Recent PostgreSQL-backed admin login throttle records.</p><div className="mt-4 space-y-2">{(data?.failedAttempts??[]).slice(0,12).map((a:any)=><div key={a.id} className="flex justify-between rounded-2xl bg-gray-50 p-3 text-[10px]"><span>{a.key}</span><b>{a.count}</b></div>)}</div></Card>
  </div>
 }
@@ -62,3 +68,36 @@ function Platform({data,flagKey,setFlagKey,flagEnabled,setFlagEnabled,settingKey
 function Operations({results,setQ,search}:{results:any;setQ:(v:string)=>void;search:()=>void}){return <div className="grid gap-5 xl:grid-cols-2"><Card><h3 className="text-sm font-black">Moderation workspace</h3><p className="mt-1 text-[11px] text-gray-400">Use global search to locate reported users, posts, comments and message content before acting. All searches are audited.</p><div className="mt-4 flex gap-2"><input onChange={e=>setQ(e.target.value)} placeholder="Find content to review" className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-xs"/><Button onClick={()=>void search()}>Search</Button></div></Card><Card><h3 className="text-sm font-black">Operational controls</h3><div className="mt-4 grid gap-2 sm:grid-cols-2"><div className="rounded-2xl bg-gray-50 p-4"><Database size={17}/><p className="mt-2 text-xs font-black">Database-backed actions</p><p className="mt-1 text-[10px] text-gray-400">User, content and session actions are server-authorized.</p></div><div className="rounded-2xl bg-gray-50 p-4"><Activity size={17}/><p className="mt-2 text-xs font-black">Audited operations</p><p className="mt-1 text-[10px] text-gray-400">Administrative changes create audit records.</p></div></div></Card></div>}
 
 function Health({health,reload}:{health:any;reload:()=>void}){return <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4"><Card><Database/><p className="mt-3 text-xs font-black">Database</p><p className={health?.database==="healthy"?"text-emerald-600":"text-red-600"}>{health?.database??"Unknown"}</p></Card><Card><Activity/><p className="mt-3 text-xs font-black">Latency</p><p className="text-2xl font-black">{health?.latencyMs??"—"} ms</p></Card><Card><Shield/><p className="mt-3 text-xs font-black">Configuration</p><p className="mt-1 text-[10px] text-gray-500">DB {health?.configuration?.database?"✓":"×"} · Auth {health?.configuration?.authSecret?"✓":"×"} · Blob {health?.configuration?.blob?"✓":"×"} · SMTP {health?.configuration?.smtp?"✓":"×"}</p></Card><Card><Wrench/><p className="mt-3 text-xs font-black">Diagnostics</p><Button onClick={reload}>Run check</Button></Card></div>}
+
+
+function AnalyticsPanel({data}:{data:any}){
+ const series=data?.series??{};
+ const total=(rows:any[]|undefined)=>Array.isArray(rows)?rows.reduce((n,row)=>n+Number(row.count||0),0):0;
+ return <div className="grid gap-5 xl:grid-cols-2">
+  <Card><div className="flex items-center gap-2"><BarChart3 size={18}/><div><h3 className="text-sm font-black">30-day activity</h3><p className="text-[11px] text-gray-400">Live database events, not synthetic metrics.</p></div></div><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">{[["Users",series.users],["Posts",series.posts],["Messages",series.messages],["Reports",series.reports],["Profile views",series.profileViews]].map(([label,rows])=><div key={String(label)} className="rounded-2xl bg-gray-50 p-3"><p className="text-[10px] font-bold text-gray-400">{String(label)}</p><p className="mt-1 text-lg font-black">{total(rows as any[])}</p></div>)}</div></Card>
+  <Card><h3 className="text-sm font-black">Daily profile views</h3><div className="mt-4 space-y-2">{(series.profileViews??[]).slice(-14).map((row:any)=><div key={row.day} className="flex items-center gap-3"><span className="w-24 text-[10px] text-gray-400">{new Date(row.day).toLocaleDateString()}</span><div className="h-2 flex-1 rounded-full bg-gray-100"><div className="h-2 rounded-full bg-violet-500" style={{width:`${Math.min(100,Number(row.count))*1}%`}}/></div><b className="w-10 text-right text-[10px]">{row.count}</b></div>)}</div></Card>
+ </div>;
+}
+
+function StoragePanel({data}:{data:any}){
+ const totalBytes=Number(data?.totals?.bytes??0);
+ const mb=(totalBytes/1024/1024).toFixed(1);
+ return <div className="space-y-5">
+  <Card><div className="flex items-center gap-2"><HardDrive size={18}/><div><h3 className="text-sm font-black">Storage overview</h3><p className="text-[11px] text-gray-400">{data?.totals?.files??0} tracked uploads · {mb} MB</p></div></div></Card>
+  <Card><h3 className="text-sm font-black">Largest tracked files</h3><div className="mt-4 space-y-2">{(data?.largest??[]).slice(0,20).map((row:any)=><div key={row.id} className="flex items-center gap-3 rounded-2xl bg-gray-50 p-3"><div className="flex-1"><p className="text-xs font-black">{row.pathname??row.url??row.id}</p><p className="text-[10px] text-gray-400">{row.mimeType??"unknown"} · {Math.round(Number(row.bytes)/1024)} KB</p></div></div>)}</div></Card>
+  <Card><h3 className="text-sm font-black">Orphan candidates</h3><p className="mt-1 text-[11px] text-gray-400">Upload records whose stored URL is no longer referenced by a Socialhub record.</p><div className="mt-4 space-y-2">{(data?.orphaned??[]).map((row:any)=><div key={row.id} className="rounded-2xl bg-amber-50 p-3 text-[10px]"><b>{row.pathname??row.url}</b><span className="ml-2 text-amber-700">{Math.round(Number(row.bytes)/1024)} KB</span></div>)}{!(data?.orphaned?.length)?<p className="text-xs text-emerald-600">No orphan candidates in the scan window.</p>:null}</div></Card>
+ </div>;
+}
+
+function PermissionPanel({data,setData}:{data:any;setData:(v:any)=>void}){
+ const [selected,setSelected]=useState<string>("");
+ const [values,setValues]=useState<string[]>([]);
+ useEffect(()=>{const first=data?.admins?.[0]; if(first){setSelected(first.id);setValues(first.permissions??[])}},[data]);
+ function choose(id:string){const admin=(data?.admins??[]).find((x:any)=>x.id===id);setSelected(id);setValues(admin?.permissions??[]);}
+ async function save(){const r=await fetch("/api/admin/permissions",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({adminId:selected,permissions:values})});const j=await r.json();if(!r.ok){window.alert(j.error??"Could not save permissions.");return;}const next=(data?.admins??[]).map((a:any)=>a.id===selected?{...a,permissions:values}:a);setData({...data,admins:next});}
+ const current=(data?.admins??[]).find((a:any)=>a.id===selected);
+ return <div className="grid gap-5 xl:grid-cols-[280px_1fr]">
+  <Card><h3 className="text-sm font-black">Privileged accounts</h3><div className="mt-4 space-y-2">{(data?.admins??[]).map((a:any)=><button key={a.id} onClick={()=>choose(a.id)} className={"w-full rounded-2xl p-3 text-left "+(a.id===selected?"bg-[#eeebff]":"bg-gray-50")}><p className="text-xs font-black">{a.name}</p><p className="text-[10px] text-gray-400">{a.role}</p></button>)}</div></Card>
+  <Card><h3 className="text-sm font-black">Permission matrix {current?.role==="ADMIN"?"(administrators have full access)":""}</h3><div className="mt-4 grid gap-2 sm:grid-cols-2">{(data?.permissions??[]).map((permission:string)=><label key={permission} className="flex items-center gap-2 rounded-xl bg-gray-50 p-3 text-[10px] font-bold"><input type="checkbox" disabled={current?.role==="ADMIN"} checked={current?.role==="ADMIN"||values.includes(permission)} onChange={e=>setValues(e.target.checked?[...values,permission]:values.filter(x=>x!==permission))}/>{permission}</label>)}</div><div className="mt-4"><Button disabled={!selected||current?.role==="ADMIN"} onClick={()=>void save()}>Save moderator permissions</Button></div></Card>
+ </div>;
+}

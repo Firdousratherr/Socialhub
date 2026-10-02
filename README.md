@@ -29,7 +29,9 @@ The main CI pipeline validates:
 1. Prisma schema
 2. TypeScript
 3. Repository integrity and critical route/schema presence
-4. Production build
+4. Security/blueprint contract tests
+5. ESLint
+6. Production build
 
 Run the same core checks locally with:
 

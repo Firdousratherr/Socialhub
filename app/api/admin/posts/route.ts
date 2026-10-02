@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/app/api/admin/_auth";
+import { requireAdminPermission } from "@/lib/admin-permissions";
 import * as z from "zod";
 
 function parseCursor(value: string | null) {
@@ -23,7 +23,7 @@ function encodeCursor(createdAt: Date, id: string) {
 }
 
 export async function GET(request: Request) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("CONTENT_VIEW");
   if (access.response) return access.response;
 
   const url = new URL(request.url);
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("CONTENT_MODERATE");
   if (access.response) return access.response;
 
   const body = await request.json().catch(() => null);
@@ -117,7 +117,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("CONTENT_MODERATE");
   if (access.response) return access.response;
 
   const body = await request.json().catch(() => null);

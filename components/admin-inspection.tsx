@@ -27,8 +27,6 @@ export function AdminInspection() {
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
 
-  useEffect(()=>{ if(tab==="messages") void loadConversations(); },[tab,query]);
-
   async function loadConversations(){
     setLoading(true);setError("");
     try{
@@ -38,6 +36,8 @@ export function AdminInspection() {
     }catch(e){setError(e instanceof Error?e.message:"Could not load conversations.");}
     finally{setLoading(false)}
   }
+
+  useEffect(()=>{ if(tab==="messages") void loadConversations(); },[tab,query]);
 
   async function openConversation(id:string){
     setLoading(true);setError("");

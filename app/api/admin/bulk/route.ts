@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import * as z from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdminOnly } from "@/app/api/admin/_auth";
+import { requireAdminPermission } from "@/lib/admin-permissions";
 const schema=z.object({userIds:z.array(z.string().min(1)).min(1).max(100),action:z.enum(["ENABLE","DISABLE","VERIFY","UNVERIFY","REVOKE_SESSIONS"])});
 export async function POST(request:Request){
- const access=await requireAdminOnly(); if(access.response)return access.response;
+ const access=await requireAdminPermission("USERS_BULK"); if(access.response)return access.response;
  const parsed=schema.safeParse(await request.json().catch(()=>null)); if(!parsed.success)return NextResponse.json({error:"Invalid bulk operation."},{status:400});
  const {userIds,action}=parsed.data;
  if(userIds.includes(access.user.id)&&action==="DISABLE")return NextResponse.json({error:"You cannot disable your own administrator account."},{status:400});
