@@ -571,6 +571,8 @@ enum VerificationAuditAction {
   REVOKED
   OWNER_GRANTED
   OWNER_REVOKED
+  REQUEST_APPROVED
+  REQUEST_REJECTED
 }
 
 model VerificationAudit {
