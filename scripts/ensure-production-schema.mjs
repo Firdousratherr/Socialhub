@@ -35,7 +35,6 @@ const markMigrationsAppliedFrom = (migrationName) => {
 
 const bootstrapExistingSchema = () => {
   console.warn("Synchronizing the committed Prisma schema with the existing production database.");
-  // Prisma 7 removed the --skip-generate option from db push.
   run(["db", "push"]);
   for (const migration of listMigrations()) {
     run(["migrate", "resolve", "--applied", migration]);
