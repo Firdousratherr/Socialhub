@@ -1631,6 +1631,22 @@ function SettingsPage() {
   const [verification, setVerification] = useState<{ isVerified: boolean; isOwner: boolean; status: "PENDING"|"APPROVED"|"REJECTED"|"CANCELLED"|null; reason?: string|null; adminNote?: string|null; createdAt?: string|null }>({ isVerified: false, isOwner: false, status: null });
   const [verificationReason, setVerificationReason] = useState("");
   const [verificationSubmitting, setVerificationSubmitting] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [accountForm, setAccountForm] = useState({ name: "", username: "", bio: "", location: "", website: "" });
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [changingEmail, setChangingEmail] = useState(false);
+  const [emailStep, setEmailStep] = useState<"idle" | "current" | "new">("idle");
+  const [newEmail, setNewEmail] = useState("");
+  const [currentEmailOtp, setCurrentEmailOtp] = useState("");
+  const [newEmailOtp, setNewEmailOtp] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailCooldown, setEmailCooldown] = useState(0);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [revokeOtherSessions, setRevokeOtherSessions] = useState(true);
+  const [passwordBusy, setPasswordBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1649,6 +1665,13 @@ function SettingsPage() {
           setPrivate(Boolean(json.profile.isPrivate));
           setEmail(json.profile.email);
           setUsername(json.profile.username ? "@" + json.profile.username : "No username");
+          setAccountForm({
+            name: json.profile.name ?? "",
+            username: json.profile.username ?? "",
+            bio: json.profile.bio ?? "",
+            location: json.profile.location ?? "",
+            website: json.profile.website ?? "",
+          });
           setVerification((current) => ({ ...current, isVerified: Boolean(json.profile.isVerified), isOwner: Boolean(json.profile.isOwner) }));
         }
       } catch (requestError) {
@@ -1685,6 +1708,12 @@ function SettingsPage() {
       })
       .catch((requestError) => setMessage(requestError instanceof Error ? requestError.message : "Could not load privacy settings."));
   }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!emailCooldown) return;
+    const timer = window.setInterval(() => setEmailCooldown((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [emailCooldown]);
 
   useEffect(() => {
     if (!session?.user) return;
@@ -1838,6 +1867,135 @@ function SettingsPage() {
     }
   }
 
+  async function saveAccountProfile() {
+    if (!session?.user || savingAccount) return;
+    setSavingAccount(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: accountForm.name.trim(),
+          username: accountForm.username.trim() || null,
+          bio: accountForm.bio.trim() || null,
+          location: accountForm.location.trim() || null,
+          website: accountForm.website.trim() || null,
+        }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not update your profile.");
+      setAccountForm({
+        name: json.profile?.name ?? accountForm.name,
+        username: json.profile?.username ?? "",
+        bio: json.profile?.bio ?? "",
+        location: json.profile?.location ?? "",
+        website: json.profile?.website ?? "",
+      });
+      setUsername(json.profile?.username ? "@" + json.profile.username : "No username");
+      setEditingProfile(false);
+      setMessage("Profile information saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update your profile.");
+    } finally {
+      setSavingAccount(false);
+    }
+  }
+
+  async function sendCurrentEmailOtp() {
+    if (!session?.user || emailBusy || emailCooldown) return;
+    setEmailBusy(true);
+    setMessage("");
+    try {
+      const result = await authClient.emailOtp.sendVerificationOtp({ email, type: "email-verification" });
+      if (result.error) throw new Error(result.error.message || "Could not send the verification code.");
+      setEmailStep("current");
+      setCurrentEmailOtp("");
+      setNewEmailOtp("");
+      setEmailCooldown(30);
+      setMessage("A verification code was sent to your current email.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not send the verification code.");
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
+  async function sendNewEmailOtp() {
+    const target = newEmail.trim().toLowerCase();
+    if (!session?.user || emailBusy || currentEmailOtp.length !== 6 || !target) return;
+    if (target === email.toLowerCase()) {
+      setMessage("Enter a different email address.");
+      return;
+    }
+    setEmailBusy(true);
+    setMessage("");
+    try {
+      const result = await authClient.emailOtp.requestEmailChange({ newEmail: target, otp: currentEmailOtp.trim() });
+      if (result.error) throw new Error(result.error.message || "Could not start the email change.");
+      setEmailStep("new");
+      setNewEmailOtp("");
+      setEmailCooldown(30);
+      setMessage("A verification code was sent to your new email.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not start the email change.");
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
+  async function confirmNewEmail() {
+    const target = newEmail.trim().toLowerCase();
+    if (!session?.user || emailBusy || newEmailOtp.length !== 6 || !target) return;
+    setEmailBusy(true);
+    setMessage("");
+    try {
+      const result = await authClient.emailOtp.changeEmail({ newEmail: target, otp: newEmailOtp.trim() });
+      if (result.error) throw new Error(result.error.message || "Could not update your email.");
+      setEmail(target);
+      setChangingEmail(false);
+      setEmailStep("idle");
+      setNewEmail("");
+      setCurrentEmailOtp("");
+      setNewEmailOtp("");
+      setEmailCooldown(0);
+      setMessage("Email address updated successfully.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update your email.");
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
+  async function changePassword() {
+    if (!session?.user || passwordBusy) return;
+    if (newPassword.length < 8) {
+      setMessage("Use at least 8 characters for the new password.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setMessage("The new passwords do not match.");
+      return;
+    }
+    setPasswordBusy(true);
+    setMessage("");
+    try {
+      const result = await authClient.changePassword({ newPassword, currentPassword, revokeOtherSessions });
+      if (result.error) throw new Error(result.error.message || "Could not change the password.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setChangingPassword(false);
+      setMessage(revokeOtherSessions ? "Password changed and other sessions were signed out." : "Password changed successfully.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not change the password.");
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
   const Toggle = ({ value, disabled, onChange }: { value: boolean; disabled?: boolean; onChange: (value: boolean) => void }) => (
     <button
       type="button"
@@ -1860,36 +2018,73 @@ function SettingsPage() {
     {message ? <div role="status" className="mb-5 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-xs font-semibold text-gray-600">{message}</div> : null}
 
     <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-      <Card className="h-fit !p-4">
+      <Card id="settings-navigation" className="h-fit !p-4 lg:sticky lg:top-24">
         <p className="text-[10px] font-black uppercase tracking-[.14em] text-gray-400">Settings areas</p>
-        <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-gray-500">
-          {["General","Privacy","Notifications","Security","Help"].map((label) => <span key={label} className="rounded-xl bg-gray-50 px-3 py-2">{label}</span>)}
+        <div className="mt-3 space-y-1">
+          {[
+            ["general", "General"],
+            ["privacy", "Privacy"],
+            ["notifications", "Notifications"],
+            ["security", "Security"],
+            ["help", "Help"],
+          ].map(([id, label]) => (
+            <button key={id} type="button" onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })} className="flex min-h-10 w-full items-center rounded-xl px-3 text-left text-xs font-black text-gray-500 hover:bg-gray-50 hover:text-gray-900">{label}</button>
+          ))}
         </div>
       </Card>
 
       <div className="space-y-5">
-        <Card>
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-black">Account</h2>
-            {loading ? <span className="text-[10px] font-bold text-gray-400">Loading…</span> : null}
+        <Card id="general">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[#6d5dfc]">General</p><h2 className="mt-1 text-xl font-black">Account</h2><p className="mt-2 text-xs text-gray-400">Edit the personal information shown across Socialhub.</p></div>
+            <button type="button" onClick={() => setEditingProfile((value) => !value)} disabled={!session?.user || loading} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40"><Pencil size={14} className="mr-1 inline"/>{editingProfile ? "Close editor" : "Edit profile"}</button>
           </div>
-          <div className="mt-4 space-y-3">
-            {[
-              ["Email address", email, Mail],
-              ["Username", username, AtSign],
-              ["Password", "Managed by your sign-in method", KeyRound],
-            ].map(([title, detail, Icon]) =>
-              <button key={String(title)} type="button" className="flex w-full items-center gap-3 rounded-2xl border border-gray-100 p-3 text-left hover:bg-gray-50">
-                <span className="grid size-9 place-items-center rounded-xl bg-gray-100 text-gray-500"><Icon size={16}/></span>
-                <span className="flex-1"><span className="block text-xs font-black">{String(title)}</span><span className="text-[11px] text-gray-400">{String(detail)}</span></span>
-                <ChevronRight size={16} className="text-gray-400"/>
-              </button>
-            )}
+          {!editingProfile ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {[["Display name",accountForm.name,Users],["Username",accountForm.username ? "@" + accountForm.username : "Not set",AtSign],["Bio",accountForm.bio || "No bio yet",MessageCircle],["Location",accountForm.location || "Not set",Compass],["Website",accountForm.website || "Not set",Globe2],["Email",email,Mail]].map(([title,detail,Icon]) => <div key={String(title)} className="flex items-start gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3"><span className="grid size-9 place-items-center rounded-xl bg-white text-gray-500"><Icon size={15}/></span><span className="min-w-0"><span className="block text-[10px] font-black uppercase tracking-[.08em] text-gray-400">{String(title)}</span><span className="mt-1 block break-words text-xs font-bold text-gray-700">{String(detail)}</span></span></div>)}
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-3 rounded-2xl border border-[#ddd8ff] bg-[#f8f7ff] p-4 sm:grid-cols-2">
+              <label className="block"><span className="mb-1.5 block text-xs font-black text-gray-700">Display name</span><input value={accountForm.name} onChange={(event) => setAccountForm((value) => ({...value,name:event.target.value}))} className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
+              <label className="block"><span className="mb-1.5 block text-xs font-black text-gray-700">Username</span><input value={accountForm.username} onChange={(event) => setAccountForm((value) => ({...value,username:event.target.value.replace(/^@/,"")}))} className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
+              <label className="block sm:col-span-2"><span className="mb-1.5 block text-xs font-black text-gray-700">Bio</span><textarea value={accountForm.bio} maxLength={500} onChange={(event) => setAccountForm((value) => ({...value,bio:event.target.value}))} rows={4} className="w-full resize-none rounded-xl border border-gray-200 bg-white p-3 text-sm"/></label>
+              <label className="block"><span className="mb-1.5 block text-xs font-black text-gray-700">Location</span><input value={accountForm.location} onChange={(event) => setAccountForm((value) => ({...value,location:event.target.value}))} className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
+              <label className="block"><span className="mb-1.5 block text-xs font-black text-gray-700">Website</span><input type="url" value={accountForm.website} onChange={(event) => setAccountForm((value) => ({...value,website:event.target.value}))} placeholder="https://example.com" className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
+              <div className="flex gap-2 sm:col-span-2 sm:justify-end"><button type="button" onClick={() => setEditingProfile(false)} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-600">Cancel</button><button type="button" onClick={() => void saveAccountProfile()} disabled={savingAccount || !accountForm.name.trim()} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40">{savingAccount ? "Saving…" : "Save profile"}</button></div>
+            </div>
+          )}
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={() => { setChangingEmail(true); setEmailStep("idle"); }} disabled={!session?.user} className="flex min-h-14 items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3 text-left hover:bg-gray-50 disabled:opacity-40"><span className="grid size-9 place-items-center rounded-xl bg-[#eeebff] text-[#5a4be8]"><Mail size={16}/></span><span className="flex-1"><span className="block text-xs font-black">Change email</span><span className="text-[10px] text-gray-400">Verify current and new address.</span></span><ChevronRight size={16}/></button>
+            <button type="button" onClick={() => setChangingPassword(true)} disabled={!session?.user} className="flex min-h-14 items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3 text-left hover:bg-gray-50 disabled:opacity-40"><span className="grid size-9 place-items-center rounded-xl bg-gray-100 text-gray-600"><KeyRound size={16}/></span><span className="flex-1"><span className="block text-xs font-black">Change password</span><span className="text-[10px] text-gray-400">Update it without leaving settings.</span></span><ChevronRight size={16}/></button>
           </div>
         </Card>
 
-        <Card>
-          <h2 className="text-sm font-black">Privacy & presence</h2>
+        {changingEmail ? (
+          <Card className="border-[#d9d4ff] bg-[#fbfaff]">
+            <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-black">Change email address</h2><p className="mt-1 text-xs text-gray-400">Two verification steps protect this change.</p></div><button type="button" onClick={() => setChangingEmail(false)} className="social-icon-button" aria-label="Close email change"><X size={16}/></button></div>
+            {emailStep === "idle" ? <div className="mt-4"><p className="text-xs font-black text-gray-700">Current email</p><p className="mt-1 text-sm font-bold">{email}</p><button type="button" onClick={() => void sendCurrentEmailOtp()} disabled={emailBusy || emailCooldown > 0} className="mt-3 w-full rounded-xl bg-gray-950 px-4 py-3 text-xs font-black text-white disabled:opacity-40">{emailBusy ? "Sending…" : emailCooldown ? "Resend in " + emailCooldown + "s" : "Send code to current email"}</button></div> : null}
+            {emailStep === "current" ? <div className="mt-4 space-y-3"><label className="block"><span className="mb-1.5 block text-xs font-black">New email</span><input type="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"/></label><label className="block"><span className="mb-1.5 block text-xs font-black">Current-email OTP</span><input inputMode="numeric" maxLength={6} value={currentEmailOtp} onChange={(event) => setCurrentEmailOtp(event.target.value.replace(/\D/g,"").slice(0,6))} className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm text-center tracking-[.4em]"/></label><button type="button" onClick={() => void sendNewEmailOtp()} disabled={emailBusy || currentEmailOtp.length !== 6 || !newEmail.trim()} className="w-full rounded-xl bg-gray-950 px-4 py-3 text-xs font-black text-white disabled:opacity-40">{emailBusy ? "Checking…" : "Verify & send new-email code"}</button></div> : null}
+            {emailStep === "new" ? <div className="mt-4 space-y-3"><p className="text-xs text-gray-500">We sent a code to <span className="font-black text-gray-800">{newEmail}</span>.</p><label className="block"><span className="mb-1.5 block text-xs font-black">New-email OTP</span><input inputMode="numeric" maxLength={6} value={newEmailOtp} onChange={(event) => setNewEmailOtp(event.target.value.replace(/\D/g,"").slice(0,6))} className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm text-center tracking-[.4em]"/></label><button type="button" onClick={() => void confirmNewEmail()} disabled={emailBusy || newEmailOtp.length !== 6} className="w-full rounded-xl bg-gray-950 px-4 py-3 text-xs font-black text-white disabled:opacity-40">{emailBusy ? "Updating…" : "Confirm new email"}</button></div> : null}
+          </Card>
+        ) : null}
+
+        {changingPassword ? (
+          <Card>
+            <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-black">Change password</h2><p className="mt-1 text-xs text-gray-400">Enter your current password, then choose a new one.</p></div><button type="button" onClick={() => setChangingPassword(false)} className="social-icon-button" aria-label="Close password change"><X size={16}/></button></div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="block"><span className="mb-1.5 block text-xs font-black">Current password</span><input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"/></label>
+              <span className="hidden sm:block"/>
+              <label className="block"><span className="mb-1.5 block text-xs font-black">New password</span><input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"/></label>
+              <label className="block"><span className="mb-1.5 block text-xs font-black">Confirm new password</span><input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"/></label>
+              <label className="flex items-center gap-3 rounded-xl bg-gray-50 p-3 text-xs sm:col-span-2"><input type="checkbox" checked={revokeOtherSessions} onChange={(event) => setRevokeOtherSessions(event.target.checked)} className="size-4 accent-[#6d5dfc]"/><span><span className="block font-black">Sign out other devices</span><span className="text-[10px] text-gray-400">Revoke other sessions when the password changes.</span></span></label>
+              <div className="flex gap-2 sm:col-span-2 sm:justify-end"><button type="button" onClick={() => setChangingPassword(false)} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-600">Cancel</button><button type="button" onClick={() => void changePassword()} disabled={passwordBusy || !currentPassword || !newPassword || !confirmPassword} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40">{passwordBusy ? "Changing…" : "Change password"}</button></div>
+            </div>
+          </Card>
+        ) : null}
+
+        <Card id="privacy">
+          <p className="text-[10px] font-black uppercase tracking-[.14em] text-[#6d5dfc]">Privacy</p>
+          <h2 className="mt-1 text-xl font-black">Privacy & presence</h2>
           <div className="divide-y divide-gray-100">
             <div className="flex items-center gap-4 py-4">
               <div className="flex-1"><p className="text-sm font-bold">Private account</p><p className="text-xs text-gray-400">Only approved followers can see your posts.</p></div>
@@ -1925,16 +2120,17 @@ function SettingsPage() {
           </div>
           {verification.isVerified || verification.isOwner ? <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-xs font-bold text-blue-700">Your account already has platform trust status.</div> : verification.status === "PENDING" ? <div className="mt-4 rounded-2xl bg-amber-50 p-4"><p className="text-xs font-black text-amber-800">Verification request pending</p><p className="mt-1 text-[11px] text-amber-700">Submitted {verification.createdAt ? new Date(verification.createdAt).toLocaleString() : "recently"}.</p></div> : <div className="mt-4 space-y-3"><textarea value={verificationReason} onChange={(e)=>setVerificationReason(e.target.value)} rows={4} maxLength={500} placeholder="Explain why your account should be verified (20–500 characters)." className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs outline-none focus:border-[#a79dff] focus:bg-white"/><div className="flex items-center justify-between gap-3"><p className="text-[10px] text-gray-400">{verificationReason.trim().length}/500 characters</p><button type="button" onClick={()=>void submitVerificationRequest()} disabled={!session?.user || verificationSubmitting || verificationReason.trim().length < 20} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40">{verificationSubmitting?"Submitting…":"Request blue tick"}</button></div>{verification.status==="REJECTED" && verification.adminNote ? <p className="text-[11px] text-red-600">Previous review: {verification.adminNote}</p> : null}</div>}
         </Card>
-<Card>
-          <h2 className="text-sm font-black">Notifications</h2>
+<Card id="notifications">
+          <p className="text-[10px] font-black uppercase tracking-[.14em] text-[#6d5dfc]">Notifications</p>
+          <h2 className="mt-1 text-xl font-black">Choose what reaches you</h2>
           <p className="mt-2 text-xs leading-5 text-gray-400">Choose which activity appears in your notification inbox.</p>
           <div className="mt-4 divide-y divide-gray-100"><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Likes</p><p className="mt-0.5 text-[11px] text-gray-400">When someone likes your posts.</p></div><Toggle value={Boolean(preferences.likes)} disabled={!session?.user || savingPreference === "likes"} onChange={(value)=>void updatePreference("likes", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Comments</p><p className="mt-0.5 text-[11px] text-gray-400">When someone comments on your posts.</p></div><Toggle value={Boolean(preferences.comments)} disabled={!session?.user || savingPreference === "comments"} onChange={(value)=>void updatePreference("comments", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Follows</p><p className="mt-0.5 text-[11px] text-gray-400">When someone follows you.</p></div><Toggle value={Boolean(preferences.follows)} disabled={!session?.user || savingPreference === "follows"} onChange={(value)=>void updatePreference("follows", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests</p><p className="mt-0.5 text-[11px] text-gray-400">When someone sends you a friend request.</p></div><Toggle value={Boolean(preferences.friendRequests)} disabled={!session?.user || savingPreference === "friendRequests"} onChange={(value)=>void updatePreference("friendRequests", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests accepted</p><p className="mt-0.5 text-[11px] text-gray-400">When a friend request is accepted.</p></div><Toggle value={Boolean(preferences.friendAccepted)} disabled={!session?.user || savingPreference === "friendAccepted"} onChange={(value)=>void updatePreference("friendAccepted", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Messages</p><p className="mt-0.5 text-[11px] text-gray-400">When you receive a new message notification.</p></div><Toggle value={Boolean(preferences.messages)} disabled={!session?.user || savingPreference === "messages"} onChange={(value)=>void updatePreference("messages", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Mentions</p><p className="mt-0.5 text-[11px] text-gray-400">When someone mentions you.</p></div><Toggle value={Boolean(preferences.mentions)} disabled={!session?.user || savingPreference === "mentions"} onChange={(value)=>void updatePreference("mentions", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Shares</p><p className="mt-0.5 text-[11px] text-gray-400">When your content is shared.</p></div><Toggle value={Boolean(preferences.shares)} disabled={!session?.user || savingPreference === "shares"} onChange={(value)=>void updatePreference("shares", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">System</p><p className="mt-0.5 text-[11px] text-gray-400">Important account and platform notices.</p></div><Toggle value={Boolean(preferences.system)} disabled={!session?.user || savingPreference === "system"} onChange={(value)=>void updatePreference("system", value)}/></div></div>
         </Card>
 
         {session?.user ? (
-          <Card>
+          <Card id="security">
             <div className="flex items-center justify-between gap-3">
-              <div><h2 className="text-sm font-black">Active sessions</h2><p className="mt-1 text-xs text-gray-400">Review devices signed in to your account.</p></div>
+              <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[#6d5dfc]">Security</p><h2 className="mt-1 text-xl font-black">Active sessions</h2><p className="mt-1 text-xs text-gray-400">Review devices signed in to your account.</p></div>
               <button type="button" onClick={() => void revokeSession()} disabled={sessions.length <= 1} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[11px] font-black text-gray-700 disabled:cursor-not-allowed disabled:opacity-40">Sign out other devices</button>
             </div>
             <div className="mt-4 space-y-2">
@@ -1950,6 +2146,17 @@ function SettingsPage() {
             <button onClick={()=>void signOut()} className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-700 hover:bg-gray-50">Sign out current device</button>
           </Card>
         ) : null}
+
+        <Card id="help">
+          <p className="text-[10px] font-black uppercase tracking-[.14em] text-[#6d5dfc]">Help</p>
+          <h2 className="mt-1 text-xl font-black">Find the setting you need</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">General</p><p className="mt-1 text-[11px] text-gray-400">Edit profile details, email, or password.</p></div>
+            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">Privacy</p><p className="mt-1 text-[11px] text-gray-400">Control who can see lists and contact you.</p></div>
+            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">Notifications</p><p className="mt-1 text-[11px] text-gray-400">Choose which activity notifications stay enabled.</p></div>
+            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">Security</p><p className="mt-1 text-[11px] text-gray-400">Manage sessions, verification, and account deletion.</p></div>
+          </div>
+        </Card>
 
         <div className="rounded-3xl border border-red-100 bg-red-50 p-5">
           <div className="flex items-center gap-2 text-red-600"><Trash2 size={17}/><h2 className="text-sm font-black">Danger zone</h2></div>
