@@ -2,18 +2,22 @@ name: CI
 
 on:
   push:
-    branches: ["main", "feature/verification-owner-system"]
+    branches: ["main"]
   pull_request:
     branches: ["main"]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -31,6 +35,9 @@ jobs:
 
       - name: Type check
         run: npm run typecheck
+
+      - name: Repository integrity smoke test
+        run: node scripts/repository-smoke.mjs
 
       - name: Production build
         run: npm run build:ci
