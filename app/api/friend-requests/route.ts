@@ -3,10 +3,12 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { friendRequestInputSchema } from "@/lib/validation";
+import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 async function getSession(){return auth.api.getSession({headers:await headers()});}
 export async function GET(){const session=await getSession();if(!session?.user)return NextResponse.json({error:"Authentication required."},{status:401});const [received,sent]=await Promise.all([prisma.friendRequest.findMany({where:{receiverId:session.user.id,status:"PENDING"},orderBy:{createdAt:"desc"},include:{sender:{select:{id:true,name:true,username:true,image:true,isVerified:true,isOwner:true}}}}),prisma.friendRequest.findMany({where:{senderId:session.user.id,status:"PENDING"},orderBy:{createdAt:"desc"},include:{receiver:{select:{id:true,name:true,username:true,image:true,isVerified:true,isOwner:true}}}})]);return NextResponse.json({received,sent});}
 export async function POST(request:Request){
  const session=await getSession();if(!session?.user)return NextResponse.json({error:"Authentication required."},{status:401});
+ const rl=await consumeRateLimit(rateLimitKey("friend-requests",request,session.user.id),15,60);if(!rl.allowed)return rateLimitResponse(rl.retryAfter);
  const parsed=friendRequestInputSchema.safeParse(await request.json().catch(()=>null));if(!parsed.success)return NextResponse.json({error:"Invalid friend request."},{status:400});
  const {receiverId}=parsed.data;if(receiverId===session.user.id)return NextResponse.json({error:"You cannot send yourself a friend request."},{status:400});
  const receiver=await prisma.user.findUnique({where:{id:receiverId},select:{id:true,isActive:true,privacySetting:{select:{allowFriendRequests:true}}}});
