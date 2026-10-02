@@ -62,7 +62,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ post
         where: blockedAuthorWhere(viewerId),
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take: 20,
-        include: { author: { select: { id: true, name: true, username: true, image: true } } },
+        include: { author: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } } },
       },
     },
   });
@@ -103,7 +103,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pos
 
   const comment = await prisma.comment.create({
     data: { postId, authorId: session.user.id, parentId: parsed.data.parentId ?? null, content: parsed.data.content },
-    include: { author: { select: { id: true, name: true, username: true, image: true } } },
+    include: { author: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } } },
   });
 
   if (access.post.authorId !== session.user.id) {
@@ -139,7 +139,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ po
   const updated = await prisma.comment.update({
     where: { id: commentId },
     data: { content },
-    include: { author: { select: { id: true, name: true, username: true, image: true } } },
+    include: { author: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } } },
   });
   return NextResponse.json({ comment: updated });
 }
