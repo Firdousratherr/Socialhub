@@ -76,6 +76,7 @@ export async function GET(
       content: true,
       mediaUrl: true,
       visibility: true,
+      shareCount: true,
       isPinned: true,
       createdAt: true,
       _count: { select: { likes: true, comments: true } },

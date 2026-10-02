@@ -377,9 +377,178 @@ type ProfileData = {
     mediaUrl: string | null;
     isPinned: boolean;
     createdAt: string;
+    shareCount?: number;
+    liked?: boolean;
+    saved?: boolean;
     _count: { likes: number; comments: number };
   }>;
 };
+
+function ProfilePostCard({
+  post,
+  displayName,
+  image,
+  verified,
+  owner,
+  isOwner,
+  onRemove,
+  onPinnedChange,
+}: {
+  post: NonNullable<ProfileData["posts"]>[number];
+  displayName: string;
+  image: string | null;
+  verified: boolean;
+  owner: boolean;
+  isOwner: boolean;
+  onRemove: (postId: string) => void;
+  onPinnedChange: (postId: string, pinned: boolean) => void;
+}) {
+  const router = useRouter();
+  const [liked, setLiked] = useState(Boolean(post.liked));
+  const [saved, setSaved] = useState(Boolean(post.saved));
+  const [likeCount, setLikeCount] = useState(post._count.likes);
+  const [shareCount, setShareCount] = useState(post.shareCount ?? 0);
+  const [pinned, setPinned] = useState(post.isPinned);
+  const [busy, setBusy] = useState<"like" | "save" | "share" | "report" | "delete" | "pin" | null>(null);
+  const [message, setMessage] = useState("");
+
+  async function toggleLike() {
+    if (busy) return;
+    setBusy("like");
+    try {
+      const response = await fetch("/api/posts/" + post.id + "/like", { method: liked ? "DELETE" : "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not update like.");
+      setLiked(Boolean(json.liked));
+      setLikeCount(Number(json.count ?? likeCount + (json.liked ? 1 : -1)));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update like.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function toggleSave() {
+    if (busy) return;
+    setBusy("save");
+    try {
+      const response = await fetch("/api/posts/" + post.id + "/save", { method: saved ? "DELETE" : "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not update saved status.");
+      setSaved(Boolean(json.saved));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update saved status.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sharePost() {
+    if (busy) return;
+    const url = window.location.origin + "/home#post-" + post.id;
+    setBusy("share");
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Socialhub post",
+          text: (post.content ?? "Shared a new moment.").slice(0, 120),
+          url,
+        });
+      } else {
+        await navigator.clipboard.writeText(url);
+      }
+      const response = await fetch("/api/posts/" + post.id + "/share", { method: "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (response.ok) setShareCount(Number(json.shareCount ?? shareCount + 1));
+      setMessage("Post link ready to share.");
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setMessage(error instanceof Error ? error.message : "Could not share post.");
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function reportPost() {
+    const reason = window.prompt("Why are you reporting this post?", "Spam or misleading content");
+    if (!reason?.trim() || busy) return;
+    setBusy("report");
+    try {
+      const response = await fetch("/api/posts/" + post.id + "/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not report this post.");
+      setMessage("Report submitted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not report this post.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function togglePin() {
+    if (!isOwner || busy) return;
+    setBusy("pin");
+    try {
+      const response = await fetch("/api/posts/" + post.id + "/pin", { method: pinned ? "DELETE" : "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not update pinned state.");
+      const next = !pinned;
+      setPinned(next);
+      onPinnedChange(post.id, next);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update pinned state.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deletePost() {
+    if (!isOwner || busy || !window.confirm("Delete this post permanently?")) return;
+    setBusy("delete");
+    try {
+      const response = await fetch("/api/posts/" + post.id, { method: "DELETE" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not delete this post.");
+      onRemove(post.id);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not delete this post.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <article className={"rounded-2xl border p-4 " + (pinned ? "border-[#d9d4ff] bg-[#f8f7ff]" : "border-gray-100 bg-gray-50")}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          {image ? <img src={image} alt="" className="size-9 rounded-full object-cover"/> : <Avatar initials={displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="sm"/>}
+          <div className="min-w-0">
+            <p className="flex items-center gap-1 text-xs font-black">{displayName}<AccountBadge verified={verified} owner={owner}/></p>
+            <p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {isOwner ? <button type="button" onClick={() => void togglePin()} disabled={Boolean(busy)} className={"rounded-xl px-2.5 py-1.5 text-[10px] font-black " + (pinned ? "bg-[#6d5dfc] text-white" : "border border-gray-200 bg-white text-gray-500")}>{busy === "pin" ? "…" : pinned ? "Pinned" : "Pin"}</button> : pinned ? <span className="rounded-full bg-[#eeebff] px-2.5 py-1 text-[10px] font-black text-[#5a4be8]">Pinned</span> : null}
+          {isOwner ? <button type="button" onClick={() => void deletePost()} disabled={Boolean(busy)} className="grid size-8 place-items-center rounded-xl border border-red-100 bg-white text-red-500" aria-label="Delete post"><Trash2 size={14}/></button> : <button type="button" onClick={() => void reportPost()} disabled={Boolean(busy)} className="grid size-8 place-items-center rounded-xl border border-gray-200 bg-white text-gray-500" aria-label="Report post"><Shield size={14}/></button>}
+        </div>
+      </div>
+      {post.content ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-600">{post.content}</p> : null}
+      {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+        <button type="button" onClick={() => void toggleLike()} disabled={Boolean(busy)} className={"inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[10px] font-black " + (liked ? "bg-rose-50 text-rose-600" : "bg-white text-gray-500")}><Heart size={14} fill={liked ? "currentColor" : "none"}/>{likeCount}</button>
+        <button type="button" onClick={() => router.push("/home#post-" + encodeURIComponent(post.id))} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[10px] font-black text-gray-500"><MessageCircle size={14}/>{post._count.comments}</button>
+        <button type="button" onClick={() => void toggleSave()} disabled={Boolean(busy)} className={"inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[10px] font-black " + (saved ? "bg-[#eeebff] text-[#5a4be8]" : "bg-white text-gray-500")}><Bookmark size={14} fill={saved ? "currentColor" : "none"}/>Save</button>
+        <button type="button" onClick={() => void sharePost()} disabled={Boolean(busy)} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[10px] font-black text-gray-500"><Share2 size={14}/>Share{shareCount ? " · " + shareCount : ""}</button>
+      </div>
+      {message ? <p className="mt-2 text-[10px] font-bold text-[#5a4be8]">{message}</p> : null}
+    </article>
+  );
+}
 
 function Profile({ username = "firdous" }: { username?: string }) {
   const { data: session } = authClient.useSession();
@@ -1038,47 +1207,31 @@ function Profile({ username = "firdous" }: { username?: string }) {
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           {visibleProfilePosts.length > 0 ? (
             visibleProfilePosts.map((post) => (
-              <article key={post.id} className={"rounded-2xl border p-4 " + (post.isPinned ? "border-[#d9d4ff] bg-[#f8f7ff]" : "border-gray-100 bg-gray-50")}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    {profile?.image ? <img src={profile.image} alt="" className="size-9 rounded-full object-cover" /> : <Avatar initials={initials} size="sm" />}
-                    <div className="min-w-0"><p className="flex items-center gap-1 text-xs font-black">{displayName}<AccountBadge verified={profile?.isVerified} owner={profile?.isOwner}/></p><p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p></div>
-                  </div>
-                  {isOwner ? (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const response = await fetch("/api/posts/" + post.id + "/pin", { method: post.isPinned ? "DELETE" : "POST" });
-                        if (!response.ok) {
-                          const json = await response.json().catch(() => ({}));
-                          setError(json.error ?? "Could not update pinned post.");
-                          return;
-                        }
-                        setProfile((current) => current ? {
-                          ...current,
-                          posts: (current.posts ?? []).map((item) => ({
-                            ...item,
-                            isPinned: item.id === post.id ? !post.isPinned : post.isPinned ? item.isPinned : false,
-                          })),
-                        } : current);
-                      }}
-                      className={"shrink-0 rounded-xl px-2.5 py-1.5 text-[10px] font-black " + (post.isPinned ? "bg-[#6d5dfc] text-white" : "border border-gray-200 bg-white text-gray-500")}
-                    >
-                      {post.isPinned ? "Pinned" : "Pin"}
-                    </button>
-                  ) : post.isPinned ? (
-                    <span className="shrink-0 rounded-full bg-[#eeebff] px-2.5 py-1 text-[10px] font-black text-[#5a4be8]">Pinned</span>
-                  ) : null}
-                </div>
-                {post.content ? <p className="mt-3 text-sm leading-6 text-gray-600">{post.content}</p> : null}
-                {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
-                <div className="mt-4 flex gap-5 text-xs font-semibold text-gray-400">
-                  <span className="inline-flex items-center gap-1"><Heart size={14}/> {post._count.likes}</span>
-                  <span className="inline-flex items-center gap-1"><MessageCircle size={14}/> {post._count.comments}</span>
-                </div>
-              </article>
-            ))
-          ) : (
+              <ProfilePostCard
+                key={post.id}
+                post={post}
+                displayName={displayName}
+                image={profile?.image ?? null}
+                verified={Boolean(profile?.isVerified)}
+                owner={Boolean(profile?.isOwner)}
+                isOwner={isOwner}
+                onRemove={(postId) => {
+                  setProfile((current) => current ? {
+                    ...current,
+                    posts: (current.posts ?? []).filter((item) => item.id !== postId),
+                  } : current);
+                }}
+                onPinnedChange={(postId, pinned) => {
+                  setProfile((current) => current ? {
+                    ...current,
+                    posts: (current.posts ?? []).map((item) => ({
+                      ...item,
+                      isPinned: item.id === postId ? pinned : pinned ? false : item.isPinned,
+                    })),
+                  } : current);
+                }}
+              />
+            ))          ) : (
             <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center">
               <p className="text-sm font-black">{profileTab === "photos" ? "No photos yet" : "No public posts yet"}</p>
               <p className="mt-1 text-xs text-gray-400">{isOwner ? "Share your first post from the home feed." : "This profile has not shared any public posts."}</p>
