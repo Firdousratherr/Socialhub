@@ -82,6 +82,19 @@ function Page({
 function Card({ children, className = "", id }: { children: React.ReactNode; className?: string; id?: string }) {
   return <section id={id} className={`social-card rounded-3xl p-5 ${className}`}>{children}</section>;
 }
+function SettingsToggle({ value, disabled, onChange }: { value: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onChange(!value)}
+      className={"relative h-7 w-12 rounded-full p-1 transition " + (value ? "bg-[#6d5dfc]" : "bg-gray-200") + (disabled ? " cursor-not-allowed opacity-50" : "")}
+      aria-pressed={value}
+    >
+      <span className={"block size-5 rounded-full bg-white transition-transform " + (value ? "translate-x-5" : "")}/>
+    </button>
+  );
+}
 
 function Auth({ signup = false }: { signup?: boolean }) {
   const router = useRouter();
@@ -1177,7 +1190,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
         <div className="mt-5 flex flex-wrap items-center gap-2">
           {profile?.website ? <a href={profile.website} target="_blank" rel="noreferrer" className="rounded-full bg-gray-50 px-3 py-1.5 text-[11px] font-bold text-[#5a4be8] hover:bg-[#eeebff]">{profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}</a> : null}
           {profile?.isPrivate ? <span className="rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-700">Private account</span> : null}
-          <span className="rounded-full bg-gray-50 px-3 py-1.5 text-[11px] font-bold text-gray-500">Joined {new Date(profile?.createdAt ?? Date.now()).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span>
+          {profile?.createdAt ? <span className="rounded-full bg-gray-50 px-3 py-1.5 text-[11px] font-bold text-gray-500">Joined {new Date(profile.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span> : null}
           <button type="button" onClick={() => void shareProfile()} className="rounded-full bg-gray-950 px-3 py-1.5 text-[11px] font-black text-white">Share profile</button>
         </div>
         {relationshipView ? (
@@ -1829,6 +1842,7 @@ type DiscoverUser = {
 };
 
 function Discover({ initialQuery = "" }: { initialQuery?: string }) {
+  const router = useRouter();
   const { data: session } = authClient.useSession();
   const [q, setQ] = useState(initialQuery);
   const [results, setResults] = useState<DiscoverUser[]>([]);
@@ -1891,7 +1905,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
 
   async function toggleFollow(user: DiscoverUser) {
     if (!session?.user) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -2164,6 +2178,7 @@ type NotificationData = {
 };
 
 function Notifications() {
+  const router = useRouter();
   const { data: session } = authClient.useSession();
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [nextNotificationCursor, setNextNotificationCursor] = useState<string | null>(null);
@@ -2235,13 +2250,13 @@ function Notifications() {
     }
 
     if (item.type === "FOLLOW" && item.actor?.username) {
-      window.location.href = "/profile/" + encodeURIComponent(item.actor.username);
+      router.push("/profile/" + encodeURIComponent(item.actor.username));
     } else if (item.type === "FRIEND_REQUEST" || item.type === "FRIEND_ACCEPTED") {
-      window.location.href = "/friends";
+      router.push("/friends");
     } else if (item.type === "MESSAGE" && item.message?.conversationId) {
-      window.location.href = "/messages?conversation=" + encodeURIComponent(item.message.conversationId);
+      router.push("/messages?conversation=" + encodeURIComponent(item.message.conversationId));
     } else if (item.post?.id) {
-      window.location.href = "/home#post-" + encodeURIComponent(item.post.id);
+      router.push("/home#post-" + encodeURIComponent(item.post.id));
     } else {
       window.location.href = "/home";
     }
@@ -2683,18 +2698,6 @@ function SettingsPage() {
     }
   }
 
-  const Toggle = ({ value, disabled, onChange }: { value: boolean; disabled?: boolean; onChange: (value: boolean) => void }) => (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => onChange(!value)}
-      className={"relative h-7 w-12 rounded-full p-1 transition " + (value ? "bg-[#6d5dfc]" : "bg-gray-200") + (disabled ? " cursor-not-allowed opacity-50" : "")}
-      aria-pressed={value}
-    >
-      <span className={"block size-5 rounded-full bg-white transition-transform " + (value ? "translate-x-5" : "")}/>
-    </button>
-  );
-
   return <Page eyebrow="Settings" title="Make Socialhub yours" subtitle="Control account, privacy, notifications, and security from one place.">
     {!session?.user ? (
       <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-4 py-3 text-xs font-semibold text-[#5a4be8]">
@@ -2775,27 +2778,27 @@ function SettingsPage() {
           <div className="divide-y divide-gray-100">
             <div className="flex items-center gap-4 py-4">
               <div className="flex-1"><p className="text-sm font-bold">Private account</p><p className="text-xs text-gray-400">Only approved followers can see your posts.</p></div>
-              <Toggle value={privateAccount} disabled={!session?.user || savingPrivacy} onChange={(value)=>void updatePrivacy(value)}/>
+              <SettingsToggle value={privateAccount} disabled={!session?.user || savingPrivacy} onChange={(value)=>void updatePrivacy(value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
               <div className="flex-1"><p className="text-sm font-bold">Show Friends / mutual list</p><p className="text-xs text-gray-400">Control whether other people can open your Friends and mutual connections list.</p></div>
-              <Toggle value={privacySettings.showFriendsList} disabled={!session?.user || savingPrivacySetting === "showFriendsList"} onChange={(value)=>void updatePrivacySetting("showFriendsList", value)}/>
+              <SettingsToggle value={privacySettings.showFriendsList} disabled={!session?.user || savingPrivacySetting === "showFriendsList"} onChange={(value)=>void updatePrivacySetting("showFriendsList", value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
               <div className="flex-1"><p className="text-sm font-bold">Show followers list</p><p className="text-xs text-gray-400">Control whether other people can open your followers list.</p></div>
-              <Toggle value={privacySettings.showFollowersList} disabled={!session?.user || savingPrivacySetting === "showFollowersList"} onChange={(value)=>void updatePrivacySetting("showFollowersList", value)}/>
+              <SettingsToggle value={privacySettings.showFollowersList} disabled={!session?.user || savingPrivacySetting === "showFollowersList"} onChange={(value)=>void updatePrivacySetting("showFollowersList", value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
               <div className="flex-1"><p className="text-sm font-bold">Show following list</p><p className="text-xs text-gray-400">Control whether other people can open your following list.</p></div>
-              <Toggle value={privacySettings.showFollowingList} disabled={!session?.user || savingPrivacySetting === "showFollowingList"} onChange={(value)=>void updatePrivacySetting("showFollowingList", value)}/>
+              <SettingsToggle value={privacySettings.showFollowingList} disabled={!session?.user || savingPrivacySetting === "showFollowingList"} onChange={(value)=>void updatePrivacySetting("showFollowingList", value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
               <div className="flex-1"><p className="text-sm font-bold">Allow messages from everyone</p><p className="text-xs text-gray-400">Turn off to limit new direct conversations to accepted friends.</p></div>
-              <Toggle value={privacySettings.allowMessagesEveryone} disabled={!session?.user || savingPrivacySetting === "allowMessagesEveryone"} onChange={(value)=>void updatePrivacySetting("allowMessagesEveryone", value)}/>
+              <SettingsToggle value={privacySettings.allowMessagesEveryone} disabled={!session?.user || savingPrivacySetting === "allowMessagesEveryone"} onChange={(value)=>void updatePrivacySetting("allowMessagesEveryone", value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
               <div className="flex-1"><p className="text-sm font-bold">Allow friend requests</p><p className="text-xs text-gray-400">Turn off to stop new people from sending friend requests.</p></div>
-              <Toggle value={privacySettings.allowFriendRequests} disabled={!session?.user || savingPrivacySetting === "allowFriendRequests"} onChange={(value)=>void updatePrivacySetting("allowFriendRequests", value)}/>
+              <SettingsToggle value={privacySettings.allowFriendRequests} disabled={!session?.user || savingPrivacySetting === "allowFriendRequests"} onChange={(value)=>void updatePrivacySetting("allowFriendRequests", value)}/>
             </div>
           </div>
         </Card>
@@ -2811,7 +2814,7 @@ function SettingsPage() {
           <p className="text-[10px] font-black uppercase tracking-[.14em] text-[#6d5dfc]">Notifications</p>
           <h2 className="mt-1 text-xl font-black">Choose what reaches you</h2>
           <p className="mt-2 text-xs leading-5 text-gray-400">Choose which activity appears in your notification inbox.</p>
-          <div className="mt-4 divide-y divide-gray-100"><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Likes</p><p className="mt-0.5 text-[11px] text-gray-400">When someone likes your posts.</p></div><Toggle value={Boolean(preferences.likes)} disabled={!session?.user || savingPreference === "likes"} onChange={(value)=>void updatePreference("likes", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Comments</p><p className="mt-0.5 text-[11px] text-gray-400">When someone comments on your posts.</p></div><Toggle value={Boolean(preferences.comments)} disabled={!session?.user || savingPreference === "comments"} onChange={(value)=>void updatePreference("comments", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Follows</p><p className="mt-0.5 text-[11px] text-gray-400">When someone follows you.</p></div><Toggle value={Boolean(preferences.follows)} disabled={!session?.user || savingPreference === "follows"} onChange={(value)=>void updatePreference("follows", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests</p><p className="mt-0.5 text-[11px] text-gray-400">When someone sends you a friend request.</p></div><Toggle value={Boolean(preferences.friendRequests)} disabled={!session?.user || savingPreference === "friendRequests"} onChange={(value)=>void updatePreference("friendRequests", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests accepted</p><p className="mt-0.5 text-[11px] text-gray-400">When a friend request is accepted.</p></div><Toggle value={Boolean(preferences.friendAccepted)} disabled={!session?.user || savingPreference === "friendAccepted"} onChange={(value)=>void updatePreference("friendAccepted", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Messages</p><p className="mt-0.5 text-[11px] text-gray-400">When you receive a new message notification.</p></div><Toggle value={Boolean(preferences.messages)} disabled={!session?.user || savingPreference === "messages"} onChange={(value)=>void updatePreference("messages", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Mentions</p><p className="mt-0.5 text-[11px] text-gray-400">When someone mentions you.</p></div><Toggle value={Boolean(preferences.mentions)} disabled={!session?.user || savingPreference === "mentions"} onChange={(value)=>void updatePreference("mentions", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Shares</p><p className="mt-0.5 text-[11px] text-gray-400">When your content is shared.</p></div><Toggle value={Boolean(preferences.shares)} disabled={!session?.user || savingPreference === "shares"} onChange={(value)=>void updatePreference("shares", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">System</p><p className="mt-0.5 text-[11px] text-gray-400">Important account and platform notices.</p></div><Toggle value={Boolean(preferences.system)} disabled={!session?.user || savingPreference === "system"} onChange={(value)=>void updatePreference("system", value)}/></div></div>
+          <div className="mt-4 divide-y divide-gray-100"><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Likes</p><p className="mt-0.5 text-[11px] text-gray-400">When someone likes your posts.</p></div><SettingsToggle value={Boolean(preferences.likes)} disabled={!session?.user || savingPreference === "likes"} onChange={(value)=>void updatePreference("likes", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Comments</p><p className="mt-0.5 text-[11px] text-gray-400">When someone comments on your posts.</p></div><SettingsToggle value={Boolean(preferences.comments)} disabled={!session?.user || savingPreference === "comments"} onChange={(value)=>void updatePreference("comments", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Follows</p><p className="mt-0.5 text-[11px] text-gray-400">When someone follows you.</p></div><SettingsToggle value={Boolean(preferences.follows)} disabled={!session?.user || savingPreference === "follows"} onChange={(value)=>void updatePreference("follows", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests</p><p className="mt-0.5 text-[11px] text-gray-400">When someone sends you a friend request.</p></div><SettingsToggle value={Boolean(preferences.friendRequests)} disabled={!session?.user || savingPreference === "friendRequests"} onChange={(value)=>void updatePreference("friendRequests", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests accepted</p><p className="mt-0.5 text-[11px] text-gray-400">When a friend request is accepted.</p></div><SettingsToggle value={Boolean(preferences.friendAccepted)} disabled={!session?.user || savingPreference === "friendAccepted"} onChange={(value)=>void updatePreference("friendAccepted", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Messages</p><p className="mt-0.5 text-[11px] text-gray-400">When you receive a new message notification.</p></div><SettingsToggle value={Boolean(preferences.messages)} disabled={!session?.user || savingPreference === "messages"} onChange={(value)=>void updatePreference("messages", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Mentions</p><p className="mt-0.5 text-[11px] text-gray-400">When someone mentions you.</p></div><SettingsToggle value={Boolean(preferences.mentions)} disabled={!session?.user || savingPreference === "mentions"} onChange={(value)=>void updatePreference("mentions", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Shares</p><p className="mt-0.5 text-[11px] text-gray-400">When your content is shared.</p></div><SettingsToggle value={Boolean(preferences.shares)} disabled={!session?.user || savingPreference === "shares"} onChange={(value)=>void updatePreference("shares", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">System</p><p className="mt-0.5 text-[11px] text-gray-400">Important account and platform notices.</p></div><SettingsToggle value={Boolean(preferences.system)} disabled={!session?.user || savingPreference === "system"} onChange={(value)=>void updatePreference("system", value)}/></div></div>
         </Card>
 
         {session?.user ? (
