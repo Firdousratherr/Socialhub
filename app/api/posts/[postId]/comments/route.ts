@@ -43,7 +43,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ post
   const url = new URL(request.url);
   const cursor = decodeCursor(url.searchParams.get("before"));
   const take = Math.min(Math.max(Number(url.searchParams.get("take") ?? 30), 1), 50);
-  const comments = await prisma.comment.findMany({
+  const where = {
+    postId,
+    ...blockedAuthorWhere(viewerId),
+    ...(cursor ? {
+      OR: [
+        { createdAt: { lt: cursor.createdAt } },
+        { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+      ],
+    } : {}),
+  };
+  const [comments, commentCount] = await Promise.all([
+    prisma.comment.findMany({
     where: {
       postId,
       parentId: null,
@@ -66,12 +77,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ post
         include: { author: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } } },
       },
     },
-  });
+    }),
+    prisma.comment.count({ where }),
+  ]);
 
   const hasMore = comments.length > take;
   const page = comments.slice(0, take).reverse();
   const nextBefore = hasMore && page.length ? encodeCursor(page[0].createdAt, page[0].id) : null;
-  return NextResponse.json({ comments: page, nextBefore });
+  return NextResponse.json({ comments: page, nextBefore, commentCount });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ postId: string }> }) {
@@ -114,7 +127,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ pos
       data: { userId: access.post.authorId, actorId: session.user.id, type: "COMMENT", postId, commentId: comment.id },
     });
   }
-  return NextResponse.json({ comment }, { status: 201 });
+  const commentCount = await prisma.comment.count({ where: { postId } });
+  return NextResponse.json({ comment, commentCount }, { status: 201 });
 }
 
 
@@ -166,5 +180,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ p
   if (comment.authorId !== session.user.id) return NextResponse.json({ error: "You can only delete your own comments." }, { status: 403 });
 
   await prisma.comment.delete({ where: { id: commentId } });
-  return NextResponse.json({ success: true, commentId });
+  const commentCount = await prisma.comment.count({ where: { postId } });
+  return NextResponse.json({ success: true, commentId, commentCount });
 }
