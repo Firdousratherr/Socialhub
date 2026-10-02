@@ -122,9 +122,10 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
     setMessage(patch.metrics !== undefined ? "Profile metrics updated and audited." : "User updated.");
   }
 
-  const nav = [
-    ["control", "Control center", Gauge], ["overview", "Dashboard", BarChart3], ["moderation", "Moderation", Shield], ["verification", "Verification", ShieldCheck], ["users", "Users", Users],
-    ["user360", "User 360", UserRound], ["content", "Content", FileText], ["analytics", "Analytics", Activity], ["audit", "Audit logs", History],
+  const navGroups = [
+    { title: "Workspace", items: [["control", "Control center", Gauge], ["overview", "Dashboard", BarChart3]] as const },
+    { title: "People & content", items: [["users", "Users", Users], ["user360", "User 360", UserRound], ["content", "Content", FileText], ["moderation", "Moderation", Shield], ["verification", "Verification", ShieldCheck]] as const },
+    { title: "Platform", items: [["analytics", "Analytics", Activity], ["audit", "Audit logs", History]] as const },
   ] as const;
 
   const stats = dashboard?.stats ?? {};
@@ -135,8 +136,15 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.22em] text-violet-300">Socialhub Admin</p><h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Control center</h1><p className="mt-2 max-w-2xl text-sm text-white/55">Operate the platform through real users, real reports, real content and auditable actions.</p></div><div className="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-xs font-bold"><span className="size-2 rounded-full bg-emerald-400"/> Protected admin controls</div></div>
         </header>
         <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-          <aside className="h-fit rounded-3xl border border-gray-100 bg-white p-2 shadow-[0_10px_35px_rgba(31,26,64,0.05)]">
-            {nav.map(([key, label, Icon]) => <button key={key} onClick={() => { setActive(key); setSelectedId(""); setSelected(null); setMessage(""); }} className={"flex w-full items-center gap-3 rounded-2xl px-3.5 py-3 text-left text-xs font-black transition " + (active === key ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500 hover:bg-gray-50")}><Icon size={16}/>{label}</button>)}
+          <aside className="h-fit rounded-3xl border border-gray-100 bg-white p-2 shadow-[0_10px_35px_rgba(31,26,64,0.05)] lg:sticky lg:top-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:block">
+              {navGroups.map((group) => <div key={group.title} className="min-w-0">
+                <p className="px-3.5 pb-1 pt-2 text-[9px] font-black uppercase tracking-[.16em] text-gray-300">{group.title}</p>
+                <div className="space-y-1">
+                  {group.items.map(([key, label, Icon]) => <button key={key} type="button" onClick={() => { setActive(key); setSelectedId(""); setSelected(null); setMessage(""); }} className={"flex w-full items-center gap-3 rounded-2xl px-3.5 py-3 text-left text-xs font-black transition " + (active === key ? "bg-[#eeebff] text-[#5a4be8] shadow-sm" : "text-gray-500 hover:bg-gray-50")}><Icon size={16}/><span className="truncate">{label}</span></button>)}
+                </div>
+              </div>)}
+            </div>
           </aside>
           <section className="min-w-0 space-y-5">
             {message ? <div role="status" className="rounded-2xl border border-[#ddd8ff] bg-[#f8f7ff] px-4 py-3 text-xs font-bold text-[#5a4be8]">{message}</div> : null}
