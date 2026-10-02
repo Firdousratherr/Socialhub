@@ -24,7 +24,21 @@ export async function GET(
 
   const isSelf = viewerId === userId;
   if (!isSelf && target.isPrivate) {
-    return NextResponse.json({ followers: [], following: [], mutual: [], hidden: true });
+    const canSeePrivateRelationships = viewerId
+      ? await prisma.friendRequest.findFirst({
+          where: {
+            status: "ACCEPTED",
+            OR: [
+              { senderId: viewerId, receiverId: userId },
+              { senderId: userId, receiverId: viewerId },
+            ],
+          },
+          select: { id: true },
+        })
+      : null;
+    if (!canSeePrivateRelationships) {
+      return NextResponse.json({ followers: [], following: [], mutual: [], hidden: true });
+    }
   }
 
   const [followers, following] = await Promise.all([
