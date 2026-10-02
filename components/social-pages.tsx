@@ -10,7 +10,7 @@ import { AccountBadge } from "@/components/account-badge";
 import { MobileMenu } from "@/components/mobile-menu";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
-  ChevronRight, CircleHelp, Compass, Heart, Image as ImageIcon,
+  ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
   KeyRound, Lock, LogIn, Mail, MessageCircle, MoreHorizontal, Pencil, Plus,
   Paperclip, Search, Send, Settings, Shield, ShieldOff, Sparkles, Trash2, UserPlus, Users, X
 } from "lucide-react";
@@ -344,6 +344,36 @@ function Auth({ signup = false }: { signup?: boolean }) {
     </main>
   );
 }
+
+type ProfileData = {
+  id: string;
+  name: string;
+  email: string;
+  username: string | null;
+  bio: string | null;
+  image: string | null;
+  coverImage: string | null;
+  website: string | null;
+  location: string | null;
+  isPrivate: boolean;
+  role: "USER" | "MODERATOR" | "ADMIN";
+  isVerified: boolean;
+  isOwner: boolean;
+  verifiedAt?: string | null;
+  ownerSince?: string | null;
+  createdAt: string;
+  _count: { posts: number; followers: number; following: number };
+  visibleCounts?: { posts: number; followers: number; following: number };
+  isFollowing?: boolean;
+  isFriend?: boolean;
+  posts?: Array<{
+    id: string;
+    content: string | null;
+    mediaUrl: string | null;
+    createdAt: string;
+    _count: { likes: number; comments: number };
+  }>;
+};
 
 function Profile({ username = "firdous" }: { username?: string }) {
   const { data: session } = authClient.useSession();
