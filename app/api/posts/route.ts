@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { postInputSchema } from "@/lib/validation";
 import { getBlockedUserIds } from "@/lib/social-access";
+import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -177,6 +178,8 @@ export async function POST(request: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
+  const rl = await consumeRateLimit(rateLimitKey("posts", request, session.user.id), 10, 60);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
 
   const parsed = postInputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
