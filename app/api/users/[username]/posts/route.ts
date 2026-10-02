@@ -62,18 +62,28 @@ export async function GET(
       authorId: user.id,
       AND: [
         { OR: visible },
-        ...(cursor ? [{
-          OR: [
-            { isPinned: { lt: cursor.isPinned } },
-            {
-              isPinned: cursor.isPinned,
-              OR: [
-                { createdAt: { lt: cursor.createdAt } },
-                { createdAt: cursor.createdAt, id: { lt: cursor.id } },
-              ],
-            },
-          ],
-        }] : []),
+        ...(cursor
+          ? [cursor.isPinned
+              ? {
+                  OR: [
+                    { isPinned: false },
+                    {
+                      isPinned: true,
+                      OR: [
+                        { createdAt: { lt: cursor.createdAt } },
+                        { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+                      ],
+                    },
+                  ],
+                }
+              : {
+                  isPinned: false,
+                  OR: [
+                    { createdAt: { lt: cursor.createdAt } },
+                    { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+                  ],
+                }]
+          : []),
       ],
     },
     orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }, { id: "desc" }],
