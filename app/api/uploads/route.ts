@@ -80,7 +80,7 @@ export async function POST(request: Request) {
 
   try {
     await prisma.uploadUsage.create({
-      data: { userId: session.user.id, bytes: file.size },
+      data: { userId: session.user.id, bytes: file.size, url: blob.url, pathname: blob.pathname, mimeType: file.type },
     });
   } catch (trackingError) {
     await safeDeleteBlob(blob.url);
