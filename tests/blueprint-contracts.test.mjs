@@ -298,7 +298,8 @@ test("post lifecycle changes synchronize feed and profile surfaces", () => {
 test("profile post pagination cursor preserves pinned ordering", () => {
   const route = read("app/api/users/[username]/posts/route.ts");
   assert.match(route, /isPinned\?: boolean/);
-  assert.match(route, /isPinned: \{ lt: cursor\.isPinned \}/);
+  assert.match(route, /isPinned: false/);
+  assert.match(route, /isPinned: true/);
   assert.match(route, /encodeCursor\(isPinned: boolean/);
   assert.match(route, /encodeCursor\(posts\.at\(-1\)!\.isPinned/);
 });
