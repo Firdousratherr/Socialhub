@@ -77,9 +77,6 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const access = await requireAdminPermission("CONTENT_MODERATE");
-  if (access.response) return access.response;
-
   const body = await request.json().catch(() => null);
   const metricSchema = z.object({
     likes: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
@@ -95,9 +92,20 @@ export async function PATCH(request: Request) {
   if (!parsed.success || (parsed.data.visibility === undefined && parsed.data.metrics === undefined)) {
     return NextResponse.json({ error: "Provide a post visibility or metrics update." }, { status: 400 });
   }
+  const access = await requireAdminPermission(parsed.data.metrics !== undefined ? "CONTENT_METRICS" : "CONTENT_MODERATE");
+  if (access.response) return access.response;
+  if (parsed.data.visibility !== undefined && parsed.data.metrics !== undefined) {
+    const moderationAccess = await requireAdminPermission("CONTENT_MODERATE");
+    if (moderationAccess.response) return moderationAccess.response;
+  }
+
+  const before = await prisma.post.findUnique({
+    where: { id: parsed.data.id },
+    select: { id: true, visibility: true, authorId: true },
+  });
+  if (!before) return NextResponse.json({ error: "Post not found." }, { status: 404 });
+
   if (parsed.data.metrics !== undefined) {
-    const access = await requireAdminPermission("CONTENT_METRICS");
-    if (access.response) return access.response;
     const previous = await prisma.adminPostMetricOverride.findUnique({ where: { postId: parsed.data.id } });
     const hasOverride = Object.values(parsed.data.metrics).some((value) => value !== null && value !== undefined);
     const override = hasOverride
@@ -117,12 +125,6 @@ export async function PATCH(request: Request) {
       },
     });
   }
-
-  const before = await prisma.post.findUnique({
-    where: { id: parsed.data.id },
-    select: { id: true, visibility: true, authorId: true },
-  });
-  if (!before) return NextResponse.json({ error: "Post not found." }, { status: 404 });
 
   if (parsed.data.visibility === undefined) {
     const override = await prisma.adminPostMetricOverride.findUnique({ where: { postId: parsed.data.id } });
