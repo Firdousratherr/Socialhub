@@ -92,6 +92,12 @@ export async function GET(
 
   if (list === "followers" || list === "following") {
     const isFollowers = list === "followers";
+    const listIsHidden = isFollowers
+      ? !isSelf && target.privacySetting?.showFollowersList === false
+      : !isSelf && target.privacySetting?.showFollowingList === false;
+    if (listIsHidden) {
+      return NextResponse.json({ followers: [], following: [], mutual: [], hidden: false, nextBefore: null });
+    }
     const relationRows = await prisma.follow.findMany({
       where: {
         ...(isFollowers ? { followingId: userId } : { followerId: userId }),

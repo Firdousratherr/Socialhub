@@ -45,3 +45,11 @@ test("group management endpoint exposes rename, membership and leave operations"
   assert.match(route, /export async function POST/);
   assert.match(route, /export async function DELETE/);
 });
+
+
+test("paginated relationship lists still honor list-level privacy", () => {
+  const route = read("app/api/users/[userId]/relationships/route.ts");
+  assert.match(route, /showFollowersList/);
+  assert.match(route, /showFollowingList/);
+  assert.match(route, /listIsHidden/);
+});
