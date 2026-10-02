@@ -105,7 +105,7 @@ export async function GET(
     orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     take: 20,
     select: {
-      id: true, content: true, mediaUrl: true, visibility: true, isPinned: true, createdAt: true,
+      id: true, content: true, mediaUrl: true, visibility: true, shareCount: true, isPinned: true, createdAt: true,
       _count: { select: { likes: true, comments: true } },
     },
   });
