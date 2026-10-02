@@ -10,7 +10,7 @@ const statusSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const access = await requireAdmin();
+  const access = await requireAdminPermission("VERIFICATION_MANAGE");
   if (access.response) return access.response;
 
   const url = new URL(request.url);
