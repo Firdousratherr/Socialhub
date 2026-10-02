@@ -578,13 +578,13 @@ enum VerificationAuditAction {
 model VerificationAudit {
   id        String                 @id @default(cuid())
   userId    String
-  adminId   String
+  adminId   String?
   action    VerificationAuditAction
   reason    String?
   createdAt DateTime               @default(now())
 
   user  User @relation("VerificationTarget", fields: [userId], references: [id], onDelete: Cascade)
-  admin User @relation("VerificationAdmin", fields: [adminId], references: [id], onDelete: Restrict)
+  admin User? @relation("VerificationAdmin", fields: [adminId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([adminId, createdAt])
