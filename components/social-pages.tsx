@@ -6,6 +6,7 @@ import type { FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
+import { AccountBadge } from "@/components/account-badge";
 import { MobileMenu } from "@/components/mobile-menu";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
@@ -284,6 +285,10 @@ type ProfileData = {
   location: string | null;
   isPrivate: boolean;
   role: "USER" | "MODERATOR" | "ADMIN";
+  isVerified: boolean;
+  isOwner: boolean;
+  verifiedAt?: string | null;
+  ownerSince?: string | null;
   createdAt: string;
   _count: { posts: number; followers: number; following: number };
   visibleCounts?: { posts: number; followers: number; following: number };
@@ -308,13 +313,13 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
   const [error, setError] = useState("");
   const [profileTab, setProfileTab] = useState<"posts" | "photos" | "friends">("posts");
-  const [friends, setFriends] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; bio: string | null }>>([]);
+  const [friends, setFriends] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; bio: string | null; isVerified?: boolean; isOwner?: boolean }>>([]);
   const [friendsHidden, setFriendsHidden] = useState(false);
   const [relationshipView, setRelationshipView] = useState<"followers" | "following" | "mutual" | null>(null);
   const [relationships, setRelationships] = useState<{
-    followers: Array<{ id: string; name: string; username: string | null; image: string | null }>;
-    following: Array<{ id: string; name: string; username: string | null; image: string | null }>;
-    mutual: Array<{ id: string; name: string; username: string | null; image: string | null }>;
+    followers: Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }>;
+    following: Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }>;
+    mutual: Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }>;
     hidden?: boolean;
   } | null>(null);
   const [loadingRelationships, setLoadingRelationships] = useState(false);
@@ -614,7 +619,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
               <Avatar initials={initials} size="xl"/>
             )}
           </div>
-          <div className="flex-1 sm:pb-2"><h2 className="text-2xl font-black tracking-[-.04em]">{displayName}</h2><p className="text-sm font-semibold text-gray-400">@{displayUsername}{profile?.location ? ` · ${profile.location}` : ""}</p></div>
+          <div className="flex-1 sm:pb-2"><h2 className="flex items-center gap-2 text-2xl font-black tracking-[-.04em]">{displayName}<AccountBadge verified={profile?.isVerified} owner={profile?.isOwner} showLabel size="md"/></h2><p className="text-sm font-semibold text-gray-400">@{displayUsername}{profile?.location ? ` · ${profile.location}` : ""}</p></div>
         </div>
 
         {uploading === "avatar" ? <p className="mt-3 text-[11px] font-bold text-[#5a4be8]">Uploading profile picture…</p> : null}
@@ -657,7 +662,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
                     const list = relationships?.[relationshipView] ?? [];
                     return list.length ? list.map((person) => <Link key={person.id} href={"/profile/" + encodeURIComponent(person.username ?? person.id)} onClick={() => setRelationshipView(null)} className="flex items-center gap-3 rounded-2xl p-3 hover:bg-gray-50">
                       {person.image ? <img src={person.image} alt="" className="size-11 rounded-full object-cover"/> : <span className="grid size-11 place-items-center rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{person.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()}</span>}
-                      <span className="min-w-0"><span className="block truncate text-sm font-black">{person.name}</span><span className="block truncate text-xs text-gray-400">@{person.username ?? "member"}</span></span>
+                      <span className="min-w-0"><span className="flex items-center gap-1 truncate text-sm font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-xs text-gray-400">@{person.username ?? "member"}</span></span>
                     </Link>) : <div className="p-8 text-center text-xs text-gray-400">No accounts to show.</div>;
                   })()}
                 </div>
@@ -673,7 +678,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {friendsHidden ? <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><Lock className="mx-auto text-gray-400" size={20}/><p className="mt-3 text-sm font-black">Friends are private</p><p className="mt-1 text-xs text-gray-400">Only the account owner and accepted friends can view this list.</p></div> : friends.length ? friends.map((friend) => <Link key={friend.id} href={"/profile/" + encodeURIComponent(friend.username ?? friend.id)} className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white">
               {friend.image ? <img src={friend.image} alt="" className="size-11 rounded-full object-cover"/> : <Avatar initials={friend.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="md"/>}
-              <span className="min-w-0"><span className="block truncate text-sm font-black">{friend.name}</span><span className="block truncate text-xs text-gray-400">@{friend.username ?? "member"}</span></span>
+              <span className="min-w-0"><span className="flex items-center gap-1 truncate text-sm font-black">{friend.name}<AccountBadge verified={friend.isVerified} owner={friend.isOwner}/></span><span className="block truncate text-xs text-gray-400">@{friend.username ?? "member"}</span></span>
             </Link>) : <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><p className="text-sm font-black">No friends to show yet</p><p className="mt-1 text-xs text-gray-400">Accepted connections will appear here.</p></div>}
           </div>
         ) : (
@@ -683,7 +688,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
               <article key={post.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
                 <div className="flex items-center gap-3">
                   {profile?.image ? <img src={profile.image} alt="" className="size-9 rounded-full object-cover" /> : <Avatar initials={initials} size="sm" />}
-                  <div><p className="text-xs font-black">{displayName}</p><p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p></div>
+                  <div><p className="flex items-center gap-1 text-xs font-black">{displayName}<AccountBadge verified={profile?.isVerified} owner={profile?.isOwner}/></p><p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p></div>
                 </div>
                 {post.content ? <p className="mt-3 text-sm leading-6 text-gray-600">{post.content}</p> : null}
                 {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
@@ -714,7 +719,7 @@ type ChatMessage = {
   editedAt?: string | null;
   deletedAt?: string | null;
   replyTo?: { id: string; content: string; senderId: string; sender: { id: string; name: string; username: string | null } } | null;
-  sender: { id: string; name: string; username: string | null; image: string | null };
+  sender: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
   attachments?: Array<{ id: string; url: string; kind: string }>;
   reactions?: Array<{ id: string; emoji: string; userId: string; user: { id: string; name: string; image: string | null } }>;
 };
@@ -729,7 +734,7 @@ type ConversationData = {
   members: Array<{
     userId: string;
     role: string;
-    user: { id: string; name: string; username: string | null; image: string | null };
+    user: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
   }>;
   messages: Array<{ id: string; senderId: string; content: string; createdAt: string }>;
 };
@@ -751,7 +756,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [error, setError] = useState("");
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [userQuery, setUserQuery] = useState("");
-  const [people, setPeople] = useState<Array<{ id: string; name: string; username: string | null; image: string | null }>>([]);
+  const [people, setPeople] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }>>([]);
   const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -1016,7 +1021,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     ) : null}
     {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
-    {newConversationOpen ? <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4"><div className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h2 className="text-base font-black">New message</h2><p className="mt-1 text-xs text-gray-400">Choose a real Socialhub account to start a chat.</p></div><button type="button" onClick={() => setNewConversationOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={16}/></button></div><div className="p-4"><label className="relative block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input autoFocus value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Search people…" className="h-10 w-full rounded-xl bg-gray-50 pl-9 pr-3 text-xs font-semibold outline-none"/></label><div className="mt-3 space-y-1">{people.length ? people.map((person)=><button type="button" key={person.id} onClick={() => void startConversation(person.id)} className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-gray-50"><Avatar initials={person.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><span className="min-w-0"><span className="block truncate text-xs font-black">{person.name}</span><span className="block truncate text-[10px] text-gray-400">@{person.username ?? "member"}</span></span></button>) : <p className="p-6 text-center text-xs text-gray-400">{userQuery.trim() ? "No people found." : "Search for someone to message."}</p>}</div></div></div></div> : null}
+    {newConversationOpen ? <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4"><div className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h2 className="text-base font-black">New message</h2><p className="mt-1 text-xs text-gray-400">Choose a real Socialhub account to start a chat.</p></div><button type="button" onClick={() => setNewConversationOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={16}/></button></div><div className="p-4"><label className="relative block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input autoFocus value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Search people…" className="h-10 w-full rounded-xl bg-gray-50 pl-9 pr-3 text-xs font-semibold outline-none"/></label><div className="mt-3 space-y-1">{people.length ? people.map((person)=><button type="button" key={person.id} onClick={() => void startConversation(person.id)} className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-gray-50"><Avatar initials={person.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><span className="min-w-0"><span className="flex items-center gap-1 truncate text-xs font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-[10px] text-gray-400">@{person.username ?? "member"}</span></span></button>) : <p className="p-6 text-center text-xs text-gray-400">{userQuery.trim() ? "No people found." : "Search for someone to message."}</p>}</div></div></div></div> : null}
 
     <div className="grid min-h-[620px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:grid-cols-[330px_1fr]">
       <aside className="border-b border-gray-100 lg:border-b-0 lg:border-r">
@@ -1035,7 +1040,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
             const preview = conversation.messages[0]?.content ?? "No messages yet";
             return <button key={conversation.id} onClick={() => setActiveId(conversation.id)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left ${conversation.id===activeId?"bg-[#f4f2ff]":"hover:bg-gray-50"}`}>
               <Avatar initials={(other?.name ?? name).split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} color={colors[i%colors.length]}/>
-              <div className="min-w-0 flex-1"><p className="truncate text-xs font-black">{name}</p><p className="mt-1 truncate text-[11px] text-gray-400">{preview}</p></div>
+              <div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate text-xs font-black">{name}<AccountBadge verified={other?.isVerified} owner={other?.isOwner}/></p><p className="mt-1 truncate text-[11px] text-gray-400">{preview}</p></div>
               {conversation.unreadCount ? <span className="min-w-5 rounded-full bg-[#6d5dfc] px-1.5 py-1 text-center text-[9px] font-black text-white">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span> : null}
             </button>;
           }) : (
@@ -1051,7 +1056,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       <section className="flex min-h-[620px] flex-col">
         <div className="flex items-center gap-3 border-b border-gray-100 p-4">
           <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} />
-          <div className="flex-1"><p className="text-sm font-black">{activeName}</p><p className="text-[11px] text-gray-400">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
+          <div className="flex-1"><p className="flex items-center gap-1.5 text-sm font-black">{activeName}<AccountBadge verified={activeMember?.isVerified} owner={activeMember?.isOwner}/></p><p className="text-[11px] text-gray-400">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
           <button type="button" onClick={() => setMessageSearch("")} className="social-icon-button" aria-label="Clear message search"><Search size={17}/></button>
           <div className="relative"><button type="button" onClick={() => setShowConversationOptions((value) => !value)} disabled={!active} className="social-icon-button disabled:opacity-40" aria-label="Conversation options"><MoreHorizontal size={18}/></button>
             {showConversationOptions && active ? <div className="absolute right-0 top-11 z-30 w-44 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl">
@@ -1068,6 +1073,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
             return <div key={message.id} className={mine ? "flex justify-end" : "flex items-end gap-2"}>
               {!mine ? <Avatar initials={message.sender.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} size="sm"/> : null}
               <div className="max-w-[76%]">
+                {!mine ? <p className="mb-1 flex items-center gap-1 pl-1 text-[10px] font-black text-gray-500">{message.sender.name}<AccountBadge verified={message.sender.isVerified} owner={message.sender.isOwner}/></p> : null}
                 {editingMessageId === message.id ? (
                   <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2 shadow-sm">
                     <textarea
@@ -1126,6 +1132,8 @@ type DiscoverUser = {
   isPrivate?: boolean;
   isFollowing?: boolean;
   isFriend?: boolean;
+  isVerified?: boolean;
+  isOwner?: boolean;
   _count: { followers: number; following: number };
 };
 
@@ -1247,13 +1255,13 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
             const isFollowing = following.has(user.id);
             return <div key={user.id} className="flex items-center gap-3">
               <Link href={"/profile/" + (user.username ?? user.id)}><Avatar initials={initials} color={colors[i % colors.length]}/></Link>
-              <div className="min-w-0 flex-1"><Link href={"/profile/" + (user.username ?? user.id)} className="block truncate text-xs font-black hover:text-[#5a4be8]">{user.name}</Link><p className="truncate text-[11px] text-gray-400">@{user.username ?? "member"} · {user._count.followers} followers</p></div>
+              <div className="min-w-0 flex-1"><Link href={"/profile/" + (user.username ?? user.id)} className="flex items-center gap-1.5 truncate text-xs font-black hover:text-[#5a4be8]">{user.name}<AccountBadge verified={user.isVerified} owner={user.isOwner}/></Link><p className="truncate text-[11px] text-gray-400">@{user.username ?? "member"} · {user._count.followers} followers</p></div>
               <button onClick={()=>void toggleFollow(user)} className={isFollowing ? "grid size-9 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" : "grid size-9 place-items-center rounded-xl bg-gray-950 text-white"} aria-label={isFollowing ? "Unfollow" : "Follow"}>{isFollowing ? <Check size={15}/> : <UserPlus size={15}/>}</button>
             </div>;
           })}</div>
         </Card> : discoverTab === "posts" ? <Card>
           <div className="flex justify-between"><h2 className="text-sm font-black">Post results</h2><span className="text-xs font-bold text-gray-400">{discoverPosts.length} posts</span></div>
-          <div className="mt-4 space-y-3">{discoverPosts.length ? discoverPosts.map((post) => <Link key={post.id} href={"/home#post-" + encodeURIComponent(post.id)} className="block rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><div className="flex items-center gap-3"><Avatar initials={post.author.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><div><p className="text-xs font-black">{post.author.name}</p><p className="text-[10px] text-gray-400">@{post.author.username ?? "member"} · {new Date(post.createdAt).toLocaleString()}</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">{post.content ?? "Media post"}</p><p className="mt-2 text-[10px] text-gray-400">{post._count.likes} likes · {post._count.comments} comments</p></Link>) : <p className="py-8 text-center text-xs text-gray-400">No matching posts found.</p>}</div>
+          <div className="mt-4 space-y-3">{discoverPosts.length ? discoverPosts.map((post) => <Link key={post.id} href={"/home#post-" + encodeURIComponent(post.id)} className="block rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><div className="flex items-center gap-3"><Avatar initials={post.author.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><div><p className="flex items-center gap-1.5 text-xs font-black">{post.author.name}<AccountBadge verified={post.author.isVerified} owner={post.author.isOwner}/></p><p className="text-[10px] text-gray-400">@{post.author.username ?? "member"} · {new Date(post.createdAt).toLocaleString()}</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">{post.content ?? "Media post"}</p><p className="mt-2 text-[10px] text-gray-400">{post._count.likes} likes · {post._count.comments} comments</p></Link>) : <p className="py-8 text-center text-xs text-gray-400">No matching posts found.</p>}</div>
         </Card> : <Card>
           <div className="flex justify-between"><h2 className="text-sm font-black">Hashtags</h2><span className="text-xs font-bold text-gray-400">{discoverHashtags.length} tags</span></div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">{discoverHashtags.length ? discoverHashtags.map((item) => <Link key={item.tag} href={"/discover?q=" + encodeURIComponent(item.tag)} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><span className="block text-sm font-black text-[#5a4be8]">{item.tag}</span><span className="mt-1 block text-[10px] text-gray-400">{item.count} matching posts in the current result set</span></Link>) : <p className="py-8 text-center text-xs text-gray-400">No matching hashtags found.</p>}</div>
@@ -1279,6 +1287,8 @@ type FriendPerson = {
   username: string | null;
   image: string | null;
   bio: string | null;
+  isVerified?: boolean;
+  isOwner?: boolean;
 };
 
 type FriendRequestData = {
@@ -1413,7 +1423,7 @@ function Friends() {
         return <Card key={person.id} className="flex items-center gap-4">
           <Link href={"/profile/" + (person.username ?? person.id)}><Avatar initials={initials(person.name)} color={colors[i % colors.length]} size="lg"/></Link>
           <div className="min-w-0 flex-1">
-            <Link href={"/profile/" + (person.username ?? person.id)} className="block truncate text-sm font-black hover:text-[#5a4be8]">{person.name}</Link>
+            <Link href={"/profile/" + (person.username ?? person.id)} className="flex items-center gap-1 truncate text-sm font-black hover:text-[#5a4be8]">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></Link>
             <p className="text-xs text-gray-400">@{person.username ?? "member"}</p>
             <p className="mt-2 truncate text-[11px] text-gray-400">{person.bio ?? "Socialhub member"}</p>
           </div>
@@ -1447,7 +1457,9 @@ type NotificationData = {
   type: "LIKE" | "COMMENT" | "FOLLOW" | "FRIEND_REQUEST" | "FRIEND_ACCEPTED" | "MESSAGE" | "MENTION" | "SHARE" | "SYSTEM";
   readAt: string | null;
   createdAt: string;
-  actor: { id: string; name: string; username: string | null; image: string | null } | null;
+  title?: string | null;
+  body?: string | null;
+  actor: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean } | null;
   post?: { id: string; content: string | null; mediaUrl: string | null } | null;
   comment?: { id: string; content: string } | null;
   message?: { id: string; conversationId: string } | null;
@@ -1565,7 +1577,7 @@ function Notifications() {
         const Icon = iconFor(item.type);
         return <button key={item.id} onClick={() => void openNotification(item)} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
           <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(item.type)}`}><Icon size={17}/></span>
-          <span className="flex-1"><span className="block text-sm font-bold">{item.actor?.name ?? "Socialhub"} {item.type === "LIKE" ? "liked your post." : item.type === "FOLLOW" ? "started following you." : item.type === "COMMENT" ? "commented on your post." : item.type === "FRIEND_REQUEST" ? "sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? "accepted your friend request." : item.type === "MESSAGE" ? "sent you a message." : item.type === "MENTION" ? "mentioned you." : "interacted with your content."}</span><span className="mt-1 block text-xs text-gray-400">{new Date(item.createdAt).toLocaleString()}</span></span>
+          <span className="flex-1"><span className="block text-sm font-bold">{item.type === "SYSTEM" ? (item.title ?? "Account update") : <>{item.actor?.name ?? "Socialhub"} <AccountBadge verified={item.actor?.isVerified} owner={item.actor?.isOwner}/>{item.type === "LIKE" ? " liked your post." : item.type === "FOLLOW" ? " started following you." : item.type === "COMMENT" ? " commented on your post." : item.type === "FRIEND_REQUEST" ? " sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? " accepted your friend request." : item.type === "MESSAGE" ? " sent you a message." : item.type === "MENTION" ? " mentioned you." : " interacted with your content."}</>}</span><span className="mt-1 block text-xs text-gray-400">{item.type === "SYSTEM" && item.body ? item.body + " · " : ""}{new Date(item.createdAt).toLocaleString()}</span></span>
           {!item.readAt ? <span className="mt-2 size-2 shrink-0 rounded-full bg-[#6d5dfc]"/> : null}
         </button>;
         })}
@@ -1605,6 +1617,9 @@ function SettingsPage() {
   const [savingPreference, setSavingPreference] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Array<{ id: string; createdAt: string; updatedAt: string; expiresAt: string; ipAddress: string | null; userAgent: string | null; isCurrent: boolean }>>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  const [verification, setVerification] = useState<{ isVerified: boolean; isOwner: boolean; status: "PENDING"|"APPROVED"|"REJECTED"|"CANCELLED"|null; reason?: string|null; adminNote?: string|null; createdAt?: string|null }>({ isVerified: false, isOwner: false, status: null });
+  const [verificationReason, setVerificationReason] = useState("");
+  const [verificationSubmitting, setVerificationSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1623,6 +1638,7 @@ function SettingsPage() {
           setPrivate(Boolean(json.profile.isPrivate));
           setEmail(json.profile.email);
           setUsername(json.profile.username ? "@" + json.profile.username : "No username");
+          setVerification((current) => ({ ...current, isVerified: Boolean(json.profile.isVerified), isOwner: Boolean(json.profile.isOwner) }));
         }
       } catch (requestError) {
         if (!cancelled) setMessage(requestError instanceof Error ? requestError.message : "Could not load account.");
@@ -1659,6 +1675,44 @@ function SettingsPage() {
       .catch((requestError) => setMessage(requestError instanceof Error ? requestError.message : "Could not load privacy settings."));
   }, [session?.user?.id]);
 
+  useEffect(() => {
+    if (!session?.user) return;
+    void fetch("/api/verification", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(json.error ?? "Could not load verification status.");
+        setVerification({
+          isVerified: Boolean(json.user?.isVerified),
+          isOwner: Boolean(json.user?.isOwner),
+          status: json.request?.status ?? null,
+          reason: json.request?.reason ?? null,
+          adminNote: json.request?.adminNote ?? null,
+          createdAt: json.request?.createdAt ?? null,
+        });
+      })
+      .catch((requestError) => setMessage(requestError instanceof Error ? requestError.message : "Could not load verification status."));
+  }, [session?.user?.id]);
+
+  async function submitVerificationRequest() {
+    if (!session?.user || verificationSubmitting) return;
+    setVerificationSubmitting(true);
+    try {
+      const response = await fetch("/api/verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: verificationReason.trim() }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not submit verification request.");
+      setVerification((current) => ({ ...current, status: json.request?.status ?? "PENDING", reason: json.request?.reason ?? verificationReason.trim(), createdAt: json.request?.createdAt ?? new Date().toISOString() }));
+      setVerificationReason("");
+      setMessage("Verification request submitted for admin review.");
+    } catch (requestError) {
+      setMessage(requestError instanceof Error ? requestError.message : "Could not submit verification request.");
+    } finally {
+      setVerificationSubmitting(false);
+    }
+  }
   async function updatePrivacySetting(key: "showFriendsList" | "showFollowersList" | "showFollowingList" | "allowMessagesEveryone" | "allowFriendRequests", value: boolean) {
     if (!session?.user || savingPrivacySetting) return;
     setSavingPrivacySetting(key);
@@ -1854,6 +1908,13 @@ function SettingsPage() {
         </Card>
 
         <Card>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div><h2 className="text-sm font-black">Account verification</h2><p className="mt-2 text-xs leading-5 text-gray-400">Verified accounts receive a blue badge. The owner badge is separate and cannot be requested.</p></div>
+            <AccountBadge verified={verification.isVerified} owner={verification.isOwner} showLabel size="md"/>
+          </div>
+          {verification.isVerified || verification.isOwner ? <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-xs font-bold text-blue-700">Your account already has platform trust status.</div> : verification.status === "PENDING" ? <div className="mt-4 rounded-2xl bg-amber-50 p-4"><p className="text-xs font-black text-amber-800">Verification request pending</p><p className="mt-1 text-[11px] text-amber-700">Submitted {verification.createdAt ? new Date(verification.createdAt).toLocaleString() : "recently"}.</p></div> : <div className="mt-4 space-y-3"><textarea value={verificationReason} onChange={(e)=>setVerificationReason(e.target.value)} rows={4} maxLength={500} placeholder="Explain why your account should be verified (20–500 characters)." className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs outline-none focus:border-[#a79dff] focus:bg-white"/><div className="flex items-center justify-between gap-3"><p className="text-[10px] text-gray-400">{verificationReason.trim().length}/500 characters</p><button type="button" onClick={()=>void submitVerificationRequest()} disabled={!session?.user || verificationSubmitting || verificationReason.trim().length < 20} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40">{verificationSubmitting?"Submitting…":"Request blue tick"}</button></div>{verification.status==="REJECTED" && verification.adminNote ? <p className="text-[11px] text-red-600">Previous review: {verification.adminNote}</p> : null}</div>}
+        </Card>
+<Card>
           <h2 className="text-sm font-black">Notifications</h2>
           <p className="mt-2 text-xs leading-5 text-gray-400">Choose which activity appears in your notification inbox.</p>
           <div className="mt-4 divide-y divide-gray-100"><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Likes</p><p className="mt-0.5 text-[11px] text-gray-400">When someone likes your posts.</p></div><Toggle value={Boolean(preferences.likes)} disabled={!session?.user || savingPreference === "likes"} onChange={(value)=>void updatePreference("likes", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Comments</p><p className="mt-0.5 text-[11px] text-gray-400">When someone comments on your posts.</p></div><Toggle value={Boolean(preferences.comments)} disabled={!session?.user || savingPreference === "comments"} onChange={(value)=>void updatePreference("comments", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Follows</p><p className="mt-0.5 text-[11px] text-gray-400">When someone follows you.</p></div><Toggle value={Boolean(preferences.follows)} disabled={!session?.user || savingPreference === "follows"} onChange={(value)=>void updatePreference("follows", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests</p><p className="mt-0.5 text-[11px] text-gray-400">When someone sends you a friend request.</p></div><Toggle value={Boolean(preferences.friendRequests)} disabled={!session?.user || savingPreference === "friendRequests"} onChange={(value)=>void updatePreference("friendRequests", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests accepted</p><p className="mt-0.5 text-[11px] text-gray-400">When a friend request is accepted.</p></div><Toggle value={Boolean(preferences.friendAccepted)} disabled={!session?.user || savingPreference === "friendAccepted"} onChange={(value)=>void updatePreference("friendAccepted", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Messages</p><p className="mt-0.5 text-[11px] text-gray-400">When you receive a new message notification.</p></div><Toggle value={Boolean(preferences.messages)} disabled={!session?.user || savingPreference === "messages"} onChange={(value)=>void updatePreference("messages", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Mentions</p><p className="mt-0.5 text-[11px] text-gray-400">When someone mentions you.</p></div><Toggle value={Boolean(preferences.mentions)} disabled={!session?.user || savingPreference === "mentions"} onChange={(value)=>void updatePreference("mentions", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Shares</p><p className="mt-0.5 text-[11px] text-gray-400">When your content is shared.</p></div><Toggle value={Boolean(preferences.shares)} disabled={!session?.user || savingPreference === "shares"} onChange={(value)=>void updatePreference("shares", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">System</p><p className="mt-0.5 text-[11px] text-gray-400">Important account and platform notices.</p></div><Toggle value={Boolean(preferences.system)} disabled={!session?.user || savingPreference === "system"} onChange={(value)=>void updatePreference("system", value)}/></div></div>

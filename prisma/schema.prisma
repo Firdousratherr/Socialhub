@@ -78,6 +78,10 @@ model User {
   role          UserRole  @default(USER)
   isPrivate     Boolean   @default(false)
   isActive      Boolean   @default(true)
+  isVerified    Boolean   @default(false)
+  verifiedAt    DateTime?
+  isOwner       Boolean   @default(false)
+  ownerSince    DateTime?
 
   sessions      Session[]
   accounts      Account[]
@@ -109,6 +113,10 @@ model User {
   assignedReports Report[]         @relation("ReportAssignee")
   blockedUsers  Block[]            @relation("Blocker")
   blockedBy     Block[]            @relation("Blocked")
+  verificationAudits VerificationAudit[] @relation("VerificationTarget")
+  performedVerificationAudits VerificationAudit[] @relation("VerificationAdmin")
+  verificationRequests VerificationRequest[] @relation("VerificationRequester")
+  reviewedVerificationRequests VerificationRequest[] @relation("VerificationReviewer")
 
   @@index([createdAt])
   @@index([role])
@@ -338,6 +346,8 @@ model Notification {
   postId    String?
   commentId String?
   messageId String?
+  title     String?
+  body      String?
   readAt    DateTime?
   createdAt DateTime         @default(now())
 
@@ -553,4 +563,54 @@ model AdminLoginAttempt {
   updatedAt DateTime @updatedAt
 
   @@index([resetAt])
+}
+
+
+enum VerificationAuditAction {
+  GRANTED
+  REVOKED
+  OWNER_GRANTED
+  OWNER_REVOKED
+  REQUEST_APPROVED
+  REQUEST_REJECTED
+}
+
+model VerificationAudit {
+  id        String                 @id @default(cuid())
+  userId    String
+  adminId   String?
+  action    VerificationAuditAction
+  reason    String?
+  createdAt DateTime               @default(now())
+
+  user  User @relation("VerificationTarget", fields: [userId], references: [id], onDelete: Cascade)
+  admin User? @relation("VerificationAdmin", fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([adminId, createdAt])
+}
+
+enum VerificationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model VerificationRequest {
+  id         String                   @id @default(cuid())
+  userId     String
+  reviewerId String?
+  status     VerificationRequestStatus @default(PENDING)
+  reason     String?
+  adminNote  String?
+  createdAt  DateTime                 @default(now())
+  reviewedAt DateTime?
+  updatedAt  DateTime                 @updatedAt
+
+  user     User  @relation("VerificationRequester", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("VerificationReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt])
+  @@index([status, createdAt])
 }

@@ -11,7 +11,7 @@ async function getCurrentAdmin() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, role: true, isActive: true },
+    select: { id: true, role: true, isActive: true, isOwner: true },
   });
 
   return { session, user };
@@ -35,7 +35,7 @@ export async function requireAdmin() {
     };
   }
 
-  return { session, user: user as { id: string; role: AdminRole; isActive: true }, response: null };
+  return { session, user: user as { id: string; role: AdminRole; isActive: true; isOwner: boolean }, response: null };
 }
 
 export async function requireAdminOnly() {

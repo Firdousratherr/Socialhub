@@ -19,8 +19,8 @@ export async function GET() {
     },
     orderBy: { updatedAt: "desc" },
     include: {
-      sender: { select: { id: true, name: true, username: true, image: true, bio: true } },
-      receiver: { select: { id: true, name: true, username: true, image: true, bio: true } },
+      sender: { select: { id: true, name: true, username: true, image: true, bio: true, isVerified: true, isOwner: true } },
+      receiver: { select: { id: true, name: true, username: true, image: true, bio: true, isVerified: true, isOwner: true } },
     },
   });
 

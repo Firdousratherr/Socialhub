@@ -48,6 +48,7 @@ async function clearAttempts(key: string) {
 export async function POST(request: Request) {
   const configuredEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const configuredPassword = process.env.ADMIN_PASSWORD;
+  const configuredOwnerEmail = (process.env.SOCIALHUB_OWNER_EMAIL?.trim().toLowerCase() || configuredEmail);
 
   if (!configuredEmail || !configuredPassword) {
     return NextResponse.json(
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
 
   let user = await prisma.user.findUnique({
     where: { email: configuredEmail },
-    select: { id: true },
+    select: { id: true, isOwner: true, ownerSince: true },
   });
 
   if (!user) {
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
 
       user = await prisma.user.findUnique({
         where: { email: configuredEmail },
-        select: { id: true },
+        select: { id: true, isOwner: true, ownerSince: true },
       });
     } catch {
       return NextResponse.json({ error: "Could not create the administrator account." }, { status: 500 });
@@ -131,9 +132,31 @@ export async function POST(request: Request) {
       );
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { role: "ADMIN", isActive: true, emailVerified: true },
+    const shouldOwn = configuredEmail === configuredOwnerEmail;
+    const becameOwner = shouldOwn && !user.isOwner;
+    const previousOwners = shouldOwn ? await prisma.user.findMany({ where: { isOwner: true, id: { not: user.id } }, select: { id: true } }) : [];
+    await prisma.$transaction(async (tx) => {
+      if (previousOwners.length) {
+        await tx.user.updateMany({ where: { id: { in: previousOwners.map((owner) => owner.id) } }, data: { isOwner: false, ownerSince: null } });
+        await tx.verificationAudit.createMany({
+          data: previousOwners.map((owner) => ({ userId: owner.id, adminId: user.id, action: "OWNER_REVOKED" as const, reason: "Owner designation moved to the configured owner account." })),
+        });
+      }
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          role: "ADMIN",
+          isActive: true,
+          emailVerified: true,
+          isOwner: shouldOwn,
+          ownerSince: shouldOwn ? (user.ownerSince ?? new Date()) : null,
+        },
+      });
+      if (becameOwner) {
+        await tx.verificationAudit.create({
+          data: { userId: user.id, adminId: user.id, action: "OWNER_GRANTED", reason: "Configured Socialhub owner account." },
+        });
+      }
     });
 
     clearAttempts(key);

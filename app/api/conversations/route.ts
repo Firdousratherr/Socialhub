@@ -14,7 +14,7 @@ const memberSelect = {
   lastReadAt: true,
   mutedUntil: true,
   archivedAt: true,
-  user: { select: { id: true, name: true, username: true, image: true } },
+  user: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } },
 } as const;
 
 export async function GET(request: Request) {
@@ -178,7 +178,7 @@ export async function POST(request: Request) {
           select: {
             userId: true,
             role: true,
-            user: { select: { id: true, name: true, username: true, image: true } },
+            user: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } },
           },
         },
       },
@@ -194,7 +194,7 @@ export async function POST(request: Request) {
             select: {
               userId: true,
               role: true,
-              user: { select: { id: true, name: true, username: true, image: true } },
+              user: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } },
             },
           },
         },

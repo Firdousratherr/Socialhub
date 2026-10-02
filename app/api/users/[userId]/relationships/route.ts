@@ -32,13 +32,13 @@ export async function GET(
       where: { followingId: userId },
       orderBy: { createdAt: "desc" },
       take: 100,
-      select: { follower: { select: { id: true, name: true, username: true, image: true, bio: true } } },
+      select: { follower: { select: { id: true, name: true, username: true, image: true, bio: true, isVerified: true, isOwner: true } } },
     }),
     prisma.follow.findMany({
       where: { followerId: userId },
       orderBy: { createdAt: "desc" },
       take: 100,
-      select: { following: { select: { id: true, name: true, username: true, image: true, bio: true } } },
+      select: { following: { select: { id: true, name: true, username: true, image: true, bio: true, isVerified: true, isOwner: true } } },
     }),
   ]);
 
@@ -53,7 +53,7 @@ export async function GET(
     if (mutualIds.length) {
       const users = await prisma.user.findMany({
         where: { id: { in: mutualIds }, isActive: true },
-        select: { id: true, name: true, username: true, image: true, bio: true },
+        select: { id: true, name: true, username: true, image: true, bio: true, isVerified: true, isOwner: true },
       });
       const byId = new Map(users.map((user) => [user.id, user]));
       mutual = mutualIds.map((id) => byId.get(id)).filter(Boolean) as typeof mutual;

@@ -57,7 +57,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ post
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: take + 1,
     include: {
-      author: { select: { id: true, name: true, username: true, image: true } },
+      author: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } },
       replies: {
         where: blockedAuthorWhere(viewerId),
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],

@@ -115,6 +115,8 @@ export async function GET(request: Request) {
           name: true,
           username: true,
           image: true,
+          isVerified: true,
+          isOwner: true,
         },
       },
       _count: {

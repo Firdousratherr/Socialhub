@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, ChevronLeft, ChevronRight, Image as ImageIcon, Loader2, Plus, Trash2, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { AccountBadge } from "@/components/account-badge";
 
 type Story = {
   id: string;
@@ -10,7 +11,7 @@ type Story = {
   caption: string | null;
   expiresAt: string;
   hasViewed?: boolean;
-  author: { id: string; name: string; username: string | null; image: string | null };
+  author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
 };
 
 export function StoryCenter({
@@ -204,7 +205,7 @@ export function StoryCenter({
                   {author.image ? <img src={author.image} alt="" className="size-14 rounded-[.9rem] object-cover" /> : <span className="grid size-14 place-items-center rounded-[.9rem] bg-gradient-to-br from-violet-500 to-sky-400 text-sm font-black text-white">{author.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()}</span>}
                 </div>
               </div>
-              <span className="mt-2 block truncate text-[10px] font-bold text-gray-500">{author.id === session?.user?.id ? "Your story" : author.name.split(" ")[0]}</span>
+              <span className="mt-2 flex items-center justify-center gap-1 truncate text-[10px] font-bold text-gray-500">{author.id === session?.user?.id ? "Your story" : author.name.split(" ")[0]}<AccountBadge verified={author.isVerified} owner={author.isOwner} /></span>
             </button>
           )) : (
             <div className="flex items-center gap-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3">
@@ -243,7 +244,7 @@ export function StoryCenter({
             <div className="relative max-h-full max-w-[min(90vw,520px)] overflow-hidden rounded-[2rem] bg-black shadow-2xl">
               <img src={active.mediaUrl} alt={active.caption ?? "Story"} className="max-h-[88vh] w-auto max-w-full object-contain" />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-5 pt-16 text-white">
-                <p className="text-sm font-black">{active.author.name}</p>
+                <p className="flex items-center gap-1.5 text-sm font-black">{active.author.name}<AccountBadge verified={active.author.isVerified} owner={active.author.isOwner}/></p>
                 {active.caption ? <p className="mt-1 text-xs leading-5 text-white/85">{active.caption}</p> : null}
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {["❤️","😂","😮","😢","🔥","👍"].map((emoji) => <button key={emoji} type="button" onClick={() => myStoryReaction === emoji ? void removeStoryReaction() : void reactToStory(emoji)} className={"rounded-full px-2.5 py-1.5 text-sm " + (myStoryReaction === emoji ? "bg-white text-black" : "bg-white/10 text-white")}>{emoji}</button>)}
@@ -252,7 +253,7 @@ export function StoryCenter({
                   <input value={replyText} onChange={(event) => setReplyText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void replyToStory(); } }} maxLength={500} className="min-w-0 flex-1 rounded-xl bg-white/10 px-3 py-2 text-xs text-white outline-none placeholder:text-white/50" placeholder="Reply to story…"/>
                   <button type="button" onClick={() => void replyToStory()} disabled={!replyText.trim() || interactionLoading} className="rounded-xl bg-white px-3 py-2 text-[10px] font-black text-gray-950 disabled:opacity-40">Reply</button>
                 </div> : null}
-                {storyReplies.length ? <div className="mt-3 max-h-24 space-y-1 overflow-y-auto">{storyReplies.slice(-3).map((reply) => <p key={reply.id} className="text-[10px] text-white/80"><span className="font-black">{reply.author.name}:</span> {reply.content}</p>)}</div> : null}
+                {storyReplies.length ? <div className="mt-3 max-h-24 space-y-1 overflow-y-auto">{storyReplies.slice(-3).map((reply) => <p key={reply.id} className="text-[10px] text-white/80"><span className="inline-flex items-center gap-1 font-black">{reply.author.name}<AccountBadge verified={reply.author.isVerified} owner={reply.author.isOwner}/></span> {reply.content}</p>)}</div> : null}
                 {active.author.id === session?.user?.id ? <button type="button" onClick={() => void removeStory()} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-[11px] font-bold"><Trash2 size={14}/> Delete</button> : null}
               </div>
             </div>
