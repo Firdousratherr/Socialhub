@@ -63,3 +63,31 @@ test("configured administrator is verified before Better Auth password sign-in",
   assert.ok(signInIndex >= 0, "admin login must use Better Auth sign-in");
   assert.ok(verifiedIndex < signInIndex, "admin verification must happen before Better Auth enforces email verification");
 });
+
+
+test("admin profile metric controls validate, audit, and reset overrides", () => {
+  const route = read("app/api/admin/users/[userId]/route.ts");
+  assert.match(route, /metricSchema/);
+  assert.match(route, /Only administrators can change profile metric overrides/);
+  assert.match(route, /UPDATE_PROFILE_METRICS/);
+  assert.match(route, /adminMetricOverride\.upsert/);
+  assert.match(route, /adminMetricOverride\.deleteMany/);
+  assert.match(route, /max\(1_000_000_000\)/);
+});
+
+test("public profiles resolve admin-controlled visible metrics without replacing real records", () => {
+  const route = read("app/api/users/[username]/route.ts");
+  assert.match(route, /visibleCounts/);
+  assert.match(route, /override\?\.followers \?\? user\._count\.followers/);
+  assert.match(route, /override\?\.likesReceived \?\? actualLikesReceived/);
+  const ownProfile = read("app/api/profile/route.ts");
+  assert.match(ownProfile, /adminMetricOverride/);
+  assert.match(ownProfile, /visibleCounts/);
+});
+
+test("admin UI exposes profile metric and account control sections", () => {
+  const panel = read("components/admin-panel.tsx");
+  assert.match(panel, /Profile metrics control/);
+  assert.match(panel, /Reset all to live/);
+  assert.match(panel, /Account controls/);
+});

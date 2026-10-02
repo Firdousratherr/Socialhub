@@ -3,6 +3,16 @@ import * as z from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/app/api/admin/_auth";
 
+const metricSchema = z.object({
+  posts: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+  followers: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+  following: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+  likesReceived: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+  commentsReceived: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+  shares: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+  profileViews: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+});
+
 const updateSchema = z.object({
   name: z.string().trim().min(2).max(80).optional(),
   username: z.string().trim().regex(/^[A-Za-z0-9_]{3,30}$/).nullable().optional(),
@@ -11,6 +21,7 @@ const updateSchema = z.object({
   isPrivate: z.boolean().optional(),
   emailVerified: z.boolean().optional(),
   isVerified: z.boolean().optional(),
+  metrics: metricSchema.optional(),
 });
 
 export async function GET(_request: Request, { params }: { params: Promise<{ userId: string }> }) {
@@ -35,8 +46,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   });
   if (!user) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
-  const [override, recentReports, recentAudit, recentSessions, recentVerification] = await Promise.all([
+  const [override, actualLikesReceived, actualCommentsReceived, actualShares, recentReports, recentAudit, recentSessions, recentVerification] = await Promise.all([
     prisma.adminMetricOverride.findUnique({ where: { userId } }),
+    prisma.like.count({ where: { post: { authorId: userId } } }),
+    prisma.comment.count({ where: { post: { authorId: userId } } }),
+    prisma.post.aggregate({ where: { authorId: userId }, _sum: { shareCount: true } }),
     prisma.report.findMany({
       where: { OR: [{ reporterId: userId }, { reportedUserId: userId }] },
       orderBy: { createdAt: "desc" },
@@ -72,7 +86,24 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
     },
   });
 
-  return NextResponse.json({ user, override, recentReports, recentAudit, recentSessions, recentVerification });
+  return NextResponse.json({
+    user,
+    override,
+    canEditMetrics: access.user.role === "ADMIN",
+    actualMetrics: {
+      posts: user._count.posts,
+      followers: user._count.followers,
+      following: user._count.following,
+      likesReceived: actualLikesReceived,
+      commentsReceived: actualCommentsReceived,
+      shares: actualShares._sum.shareCount ?? 0,
+      profileViews: 0,
+    },
+    recentReports,
+    recentAudit,
+    recentSessions,
+    recentVerification,
+  });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ userId: string }> }) {
@@ -90,7 +121,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
   });
   if (!before) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
-  const patch = parsed.data;
+  const { metrics, ...userPatch } = parsed.data;
+  const patch = userPatch;
+  if (metrics !== undefined && access.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Only administrators can change profile metric overrides." }, { status: 403 });
+  }
   if (patch.isVerified !== undefined && patch.isVerified !== before.isVerified && access.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Only administrators can change verification status." }, { status: 403 });
   }
@@ -147,6 +182,35 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
       });
     }
 
+    if (metrics !== undefined) {
+      const hasOverride = Object.values(metrics).some((value) => value !== null && value !== undefined);
+      const previousMetrics = await prisma.adminMetricOverride.findUnique({ where: { userId } });
+
+      if (hasOverride) {
+        await prisma.adminMetricOverride.upsert({
+          where: { userId },
+          create: { userId, ...metrics },
+          update: { ...metrics },
+        });
+      } else {
+        await prisma.adminMetricOverride.deleteMany({ where: { userId } });
+      }
+
+      await prisma.adminAuditLog.create({
+        data: {
+          adminId: access.session!.user.id,
+          action: "UPDATE_PROFILE_METRICS",
+          targetType: "USER",
+          targetId: userId,
+          details: JSON.stringify({
+            before: previousMetrics,
+            after: hasOverride ? metrics : null,
+            reset: !hasOverride,
+          }),
+        },
+      });
+    }
+
     await prisma.adminAuditLog.create({
       data: {
         adminId: access.session!.user.id,
@@ -157,7 +221,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
       },
     });
 
-    return NextResponse.json({ user });
+    const override = await prisma.adminMetricOverride.findUnique({ where: { userId } });
+    return NextResponse.json({ user, override });
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
       return NextResponse.json({ error: "That username is already in use." }, { status: 409 });

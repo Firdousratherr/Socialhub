@@ -363,7 +363,15 @@ type ProfileData = {
   ownerSince?: string | null;
   createdAt: string;
   _count: { posts: number; followers: number; following: number };
-  visibleCounts?: { posts: number; followers: number; following: number };
+  visibleCounts?: {
+    posts: number;
+    followers: number;
+    following: number;
+    likesReceived: number;
+    commentsReceived: number;
+    shares: number;
+    profileViews: number;
+  };
   isFollowing?: boolean;
   isFriend?: boolean;
   friendRequestStatus?: "SELF" | "NONE" | "FRIENDS" | "OUTGOING_PENDING" | "INCOMING_PENDING";
@@ -811,9 +819,14 @@ function Profile({ username = "firdous" }: { username?: string }) {
 
   const displayName = profile?.name ?? form.name;
   const displayUsername = profile?.username ?? form.username ?? username;
-  const postCount = profile?._count.posts ?? 0;
-  const followerCount = profile?._count.followers ?? 0;
-  const followingCount = profile?._count.following ?? 0;
+  const visibleCounts = profile?.visibleCounts;
+  const postCount = visibleCounts?.posts ?? profile?._count.posts ?? 0;
+  const followerCount = visibleCounts?.followers ?? profile?._count.followers ?? 0;
+  const followingCount = visibleCounts?.following ?? profile?._count.following ?? 0;
+  const likesReceivedCount = visibleCounts?.likesReceived ?? 0;
+  const commentsReceivedCount = visibleCounts?.commentsReceived ?? 0;
+  const shareCount = visibleCounts?.shares ?? 0;
+  const profileViewCount = visibleCounts?.profileViews ?? 0;
   const visibleProfilePosts = (profile?.posts ?? []).filter((post) =>
     profileTab === "photos" ? Boolean(post.mediaUrl) : true,
   );
@@ -1152,6 +1165,10 @@ function Profile({ username = "firdous" }: { username?: string }) {
   <span className="rounded-xl bg-gray-50 px-3 py-2"><strong className="font-black">{postCount}</strong> <span className="text-gray-400">posts</span></span>
   <button type="button" onClick={() => void openRelationships("followers")} className="rounded-xl bg-gray-50 px-3 py-2 hover:bg-[#eeebff]"><strong className="font-black">{followerCount}</strong> <span className="text-gray-400">followers</span></button>
   <button type="button" onClick={() => void openRelationships("following")} className="rounded-xl bg-gray-50 px-3 py-2 hover:bg-[#eeebff]"><strong className="font-black">{followingCount}</strong> <span className="text-gray-400">following</span></button>
+  <span className="rounded-xl bg-gray-50 px-3 py-2"><strong className="font-black">{likesReceivedCount}</strong> <span className="text-gray-400">likes</span></span>
+  <span className="rounded-xl bg-gray-50 px-3 py-2"><strong className="font-black">{commentsReceivedCount}</strong> <span className="text-gray-400">comments</span></span>
+  <span className="rounded-xl bg-gray-50 px-3 py-2"><strong className="font-black">{shareCount}</strong> <span className="text-gray-400">shares</span></span>
+  <span className="rounded-xl bg-gray-50 px-3 py-2"><strong className="font-black">{profileViewCount}</strong> <span className="text-gray-400">views</span></span>
   {!isOwner && session?.user && relationships?.mutual?.length ? <button type="button" onClick={() => void openRelationships("mutual")} className="rounded-xl bg-[#eeebff] px-3 py-2 font-bold text-[#5a4be8]">{relationships.mutual.length} mutual</button> : null}
 </div>
           </>
