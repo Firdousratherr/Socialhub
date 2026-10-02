@@ -96,11 +96,11 @@ test("admin UI exposes profile metric and account control sections", () => {
 test("admin root opens the current control center and keeps legacy tools reachable", () => {
   const panel = read("components/admin-panel.tsx");
   const route = read("app/[...segments]/page.tsx");
-  assert.match(panel, /\\["control", "Control center", Gauge\\]/);
-  assert.match(panel, /active === "control" \\? <AdminControlCenter\\/>/);
-  assert.match(panel, /\\["overview", "Dashboard", BarChart3\\]/);
-  assert.match(panel, /\\["moderation", "Moderation", Shield\\]/);
-  assert.match(route, /segments\\[1\\] \\?\\? "control"/);
+  assert.ok(panel.includes('[["control", "Control center", Gauge]'));
+  assert.ok(panel.includes('active === "control" ? <AdminControlCenter/> : null'));
+  assert.ok(panel.includes('[["overview", "Dashboard", BarChart3]'));
+  assert.ok(panel.includes('[["moderation", "Moderation", Shield]'));
+  assert.ok(route.includes('segments[1] ?? "control"'));
 });
 
 
