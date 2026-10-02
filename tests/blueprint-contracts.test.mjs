@@ -91,3 +91,52 @@ test("admin UI exposes profile metric and account control sections", () => {
   assert.match(panel, /Reset all to live/);
   assert.match(panel, /Account controls/);
 });
+
+
+test("admin permissions have a centralized server authorization boundary", () => {
+  const helper = read("lib/admin-permissions.ts");
+  assert.match(helper, /ADMIN_PERMISSIONS/);
+  assert.match(helper, /requireAdminPermission/);
+  assert.match(helper, /adminId_permission/);
+});
+
+test("suspended or deleted users cannot create new Better Auth sessions", () => {
+  const auth = read("lib/auth.ts");
+  assert.match(auth, /suspendedUntil/);
+  assert.match(auth, /deletedAt/);
+  assert.match(auth, /session:/);
+});
+
+test("profile views are persisted and exposed as real metrics", () => {
+  const profile = read("app/api/users/[username]/route.ts");
+  const schema = read("prisma/schema.prisma");
+  assert.match(profile, /profileView.create/);
+  assert.match(profile, /actualProfileViews/);
+  assert.match(schema, /model ProfileView/);
+});
+
+test("custom API mutations have same-origin protection", () => {
+  const middleware = read("middleware.ts");
+  assert.match(middleware, /Cross-origin state-changing requests are not allowed/);
+  assert.match(middleware, /sec-fetch-site/);
+});
+
+test("high-cost social mutations use the shared rate limiter", () => {
+  const route = read("app/api/posts/route.ts");
+  assert.match(route, /consumeRateLimit/);
+  assert.match(route, /rateLimitResponse/);
+});
+test("runtime registration setting is enforced server-side", () => {
+  const auth = read("lib/auth.ts");
+  assert.match(auth, /registration.enabled/);
+  assert.match(auth, /Registration is currently disabled/);
+});
+
+test("two-factor authentication is wired through server, client and route", () => {
+  const auth = read("lib/auth.ts");
+  const client = read("lib/auth-client.ts");
+  const page = read("app/two-factor/page.tsx");
+  assert.match(auth, /twoFactor/);
+  assert.match(client, /twoFactorClient/);
+  assert.match(page, /verifyTotp/);
+});
