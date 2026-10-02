@@ -75,13 +75,14 @@ export const auth = betterAuth({
       otpLength: 6,
       expiresIn: 600,
       allowedAttempts: 5,
+      changeEmail: { enabled: true, verifyCurrentEmail: true },
       sendVerificationOnSignUp: true,
       overrideDefaultEmailVerification: true,
       async sendVerificationOTP({ email, otp, type }) {
-        const purpose = type === "forget-password" ? "password reset" : "email verification";
+        const purpose = type === "forget-password" ? "password reset" : type === "change-email" ? "email change" : "email verification";
         await sendTransactionalEmail({
           to: email,
-          subject: type === "forget-password" ? "Your Socialhub password reset code" : "Your Socialhub verification code",
+          subject: type === "forget-password" ? "Your Socialhub password reset code" : type === "change-email" ? "Your Socialhub email change code" : "Your Socialhub verification code",
           text: `Your Socialhub ${purpose} code is ${otp}. This code expires in 10 minutes. If you did not request this, you can ignore this email.`,
           html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>Socialhub ${purpose}</h2><p>Your verification code is:</p><p style="font-size:30px;font-weight:800;letter-spacing:8px">${otp}</p><p>This code expires in 10 minutes.</p><p>If you did not request this, you can ignore this email.</p></div>`,
         });
@@ -99,6 +100,8 @@ export const auth = betterAuth({
       "/email-otp/verify-email": { window: 60, max: 10 },
       "/email-otp/request-password-reset": { window: 60, max: 5 },
       "/email-otp/reset-password": { window: 60, max: 10 },
+      "/email-otp/request-email-change": { window: 60, max: 5 },
+      "/email-otp/change-email": { window: 60, max: 10 },
     },
   },
   emailAndPassword: {
