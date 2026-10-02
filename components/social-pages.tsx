@@ -1614,6 +1614,9 @@ function SettingsPage() {
   const [savingPreference, setSavingPreference] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Array<{ id: string; createdAt: string; updatedAt: string; expiresAt: string; ipAddress: string | null; userAgent: string | null; isCurrent: boolean }>>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  const [verification, setVerification] = useState<{ isVerified: boolean; isOwner: boolean; status: "PENDING"|"APPROVED"|"REJECTED"|"CANCELLED"|null; reason?: string|null; adminNote?: string|null; createdAt?: string|null }>({ isVerified: false, isOwner: false, status: null });
+  const [verificationReason, setVerificationReason] = useState("");
+  const [verificationSubmitting, setVerificationSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1632,6 +1635,7 @@ function SettingsPage() {
           setPrivate(Boolean(json.profile.isPrivate));
           setEmail(json.profile.email);
           setUsername(json.profile.username ? "@" + json.profile.username : "No username");
+          setVerification((current) => ({ ...current, isVerified: Boolean(json.profile.isVerified), isOwner: Boolean(json.profile.isOwner) }));
         }
       } catch (requestError) {
         if (!cancelled) setMessage(requestError instanceof Error ? requestError.message : "Could not load account.");
