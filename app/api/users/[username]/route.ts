@@ -96,7 +96,6 @@ export async function GET(
     profile: {
       ...safeUser,
       email: isSelf ? safeUser.email : undefined,
-      posts: user.isPrivate && !isSelf && !friends ? [] : visiblePosts,
       isFollowing: following,
       isFriend: friends,
       friendRequestStatus,
