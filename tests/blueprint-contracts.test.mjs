@@ -257,3 +257,22 @@ test("admin content UI exposes post-level display metric editing", () => {
   assert.match(panel, /Changes public counters only/);
   assert.match(panel, /Reset to live/);
 });
+
+
+test("admin global search does not expose messages without the dedicated permission", () => {
+  const route = read("app/api/admin/search/route.ts");
+  const permissions = read("lib/admin-permissions.ts");
+  assert.match(route, /hasAdminPermission/);
+  assert.match(route, /MESSAGES_VIEW/);
+  assert.match(route, /messagesIncluded/);
+  assert.match(permissions, /STORAGE_MANAGE/);
+});
+
+test("search and profile post pagination expose display post metrics", () => {
+  const search = read("app/api/search/route.ts");
+  const userPosts = read("app/api/users/[username]/posts/route.ts");
+  const discover = read("components/social-pages.tsx");
+  assert.match(search, /getPostDisplayCountsMap/);
+  assert.match(userPosts, /getPostDisplayCountsMap/);
+  assert.match(discover, /post\.displayCounts\?\.likes/);
+});
