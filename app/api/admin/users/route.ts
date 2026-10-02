@@ -9,6 +9,10 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") ?? "").trim();
   const before = url.searchParams.get("before");
+  const trust = url.searchParams.get("trust") ?? "all";
+  if (!["all", "verified", "unverified", "owner"].includes(trust)) {
+    return NextResponse.json({ error: "Invalid trust filter." }, { status: 400 });
+  }
   const take = Math.min(Math.max(Number(url.searchParams.get("take") ?? 50), 1), 100);
   let cursor: { createdAt: Date; id: string } | null = null;
   if (before) {
@@ -27,6 +31,7 @@ export async function GET(request: Request) {
     where: {
       AND: [
         ...(cursor ? [{ OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] }] : []),
+        ...(trust === "verified" ? [{ isVerified: true }] : trust === "unverified" ? [{ isVerified: false, isOwner: false }] : trust === "owner" ? [{ isOwner: true }] : []),
         ...(q ? [{
           OR: [
             { name: { contains: q, mode: "insensitive" as const } },
