@@ -89,6 +89,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   return NextResponse.json({
     user,
     override,
+    canEditMetrics: access.user.role === "ADMIN",
     actualMetrics: {
       posts: user._count.posts,
       followers: user._count.followers,
