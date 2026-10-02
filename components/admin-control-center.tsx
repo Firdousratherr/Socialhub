@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Activity, Bell, Database, Flag, Search, Shield, Trash2, UserCog, Users, Wrench, BarChart3, HardDrive, RefreshCw } from "lucide-react";
 
 type Tab="security"|"search"|"platform"|"moderation"|"analytics"|"storage"|"permissions"|"health";
