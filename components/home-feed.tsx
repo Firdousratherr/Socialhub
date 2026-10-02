@@ -270,8 +270,8 @@ function CommentThread({
   }
 
   return (
-    <div id={"comments-" + postId} className="mt-4 rounded-2xl bg-gray-50 p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <div id={"comments-" + postId} className="mt-3 border-t border-gray-100 pt-3">
+      <div className="mb-2 flex items-center justify-between">
         <p className="text-xs font-black text-gray-700">Comments</p>
         {replyTo ? (
           <button type="button" onClick={() => setReplyTo(null)} className="flex items-center gap-1 text-[11px] font-bold text-gray-400 hover:text-gray-700">
@@ -285,8 +285,8 @@ function CommentThread({
           <Loader2 size={14} className="animate-spin" /> Loading comments…
         </div>
       ) : comments.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-200 bg-white px-4 py-5 text-center text-xs text-gray-400">
-          Be the first to comment.
+        <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center text-xs text-gray-400">
+          No comments yet. Start the conversation.
         </div>
       ) : (
         <div className="space-y-4">
@@ -368,7 +368,7 @@ function CommentThread({
       ) : null}
 
       {session?.user ? (
-        <form onSubmit={sendComment} className="mt-4 flex gap-2">
+        <form onSubmit={sendComment} className="mt-3 flex gap-2">
           <input value={text} onChange={(event) => setText(event.target.value)} className="h-10 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 text-xs outline-none focus:border-[#bdb6ff] focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder={replyTo ? "Write a reply…" : "Write a comment…"} maxLength={2000} />
           <button type="submit" disabled={!text.trim() || sending} className="grid size-10 shrink-0 place-items-center rounded-xl bg-gray-950 text-white disabled:opacity-40" aria-label={replyTo ? "Post reply" : "Post comment"}>
             {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
@@ -1124,9 +1124,8 @@ export default function HomeFeed() {
         <Link href="/discover" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white">
           <Compass size={18}/><span>Discover</span>
         </Link>
-        <Link href="#create-post" className="group -mt-5 flex min-h-14 flex-col items-center justify-center gap-0.5 text-[10px] font-black text-white" aria-label="Create a post">
-          <span className="grid size-12 place-items-center rounded-2xl border-4 border-[#141225] bg-gradient-to-br from-[#6d5dfc] to-[#36b8ff] text-white shadow-[0_10px_30px_rgba(109,93,252,.45)] transition duration-200 group-hover:-translate-y-0.5"><Plus size={21} strokeWidth={2.5}/></span>
-          <span className="mt-0.5">Create</span>
+        <Link href="/messages" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white" aria-label="Messages">
+          <MessageCircle size={18}/><span>Messages</span>
         </Link>
         <Link href="/notifications" className="flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[10px] font-bold text-white/60 transition hover:bg-white/8 hover:text-white">
           <Bell size={18}/><span>Alerts</span>
