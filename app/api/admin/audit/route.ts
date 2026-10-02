@@ -23,6 +23,10 @@ export async function GET(request: Request) {
     } catch { return NextResponse.json({ error: "Invalid audit cursor." }, { status: 400 }); }
   }
   const isCsv = url.searchParams.get("format") === "csv";
+  if (isCsv) {
+    const exportAccess = await requireAdminPermission("AUDIT_EXPORT");
+    if (exportAccess.response) return exportAccess.response;
+  }
   const takeParam = Number(url.searchParams.get("take") ?? "50");
   const take = Number.isFinite(takeParam) ? Math.min(Math.max(Math.floor(takeParam), 1), 100) : 50;
 
