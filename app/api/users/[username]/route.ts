@@ -16,7 +16,7 @@ export async function GET(
     select: {
       id: true, name: true, username: true, email: true, bio: true, image: true,
       coverImage: true, website: true, location: true, isPrivate: true, isVerified: true, isOwner: true, verifiedAt: true, ownerSince: true, createdAt: true,
-      privacySetting: { select: { allowMessagesEveryone: true } },
+      privacySetting: { select: { allowMessagesEveryone: true, allowFriendRequests: true } },
       _count: { select: { posts: true, followers: true, following: true } },
     },
   });
