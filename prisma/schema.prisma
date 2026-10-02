@@ -90,6 +90,7 @@ model User {
   comments      Comment[]
   likes         Like[]
   postReactions PostReaction[]
+  uploadUsages UploadUsage[]
   followers     Follow[]          @relation("UserFollowers")
   following     Follow[]          @relation("UserFollowing")
   sentMessages  Message[]         @relation("MessageSender")
@@ -176,6 +177,7 @@ model Post {
   mediaUrl   String?
   visibility PostVisibility @default(PUBLIC)
   shareCount Int            @default(0)
+  isPinned   Boolean         @default(false)
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
@@ -187,7 +189,7 @@ model Post {
   notifications Notification[]
   reports    Report[]
 
-  @@index([authorId, createdAt])
+  @@index([authorId, isPinned, createdAt])
   @@index([visibility, createdAt])
   @@index([createdAt, id])
 }
@@ -613,4 +615,16 @@ model VerificationRequest {
 
   @@index([userId, status, createdAt])
   @@index([status, createdAt])
+}
+
+
+model UploadUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  bytes     Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
