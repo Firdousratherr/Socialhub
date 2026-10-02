@@ -6,6 +6,7 @@ import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { MobileMenu } from "@/components/mobile-menu";
 import { StoryCenter } from "@/components/story-center";
+import { AccountBadge } from "@/components/account-badge";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -35,7 +36,7 @@ type CommentItem = {
   content: string;
   parentId: string | null;
   createdAt: string;
-  author: { id: string; name: string; username: string | null; image: string | null };
+  author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
   replies?: CommentItem[];
 };
 
@@ -46,6 +47,8 @@ type Post = {
   handle: string;
   initials: string;
   authorImage: string | null;
+  authorVerified: boolean;
+  authorOwner: boolean;
   timestamp: string;
   copy: string;
   mediaUrl: string | null;
@@ -65,7 +68,7 @@ type StoryItem = {
   mediaUrl: string;
   caption: string | null;
   expiresAt: string;
-  author: { id: string; name: string; username: string | null; image: string | null };
+  author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
 };
 
 type SuggestedUser = {
@@ -303,7 +306,7 @@ function CommentThread({
                     </div>
                   ) : (
                     <div className="rounded-2xl bg-white px-3 py-2.5">
-                      <p className="text-xs font-black text-gray-900">{comment.author.name}</p>
+                      <p className="flex items-center gap-1.5 text-xs font-black text-gray-900">{comment.author.name}<AccountBadge verified={comment.author.isVerified} owner={comment.author.isOwner} /></p>
                       <p className="mt-1 text-xs leading-5 text-gray-600">{comment.content}</p>
                     </div>
                   )}
@@ -541,6 +544,7 @@ function PostCard({
               <Link href={`/profile/${post.handle.replace(/^@/, "")}`} className="truncate text-sm font-extrabold text-gray-950 hover:text-[#5a4be8]">
                 {post.name}
               </Link>
+              <AccountBadge verified={post.authorVerified} owner={post.authorOwner} />
               <span className="text-gray-300">·</span>
               <span className="text-xs font-medium text-gray-400">{post.timestamp}</span>
             </div>
@@ -708,6 +712,8 @@ export default function HomeFeed() {
       handle: `@${item.author.username ?? "member"}`,
       initials: item.author.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
       authorImage: item.author.image,
+      authorVerified: Boolean(item.author.isVerified),
+      authorOwner: Boolean(item.author.isOwner),
       timestamp: timeLabel(item.createdAt),
       copy: item.content ?? "Shared a new moment.",
       mediaUrl: item.mediaUrl,
