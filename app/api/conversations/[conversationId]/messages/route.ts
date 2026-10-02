@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { messageInputSchema } from "@/lib/validation";
 import { canSendMessageInConversation } from "@/lib/conversation-access";
+import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -71,6 +72,8 @@ export async function POST(
 ) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const rl = await consumeRateLimit(rateLimitKey("messages", request, session.user.id), 60, 60);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
 
   const { conversationId } = await params;
   if (!(await isMember(conversationId, session.user.id))) {
