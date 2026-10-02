@@ -12,7 +12,7 @@ import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
   KeyRound, Lock, LogIn, Mail, MessageCircle, MoreHorizontal, Pencil, Plus,
-  Paperclip, Search, Send, Settings, Shield, ShieldOff, Sparkles, Trash2, UserPlus, Users, X
+  Paperclip, Search, Send, Settings, Shield, ShieldOff, Share2, Sparkles, Trash2, UserPlus, Users, X
 } from "lucide-react";
 
 type Screen = { kind: string; username?: string; section?: string; search?: string };
@@ -704,7 +704,6 @@ function Profile({ username = "firdous" }: { username?: string }) {
       setFriendRequestStatus("NONE");
       setFriendRequestId(null);
       setFollowing(false);
-      setCanMessage(false);
       setProfile((current) => current ? {
         ...current,
         isFriend: false,
@@ -884,7 +883,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
               ) : (
                 <Link href="/login" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white"><LogIn size={15}/>Sign in to interact</Link>
               )}
-              <button type="button" onClick={() => void shareProfile()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700"><ArrowRight size={15}/>Share</button>
+              <button type="button" onClick={() => void shareProfile()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700"><Share2 size={15}/>Share</button>
             </div>
           </div>
         ) : null}
