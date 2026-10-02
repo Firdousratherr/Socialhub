@@ -23,6 +23,8 @@ export function AdminInspection() {
   const [selected,setSelected]=useState<Conversation|null>(null);
   const [messages,setMessages]=useState<Message[]>([]);
   const [userId,setUserId]=useState("");
+  const [userQuery,setUserQuery]=useState("");
+  const [userResults,setUserResults]=useState<any[]>([]);
   const [activity,setActivity]=useState<any>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
@@ -47,6 +49,18 @@ export function AdminInspection() {
       setSelected(j.conversation);setMessages(j.messages??[]);
     }catch(e){setError(e instanceof Error?e.message:"Could not load messages.");}
     finally{setLoading(false)}
+  }
+
+  async function findUsers(){
+    const query=userQuery.trim();
+    if(query.length<2){setUserResults([]);return;}
+    setError("");
+    try{
+      const r=await fetch("/api/admin/users?take=8&q="+encodeURIComponent(query),{cache:"no-store"});
+      const j=await r.json();
+      if(!r.ok) throw new Error(j.error??"Could not search users.");
+      setUserResults(j.users??[]);
+    }catch(e){setError(e instanceof Error?e.message:"Could not search users.");}
   }
 
   async function loadActivity(){
@@ -79,8 +93,8 @@ export function AdminInspection() {
     {error?<div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold text-red-600">{error}</div>:null}
     {tab==="messages"?<><Card><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><div><h2 className="text-sm font-black">User messages</h2><p className="mt-1 text-xs text-gray-400">Read conversation history. Opening a conversation is recorded in the admin audit log.</p></div><div className="relative sm:ml-auto"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search user or email" className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-xs outline-none focus:border-[#a79dff] sm:w-72"/></div></div></Card>
     <Card className="!p-0 overflow-hidden"><div className="divide-y divide-gray-100">{loading?<p className="p-8 text-center text-xs text-gray-400">Loading conversations…</p>:conversations.length?conversations.map(c=><button key={c.id} onClick={()=>void openConversation(c.id)} className="flex w-full items-center gap-4 p-5 text-left hover:bg-gray-50"><span className="grid size-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-xs font-black text-white">{initials(c.members.map(m=>m.user.name).join(" "))}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-black">{c.title??c.members.map(m=>m.user.name).join(" · ")}</span><span className="mt-1 block truncate text-[11px] text-gray-400">{c.messages[0]?.content??"No messages yet"}</span><span className="mt-1 block text-[10px] text-gray-400">{c.messages[0]?.createdAt?new Date(c.messages[0].createdAt).toLocaleString():"No activity"}</span></span><span className="text-[10px] font-black text-[#5a4be8]">View</span></button>):<p className="p-8 text-center text-xs text-gray-400">No conversations found.</p>}</div></Card></>:null}
-    {tab==="activity"?<><Card><h2 className="text-sm font-black">Inspect a user</h2><p className="mt-1 text-xs text-gray-400">Enter a user ID to review account activity, content, social graph, notifications and sessions.</p><div className="mt-4 flex gap-2"><input value={userId} onChange={e=>setUserId(e.target.value)} placeholder="User ID" className="min-w-0 flex-1 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs outline-none"/><button onClick={()=>void loadActivity()} className="rounded-2xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white">Inspect</button></div></Card>
-    {activity?<ActivityView data={activity}/>:<Card><div className="flex items-start gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><UserRound size={18}/></span><div><p className="text-sm font-black">User activity timeline</p><p className="mt-1 text-xs leading-5 text-gray-400">Use the user ID from the Users section to inspect important account activity.</p></div></div></Card>}</>:null}
+    {tab==="activity"?<><Card><h2 className="text-sm font-black">Inspect a user</h2><p className="mt-1 text-xs text-gray-400">Search by name, username or email, then inspect account activity.</p><div className="mt-4 flex gap-2"><input value={userQuery} onChange={e=>{setUserQuery(e.target.value);void findUsers()}} onKeyDown={e=>{if(e.key==="Enter")void findUsers()}} placeholder="Search name, username or email" className="min-w-0 flex-1 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs outline-none"/><button type="button" onClick={()=>void findUsers()} className="rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-700">Find</button></div>{userResults.length?<div className="mt-3 grid gap-2 sm:grid-cols-2">{userResults.map((user:any)=><button type="button" key={user.id} onClick={()=>{setUserId(user.id);setUserQuery(user.name+" @"+(user.username??"member"));setUserResults([]);void loadActivity()}} className="rounded-2xl bg-gray-50 p-3 text-left hover:bg-gray-100"><p className="text-xs font-black">{user.name}</p><p className="mt-1 text-[10px] text-gray-400">@{user.username??"member"} · {user.email}</p></button>)}</div>:null}</Card>
+    {activity?<ActivityView data={activity}/>:<Card><div className="flex items-start gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><UserRound size={18}/></span><div><p className="text-sm font-black">User activity timeline</p><p className="mt-1 text-xs leading-5 text-gray-400">Search for a user above to open their activity timeline.</p></div></div></Card>}</>:null}
   </div>;
 }
 

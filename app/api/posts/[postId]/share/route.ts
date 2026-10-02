@@ -44,5 +44,6 @@ export async function POST(
     }
   }
 
-  return NextResponse.json({ shareCount: updated.shareCount });
+  const override = await prisma.adminPostMetricOverride.findUnique({ where: { postId }, select: { shares: true } });
+  return NextResponse.json({ shareCount: override?.shares ?? updated.shareCount });
 }

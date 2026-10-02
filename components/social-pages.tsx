@@ -403,6 +403,7 @@ type ProfileData = {
     shareCount?: number;
     liked?: boolean;
     saved?: boolean;
+    displayCounts?: { likes: number; comments: number; shares: number };
     _count: { likes: number; comments: number };
   }>;
 };
@@ -429,8 +430,8 @@ function ProfilePostCard({
   const router = useRouter();
   const [liked, setLiked] = useState(Boolean(post.liked));
   const [saved, setSaved] = useState(Boolean(post.saved));
-  const [likeCount, setLikeCount] = useState(post._count.likes);
-  const [shareCount, setShareCount] = useState(post.shareCount ?? 0);
+  const [likeCount, setLikeCount] = useState(post.displayCounts?.likes ?? post._count.likes);
+  const [shareCount, setShareCount] = useState(post.displayCounts?.shares ?? post.shareCount ?? 0);
   const [pinned, setPinned] = useState(post.isPinned);
   const [busy, setBusy] = useState<"like" | "save" | "share" | "report" | "delete" | "pin" | null>(null);
   const [message, setMessage] = useState("");
@@ -564,7 +565,7 @@ function ProfilePostCard({
       {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
         <button type="button" onClick={() => void toggleLike()} disabled={Boolean(busy)} className={"inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[10px] font-black " + (liked ? "bg-rose-50 text-rose-600" : "bg-white text-gray-500")}><Heart size={14} fill={liked ? "currentColor" : "none"}/>{likeCount}</button>
-        <button type="button" onClick={() => router.push("/home#post-" + encodeURIComponent(post.id))} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[10px] font-black text-gray-500"><MessageCircle size={14}/>{post._count.comments}</button>
+        <button type="button" onClick={() => router.push("/home#post-" + encodeURIComponent(post.id))} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[10px] font-black text-gray-500"><MessageCircle size={14}/>{post.displayCounts?.comments ?? post._count.comments}</button>
         <button type="button" onClick={() => void toggleSave()} disabled={Boolean(busy)} className={"inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[10px] font-black " + (saved ? "bg-[#eeebff] text-[#5a4be8]" : "bg-white text-gray-500")}><Bookmark size={14} fill={saved ? "currentColor" : "none"}/>Save</button>
         <button type="button" onClick={() => void sharePost()} disabled={Boolean(busy)} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[10px] font-black text-gray-500"><Share2 size={14}/>Share{shareCount ? " · " + shareCount : ""}</button>
       </div>
@@ -1928,7 +1929,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
   const { data: session } = authClient.useSession();
   const [q, setQ] = useState(initialQuery);
   const [results, setResults] = useState<DiscoverUser[]>([]);
-  const [discoverPosts, setDiscoverPosts] = useState<Array<{ id: string; content: string | null; createdAt: string; author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }; _count: { likes: number; comments: number } }>>([]);
+  const [discoverPosts, setDiscoverPosts] = useState<Array<{ id: string; content: string | null; createdAt: string; author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }; displayCounts?: { likes: number; comments: number; shares: number }; _count: { likes: number; comments: number } }>>([]);
   const [discoverHashtags, setDiscoverHashtags] = useState<Array<{ tag: string; count: number }>>([]);
   const [discoverTab, setDiscoverTab] = useState<"people" | "posts" | "hashtags">("people");
   const [following, setFollowing] = useState<Set<string>>(new Set());
@@ -2055,7 +2056,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
           })}</div>
         </Card> : discoverTab === "posts" ? <Card>
           <div className="flex justify-between"><h2 className="text-sm font-black">Post results</h2><span className="text-xs font-bold text-gray-400">{discoverPosts.length} posts</span></div>
-          <div className="mt-4 space-y-3">{discoverPosts.length ? discoverPosts.map((post) => <Link key={post.id} href={"/home#post-" + encodeURIComponent(post.id)} className="block rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><div className="flex items-center gap-3"><Avatar initials={post.author.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><div><p className="flex items-center gap-1.5 text-xs font-black">{post.author.name}<AccountBadge verified={post.author.isVerified} owner={post.author.isOwner}/></p><p className="text-[10px] text-gray-400">@{post.author.username ?? "member"} · {new Date(post.createdAt).toLocaleString()}</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">{post.content ?? "Media post"}</p><p className="mt-2 text-[10px] text-gray-400">{post._count.likes} likes · {post._count.comments} comments</p></Link>) : <p className="py-8 text-center text-xs text-gray-400">No matching posts found.</p>}</div>
+          <div className="mt-4 space-y-3">{discoverPosts.length ? discoverPosts.map((post) => <Link key={post.id} href={"/home#post-" + encodeURIComponent(post.id)} className="block rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><div className="flex items-center gap-3"><Avatar initials={post.author.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><div><p className="flex items-center gap-1.5 text-xs font-black">{post.author.name}<AccountBadge verified={post.author.isVerified} owner={post.author.isOwner}/></p><p className="text-[10px] text-gray-400">@{post.author.username ?? "member"} · {new Date(post.createdAt).toLocaleString()}</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">{post.content ?? "Media post"}</p><p className="mt-2 text-[10px] text-gray-400">{post.displayCounts?.likes ?? post._count.likes} likes · {post.displayCounts?.comments ?? post._count.comments} comments</p></Link>) : <p className="py-8 text-center text-xs text-gray-400">No matching posts found.</p>}</div>
         </Card> : <Card>
           <div className="flex justify-between"><h2 className="text-sm font-black">Hashtags</h2><span className="text-xs font-bold text-gray-400">{discoverHashtags.length} tags</span></div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">{discoverHashtags.length ? discoverHashtags.map((item) => <Link key={item.tag} href={"/discover?q=" + encodeURIComponent(item.tag)} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><span className="block text-sm font-black text-[#5a4be8]">{item.tag}</span><span className="mt-1 block text-[10px] text-gray-400">{item.count} matching posts in the current result set</span></Link>) : <p className="py-8 text-center text-xs text-gray-400">No matching hashtags found.</p>}</div>

@@ -21,6 +21,7 @@ enum AdminPermissionKey {
   USERS_BULK
   CONTENT_VIEW
   CONTENT_MODERATE
+  CONTENT_METRICS
   MESSAGES_VIEW
   REPORTS_MANAGE
   VERIFICATION_MANAGE
@@ -31,6 +32,7 @@ enum AdminPermissionKey {
   FEATURE_FLAGS
   ANNOUNCEMENTS
   STORAGE_VIEW
+  STORAGE_MANAGE
   SECURITY_MANAGE
   ADMIN_MANAGE
   PRIVACY_OPERATIONS
@@ -225,6 +227,7 @@ model Post {
   savedBy    SavedPost[]
   notifications Notification[]
   reports    Report[]
+  postMetricOverride AdminPostMetricOverride?
 
   @@index([authorId, isPinned, createdAt])
   @@index([visibility, createdAt])
@@ -516,6 +519,19 @@ model Block {
   @@index([blockedId])
 }
 
+
+model AdminPostMetricOverride {
+  id        String   @id @default(cuid())
+  postId    String   @unique
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  likes     Int?
+  comments  Int?
+  shares    Int?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@index([updatedAt])
+}
 
 model AdminMetricOverride {
   id              String   @id @default(cuid())

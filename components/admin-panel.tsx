@@ -30,9 +30,10 @@ type ReportRow = {
 
 type PostRow = {
   id: string; content: string | null; mediaUrl: string | null;
-  visibility: "PUBLIC" | "FRIENDS" | "PRIVATE"; createdAt: string;
+  visibility: "PUBLIC" | "FRIENDS" | "PRIVATE"; createdAt: string; shareCount?: number;
   author: { id: string; name: string; username: string | null; image: string | null };
   _count: { likes: number; comments: number; reports: number };
+  postMetricOverride?: { id: string; likes: number | null; comments: number | null; shares: number | null; updatedAt: string };
 };
 
 function initials(name: string) { return name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase(); }
@@ -121,9 +122,10 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
     setMessage(patch.metrics !== undefined ? "Profile metrics updated and audited." : "User updated.");
   }
 
-  const nav = [
-    ["control", "Control center", Gauge], ["overview", "Dashboard", BarChart3], ["moderation", "Moderation", Shield], ["verification", "Verification", ShieldCheck], ["users", "Users", Users],
-    ["user360", "User 360", UserRound], ["content", "Content", FileText], ["analytics", "Analytics", Activity], ["audit", "Audit logs", History],
+  const navGroups = [
+    { title: "Workspace", items: [["control", "Control center", Gauge], ["overview", "Dashboard", BarChart3]] as const },
+    { title: "People & content", items: [["users", "Users", Users], ["user360", "User 360", UserRound], ["content", "Content", FileText], ["moderation", "Moderation", Shield], ["verification", "Verification", ShieldCheck]] as const },
+    { title: "Platform", items: [["analytics", "Analytics", Activity], ["audit", "Audit logs", History]] as const },
   ] as const;
 
   const stats = dashboard?.stats ?? {};
@@ -134,8 +136,15 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.22em] text-violet-300">Socialhub Admin</p><h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Control center</h1><p className="mt-2 max-w-2xl text-sm text-white/55">Operate the platform through real users, real reports, real content and auditable actions.</p></div><div className="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-xs font-bold"><span className="size-2 rounded-full bg-emerald-400"/> Protected admin controls</div></div>
         </header>
         <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-          <aside className="h-fit rounded-3xl border border-gray-100 bg-white p-2 shadow-[0_10px_35px_rgba(31,26,64,0.05)]">
-            {nav.map(([key, label, Icon]) => <button key={key} onClick={() => { setActive(key); setSelectedId(""); setSelected(null); setMessage(""); }} className={"flex w-full items-center gap-3 rounded-2xl px-3.5 py-3 text-left text-xs font-black transition " + (active === key ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500 hover:bg-gray-50")}><Icon size={16}/>{label}</button>)}
+          <aside className="h-fit rounded-3xl border border-gray-100 bg-white p-2 shadow-[0_10px_35px_rgba(31,26,64,0.05)] lg:sticky lg:top-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:block">
+              {navGroups.map((group) => <div key={group.title} className="min-w-0">
+                <p className="px-3.5 pb-1 pt-2 text-[9px] font-black uppercase tracking-[.16em] text-gray-300">{group.title}</p>
+                <div className="space-y-1">
+                  {group.items.map(([key, label, Icon]) => <button key={key} type="button" onClick={() => { setActive(key); setSelectedId(""); setSelected(null); setMessage(""); }} className={"flex w-full items-center gap-3 rounded-2xl px-3.5 py-3 text-left text-xs font-black transition " + (active === key ? "bg-[#eeebff] text-[#5a4be8] shadow-sm" : "text-gray-500 hover:bg-gray-50")}><Icon size={16}/><span className="truncate">{label}</span></button>)}
+                </div>
+              </div>)}
+            </div>
           </aside>
           <section className="min-w-0 space-y-5">
             {message ? <div role="status" className="rounded-2xl border border-[#ddd8ff] bg-[#f8f7ff] px-4 py-3 text-xs font-bold text-[#5a4be8]">{message}</div> : null}
@@ -386,6 +395,8 @@ function ContentManager({onMessage}:{onMessage:(value:string)=>void}) {
   const [query,setQuery]=useState("");
   const [nextBefore,setNextBefore]=useState<string|null>(null);
   const [loadingMore,setLoadingMore]=useState(false);
+  const [metricsPostId,setMetricsPostId]=useState<string|null>(null);
+  const [metricsDraft,setMetricsDraft]=useState({likes:"",comments:"",shares:""});
 
   async function load(before?:string|null, append=false) {
     if (append) setLoadingMore(true); else setLoading(true);
@@ -408,6 +419,39 @@ function ContentManager({onMessage}:{onMessage:(value:string)=>void}) {
 
   useEffect(()=>{const timer=window.setTimeout(()=>void load(),250);return()=>window.clearTimeout(timer)},[query]);
 
+  function openMetrics(post:PostRow) {
+    setMetricsPostId(post.id);
+    setMetricsDraft({
+      likes: post.postMetricOverride?.likes == null ? "" : String(post.postMetricOverride.likes),
+      comments: post.postMetricOverride?.comments == null ? "" : String(post.postMetricOverride.comments),
+      shares: post.postMetricOverride?.shares == null ? "" : String(post.postMetricOverride.shares),
+    });
+  }
+
+  function cleanNumber(value:string) {
+    return value.replace(/[^0-9]/g,"").slice(0,10);
+  }
+
+  async function saveMetrics(id:string, reset=false) {
+    const metrics = reset
+      ? { likes:null, comments:null, shares:null }
+      : {
+          likes: metricsDraft.likes === "" ? null : Number(metricsDraft.likes),
+          comments: metricsDraft.comments === "" ? null : Number(metricsDraft.comments),
+          shares: metricsDraft.shares === "" ? null : Number(metricsDraft.shares),
+        };
+    try {
+      const response=await fetch("/api/admin/posts",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,metrics})});
+      const json=await response.json();
+      if(!response.ok) throw new Error(json.error??"Could not update post metrics.");
+      setPosts(items=>items.map(item=>item.id===id?{...item,postMetricOverride:json.override??undefined}:item));
+      setMetricsPostId(null);
+      onMessage(reset?"Post metrics reset to live values.":"Post metrics updated and audited.");
+    } catch(error) {
+      onMessage(error instanceof Error?error.message:"Could not update post metrics.");
+    }
+  }
+
   async function updateVisibility(id:string,visibility:PostRow["visibility"]){
     const response=await fetch("/api/admin/posts",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,visibility})});
     const json=await response.json();
@@ -428,11 +472,21 @@ function ContentManager({onMessage}:{onMessage:(value:string)=>void}) {
   return <Card className="!p-0 overflow-hidden">
     <div className="border-b border-gray-100 p-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div><h2 className="text-sm font-black">Content moderation</h2><p className="mt-1 text-xs text-gray-400">Search, review, change visibility, or remove posts. Every action is audited.</p></div>
+        <div><h2 className="text-sm font-black">Content moderation</h2><p className="mt-1 text-xs text-gray-400">Search, review, change visibility, edit display metrics, or remove posts. Every action is audited.</p></div>
         <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search post or author" className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-xs outline-none focus:border-[#a79dff] lg:w-80" aria-label="Search admin content"/></div>
       </div>
     </div>
-    {loading?<p className="p-8 text-center text-xs text-gray-400">Loading posts…</p>:posts.length===0?<p className="p-8 text-center text-xs text-gray-400">No posts found.</p>:<div className="divide-y divide-gray-100">{posts.map(post=><article key={post.id} className="p-5"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-violet-100 text-xs font-black text-violet-600">{initials(post.author.name)}</span><div className="min-w-0 flex-1"><p className="text-xs font-black">{post.author.name} <span className="text-[10px] font-bold text-gray-400">@{post.author.username??"member"}</span></p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">{post.content??"Media post"}</p>{post.mediaUrl?<img src={post.mediaUrl} alt="" className="mt-3 max-h-72 w-full rounded-2xl object-cover"/>:null}<p className="mt-2 text-[10px] text-gray-400">{post._count.likes} likes · {post._count.comments} comments · {post._count.reports} reports · {new Date(post.createdAt).toLocaleString()}</p></div></div><div className="mt-4 flex flex-wrap items-center gap-2"><select value={post.visibility} onChange={e=>void updateVisibility(post.id,e.target.value as PostRow["visibility"])} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black"><option value="PUBLIC">PUBLIC</option><option value="FRIENDS">FRIENDS</option><option value="PRIVATE">PRIVATE</option></select><button onClick={()=>void deletePost(post.id)} className="inline-flex items-center gap-1 rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700"><Trash2 size={13}/> Delete</button></div></article>)}</div>}
+    {loading?<p className="p-8 text-center text-xs text-gray-400">Loading posts…</p>:posts.length===0?<p className="p-8 text-center text-xs text-gray-400">No posts found.</p>:<div className="divide-y divide-gray-100">{posts.map(post=>{
+      const displayLikes=post.postMetricOverride?.likes ?? post._count.likes;
+      const displayComments=post.postMetricOverride?.comments ?? post._count.comments;
+      const displayShares=post.postMetricOverride?.shares ?? post.shareCount ?? 0;
+      const editingMetrics=metricsPostId===post.id;
+      return <article key={post.id} className="p-5">
+        <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-violet-100 text-xs font-black text-violet-600">{initials(post.author.name)}</span><div className="min-w-0 flex-1"><p className="text-xs font-black">{post.author.name} <span className="text-[10px] font-bold text-gray-400">@{post.author.username??"member"}</span></p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">{post.content??"Media post"}</p>{post.mediaUrl?<img src={post.mediaUrl} alt="" className="mt-3 max-h-72 w-full rounded-2xl object-cover"/>:null}<p className="mt-2 text-[10px] text-gray-400">Live: {post._count.likes} likes · {post._count.comments} comments · {post.shareCount??0} shares · {post._count.reports} reports</p><p className="mt-1 text-[10px] font-black text-[#5a4be8]">Public display: {displayLikes} likes · {displayComments} comments · {displayShares} shares</p></div></div>
+        <div className="mt-4 flex flex-wrap items-center gap-2"><select value={post.visibility} onChange={e=>void updateVisibility(post.id,e.target.value as PostRow["visibility"])} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black"><option value="PUBLIC">PUBLIC</option><option value="FRIENDS">FRIENDS</option><option value="PRIVATE">PRIVATE</option></select><button type="button" onClick={()=>editingMetrics?setMetricsPostId(null):openMetrics(post)} className="rounded-xl bg-[#eeebff] px-3 py-2 text-[10px] font-black text-[#5a4be8]">{editingMetrics?"Close metrics":"Edit metrics"}</button><button type="button" onClick={()=>void deletePost(post.id)} className="inline-flex items-center gap-1 rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700"><Trash2 size={13}/> Delete</button></div>
+        {editingMetrics?<div className="mt-4 rounded-2xl border border-[#ddd8ff] bg-[#faf9ff] p-4"><div><p className="text-xs font-black">Post display metrics</p><p className="mt-1 text-[10px] text-gray-500">Changes public counters only; real likes/comments/shares remain unchanged.</p></div><div className="mt-3 grid gap-3 sm:grid-cols-3">{([["likes","Likes"],["comments","Comments"],["shares","Shares"]] as const).map(([key,label])=><label key={key} className="text-[10px] font-black text-gray-500">{label}<input value={metricsDraft[key]} onChange={e=>setMetricsDraft(current=>({...current,[key]:cleanNumber(e.target.value)}))} inputMode="numeric" placeholder="Live" className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-xs font-bold outline-none focus:border-[#a79dff]"/></label>)}</div><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={()=>void saveMetrics(post.id)} className="rounded-xl bg-gray-950 px-3.5 py-2 text-[10px] font-black text-white">Save metrics</button><button type="button" onClick={()=>void saveMetrics(post.id,true)} className="rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-[10px] font-black text-gray-700">Reset to live</button></div></div>:null}
+      </article>
+    })}</div>}
     {nextBefore ? <div className="border-t border-gray-100 p-4 text-center"><button type="button" onClick={()=>void load(nextBefore,true)} disabled={loadingMore} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[11px] font-black text-gray-700 disabled:opacity-40">{loadingMore?"Loading…":"Load more"}</button></div> : null}
   </Card>
 }

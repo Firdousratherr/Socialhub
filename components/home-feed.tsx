@@ -170,6 +170,7 @@ function CommentThread({
     } else {
       setComments(next);
     }
+    if (typeof json.commentCount === "number") onCountChange(json.commentCount);
     setNextBefore(json.nextBefore ?? null);
   }
 
@@ -231,7 +232,7 @@ function CommentThread({
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error ?? "Could not delete comment.");
       setComments((current) => current.filter((item) => item.id !== commentId).map((item) => ({ ...item, replies: (item.replies ?? []).filter((reply) => reply.id !== commentId) })));
-      onCountChange(-1);
+      if (typeof json.commentCount === "number") onCountChange(json.commentCount);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not delete comment."); }
   }
 
@@ -260,7 +261,7 @@ function CommentThread({
       });
       setText("");
       setReplyTo(null);
-      onCountChange(1);
+      if (typeof json.commentCount === "number") onCountChange(json.commentCount);
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "Could not post comment.");
     } finally {
@@ -269,7 +270,7 @@ function CommentThread({
   }
 
   return (
-    <div className="mt-4 rounded-2xl bg-gray-50 p-4">
+    <div id={"comments-" + postId} className="mt-4 rounded-2xl bg-gray-50 p-4">
       <div className="mb-3 flex items-center justify-between">
         <p className="text-xs font-black text-gray-700">Comments</p>
         {replyTo ? (
@@ -357,7 +358,14 @@ function CommentThread({
         </div>
       )}
 
-      {error ? <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600">{error}</div> : null}
+      {error ? (
+        <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600">
+          <div className="flex items-center justify-between gap-3">
+            <span>{error}</span>
+            <button type="button" onClick={() => { setError(""); setLoading(true); void loadComments().catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Could not load comments.")).finally(() => setLoading(false)); }} className="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-black text-red-700 shadow-sm">Retry</button>
+          </div>
+        </div>
+      ) : null}
 
       {session?.user ? (
         <form onSubmit={sendComment} className="mt-4 flex gap-2">
@@ -399,7 +407,7 @@ function PostCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [error, setError] = useState("");
   const isOwner = currentUserId === post.authorId;
-  const handleCommentCountChange = useCallback((count: number) => setCommentCount((value) => value + count), []);
+  const handleCommentCountChange = useCallback((count: number) => setCommentCount(count), []);
 
   useEffect(() => {
     setLiked(post.liked);
@@ -645,7 +653,7 @@ function PostCard({
           <button onClick={() => void toggleLike()} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${liked ? "bg-rose-50 text-rose-500" : "text-gray-500 hover:bg-gray-50"}`} aria-pressed={liked}>
             <span aria-hidden>{liked ? "♥" : "♡"}</span> Like
           </button>
-          <button onClick={() => setCommentsOpen((value) => !value)} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${commentsOpen ? "bg-sky-50 text-sky-600" : "text-gray-500 hover:bg-gray-50"}`}>
+          <button type="button" onClick={() => setCommentsOpen((value) => !value)} aria-expanded={commentsOpen} aria-controls={"comments-" + post.id} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${commentsOpen ? "bg-sky-50 text-sky-600" : "text-gray-500 hover:bg-gray-50"}`}>
             <MessageCircle size={17} /> Comment
           </button>
           <button onClick={() => void sharePost()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold text-gray-500 transition hover:bg-gray-50">
@@ -708,6 +716,7 @@ export default function HomeFeed() {
       myReaction: string | null;
       author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
       _count: { likes: number; comments: number };
+      displayCounts?: { likes: number; comments: number; shares: number };
     }, index: number) => ({
       id: item.id,
       authorId: item.authorId,
@@ -722,9 +731,9 @@ export default function HomeFeed() {
       mediaUrl: item.mediaUrl,
       visibility: item.visibility,
       accent: ["from-violet-500 via-fuchsia-400 to-amber-300","from-sky-500 via-cyan-400 to-emerald-300","from-emerald-400 via-cyan-400 to-sky-400","from-amber-400 via-rose-400 to-fuchsia-400"][index % 4],
-      likes: item._count.likes,
-      comments: item._count.comments,
-      shares: item.shareCount ?? 0,
+      likes: item.displayCounts?.likes ?? item._count.likes,
+      comments: item.displayCounts?.comments ?? item._count.comments,
+      shares: item.displayCounts?.shares ?? item.shareCount ?? 0,
       liked: Boolean(item.liked),
       saved: Boolean(item.saved),
       reactions: item.reactions ?? [],
@@ -756,6 +765,7 @@ export default function HomeFeed() {
             reactions: Array<{ emoji: string; count: number }>; myReaction: string | null;
             author: { id: string; name: string; username: string | null; image: string | null };
             _count: { likes: number; comments: number };
+      displayCounts?: { likes: number; comments: number; shares: number };
           }, index: number) => ({
             id: item.id,
             authorId: item.authorId,
@@ -768,9 +778,9 @@ export default function HomeFeed() {
             mediaUrl: item.mediaUrl,
             visibility: item.visibility,
             accent: ["from-violet-500 via-fuchsia-400 to-amber-300","from-sky-500 via-cyan-400 to-emerald-300","from-emerald-400 via-cyan-400 to-sky-400","from-amber-400 via-rose-400 to-fuchsia-400"][index % 4],
-            likes: item._count.likes,
-            comments: item._count.comments,
-            shares: item.shareCount ?? 0,
+            likes: item.displayCounts?.likes ?? item._count.likes,
+            comments: item.displayCounts?.comments ?? item._count.comments,
+            shares: item.displayCounts?.shares ?? item.shareCount ?? 0,
             liked: Boolean(item.liked),
             saved: Boolean(item.saved),
             reactions: item.reactions ?? [],
@@ -919,9 +929,9 @@ export default function HomeFeed() {
           mediaUrl: item.mediaUrl,
           visibility: item.visibility,
           accent: "from-violet-500 via-fuchsia-400 to-sky-400",
-          likes: item._count.likes,
-          comments: item._count.comments,
-          shares: item.shareCount ?? 0,
+          likes: item.displayCounts?.likes ?? item._count.likes,
+            comments: item.displayCounts?.comments ?? item._count.comments,
+            shares: item.displayCounts?.shares ?? item.shareCount ?? 0,
           liked: Boolean(item.liked),
           saved: Boolean(item.saved),
           reactions: item.reactions ?? [],

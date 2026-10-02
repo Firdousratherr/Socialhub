@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getBlockedUserIds } from "@/lib/social-access";
+import { getPostDisplayCountsMap } from "@/lib/post-metrics";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -106,6 +107,19 @@ export async function GET(request: Request) {
     }
   }
 
+  const postDisplayCounts = await getPostDisplayCountsMap(posts.map((post) => post.id));
+  const visiblePosts = posts.map((post) => {
+    const display = postDisplayCounts.get(post.id);
+    return {
+      ...post,
+      displayCounts: {
+        likes: display?.likes ?? post._count.likes,
+        comments: display?.comments ?? post._count.comments,
+        shares: display?.shares ?? post.shareCount,
+      },
+    };
+  });
+
   return NextResponse.json({
     users: users.map((user) => ({
       ...user,
@@ -115,7 +129,7 @@ export async function GET(request: Request) {
       canFollow: !user.isPrivate || friendIds.includes(user.id),
       canSendFriendRequest: !friendIds.includes(user.id) && friendRequestMap.get(user.id) === "NONE",
     })),
-    posts,
+    posts: visiblePosts,
     hashtags: [...hashtags.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .slice(0, 12)

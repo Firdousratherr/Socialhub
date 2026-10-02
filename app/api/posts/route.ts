@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { postInputSchema } from "@/lib/validation";
 import { getBlockedUserIds } from "@/lib/social-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { getPostDisplayCountsMap } from "@/lib/post-metrics";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -130,6 +131,7 @@ export async function GET(request: Request) {
   });
 
   const postIds = posts.map((post) => post.id);
+  const displayCounts = await getPostDisplayCountsMap(postIds);
   const [likedRows, savedRows] =
     session?.user && postIds.length
       ? await Promise.all([
@@ -161,6 +163,11 @@ export async function GET(request: Request) {
   return NextResponse.json({
     posts: posts.map((post) => ({
       ...post,
+      displayCounts: {
+        likes: displayCounts.get(post.id)?.likes ?? post._count.likes,
+        comments: displayCounts.get(post.id)?.comments ?? post._count.comments,
+        shares: displayCounts.get(post.id)?.shares ?? post.shareCount,
+      },
       liked: likedSet.has(post.id),
       saved: savedSet.has(post.id),
       reactions: reactionSummary.get(post.id) ?? [],

@@ -206,3 +206,74 @@ test("messaging has live refresh, typing presence, and read receipts", () => {
   assert.match(typing, /export async function DELETE/);
   assert.match(typing, /typing:/);
 });
+
+
+test("comment mutations expose authoritative counts and the client can recover from comment load errors", () => {
+  const route = read("app/api/posts/[postId]/comments/route.ts");
+  const feed = read("components/home-feed.tsx");
+  assert.match(route, /commentCount/);
+  assert.match(route, /adminPostMetricOverride/);
+  assert.match(route, /export async function POST/);
+  assert.match(route, /export async function DELETE/);
+  assert.match(feed, /typeof json\.commentCount === "number"/);
+  assert.match(feed, />Retry<\/button>/);
+  assert.ok(feed.includes('aria-controls={"comments-" + post.id}'));
+});
+
+test("post metric overrides have a dedicated model, migration and permission boundary", () => {
+  const schema = read("prisma/schema.prisma");
+  const permissions = read("lib/admin-permissions.ts");
+  const migration = read("prisma/migrations/20261002190000_admin_post_metrics/migration.sql");
+  const route = read("app/api/admin/posts/route.ts");
+  assert.match(schema, /model AdminPostMetricOverride/);
+  assert.match(schema, /postMetricOverride AdminPostMetricOverride/);
+  assert.match(schema, /CONTENT_METRICS/);
+  assert.match(permissions, /CONTENT_METRICS/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS "AdminPostMetricOverride"/);
+  assert.match(migration, /AdminPostMetricOverride_postId_fkey/);
+  assert.match(route, /CONTENT_METRICS/);
+  assert.match(route, /parsed\.data\.metrics !== undefined/);
+  assert.match(route, /UPDATE_POST_METRICS/);
+});
+
+test("public post surfaces consume display metric overrides", () => {
+  const feed = read("app/api/posts/route.ts");
+  const detail = read("app/api/posts/[postId]/route.ts");
+  const profile = read("app/api/users/[username]/route.ts");
+  const ownProfile = read("app/api/profile/route.ts");
+  const home = read("components/home-feed.tsx");
+  const pages = read("components/social-pages.tsx");
+  assert.match(feed, /displayCounts/);
+  assert.match(detail, /getPostDisplayCounts/);
+  assert.match(profile, /getPostDisplayCountsMap/);
+  assert.match(ownProfile, /getPostDisplayCountsMap/);
+  assert.match(home, /item\.displayCounts\?\.likes/);
+  assert.match(pages, /post\.displayCounts\?\.likes/);
+});
+
+test("admin content UI exposes post-level display metric editing", () => {
+  const panel = read("components/admin-panel.tsx");
+  assert.match(panel, /Edit metrics/);
+  assert.match(panel, /Post display metrics/);
+  assert.match(panel, /Changes public counters only/);
+  assert.match(panel, /Reset to live/);
+});
+
+
+test("admin global search does not expose messages without the dedicated permission", () => {
+  const route = read("app/api/admin/search/route.ts");
+  const permissions = read("lib/admin-permissions.ts");
+  assert.match(route, /hasAdminPermission/);
+  assert.match(route, /MESSAGES_VIEW/);
+  assert.match(route, /messagesIncluded/);
+  assert.match(permissions, /STORAGE_MANAGE/);
+});
+
+test("search and profile post pagination expose display post metrics", () => {
+  const search = read("app/api/search/route.ts");
+  const userPosts = read("app/api/users/[username]/posts/route.ts");
+  const discover = read("components/social-pages.tsx");
+  assert.match(search, /getPostDisplayCountsMap/);
+  assert.match(userPosts, /getPostDisplayCountsMap/);
+  assert.match(discover, /post\.displayCounts\?\.likes/);
+});

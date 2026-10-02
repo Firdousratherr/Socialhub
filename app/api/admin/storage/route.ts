@@ -42,7 +42,7 @@ export async function GET() {
 }
 
 export async function DELETE(request: Request) {
-  const access = await requireAdminPermission("STORAGE_VIEW");
+  const access = await requireAdminPermission("STORAGE_MANAGE");
   if (access.response) return access.response;
   const body = await request.json().catch(() => null);
   const ids = Array.isArray(body?.ids) ? body.ids.filter((value: unknown): value is string => typeof value === "string").slice(0, 50) : [];
