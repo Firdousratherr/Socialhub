@@ -29,12 +29,12 @@ export async function GET(
       where: { storyId },
       orderBy: { createdAt: "asc" },
       take: 100,
-      include: { author: { select: { id: true, name: true, username: true, image: true } } },
+      include: { author: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } } },
     }),
     prisma.storyReaction.findMany({
       where: { storyId },
       orderBy: { createdAt: "asc" },
-      include: { user: { select: { id: true, name: true, image: true } } },
+      include: { user: { select: { id: true, name: true, image: true, isVerified: true, isOwner: true } } },
     }),
     prisma.storyReaction.findUnique({ where: { storyId_userId: { storyId, userId: session.user.id } } }),
   ]);
@@ -73,7 +73,7 @@ export async function POST(
     if (!content || content.length > 500) return NextResponse.json({ error: "Reply must be 1–500 characters." }, { status: 400 });
     const reply = await prisma.storyReply.create({
       data: { storyId, authorId: session.user.id, content },
-      include: { author: { select: { id: true, name: true, username: true, image: true } } },
+      include: { author: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } } },
     });
     return NextResponse.json({ reply }, { status: 201 });
   }
@@ -85,7 +85,7 @@ export async function POST(
       where: { storyId_userId: { storyId, userId: session.user.id } },
       create: { storyId, userId: session.user.id, emoji },
       update: { emoji },
-      include: { user: { select: { id: true, name: true, image: true } } },
+      include: { user: { select: { id: true, name: true, image: true, isVerified: true, isOwner: true } } },
     });
     return NextResponse.json({ reaction });
   }
