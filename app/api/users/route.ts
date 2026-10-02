@@ -33,6 +33,8 @@ export async function GET(request: Request) {
       image: true,
       bio: true,
       isPrivate: true,
+      isVerified: true,
+      isOwner: true,
       _count: {
         select: { followers: true, following: true },
       },
