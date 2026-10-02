@@ -93,6 +93,17 @@ test("admin UI exposes profile metric and account control sections", () => {
 });
 
 
+test("admin root opens the current control center and keeps legacy tools reachable", () => {
+  const panel = read("components/admin-panel.tsx");
+  const route = read("app/[...segments]/page.tsx");
+  assert.ok(panel.includes('["control", "Control center", Gauge]'));
+  assert.ok(panel.includes('active === "control" ? <AdminControlCenter/> : null'));
+  assert.ok(panel.includes('["overview", "Dashboard", BarChart3]'));
+  assert.ok(panel.includes('["moderation", "Moderation", Shield]'));
+  assert.ok(route.includes('segments[1] ?? "control"'));
+});
+
+
 test("admin permissions have a centralized server authorization boundary", () => {
   const helper = read("lib/admin-permissions.ts");
   assert.match(helper, /ADMIN_PERMISSIONS/);
@@ -171,6 +182,16 @@ test("mobile primary navigation exposes direct messages in the bottom bar", () =
   assert.match(nav, /href: "\/messages"/);
   assert.match(nav, /fixed inset-x-0 bottom-0/);
   assert.match(nav, /MessageCircle/);
+});
+
+
+test("feed mobile navigation uses messages instead of the legacy create-plus slot", () => {
+  const nav = read("components/bottom-nav.tsx");
+  const page = read("components/social-pages.tsx");
+  assert.ok(nav.includes('{ href: "/messages", label: "Messages", Icon: MessageCircle }'));
+  assert.ok(nav.includes('grid-cols-5'));
+  assert.ok(page.includes('<BottomNav />'));
+  assert.doesNotMatch(nav, /\bPlus\b/);
 });
 
 test("messaging has live refresh, typing presence, and read receipts", () => {
