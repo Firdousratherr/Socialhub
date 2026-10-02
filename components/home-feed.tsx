@@ -6,7 +6,7 @@ import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { MobileMenu } from "@/components/mobile-menu";
 import { BottomNav } from "@/components/bottom-nav";
-import { subscribePostSync } from "@/lib/post-sync";
+import { emitPostSyncEvent, subscribePostSync } from "@/lib/post-sync";
 import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
 import { useRouter } from "next/navigation";
