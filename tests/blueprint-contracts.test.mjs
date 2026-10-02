@@ -332,3 +332,20 @@ test("profile metadata endpoints do not duplicate the dedicated post feed query"
   assert.ok(page.includes('fetch("/api/users/" + encodeURIComponent(profile.username ?? username) + "/posts?take=20"'));
   assert.ok(page.includes('setProfile((current) => current ? { ...current, posts: json.posts ?? [] } : current)'));
 });
+
+
+test("unread summary powers shared navigation badges", () => {
+  const route = read("app/api/unread-summary/route.ts");
+  const hook = read("hooks/use-unread-summary.ts");
+  const nav = read("components/bottom-nav.tsx");
+  const home = read("components/home-feed.tsx");
+  assert.match(route, /unreadCount/);
+  assert.match(route, /friendRequestCount/);
+  assert.match(hook, /\/api\/unread-summary/);
+  assert.match(hook, /15000/);
+  assert.match(nav, /summary\.messages/);
+  assert.match(nav, /summary\.notifications/);
+  assert.match(nav, /summary\.friendRequests/);
+  assert.match(home, /unreadSummary\.messages/);
+  assert.match(home, /unreadSummary\.notifications/);
+});
