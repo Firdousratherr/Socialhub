@@ -6,6 +6,7 @@ import type { FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
+import { AccountBadge } from "@/components/account-badge";
 import { MobileMenu } from "@/components/mobile-menu";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
@@ -284,6 +285,10 @@ type ProfileData = {
   location: string | null;
   isPrivate: boolean;
   role: "USER" | "MODERATOR" | "ADMIN";
+  isVerified: boolean;
+  isOwner: boolean;
+  verifiedAt?: string | null;
+  ownerSince?: string | null;
   createdAt: string;
   _count: { posts: number; followers: number; following: number };
   visibleCounts?: { posts: number; followers: number; following: number };
@@ -614,7 +619,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
               <Avatar initials={initials} size="xl"/>
             )}
           </div>
-          <div className="flex-1 sm:pb-2"><h2 className="text-2xl font-black tracking-[-.04em]">{displayName}</h2><p className="text-sm font-semibold text-gray-400">@{displayUsername}{profile?.location ? ` · ${profile.location}` : ""}</p></div>
+          <div className="flex-1 sm:pb-2"><h2 className="flex items-center gap-2 text-2xl font-black tracking-[-.04em]">{displayName}<AccountBadge verified={profile?.isVerified} owner={profile?.isOwner} showLabel size="md"/></h2><p className="text-sm font-semibold text-gray-400">@{displayUsername}{profile?.location ? ` · ${profile.location}` : ""}</p></div>
         </div>
 
         {uploading === "avatar" ? <p className="mt-3 text-[11px] font-bold text-[#5a4be8]">Uploading profile picture…</p> : null}
@@ -714,7 +719,7 @@ type ChatMessage = {
   editedAt?: string | null;
   deletedAt?: string | null;
   replyTo?: { id: string; content: string; senderId: string; sender: { id: string; name: string; username: string | null } } | null;
-  sender: { id: string; name: string; username: string | null; image: string | null };
+  sender: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
   attachments?: Array<{ id: string; url: string; kind: string }>;
   reactions?: Array<{ id: string; emoji: string; userId: string; user: { id: string; name: string; image: string | null } }>;
 };
@@ -1126,6 +1131,8 @@ type DiscoverUser = {
   isPrivate?: boolean;
   isFollowing?: boolean;
   isFriend?: boolean;
+  isVerified?: boolean;
+  isOwner?: boolean;
   _count: { followers: number; following: number };
 };
 
@@ -1247,13 +1254,13 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
             const isFollowing = following.has(user.id);
             return <div key={user.id} className="flex items-center gap-3">
               <Link href={"/profile/" + (user.username ?? user.id)}><Avatar initials={initials} color={colors[i % colors.length]}/></Link>
-              <div className="min-w-0 flex-1"><Link href={"/profile/" + (user.username ?? user.id)} className="block truncate text-xs font-black hover:text-[#5a4be8]">{user.name}</Link><p className="truncate text-[11px] text-gray-400">@{user.username ?? "member"} · {user._count.followers} followers</p></div>
+              <div className="min-w-0 flex-1"><Link href={"/profile/" + (user.username ?? user.id)} className="flex items-center gap-1.5 truncate text-xs font-black hover:text-[#5a4be8]">{user.name}<AccountBadge verified={user.isVerified} owner={user.isOwner}/></Link><p className="truncate text-[11px] text-gray-400">@{user.username ?? "member"} · {user._count.followers} followers</p></div>
               <button onClick={()=>void toggleFollow(user)} className={isFollowing ? "grid size-9 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600" : "grid size-9 place-items-center rounded-xl bg-gray-950 text-white"} aria-label={isFollowing ? "Unfollow" : "Follow"}>{isFollowing ? <Check size={15}/> : <UserPlus size={15}/>}</button>
             </div>;
           })}</div>
         </Card> : discoverTab === "posts" ? <Card>
           <div className="flex justify-between"><h2 className="text-sm font-black">Post results</h2><span className="text-xs font-bold text-gray-400">{discoverPosts.length} posts</span></div>
-          <div className="mt-4 space-y-3">{discoverPosts.length ? discoverPosts.map((post) => <Link key={post.id} href={"/home#post-" + encodeURIComponent(post.id)} className="block rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><div className="flex items-center gap-3"><Avatar initials={post.author.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><div><p className="text-xs font-black">{post.author.name}</p><p className="text-[10px] text-gray-400">@{post.author.username ?? "member"} · {new Date(post.createdAt).toLocaleString()}</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">{post.content ?? "Media post"}</p><p className="mt-2 text-[10px] text-gray-400">{post._count.likes} likes · {post._count.comments} comments</p></Link>) : <p className="py-8 text-center text-xs text-gray-400">No matching posts found.</p>}</div>
+          <div className="mt-4 space-y-3">{discoverPosts.length ? discoverPosts.map((post) => <Link key={post.id} href={"/home#post-" + encodeURIComponent(post.id)} className="block rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><div className="flex items-center gap-3"><Avatar initials={post.author.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><div><p className="flex items-center gap-1.5 text-xs font-black">{post.author.name}<AccountBadge verified={post.author.isVerified} owner={post.author.isOwner}/></p><p className="text-[10px] text-gray-400">@{post.author.username ?? "member"} · {new Date(post.createdAt).toLocaleString()}</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">{post.content ?? "Media post"}</p><p className="mt-2 text-[10px] text-gray-400">{post._count.likes} likes · {post._count.comments} comments</p></Link>) : <p className="py-8 text-center text-xs text-gray-400">No matching posts found.</p>}</div>
         </Card> : <Card>
           <div className="flex justify-between"><h2 className="text-sm font-black">Hashtags</h2><span className="text-xs font-bold text-gray-400">{discoverHashtags.length} tags</span></div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">{discoverHashtags.length ? discoverHashtags.map((item) => <Link key={item.tag} href={"/discover?q=" + encodeURIComponent(item.tag)} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><span className="block text-sm font-black text-[#5a4be8]">{item.tag}</span><span className="mt-1 block text-[10px] text-gray-400">{item.count} matching posts in the current result set</span></Link>) : <p className="py-8 text-center text-xs text-gray-400">No matching hashtags found.</p>}</div>
