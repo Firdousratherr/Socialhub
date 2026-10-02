@@ -574,6 +574,7 @@ function ProfilePostCard({
 }
 
 function Profile({ username = "firdous" }: { username?: string }) {
+  const router = useRouter();
   const { data: session } = authClient.useSession();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [editing, setEditing] = useState(false);
@@ -1035,7 +1036,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
         const json = await response.json().catch(() => ({}));
         throw new Error(json.error ?? "Could not block this user.");
       }
-      window.location.href = "/home";
+      router.push("/home");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not block this user.");
       setActionLoading(null);
