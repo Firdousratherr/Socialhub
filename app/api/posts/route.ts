@@ -200,6 +200,8 @@ export async function POST(request: Request) {
           name: true,
           username: true,
           image: true,
+          isVerified: true,
+          isOwner: true,
         },
       },
       _count: { select: { likes: true, comments: true } },
