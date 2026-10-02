@@ -14,8 +14,8 @@ export function AccountBadge({ verified = false, owner = false, size = "sm", sho
     return (
       <span
         className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-black text-amber-700 ring-1 ring-amber-200"
-        title="Socialhub owner account"
-        aria-label="Socialhub owner account"
+        title="Socialhub platform owner"
+        aria-label="Socialhub platform owner"
       >
         <Crown size={compact ? 10 : 12} strokeWidth={2.5} />
         {showLabel ? "Owner" : null}
