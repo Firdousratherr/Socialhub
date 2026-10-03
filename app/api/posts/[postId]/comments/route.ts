@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { commentInputSchema } from "@/lib/validation";
 import { canViewPost } from "@/lib/post-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { createMentionNotifications } from "@/lib/mentions";
 
 function decodeCursor(value: string | null) {
   if (!value) return null;
@@ -123,6 +124,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pos
       data: { userId: access.post.authorId, actorId: session.user.id, type: "COMMENT", postId, commentId: comment.id },
     });
   }
+  await createMentionNotifications(parsed.data.content, session.user.id, { postId, commentId: comment.id });
   const commentCount = await prisma.comment.count({ where: { postId } });
   const override = await prisma.adminPostMetricOverride.findUnique({ where: { postId }, select: { comments: true } });
   return NextResponse.json({ comment, commentCount: override?.comments ?? commentCount }, { status: 201 });
