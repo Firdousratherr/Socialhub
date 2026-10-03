@@ -1,1 +1,30 @@
-# Socialhub UX + Logic Audit Blueprint\n\n## Audit findings\n- The real message composer was present in source but pushed below the mobile viewport by the chat pane's viewport-sized minimum height.\n- Message polling reset the unseen-message counter and older-message cursor on every refresh.\n- A multiple-file attachment input only uploaded the first selected file.\n- Friend suggestions came from a broad user list, so existing friends/follows/pending requests could reappear.\n- Discover did not immediately reflect a successfully sent private-account friend request.\n- Home duplicated the Messages destination in the header while bottom navigation already provided it, and a decorative moment promo added noise without an action.\n\n## Implemented fixes\n1. Bound mobile Messages to the available viewport; made the chat list `min-height: 0`; kept the composer in the flex layout with safe-area support.\n2. Preserved new-message indicators and older-message cursors across polling; added throttled read-state handling when the user is at the bottom.\n3. Uploaded all selected message images up to the existing four-file limit.\n4. Added relationship-aware server-side suggestions filtering for friends, follows, blocks, and pending requests, with client-side defense in depth.\n5. Updated private friend-request state immediately after success.\n6. Removed the duplicate home-header Messages action and the non-functional promo; real Stories remain.\n\n## Verification\n- Mobile composer visible.\n- Live messages do not erase the unread indicator while scrolled up.\n- Older messages remain pageable after live refresh.\n- Suggestions contain only addable people.\n- Home uses the primary Messages item in bottom navigation.\n- All changes remain on the feature branch until CI/build verification is complete.
+# Socialhub UX + Logic Audit Blueprint
+
+## Audit findings
+- The real message composer existed in source but was pushed below the mobile viewport by a viewport-sized minimum-height layout.
+- Message polling could reset the new-message indicator and the older-message cursor.
+- A multiple-file attachment input only processed the first selected file.
+- Friend suggestions came from a broad user list, allowing friends, follows, and pending requests to reappear.
+- Discover could leave a private-account friend-request action visually stale after success.
+- Home duplicated Messages in the header even though mobile bottom navigation already contains it, and a non-actionable promotional moment block added noise.
+- Message/friend surfaces were using initials even when profile images were available.
+
+## Implemented fixes
+1. Bounded the mobile Messages shell to the actual available viewport and kept the composer as a non-shrinking bottom region.
+2. Preserved unseen-message indicators and older-message pagination across live polling, with throttled read-state updates when the user is at the bottom.
+3. Added multi-image attachment upload support up to four files.
+4. Made friend suggestions relationship-aware server-side and filtered again client-side.
+5. Updated private friend-request state immediately after success.
+6. Removed the duplicate home-header Messages action and the non-functional promo while keeping real Stories.
+7. Added profile images and account-badge metadata to messaging/relationship surfaces.
+8. Added contract coverage for the regressions.
+
+## Acceptance criteria
+- Mobile active chat always exposes typing, attachment, and send controls.
+- Selecting multiple message images uploads all selected files up to the cap.
+- Live polling never hides the new-message indicator or older pagination state.
+- Suggestions never contain existing friends, follows, blocks, or pending requests.
+- The private-account request action changes state immediately.
+- Home has one persistent mobile Messages destination.
+- Real Stories remain available independently of the removed promotional block.
+- Changes stay on the feature branch until all checks are successful.

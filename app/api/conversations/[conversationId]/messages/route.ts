@@ -51,8 +51,8 @@ export async function GET(
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: 51,
     include: {
-      sender: { select: { id: true, name: true, username: true, image: true } },
-      replyTo: { select: { id: true, content: true, senderId: true, sender: { select: { id: true, name: true, username: true } } } },
+      sender: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } },
+      replyTo: { select: { id: true, content: true, senderId: true, sender: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } } } },
       attachments: { orderBy: { createdAt: "asc" } },
       reactions: { include: { user: { select: { id: true, name: true, image: true } } }, orderBy: { createdAt: "asc" } },
     },
@@ -117,7 +117,7 @@ export async function POST(
         } : undefined,
       },
       include: {
-        sender: { select: { id: true, name: true, username: true, image: true } },
+        sender: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } },
         replyTo: { select: { id: true, content: true, senderId: true, sender: { select: { id: true, name: true, username: true } } } },
         attachments: true,
         reactions: { include: { user: { select: { id: true, name: true, image: true } } } },

@@ -457,3 +457,16 @@ test("home keeps messages in the primary bottom bar and removes the non-function
   const nav = read("components/bottom-nav.tsx");
   assert.match(nav, /href: "\/messages"/);
 });
+
+
+test("message API includes profile imagery and account badges for chat participants", () => {
+  const route = read("app/api/conversations/[conversationId]/messages/route.ts");
+  assert.match(route, /sender: \{ select: \{ id: true, name: true, username: true, image: true, isVerified: true, isOwner: true \} \}/);
+});
+
+test("messages and relationship pages pass real profile images to avatars", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /image=\{activeMember\?\.image\}/);
+  assert.match(page, /image=\{message\.sender\.image\}/);
+  assert.match(page, /image=\{person\.image\}/);
+});
