@@ -242,6 +242,10 @@ export function StoryCenter({
             <button type="button" onClick={() => setViewerIndex(null)} className="absolute right-4 top-4 grid size-10 place-items-center rounded-full bg-white/10 text-white"><X size={19}/></button>
             <button type="button" disabled={viewerIndex === 0} onClick={() => void openStory(Math.max(0, (viewerIndex ?? 0) - 1))} className="absolute left-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white disabled:opacity-30"><ChevronLeft size={21}/></button>
             <div className="relative max-h-full max-w-[min(90vw,520px)] overflow-hidden rounded-[2rem] bg-black shadow-2xl">
+              <div className="absolute inset-x-3 top-3 z-10 flex gap-1" aria-label={"Story " + ((viewerIndex ?? 0) + 1) + " of " + stories.length}>
+                {stories.map((story, index) => <span key={story.id} className={"h-1 flex-1 rounded-full " + (index <= (viewerIndex ?? 0) ? "bg-white" : "bg-white/30")} />)}
+              </div>
+              <div className="absolute left-3 top-6 z-10 rounded-full bg-black/35 px-2.5 py-1 text-[9px] font-black text-white">{(viewerIndex ?? 0) + 1} / {stories.length}</div>
               <img src={active.mediaUrl} alt={active.caption ?? "Story"} className="max-h-[88vh] w-auto max-w-full object-contain" />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-5 pt-16 text-white">
                 <p className="flex items-center gap-1.5 text-sm font-black">{active.author.name}<AccountBadge verified={active.author.isVerified} owner={active.author.isOwner}/></p>
