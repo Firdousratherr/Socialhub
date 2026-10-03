@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, Compass, Home, LogOut, MessageCircle, Settings, Users, X } from "lucide-react";
+import { Bell, Bookmark, Compass, Home, LogOut, MessageCircle, Settings, Users, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
 const items = [
@@ -12,6 +12,7 @@ const items = [
   { href: "/friends", label: "Friends", Icon: Users },
   { href: "/messages", label: "Messages", Icon: MessageCircle },
   { href: "/notifications", label: "Notifications", Icon: Bell },
+  { href: "/saved", label: "Saved posts", Icon: Bookmark },
   { href: "/settings", label: "Settings", Icon: Settings },
 ];
 
