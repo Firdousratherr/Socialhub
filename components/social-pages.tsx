@@ -1370,6 +1370,26 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+  useEffect(() => {
+    if (!session?.user?.id || !activeId) {
+      setDraft("");
+      return;
+    }
+    try {
+      setDraft(window.localStorage.getItem("socialhub:draft:" + session.user.id + ":" + activeId) ?? "");
+    } catch {
+      setDraft("");
+    }
+  }, [session?.user?.id, activeId]);
+
+  useEffect(() => {
+    if (!session?.user?.id || !activeId) return;
+    try {
+      const key = "socialhub:draft:" + session.user.id + ":" + activeId;
+      if (draft.trim()) window.localStorage.setItem(key, draft);
+      else window.localStorage.removeItem(key);
+    } catch {}
+  }, [session?.user?.id, activeId, draft]);
 
   const markConversationRead = useCallback(async () => {
     if (!activeId || !session?.user) return;
@@ -1863,6 +1883,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         if (messageListRef.current) messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
       });
       setDraft("");
+      try { window.localStorage.removeItem("socialhub:draft:" + session.user.id + ":" + activeId); } catch {}
       void fetch("/api/conversations/" + activeId + "/typing", { method: "DELETE" }).catch(() => {});
       setPendingAttachments([]);
       setReplyingToMessage(null);
