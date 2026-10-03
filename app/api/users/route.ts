@@ -74,7 +74,7 @@ export async function GET(request: Request) {
     }),
     prisma.adminMetricOverride.findMany({
       where: { userId: { in: userIds } },
-      select: { userId: true, posts: true, followers: true, following: true },
+      select: { userId: true, followers: true, following: true },
     }),
   ]);
 
@@ -97,7 +97,6 @@ export async function GET(request: Request) {
     return {
       ...user,
       displayCounts: {
-        posts: metricByUser.get(user.id)?.posts ?? user._count.posts,
         followers: metricByUser.get(user.id)?.followers ?? user._count.followers,
         following: metricByUser.get(user.id)?.following ?? user._count.following,
       },
