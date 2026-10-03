@@ -2179,7 +2179,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
             const isFollowing = following.has(user.id);
             return <div key={user.id} className="flex items-center gap-3">
               <Link href={"/profile/" + (user.username ?? user.id)}><Avatar initials={initials} image={user.image} color={colors[i % colors.length]}/></Link>
-              <div className="min-w-0 flex-1"><Link href={"/profile/" + (user.username ?? user.id)} className="flex items-center gap-1.5 truncate text-xs font-black hover:text-[#5a4be8]">{user.name}<AccountBadge verified={user.isVerified} owner={user.isOwner}/></Link><p className="truncate text-[11px] text-gray-400">@{user.username ?? "member"} · <span title={fullCount(user._count.followers) + " followers"}>{compactCount(user._count.followers)} followers</span></p></div>
+              <div className="min-w-0 flex-1"><Link href={"/profile/" + (user.username ?? user.id)} className="flex items-center gap-1.5 truncate text-xs font-black hover:text-[#5a4be8]">{user.name}<AccountBadge verified={user.isVerified} owner={user.isOwner}/></Link><p className="truncate text-[11px] text-gray-400">@{user.username ?? "member"} · <span title={fullCount(user.displayCounts?.followers ?? user._count.followers) + " followers"}>{compactCount(user.displayCounts?.followers ?? user._count.followers)} followers</span></p></div>
               <button onClick={()=>void toggleFollow(user)} disabled={user.friendRequestStatus === "OUTGOING_PENDING" || user.friendRequestStatus === "INCOMING_PENDING"} className={isFollowing ? "grid size-9 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600 disabled:opacity-50" : "grid size-9 place-items-center rounded-xl bg-gray-950 text-white disabled:opacity-50"} aria-label={isFollowing ? "Unfollow" : user.friendRequestStatus === "OUTGOING_PENDING" ? "Friend request sent" : user.isPrivate ? "Add friend" : "Follow"}>{isFollowing ? <Check size={15}/> : user.friendRequestStatus === "OUTGOING_PENDING" ? <Check size={15}/> : user.isPrivate ? <UserPlus size={15}/> : <UserPlus size={15}/>}</button>
             </div>;
           })}</div>
@@ -2216,6 +2216,7 @@ type FriendPerson = {
   isFollowing?: boolean;
   isFriend?: boolean;
   friendRequestStatus?: "NONE" | "OUTGOING_PENDING" | "INCOMING_PENDING";
+  displayCounts?: { followers: number; following?: number; posts?: number };
 };
 
 type FriendRequestData = {
