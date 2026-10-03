@@ -1189,15 +1189,22 @@ function Profile({ username = "firdous" }: { username?: string }) {
         ) : (
           <>
             <p className="mt-5 max-w-2xl text-sm leading-6 text-gray-600">{profile?.bio ?? form.bio}</p>
-            <div className="mt-5 flex flex-wrap gap-2 text-sm">
-  <span className="rounded-xl bg-gray-50 px-3 py-2" title={fullCount(postCount) + " posts"}><strong className="font-black">{compactCount(postCount)}</strong> <span className="text-gray-400">posts</span></span>
-  <button type="button" onClick={() => void openRelationships("followers")} title={fullCount(followerCount) + " followers"} className="rounded-xl bg-gray-50 px-3 py-2 hover:bg-[#eeebff]"><strong className="font-black">{compactCount(followerCount)}</strong> <span className="text-gray-400">followers</span></button>
-  <button type="button" onClick={() => void openRelationships("following")} title={fullCount(followingCount) + " following"} className="rounded-xl bg-gray-50 px-3 py-2 hover:bg-[#eeebff]"><strong className="font-black">{compactCount(followingCount)}</strong> <span className="text-gray-400">following</span></button>
-  <span className="rounded-xl bg-gray-50 px-3 py-2" title={fullCount(likesReceivedCount) + " likes"}><strong className="font-black">{compactCount(likesReceivedCount)}</strong> <span className="text-gray-400">likes</span></span>
-  <span className="rounded-xl bg-gray-50 px-3 py-2" title={fullCount(commentsReceivedCount) + " comments"}><strong className="font-black">{compactCount(commentsReceivedCount)}</strong> <span className="text-gray-400">comments</span></span>
-  <span className="rounded-xl bg-gray-50 px-3 py-2" title={fullCount(shareCount) + " shares"}><strong className="font-black">{compactCount(shareCount)}</strong> <span className="text-gray-400">shares</span></span>
-  <span className="rounded-xl bg-gray-50 px-3 py-2" title={fullCount(profileViewCount) + " views"}><strong className="font-black">{compactCount(profileViewCount)}</strong> <span className="text-gray-400">views</span></span>
-  {!isOwner && session?.user && relationships?.mutual?.length ? <button type="button" onClick={() => void openRelationships("mutual")} title={fullCount(relationships.mutual.length) + " mutual"} className="rounded-xl bg-[#eeebff] px-3 py-2 font-bold text-[#5a4be8]">{compactCount(relationships.mutual.length)} mutual</button> : null}
+            <div className="mt-5 max-w-2xl overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
+  <div className="grid grid-cols-3 divide-x divide-gray-100">
+    <div className="px-3 py-3 text-center" title={fullCount(postCount) + " posts"}><strong className="block text-base font-black">{compactCount(postCount)}</strong><span className="text-[10px] font-bold uppercase tracking-[.08em] text-gray-400">posts</span></div>
+    <button type="button" onClick={() => void openRelationships("followers")} title={fullCount(followerCount) + " followers"} className="px-3 py-3 text-center hover:bg-white"><strong className="block text-base font-black">{compactCount(followerCount)}</strong><span className="text-[10px] font-bold uppercase tracking-[.08em] text-gray-400">followers</span></button>
+    <button type="button" onClick={() => void openRelationships("following")} title={fullCount(followingCount) + " following"} className="px-3 py-3 text-center hover:bg-white"><strong className="block text-base font-black">{compactCount(followingCount)}</strong><span className="text-[10px] font-bold uppercase tracking-[.08em] text-gray-400">following</span></button>
+  </div>
+  <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 px-3 py-2.5">
+    <span className="text-[10px] font-black text-gray-500" title={fullCount(likesReceivedCount) + " likes"}><span className="text-[#5a4be8]">{compactCount(likesReceivedCount)}</span> likes</span>
+    <span className="text-gray-200">·</span>
+    <span className="text-[10px] font-black text-gray-500" title={fullCount(commentsReceivedCount) + " comments"}><span className="text-[#5a4be8]">{compactCount(commentsReceivedCount)}</span> comments</span>
+    <span className="text-gray-200">·</span>
+    <span className="text-[10px] font-black text-gray-500" title={fullCount(shareCount) + " shares"}><span className="text-[#5a4be8]">{compactCount(shareCount)}</span> shares</span>
+    <span className="text-gray-200">·</span>
+    <span className="text-[10px] font-black text-gray-500" title={fullCount(profileViewCount) + " views"}><span className="text-[#5a4be8]">{compactCount(profileViewCount)}</span> views</span>
+    {!isOwner && session?.user && relationships?.mutual?.length ? <button type="button" onClick={() => void openRelationships("mutual")} title={fullCount(relationships.mutual.length) + " mutual"} className="ml-auto rounded-full bg-[#eeebff] px-2.5 py-1 text-[10px] font-bold text-[#5a4be8]">{compactCount(relationships.mutual.length)} mutual</button> : null}
+  </div>
 </div>
           </>
         )}
