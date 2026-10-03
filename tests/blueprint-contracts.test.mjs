@@ -609,3 +609,15 @@ test("Discover cancels stale search requests", () => {
   assert.match(pages, /new AbortController\(\)/);
   assert.match(pages, /controller\.abort\(\)/);
 });
+
+
+test("mentions create preference-aware notifications for posts and comments", () => {
+  const helper = read("lib/mentions.ts");
+  const posts = read("app/api/posts/route.ts");
+  const comments = read("app/api/posts/[postId]/comments/route.ts");
+  assert.match(helper, /extractMentionUsernames/);
+  assert.match(helper, /mentions/);
+  assert.match(helper, /type: "MENTION"/);
+  assert.match(posts, /createMentionNotifications/);
+  assert.match(comments, /createMentionNotifications/);
+});
