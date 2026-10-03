@@ -540,3 +540,51 @@ test("moderator permissions provide named presets without bypassing the permissi
   assert.match(panel, /MODERATOR_PERMISSION_PRESETS/);
   assert.match(panel, /Save moderator permissions/);
 });
+
+
+test("Discover separates search from relationship-aware suggestions and uses public counts", () => {
+  const search = read("app/api/search/route.ts");
+  const pages = read("components/social-pages.tsx");
+  assert.match(search, /adminMetricOverride\.findMany/);
+  assert.ok(search.includes("followers: userMetricById.get(user.id)?.followers"));
+  assert.ok(pages.includes("/api/users?suggestions=true&take=20"));
+  assert.ok(pages.includes("user.displayCounts?.followers ?? user._count.followers"));
+});
+
+test("saved posts have a private collection endpoint and dedicated UI route", () => {
+  const route = read("app/api/saved/route.ts");
+  const page = read("app/saved/page.tsx");
+  const ui = read("components/saved-posts.tsx");
+  assert.match(route, /prisma\.savedPost\.findMany/);
+  assert.match(route, /savedAt/);
+  assert.match(page, /SavedPosts/);
+  assert.match(ui, /Nothing saved yet/);
+  assert.match(ui, /Load more/);
+});
+
+test("mobile navigation exposes saved posts", () => {
+  const nav = read("components/mobile-menu.tsx");
+  assert.match(nav, /href: "\/saved"/);
+  assert.match(nav, /Saved posts/);
+});
+
+test("notification inbox has actionable filters", () => {
+  const pages = read("components/social-pages.tsx");
+  assert.match(pages, /NotificationFilter/);
+  assert.match(pages, /Unread/);
+  assert.match(pages, /Messages/);
+  assert.match(pages, /Requests/);
+});
+
+test("message drafts persist per conversation and clear after send", () => {
+  const pages = read("components/social-pages.tsx");
+  assert.match(pages, /socialhub:draft:/);
+  assert.match(pages, /localStorage\.setItem/);
+  assert.match(pages, /localStorage\.removeItem/);
+});
+
+test("story viewer exposes position and progress", () => {
+  const story = read("components/story-center.tsx");
+  assert.match(story, /Story .* of/);
+  assert.match(story, /viewerIndex/);
+});
