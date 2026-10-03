@@ -2083,14 +2083,17 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
       setLoading(true);
       setError("");
       try {
-        const response = await fetch("/api/search?q=" + encodeURIComponent(q) + "&take=20", { cache: "no-store" });
+        const endpoint = q.trim()
+          ? "/api/search?q=" + encodeURIComponent(q) + "&take=20"
+          : "/api/users?suggestions=true&take=20";
+        const response = await fetch(endpoint, { cache: "no-store" });
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not search.");
         if (!cancelled) {
           const nextResults = (json.users ?? []) as DiscoverUser[];
           setResults(nextResults);
-          setDiscoverPosts(json.posts ?? []);
-          setDiscoverHashtags(json.hashtags ?? []);
+          setDiscoverPosts(q.trim() ? (json.posts ?? []) : []);
+          setDiscoverHashtags(q.trim() ? (json.hashtags ?? []) : []);
           setFollowing(new Set(nextResults.filter((user) => user.isFollowing).map((user) => user.id)));
         }
       } catch (requestError) {
