@@ -6,6 +6,7 @@ import { postInputSchema } from "@/lib/validation";
 import { getBlockedUserIds } from "@/lib/social-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { getPostDisplayCountsMap } from "@/lib/post-metrics";
+import { createMentionNotifications } from "@/lib/mentions";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -218,5 +219,6 @@ export async function POST(request: Request) {
     },
   });
 
+  await createMentionNotifications(parsed.data.content ?? "", session.user.id, { postId: post.id });
   return NextResponse.json({ post, liked: false, saved: false }, { status: 201 });
 }
