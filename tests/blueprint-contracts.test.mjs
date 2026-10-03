@@ -197,7 +197,7 @@ test("feed mobile navigation uses messages instead of the legacy create-plus slo
 test("messaging has live refresh, typing presence, and read receipts", () => {
   const component = read("components/social-pages.tsx");
   const typing = read("app/api/conversations/[conversationId]/typing/route.ts");
-  assert.match(component, /setInterval\(\(\) => \{[\s\S]*?loadMessages\(\);[\s\S]*?\}, 2000\)/);
+  assert.match(component, /window\.setInterval\(\(\) => \{[\s\S]*?loadMessages\(\);[\s\S]*?\}, 2000\)/);
   assert.match(component, /setInterval\(\(\) => \{ void refreshTyping\(\); \}, 2000\)/);
   assert.match(component, /is typing/);
   assert.match(component, /Seen/);
