@@ -588,3 +588,24 @@ test("story viewer exposes position and progress", () => {
   assert.match(story, /Story .* of/);
   assert.match(story, /viewerIndex/);
 });
+
+
+test("mobile navigation has keyboard focus containment", () => {
+  const menu = read("components/mobile-menu.tsx");
+  assert.match(menu, /closeButtonRef/);
+  assert.match(menu, /event\.key !== "Tab"/);
+  assert.match(menu, /focusable/);
+});
+
+test("home composer preserves unfinished post drafts", () => {
+  const home = read("components/home-feed.tsx");
+  assert.match(home, /socialhub:post-draft:/);
+  assert.match(home, /localStorage\.setItem/);
+  assert.match(home, /localStorage\.removeItem/);
+});
+
+test("Discover cancels stale search requests", () => {
+  const pages = read("components/social-pages.tsx");
+  assert.match(pages, /new AbortController\(\)/);
+  assert.match(pages, /controller\.abort\(\)/);
+});
