@@ -27,7 +27,9 @@ export async function GET(request: Request) {
   });
 
   const hasMore = rows.length > take;
-  const visible = rows.slice(0, take).filter((row) => row.post.authorId === session.user.id || row.post.visibility === "PUBLIC");
+  const candidates = rows.slice(0, take);
+  const visibility = await Promise.all(candidates.map(async (row) => ({ row, access: await canViewPost(row.post.id, session.user.id) })));
+  const visible = visibility.filter(({ access }) => access.allowed).map(({ row }) => row);
   const display = await getPostDisplayCountsMap(visible.map((row) => row.post.id));
   return NextResponse.json({
     posts: visible.map((row) => ({
