@@ -28,3 +28,6 @@
 - Home has one persistent mobile Messages destination.
 - Real Stories remain available independently of the removed promotional block.
 - Changes stay on the feature branch until all checks are successful.
+
+
+Implementation status: ready for final CI/build verification before merge and production release.
