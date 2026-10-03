@@ -10,6 +10,7 @@ import { useUnreadSummary } from "@/hooks/use-unread-summary";
 import { emitPostSyncEvent, subscribePostSync } from "@/lib/post-sync";
 import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
 import { useLivePoll } from "@/hooks/use-live-poll";
+import { compactCount, fullCount } from "@/lib/compact-count";
 import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
 import { useRouter } from "next/navigation";
@@ -707,24 +708,15 @@ function PostCard({
 
         {post.mediaUrl ? (
           <img src={post.mediaUrl} alt="" className="mt-4 max-h-[520px] w-full rounded-2xl object-cover" />
-        ) : (
-          <div className={`relative mt-4 overflow-hidden rounded-2xl bg-gradient-to-br p-6 sm:p-8 ${post.accent}`}>
-            <div className="absolute -right-12 -top-12 size-36 rounded-full bg-white/25 blur-2xl" />
-            <div className="absolute -bottom-12 -left-8 size-32 rounded-full bg-white/20 blur-2xl" />
-            <div className="relative max-w-sm">
-              <div className="mb-6 inline-flex rounded-full bg-white/25 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/90">Socialhub moment</div>
-              <p className="text-2xl font-black leading-tight tracking-[-0.04em] text-white sm:text-3xl">Keep the small moments. They become the big story.</p>
-            </div>
-          </div>
-        )}
+        ) : null}
 
         {error ? (
           <div className="mt-3 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-3 py-2.5 text-[11px] font-semibold text-[#5a4be8]">{error}</div>
         ) : null}
 
         <div className="mt-4 flex items-center justify-between text-xs font-semibold text-gray-400">
-          <span>{likeCount.toLocaleString()} reactions</span>
-          <span>{commentCount} comments · {shareCount} shares</span>
+          <span title={fullCount(likeCount) + " reactions"}>{compactCount(likeCount)} reactions</span>
+          <span title={fullCount(commentCount) + " comments"}>{compactCount(commentCount)} comments · <span title={fullCount(shareCount) + " shares"}>{compactCount(shareCount)} shares</span></span>
         </div>
 
         <div className="mt-4 grid grid-cols-4 border-t border-gray-100 pt-3">
