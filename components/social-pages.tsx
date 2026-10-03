@@ -2044,6 +2044,7 @@ type DiscoverUser = {
   canSendFriendRequest?: boolean;
   isVerified?: boolean;
   isOwner?: boolean;
+  displayCounts?: { followers: number; following?: number; posts?: number };
   _count: { followers: number; following: number };
 };
 
