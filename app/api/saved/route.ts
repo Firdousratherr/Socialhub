@@ -42,7 +42,7 @@ export async function GET(request: Request) {
       },
       saved: true,
     })),
-    nextCursor: hasMore && visible.length ? visible[visible.length - 1].savedAt.toISOString() : null,
+    nextCursor: hasMore && visible.length ? visible[visible.length - 1].createdAt.toISOString() : null,
   });
 }
 
