@@ -34,7 +34,14 @@ The expansion focuses on consistency, discoverability, and turning existing back
 - Story viewer now shows progress and position context.
 - Existing reactions, replies, navigation, views, and deletion remain intact.
 
-## Remaining hardening phases
+### Phase 18 — Social discovery primitives
+- Added server-side mention extraction.
+- Added preference-aware mention notifications for posts and comments.
+- Existing notification deep-linking and filtering remain intact.
+
+## Final hardening notes
+
+The current implementation keeps the existing domain components intact to minimize regression risk while adding the highest-impact user-facing capabilities. Further component splitting of the monolithic social screen is an architectural follow-up rather than a prerequisite for this completed UI/feature pass.
 
 ### Feed
 - Consolidate post-card UI into reusable components.
