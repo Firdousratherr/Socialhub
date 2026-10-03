@@ -8,6 +8,8 @@ import { MobileMenu } from "@/components/mobile-menu";
 import { BottomNav } from "@/components/bottom-nav";
 import { useUnreadSummary } from "@/hooks/use-unread-summary";
 import { emitPostSyncEvent, subscribePostSync } from "@/lib/post-sync";
+import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
+import { useLivePoll } from "@/hooks/use-live-poll";
 import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
 import { useRouter } from "next/navigation";
@@ -205,7 +207,7 @@ function CommentThread({
   const [editingCommentText, setEditingCommentText] = useState("");
   const [savingComment, setSavingComment] = useState(false);
 
-  async function loadComments(before?: string) {
+  async function loadComments(before?: string, live = false) {
     const query = before ? `?before=${encodeURIComponent(before)}` : "";
     const response = await fetch(`/api/posts/${postId}/comments${query}`, { cache: "no-store" });
     const json = await response.json();
@@ -213,6 +215,12 @@ function CommentThread({
     const next = (json.comments ?? []) as CommentItem[];
     if (before) {
       setComments((current) => [...next, ...current]);
+    } else if (live) {
+      setComments((current) => {
+        const freshIds = new Set(next.map((item) => item.id));
+        const retained = current.filter((item) => !freshIds.has(item.id));
+        return [...next, ...retained];
+      });
     } else {
       setComments(next);
     }
@@ -234,6 +242,14 @@ function CommentThread({
     void load();
     return () => { cancelled = true; };
   }, [postId]);
+
+  useLivePoll(
+    () => loadComments(undefined, true).catch((loadError) => {
+      setError(loadError instanceof Error ? loadError.message : "Could not refresh comments.");
+    }),
+    5000,
+    true,
+  );
 
   async function loadOlder() {
     if (!nextBefore || loadingMore) return;
@@ -263,6 +279,7 @@ function CommentThread({
       setComments((current) => current.map((item) => item.id === commentId ? { ...item, ...updated } : { ...item, replies: (item.replies ?? []).map((reply) => reply.id === commentId ? { ...reply, ...updated } : reply) }));
       setEditingCommentId(null);
       setEditingCommentText("");
+      emitLiveSync({ type: "comment-updated", postId, commentId });
     } catch (e) { setError(e instanceof Error ? e.message : "Could not edit comment."); }
     finally { setSavingComment(false); }
   }
@@ -279,6 +296,7 @@ function CommentThread({
       if (!response.ok) throw new Error(json.error ?? "Could not delete comment.");
       setComments((current) => current.filter((item) => item.id !== commentId).map((item) => ({ ...item, replies: (item.replies ?? []).filter((reply) => reply.id !== commentId) })));
       if (typeof json.commentCount === "number") onCountChange(json.commentCount);
+      emitLiveSync({ type: "comment-deleted", postId, commentId });
     } catch (e) { setError(e instanceof Error ? e.message : "Could not delete comment."); }
   }
 
@@ -308,6 +326,7 @@ function CommentThread({
       setText("");
       setReplyTo(null);
       if (typeof json.commentCount === "number") onCountChange(json.commentCount);
+      emitLiveSync({ type: "comment-created", postId, commentId: created.id });
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "Could not post comment.");
     } finally {
@@ -474,6 +493,7 @@ function PostCard({
     if (response.ok) {
       setLiked(Boolean(json.liked));
       setLikeCount(Number(json.count ?? likeCount));
+      emitLiveSync({ type: "post-updated", postId: post.id });
     }
   }
 
@@ -492,6 +512,7 @@ function PostCard({
       });
       setMyReaction(emoji);
       setReactionMenuOpen(false);
+      emitLiveSync({ type: "post-updated", postId: post.id });
     }
   }
 
@@ -501,12 +522,16 @@ function PostCard({
       setReactions((current) => current.map((item) => item.emoji === myReaction ? { ...item, count: item.count - 1 } : item).filter((item) => item.count > 0));
       setMyReaction(null);
       setReactionMenuOpen(false);
+      emitLiveSync({ type: "post-updated", postId: post.id });
     }
   }
 
   async function toggleSave() {
     const response = await fetch(`/api/posts/${post.id}/save`, { method: saved ? "DELETE" : "POST" });
-    if (response.ok) setSaved(!saved);
+    if (response.ok) {
+      setSaved(!saved);
+      emitLiveSync({ type: "post-updated", postId: post.id });
+    }
   }
 
   async function sharePost() {
@@ -519,7 +544,10 @@ function PostCard({
       }
       const response = await fetch(`/api/posts/${post.id}/share`, { method: "POST" });
       const json = await response.json().catch(() => ({}));
-      if (response.ok) setShareCount(Number(json.shareCount ?? shareCount + 1));
+      if (response.ok) {
+        setShareCount(Number(json.shareCount ?? shareCount + 1));
+        emitLiveSync({ type: "post-updated", postId: post.id });
+      }
     } catch {
       // User cancelled share or the clipboard is unavailable.
     }
@@ -563,8 +591,11 @@ function PostCard({
   async function deletePost() {
     if (!window.confirm("Delete this post permanently?")) return;
     const response = await fetch(`/api/posts/${post.id}`, { method: "DELETE" });
-    if (response.ok) onRemove(post.id);
-    else setError("Could not delete the post.");
+    if (response.ok) {
+      onRemove(post.id);
+      emitPostSyncEvent({ type: "deleted", postId: post.id });
+      emitLiveSync({ type: "post-deleted", postId: post.id });
+    } else setError("Could not delete the post.");
   }
 
   async function reportPost() {
@@ -742,7 +773,14 @@ export default function HomeFeed() {
   const [searchTerm, setSearchTerm] = useState("");
   const [feedMode, setFeedMode] = useState<"FOR_YOU" | "FOLLOWING" | "FRIENDS" | "LATEST" | "SAVED">("FOR_YOU");
   const [feedModeOpen, setFeedModeOpen] = useState(false);
+  const [pendingLivePosts, setPendingLivePosts] = useState<Post[]>([]);
+  const [newActivityCount, setNewActivityCount] = useState(0);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const feedPostsRef = useRef<Post[]>([]);
+
+  useEffect(() => {
+    feedPostsRef.current = feedPosts;
+  }, [feedPosts]);
 
   async function fetchFeed(before?: string | null, append = false) {
     const query = new URLSearchParams({ take: "20", mode: feedMode });
@@ -788,6 +826,46 @@ export default function HomeFeed() {
     };
   }, [session?.user?.id, feedMode]);
 
+  async function refreshLiveFeed() {
+    const query = new URLSearchParams({ take: "20", mode: feedMode });
+    try {
+      const response = await fetch("/api/posts?" + query.toString(), { cache: "no-store" });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error ?? "Could not refresh your feed.");
+      const latest = (json.posts ?? []).map(mapApiPostToFeedPost) as Post[];
+      const current = feedPostsRef.current;
+      const currentIds = new Set(current.map((post) => post.id));
+      const pendingIds = new Set(pendingLivePosts.map((post) => post.id));
+      const incoming = latest.filter((post) => !currentIds.has(post.id));
+      const newPending = incoming.filter((post) => !pendingIds.has(post.id));
+      const latestById = new Map(latest.map((post) => [post.id, post]));
+
+      setFeedPosts((items) => items.map((post) => latestById.get(post.id) ?? post));
+
+      if (incoming.length) {
+        if (window.scrollY < 220) {
+          setFeedPosts((items) => {
+            const ids = new Set(items.map((post) => post.id));
+            return [...incoming.filter((post) => !ids.has(post.id)), ...items];
+          });
+          setPendingLivePosts([]);
+          setNewActivityCount(0);
+        } else if (newPending.length) {
+          setPendingLivePosts((items) => {
+            const ids = new Set(items.map((post) => post.id));
+            return [...newPending.filter((post) => !ids.has(post.id)), ...items];
+          });
+          setNewActivityCount((count) => count + newPending.length);
+        }
+      }
+      if (current.length <= latest.length) setNextBefore(json.nextBefore ?? null);
+    } catch (loadError) {
+      setFeedError(loadError instanceof Error ? loadError.message : "Could not refresh your feed.");
+    }
+  }
+
+  useLivePoll(refreshLiveFeed, 7000, Boolean(session?.user && feedPosts.length));
+
   useEffect(() => {
     const refresh = () => {
       void fetchFeed().catch((loadError) => {
@@ -798,6 +876,7 @@ export default function HomeFeed() {
     const unsubscribe = subscribePostSync((event) => {
       if (event.type === "deleted") {
         setFeedPosts((current) => current.filter((post) => post.id !== event.postId));
+        setPendingLivePosts((current) => current.filter((post) => post.id !== event.postId));
         return;
       }
       refresh();
@@ -810,7 +889,14 @@ export default function HomeFeed() {
 
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pageshow", onPageShow);
+    const unsubscribeLive = subscribeLiveSync((event) => {
+      if (event.type === "comment-created" || event.type === "comment-updated" || event.type === "comment-deleted") {
+        if (!event.postId) return;
+        void refreshLiveFeed();
+      }
+    });
     return () => {
+      unsubscribeLive();
       unsubscribe();
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pageshow", onPageShow);
@@ -878,6 +964,7 @@ export default function HomeFeed() {
       };
       setFeedPosts((current) => [created, ...current]);
       emitPostSyncEvent({ type: "created", postId: created.id });
+      emitLiveSync({ type: "post-created", postId: created.id });
       setNewPost("");
       setVisibility("PUBLIC");
       setMediaUrl(null);
@@ -911,6 +998,17 @@ export default function HomeFeed() {
   }
   const canSubmit = Boolean(session?.user && (newPost.trim() || mediaUrl) && !publishing && !uploading);
   const visibleStories = useMemo(() => stories.filter((story) => new Date(story.expiresAt) > new Date()).slice(0, 6), [stories]);
+
+  function showPendingLivePosts() {
+    if (!pendingLivePosts.length) return;
+    setFeedPosts((items) => {
+      const ids = new Set(items.map((post) => post.id));
+      return [...pendingLivePosts.filter((post) => !ids.has(post.id)), ...items];
+    });
+    setPendingLivePosts([]);
+    setNewActivityCount(0);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   useEffect(() => {
     const target = window.location.hash.replace(/^#/, "");
@@ -966,6 +1064,13 @@ export default function HomeFeed() {
 
   return (
     <main className="min-h-screen bg-transparent pb-20 md:pb-6">
+      {newActivityCount > 0 ? (
+        <div className="sticky top-[74px] z-20 mx-auto -mb-2 flex max-w-[720px] justify-center px-4 pt-2">
+          <button type="button" onClick={showPendingLivePosts} className="rounded-full border border-[#d9d4ff] bg-white/95 px-4 py-2 text-xs font-black text-[#5a4be8] shadow-lg backdrop-blur-xl">
+            {newActivityCount === 1 ? "1 new post" : newActivityCount + " new posts"} · Show
+          </button>
+        </div>
+      ) : null}
       <header className="sticky top-0 z-30 border-b border-white/70 bg-white/88 shadow-[0_10px_35px_rgba(23,20,45,.06)] backdrop-blur-2xl">
         <div className="h-0.5 bg-gradient-to-r from-[#6d5dfc] via-[#9c7cff] to-[#36b8ff]" />
         <div className="mx-auto flex h-[74px] max-w-[1440px] items-center gap-3 px-3 sm:px-6 lg:px-8">

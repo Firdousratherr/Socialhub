@@ -342,10 +342,66 @@ test("unread summary powers shared navigation badges", () => {
   assert.match(route, /unreadCount/);
   assert.match(route, /friendRequestCount/);
   assert.match(hook, /\/api\/unread-summary/);
-  assert.match(hook, /15000/);
+  assert.match(hook, /8000/);
   assert.match(nav, /summary\.messages/);
   assert.match(nav, /summary\.notifications/);
   assert.match(nav, /summary\.friendRequests/);
   assert.match(home, /unreadSummary\.messages/);
   assert.match(home, /unreadSummary\.notifications/);
+});
+
+
+test("live UI uses a shared visibility-aware sync layer", () => {
+  const live = read("lib/live-sync.ts");
+  const poll = read("hooks/use-live-poll.ts");
+  assert.match(live, /BroadcastChannel/);
+  assert.match(live, /CustomEvent/);
+  assert.match(poll, /document\.visibilityState/);
+  assert.match(poll, /navigator\.onLine/);
+});
+
+test("unread summary polling is shared instead of one interval per mounted badge", () => {
+  const hook = read("hooks/use-unread-summary.ts");
+  assert.match(hook, /listeners = new Set/);
+  assert.match(hook, /8000/);
+  assert.doesNotMatch(hook, /setInterval\(\(\) => void refresh\(\), 15000\)/);
+});
+
+test("notifications refresh live and preserve older pagination results", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /useLivePoll\(refreshNotifications, 6500/);
+  assert.match(page, /freshIds/);
+  assert.match(page, /subscribeLiveSync/);
+});
+
+test("feed exposes a non-jumping new-post affordance and live comment refresh", () => {
+  const feed = read("components/home-feed.tsx");
+  assert.match(feed, /useLivePoll\(refreshLiveFeed, 7000/);
+  assert.match(feed, /newActivityCount/);
+  assert.match(feed, /Jump to latest|new posts.*Show|new post.*Show/);
+  assert.match(feed, /loadComments\(undefined, true\)/);
+  assert.match(feed, /comment-created/);
+});
+
+test("mobile messaging switches between inbox and active chat", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /activeId \? "hidden lg:block/);
+  assert.match(page, /Back to conversations/);
+  assert.match(page, /newMessagesCount/);
+  assert.match(page, /Jump to latest/);
+});
+
+test("live refresh preserves pagination after older feed or chat content has been loaded", () => {
+  const feed = read("components/home-feed.tsx");
+  const pages = read("components/social-pages.tsx");
+  assert.match(feed, /current\.length <= latest\.length/);
+  assert.match(pages, /olderAlreadyLoaded/);
+  assert.match(pages, /mergedMessages/);
+  assert.match(pages, /if \(!olderAlreadyLoaded\) setNextMessagesCursor/);
+});
+
+test("friend and message read actions refresh global unread state immediately", () => {
+  const pages = read("components/social-pages.tsx");
+  assert.match(pages, /emitUnreadSummarySync\(\)/);
+  assert.match(pages, /friend-request-changed/);
 });

@@ -21,6 +21,7 @@
 
 html {
   scroll-behavior: smooth;
+  text-rendering: optimizeLegibility;
 }
 
 body {
@@ -29,6 +30,7 @@ body {
     radial-gradient(circle at 5% 0%, rgba(109, 93, 252, 0.08), transparent 26rem),
     var(--background);
   color: var(--foreground);
+  overflow-x: hidden;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -74,9 +76,52 @@ button {
 
 .social-icon-button:focus-visible,
 .social-nav-link:focus-visible,
-.social-button:focus-visible {
+.social-button:focus-visible,
+.social-input:focus-visible {
   outline: 3px solid rgba(109, 93, 252, 0.24);
   outline-offset: 2px;
+}
+
+.social-input {
+  min-height: 42px;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 14px;
+  background: rgba(247, 248, 251, 0.95);
+  color: var(--foreground);
+  transition: 160ms ease;
+}
+
+.social-input::placeholder {
+  color: #9ca3af;
+}
+
+.social-input:focus {
+  border-color: rgba(109, 93, 252, 0.28);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(109, 93, 252, 0.08);
+}
+
+.social-button {
+  min-height: 42px;
+  border-radius: 14px;
+  padding: 0 14px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  transition: 160ms ease;
+}
+
+.social-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.chat-scroll {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
 .social-nav-link {

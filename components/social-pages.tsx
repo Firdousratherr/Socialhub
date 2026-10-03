@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
 import { MobileMenu } from "@/components/mobile-menu";
 import { emitPostSyncEvent } from "@/lib/post-sync";
+import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
+import { emitUnreadSummarySync } from "@/hooks/use-unread-summary";
+import { useLivePoll } from "@/hooks/use-live-poll";
 import { BottomNav } from "@/components/bottom-nav";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
@@ -1346,8 +1349,14 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessageText, setEditingMessageText] = useState("");
   const [savingMessage, setSavingMessage] = useState(false);
+  const [newMessagesCount, setNewMessagesCount] = useState(0);
   const attachmentRef = useRef<HTMLInputElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1382,7 +1391,9 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
 
     void loadConversations();
-    const timer = window.setInterval(() => { void loadConversations(true); }, 5000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible" && navigator.onLine !== false) void loadConversations(true);
+    }, 5000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -1461,6 +1472,8 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     let cancelled = false;
 
     async function loadMessages() {
+      setNewMessagesCount(0);
+      setNextMessagesCursor(null);
       if (!activeId || !session?.user) {
         setMessages([]);
         return;
@@ -1472,10 +1485,24 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         if (!response.ok) throw new Error(json.error ?? "Could not load messages.");
         if (!cancelled) {
           const nextMessages = json.messages as ChatMessage[];
+          const currentMessages = messagesRef.current;
+          const previousLastId = currentMessages.at(-1)?.id;
+          const nextLastId = nextMessages.at(-1)?.id;
           const container = messageListRef.current;
           const nearBottom = !container || container.scrollHeight - container.scrollTop - container.clientHeight < 140;
-          setMessages(nextMessages);
-          setNextMessagesCursor(json.nextBefore ?? null);
+          const externalNewMessage = Boolean(previousLastId && nextLastId && previousLastId !== nextLastId);
+          const olderAlreadyLoaded = currentMessages.length > nextMessages.length;
+          const fetchedIds = new Set(nextMessages.map((message) => message.id));
+          const mergedMessages = olderAlreadyLoaded
+            ? [...currentMessages.filter((message) => !fetchedIds.has(message.id)), ...nextMessages]
+            : nextMessages;
+          setMessages(mergedMessages);
+          if (externalNewMessage && nearBottom) {
+            setNewMessagesCount(0);
+          } else if (externalNewMessage && !nearBottom) {
+            setNewMessagesCount((count) => Math.max(1, count + 1));
+          }
+          if (!olderAlreadyLoaded) setNextMessagesCursor(json.nextBefore ?? null);
           if (nearBottom) {
             window.requestAnimationFrame(() => {
               if (messageListRef.current) messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
@@ -1487,9 +1514,12 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "read" }),
         }).then(() => {
-          if (!cancelled) setConversations((current) => current.map((conversation) =>
-            conversation.id === activeId ? { ...conversation, unreadCount: 0 } : conversation
-          ));
+          if (!cancelled) {
+            setConversations((current) => current.map((conversation) =>
+              conversation.id === activeId ? { ...conversation, unreadCount: 0 } : conversation
+            ));
+            emitUnreadSummarySync();
+          }
         }).catch(() => {});
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load messages.");
@@ -1497,7 +1527,9 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
 
     void loadMessages();
-    const timer = window.setInterval(() => { void loadMessages(); }, 2000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible" && navigator.onLine !== false) void loadMessages();
+    }, 2000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -1522,7 +1554,9 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
 
     void refreshTyping();
-    const timer = window.setInterval(() => { void refreshTyping(); }, 2000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible" && navigator.onLine !== false) void refreshTyping();
+    }, 2000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -1598,6 +1632,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error ?? "Could not edit message.");
       setMessages((current) => current.map((item) => item.id === messageId ? { ...item, ...json.message } : item));
+      emitLiveSync({ type: "message-updated", conversationId: activeId ?? "", messageId });
       setEditingMessageId(null);
       setEditingMessageText("");
     } catch (requestError) {
@@ -1615,6 +1650,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error ?? "Could not delete message.");
       setMessages((current) => current.map((item) => item.id === messageId ? { ...item, ...json.message, deletedAt: json.message.deletedAt } : item));
+      emitLiveSync({ type: "message-deleted", conversationId: activeId ?? "", messageId });
       if (editingMessageId === messageId) {
         setEditingMessageId(null);
         setEditingMessageText("");
@@ -1733,6 +1769,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     const json = await response.json().catch(() => ({}));
     if (!response.ok) { setError(json.error ?? "Could not update conversation."); return; }
     setConversations((current) => current.map((item) => item.id === activeId ? { ...item, ...(action === "archive" || action === "unarchive" ? { archivedAt: json.archivedAt } : { mutedUntil: json.mutedUntil }) } : item));
+    emitUnreadSummarySync();
     setShowConversationOptions(false);
     if (action === "archive") setActiveId(null);
   }
@@ -1752,6 +1789,12 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not send message.");
       setMessages((current) => [...current, json.message as ChatMessage]);
+      setNewMessagesCount(0);
+      emitLiveSync({ type: "message-created", conversationId: activeId, messageId: json.message?.id });
+      emitUnreadSummarySync();
+      window.requestAnimationFrame(() => {
+        if (messageListRef.current) messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+      });
       setDraft("");
       void fetch("/api/conversations/" + activeId + "/typing", { method: "DELETE" }).catch(() => {});
       setPendingAttachments([]);
@@ -1800,7 +1843,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     ) : null}
 
     <div className="grid min-h-[620px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:grid-cols-[330px_1fr]">
-      <aside className="border-b border-gray-100 lg:border-b-0 lg:border-r">
+      <aside className={(activeId ? "hidden lg:block " : "") + "border-b border-gray-100 lg:border-b-0 lg:border-r"}>
         <div className="flex items-center justify-between border-b border-gray-100 p-4">
           <div className="flex items-center gap-2"><h2 className="text-sm font-black">{showArchivedConversations ? "Archived" : "Inbox"}</h2><button type="button" onClick={() => setShowArchivedConversations((value) => !value)} className="rounded-lg px-2 py-1 text-[10px] font-black text-gray-500 hover:bg-gray-100">{showArchivedConversations ? "Inbox" : "Archived"}</button></div>
           <button type="button" onClick={() => setNewConversationOpen(true)} className="social-icon-button" aria-label="Start a new message"><Pencil size={17}/></button>
@@ -1829,8 +1872,9 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         </div>
       </aside>
 
-      <section className="flex min-h-[620px] flex-col">
-        <div className="flex items-center gap-3 border-b border-gray-100 p-4">
+      <section className={(activeId ? "flex" : "hidden lg:flex") + " min-h-[calc(100dvh-150px)] flex-col lg:min-h-[620px]"}>
+        <div className="flex items-center gap-2 border-b border-gray-100 p-3 sm:gap-3 sm:p-4">
+          {active ? <button type="button" onClick={() => setActiveId(null)} className="grid size-9 shrink-0 place-items-center rounded-xl bg-gray-50 text-gray-600 lg:hidden" aria-label="Back to conversations"><ArrowLeft size={17}/></button> : null}
           <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} />
           <div className="flex-1"><p className="flex items-center gap-1.5 text-sm font-black">{activeName}<AccountBadge verified={activeMember?.isVerified} owner={activeMember?.isOwner}/></p><p className="text-[11px] text-gray-400">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
           <button type="button" onClick={() => setMessageSearch("")} className="social-icon-button" aria-label="Clear message search"><Search size={17}/></button>
@@ -1843,13 +1887,23 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
           </div>
         </div>
 
-        <div ref={messageListRef} className="flex-1 space-y-4 overflow-y-auto p-5">
+        <div ref={messageListRef} className="relative flex-1 space-y-4 overflow-y-auto overscroll-contain p-3 sm:p-5" style={{ scrollbarGutter: "stable" }}>
+          {newMessagesCount > 0 ? (
+            <div className="sticky top-1 z-10 flex justify-center">
+              <button type="button" onClick={() => {
+                setNewMessagesCount(0);
+                if (messageListRef.current) messageListRef.current.scrollTo({ top: messageListRef.current.scrollHeight, behavior: "smooth" });
+              }} className="rounded-full border border-[#d9d4ff] bg-white/95 px-3 py-1.5 text-[10px] font-black text-[#5a4be8] shadow-md backdrop-blur">
+                {newMessagesCount === 1 ? "1 new message" : newMessagesCount + " new messages"} · Jump to latest
+              </button>
+            </div>
+          ) : null}
           {nextMessagesCursor ? <div className="flex justify-center"><button type="button" onClick={() => void loadOlderMessages()} disabled={loadingOlderMessages} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-[10px] font-black text-gray-600 shadow-sm disabled:opacity-50">{loadingOlderMessages ? "Loading older messages…" : "Load older messages"}</button></div> : null}
           {active && messages.length > 0 ? messages.map((message) => {
             const mine = message.senderId === session?.user?.id;
             return <div key={message.id} className={mine ? "flex justify-end" : "flex items-end gap-2"}>
               {!mine ? <Avatar initials={message.sender.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} size="sm"/> : null}
-              <div className="max-w-[76%]">
+              <div className="max-w-[82%] sm:max-w-[76%]">
                 {!mine ? <p className="mb-1 flex items-center gap-1 pl-1 text-[10px] font-black text-gray-500">{message.sender.name}<AccountBadge verified={message.sender.isVerified} owner={message.sender.isOwner}/></p> : null}
                 {editingMessageId === message.id ? (
                   <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2 shadow-sm">
@@ -1900,7 +1954,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
             </span>
           </div>
         ) : null}
-        <form onSubmit={sendMessage} className="border-t border-gray-100 p-3">
+        <form onSubmit={sendMessage} className="border-t border-gray-100 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {replyingToMessage ? <div className="mb-2 flex items-center justify-between rounded-xl bg-[#f4f2ff] px-3 py-2"><div className="min-w-0"><p className="text-[10px] font-black text-[#5a4be8]">Replying to {replyingToMessage.sender.name}</p><p className="truncate text-[10px] text-gray-500">{replyingToMessage.content || "Media message"}</p></div><button type="button" onClick={() => setReplyingToMessage(null)} className="grid size-7 place-items-center rounded-lg bg-white text-gray-400" aria-label="Cancel reply"><X size={13}/></button></div> : null}
           <input ref={attachmentRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={(event) => { void uploadAttachment(event.target.files?.[0]); event.currentTarget.value = ""; }} />
           {pendingAttachments.length ? <div className="mb-2 flex gap-2 overflow-x-auto">{pendingAttachments.map((url, index)=><div key={url} className="relative shrink-0"><img src={url} alt="Pending attachment" className="size-16 rounded-xl object-cover"/><button type="button" onClick={() => setPendingAttachments((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-gray-950 text-white"><X size={11}/></button></div>)}</div> : null}
@@ -2150,7 +2204,11 @@ function Friends() {
 
   async function cancelRequest(requestId: string) {
     const response = await fetch("/api/friend-requests/" + requestId, { method: "DELETE" });
-    if (response.ok) setSent((items) => items.filter((item) => item.id !== requestId));
+    if (response.ok) {
+      setSent((items) => items.filter((item) => item.id !== requestId));
+      emitLiveSync({ type: "friend-request-changed" });
+      emitUnreadSummarySync();
+    }
     else {
       const json = await response.json().catch(() => ({}));
       setError(json.error ?? "Could not cancel friend request.");
@@ -2160,7 +2218,10 @@ function Friends() {
   async function removeFriend(friendId: string) {
     if (!window.confirm("Remove this friend?")) return;
     const response = await fetch("/api/friends/" + friendId, { method: "DELETE" });
-    if (response.ok) setFriends((items) => items.filter((item) => item.id !== friendId));
+    if (response.ok) {
+      setFriends((items) => items.filter((item) => item.id !== friendId));
+      emitLiveSync({ type: "friend-request-changed" });
+    }
     else {
       const json = await response.json().catch(() => ({}));
       setError(json.error ?? "Could not remove friend.");
@@ -2176,6 +2237,8 @@ function Friends() {
 
     if (response.ok) {
       setReceived((items) => items.filter((item) => item.id !== requestId));
+      emitLiveSync({ type: "friend-request-changed" });
+      emitUnreadSummarySync();
     }
   }
 
@@ -2193,6 +2256,8 @@ function Friends() {
     }
 
     setSuggestions((items) => items.filter((user) => user.id !== userId));
+    emitLiveSync({ type: "friend-request-changed" });
+    emitUnreadSummarySync();
   }
 
   const initials = (name: string) => name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase();
@@ -2272,31 +2337,51 @@ function Notifications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (!session?.user) {
-        setNotifications([]);
-        setLoading(false);
-        return;
-      }
+  const notificationFirstLoadRef = useRef(true);
 
-      try {
-        const response = await fetch("/api/notifications", { cache: "no-store" });
-        const json = await response.json();
-        if (!response.ok) throw new Error(json.error ?? "Could not load notifications.");
-        if (!cancelled) { setNotifications(json.notifications as NotificationData[]); setNextNotificationCursor(json.nextBefore ?? null); }
-      } catch (requestError) {
-        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load notifications.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  const refreshNotifications = useCallback(async () => {
+    if (!session?.user) {
+      setNotifications([]);
+      setNextNotificationCursor(null);
+      notificationFirstLoadRef.current = true;
+      setLoading(false);
+      return;
     }
-    void load();
-    return () => {
-      cancelled = true;
-    };
+
+    const isInitialLoad = notificationFirstLoadRef.current;
+    if (isInitialLoad) setLoading(true);
+    try {
+      const response = await fetch("/api/notifications", { cache: "no-store" });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error ?? "Could not load notifications.");
+      const fresh = (json.notifications ?? []) as NotificationData[];
+      setNotifications((current) => {
+        const freshIds = new Set(fresh.map((item) => item.id));
+        return [...fresh, ...current.filter((item) => !freshIds.has(item.id))];
+      });
+      if (isInitialLoad) setNextNotificationCursor(json.nextBefore ?? null);
+      setError("");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not load notifications.");
+    } finally {
+      notificationFirstLoadRef.current = false;
+      setLoading(false);
+    }
   }, [session?.user?.id]);
+
+  useLivePoll(refreshNotifications, 6500, Boolean(session?.user));
+
+  useEffect(() => {
+    return subscribeLiveSync((event) => {
+      if (
+        event.type === "notification-created" ||
+        event.type === "friend-request-changed" ||
+        event.type === "read-state-changed"
+      ) {
+        void refreshNotifications();
+      }
+    });
+  }, [refreshNotifications]);
 
   async function loadOlderNotifications() {
     if (!nextNotificationCursor || loadingOlderNotifications) return;
@@ -2321,7 +2406,10 @@ function Notifications() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ markAll: true }),
     });
-    if (response.ok) setNotifications((items) => items.map((item) => ({ ...item, readAt: new Date().toISOString() })));
+    if (response.ok) {
+      setNotifications((items) => items.map((item) => ({ ...item, readAt: new Date().toISOString() })));
+      emitUnreadSummarySync();
+    }
   }
 
   async function openNotification(item: NotificationData) {
@@ -2332,7 +2420,10 @@ function Notifications() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notificationId: item.id }),
       });
-      if (response.ok) setNotifications((items) => items.map((row) => row.id === item.id ? { ...row, readAt: new Date().toISOString() } : row));
+      if (response.ok) {
+        setNotifications((items) => items.map((row) => row.id === item.id ? { ...row, readAt: new Date().toISOString() } : row));
+        emitUnreadSummarySync();
+      }
     }
 
     if (item.type === "FOLLOW" && item.actor?.username) {
