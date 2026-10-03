@@ -508,8 +508,8 @@ test("Discover user search uses authoritative public display follower counts", (
   const page = read("components/social-pages.tsx");
   assert.match(route, /adminMetricOverride.findMany/);
   assert.match(route, /displayCounts/);
-  assert.match(route, /followers: metricByUser.get(user.id)?.followers/);
-  assert.match(page, /user.displayCounts?.followers ?? user._count.followers/);
+  assert.ok(route.includes("followers: metricByUser.get(user.id)?.followers"));
+  assert.ok(page.includes("user.displayCounts?.followers ?? user._count.followers"));
 });
 
 test("admin control center exposes supported quick runtime controls", () => {
@@ -517,7 +517,7 @@ test("admin control center exposes supported quick runtime controls", () => {
   assert.match(panel, /Quick controls/);
   assert.match(panel, /registration.enabled/);
   assert.match(panel, /Feature switches/);
-  assert.match(panel, /save("flag",{key:f.key,enabled:!Boolean(f.enabled)})/);
+  assert.ok(panel.includes('save("flag",{key:f.key,enabled:!Boolean(f.enabled)})'));
 });
 
 test("announcement lifecycle actions are wired to existing audited admin endpoints", () => {
@@ -525,7 +525,7 @@ test("announcement lifecycle actions are wired to existing audited admin endpoin
   const route = read("app/api/admin/control-center/route.ts");
   assert.match(panel, /announcement.update/);
   assert.match(panel, /deleteAnnouncement/);
-  assert.match(panel, /status:a.status==="PUBLISHED"?"ARCHIVED":"PUBLISHED"/);
+  assert.ok(panel.includes('status:a.status==="PUBLISHED"?"ARCHIVED":"PUBLISHED"'));
   assert.match(route, /kind === "announcement.update"/);
   assert.match(route, /DELETE_ANNOUNCEMENT/);
 });
