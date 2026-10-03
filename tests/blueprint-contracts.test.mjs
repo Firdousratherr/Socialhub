@@ -470,3 +470,34 @@ test("messages and relationship pages pass real profile images to avatars", () =
   assert.match(page, /image=\{message\.sender\.image\}/);
   assert.match(page, /image=\{person\.image\}/);
 });
+
+
+test("compact social counts have stable K/M/B thresholds and sane inputs", () => {
+  const formatter = read("lib/compact-count.ts");
+  assert.match(formatter, /count < 1_000/);
+  assert.match(formatter, /count < 1_000_000/);
+  assert.match(formatter, /count < 1_000_000_000/);
+  assert.match(formatter, /"K"/);
+  assert.match(formatter, /"M"/);
+  assert.match(formatter, /"B"/);
+});
+
+test("public social counters use the shared compact formatter without losing exact values", () => {
+  const home = read("components/home-feed.tsx");
+  const pages = read("components/social-pages.tsx");
+  assert.match(home, /compactCount\(likeCount\)/);
+  assert.match(home, /fullCount\(likeCount\)/);
+  assert.match(pages, /compactCount\(followerCount\)/);
+  assert.match(pages, /compactCount\(followingCount\)/);
+  assert.match(pages, /compactCount\(likesReceivedCount\)/);
+  assert.match(pages, /fullCount\(followerCount\)/);
+  assert.match(pages, /fullCount\(followingCount\)/);
+  assert.match(pages, /fullCount\(likesReceivedCount\)/);
+});
+
+test("text-only feed posts render user content without the generic moment placeholder", () => {
+  const home = read("components/home-feed.tsx");
+  assert.doesNotMatch(home, /Socialhub moment/);
+  assert.doesNotMatch(home, /Keep the small moments/);
+  assert.match(home, /post\.mediaUrl \? \(/);
+});
