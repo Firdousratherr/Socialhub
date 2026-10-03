@@ -47,7 +47,7 @@ export async function GET(request: Request) {
   }
 
   const userIds = users.map((user) => user.id);
-  const [followingRows, friendRows, pendingRows] = await Promise.all([
+  const [followingRows, friendRows, pendingRows, metricOverrides] = await Promise.all([
     prisma.follow.findMany({
       where: { followerId: viewerId, followingId: { in: userIds } },
       select: { followingId: true },
@@ -72,12 +72,17 @@ export async function GET(request: Request) {
       },
       select: { id: true, senderId: true, receiverId: true },
     }),
+    prisma.adminMetricOverride.findMany({
+      where: { userId: { in: userIds } },
+      select: { userId: true, followers: true, following: true },
+    }),
   ]);
 
   const followingIds = new Set(followingRows.map((row) => row.followingId));
   const friendIds = new Set(friendRows.map((row) =>
     row.senderId === viewerId ? row.receiverId : row.senderId,
   ));
+  const metricByUser = new Map(metricOverrides.map((row) => [row.userId, row]));
   const pendingByUser = new Map();
   for (const row of pendingRows) {
     const otherId = row.senderId === viewerId ? row.receiverId : row.senderId;
@@ -91,6 +96,10 @@ export async function GET(request: Request) {
     const pending = pendingByUser.get(user.id);
     return {
       ...user,
+      displayCounts: {
+        followers: metricByUser.get(user.id)?.followers ?? user._count.followers,
+        following: metricByUser.get(user.id)?.following ?? user._count.following,
+      },
       isFollowing: followingIds.has(user.id),
       isFriend: friendIds.has(user.id),
       friendRequestStatus: pending?.status ?? "NONE",

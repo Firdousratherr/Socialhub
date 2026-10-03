@@ -501,3 +501,42 @@ test("text-only feed posts render user content without the generic moment placeh
   assert.doesNotMatch(home, /Keep the small moments/);
   assert.match(home, /post\.mediaUrl \? \(/);
 });
+
+
+test("Discover user search uses authoritative public display follower counts", () => {
+  const route = read("app/api/users/route.ts");
+  const page = read("components/social-pages.tsx");
+  assert.match(route, /adminMetricOverride.findMany/);
+  assert.match(route, /displayCounts/);
+  assert.ok(route.includes("followers: metricByUser.get(user.id)?.followers"));
+  assert.ok(page.includes("user.displayCounts?.followers ?? user._count.followers"));
+});
+
+test("admin control center exposes supported quick runtime controls", () => {
+  const panel = read("components/admin-control-center.tsx");
+  assert.match(panel, /Quick controls/);
+  assert.match(panel, /registration.enabled/);
+  assert.match(panel, /Feature switches/);
+  assert.ok(panel.includes('save("flag",{key:f.key,enabled:!Boolean(f.enabled)})'));
+});
+
+test("announcement lifecycle actions are wired to existing audited admin endpoints", () => {
+  const panel = read("components/admin-control-center.tsx");
+  const route = read("app/api/admin/control-center/route.ts");
+  assert.match(panel, /announcement.update/);
+  assert.match(panel, /deleteAnnouncement/);
+  assert.ok(panel.includes('status:a.status==="PUBLISHED"?"ARCHIVED":"PUBLISHED"'));
+  assert.match(route, /kind === "announcement.update"/);
+  assert.match(route, /DELETE_ANNOUNCEMENT/);
+});
+
+test("moderator permissions provide named presets without bypassing the permission matrix", () => {
+  const presets = read("lib/admin-permission-presets.ts");
+  const panel = read("components/admin-control-center.tsx");
+  assert.match(presets, /Content moderator/);
+  assert.match(presets, /Safety & reports/);
+  assert.match(presets, /Community moderator/);
+  assert.match(presets, /Full operations moderator/);
+  assert.match(panel, /MODERATOR_PERMISSION_PRESETS/);
+  assert.match(panel, /Save moderator permissions/);
+});
