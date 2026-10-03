@@ -540,3 +540,84 @@ test("moderator permissions provide named presets without bypassing the permissi
   assert.match(panel, /MODERATOR_PERMISSION_PRESETS/);
   assert.match(panel, /Save moderator permissions/);
 });
+
+
+test("Discover separates search from relationship-aware suggestions and uses public counts", () => {
+  const search = read("app/api/search/route.ts");
+  const pages = read("components/social-pages.tsx");
+  assert.match(search, /adminMetricOverride\.findMany/);
+  assert.ok(search.includes("followers: userMetricById.get(user.id)?.followers"));
+  assert.ok(pages.includes("/api/users?suggestions=true&take=20"));
+  assert.ok(pages.includes("user.displayCounts?.followers ?? user._count.followers"));
+});
+
+test("saved posts have a private collection endpoint and dedicated UI route", () => {
+  const route = read("app/api/saved/route.ts");
+  const page = read("app/saved/page.tsx");
+  const ui = read("components/saved-posts.tsx");
+  assert.match(route, /prisma\.savedPost\.findMany/);
+  assert.match(route, /savedAt/);
+  assert.match(page, /SavedPosts/);
+  assert.match(ui, /Nothing saved yet/);
+  assert.match(ui, /Load more/);
+});
+
+test("mobile navigation exposes saved posts", () => {
+  const nav = read("components/mobile-menu.tsx");
+  assert.match(nav, /href: "\/saved"/);
+  assert.match(nav, /Saved posts/);
+});
+
+test("notification inbox has actionable filters", () => {
+  const pages = read("components/social-pages.tsx");
+  assert.match(pages, /NotificationFilter/);
+  assert.match(pages, /Unread/);
+  assert.match(pages, /Messages/);
+  assert.match(pages, /Requests/);
+});
+
+test("message drafts persist per conversation and clear after send", () => {
+  const pages = read("components/social-pages.tsx");
+  assert.match(pages, /socialhub:draft:/);
+  assert.match(pages, /localStorage\.setItem/);
+  assert.match(pages, /localStorage\.removeItem/);
+});
+
+test("story viewer exposes position and progress", () => {
+  const story = read("components/story-center.tsx");
+  assert.match(story, /Story .* of/);
+  assert.match(story, /viewerIndex/);
+});
+
+
+test("mobile navigation has keyboard focus containment", () => {
+  const menu = read("components/mobile-menu.tsx");
+  assert.match(menu, /closeButtonRef/);
+  assert.match(menu, /event\.key !== "Tab"/);
+  assert.match(menu, /focusable/);
+});
+
+test("home composer preserves unfinished post drafts", () => {
+  const home = read("components/home-feed.tsx");
+  assert.match(home, /socialhub:post-draft:/);
+  assert.match(home, /localStorage\.setItem/);
+  assert.match(home, /localStorage\.removeItem/);
+});
+
+test("Discover cancels stale search requests", () => {
+  const pages = read("components/social-pages.tsx");
+  assert.match(pages, /new AbortController\(\)/);
+  assert.match(pages, /controller\.abort\(\)/);
+});
+
+
+test("mentions create preference-aware notifications for posts and comments", () => {
+  const helper = read("lib/mentions.ts");
+  const posts = read("app/api/posts/route.ts");
+  const comments = read("app/api/posts/[postId]/comments/route.ts");
+  assert.match(helper, /extractMentionUsernames/);
+  assert.match(helper, /mentions/);
+  assert.match(helper, /type: "MENTION"/);
+  assert.match(posts, /createMentionNotifications/);
+  assert.match(comments, /createMentionNotifications/);
+});

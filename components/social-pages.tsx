@@ -1370,6 +1370,26 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+  useEffect(() => {
+    if (!session?.user?.id || !activeId) {
+      setDraft("");
+      return;
+    }
+    try {
+      setDraft(window.localStorage.getItem("socialhub:draft:" + session.user.id + ":" + activeId) ?? "");
+    } catch {
+      setDraft("");
+    }
+  }, [session?.user?.id, activeId]);
+
+  useEffect(() => {
+    if (!session?.user?.id || !activeId) return;
+    try {
+      const key = "socialhub:draft:" + session.user.id + ":" + activeId;
+      if (draft.trim()) window.localStorage.setItem(key, draft);
+      else window.localStorage.removeItem(key);
+    } catch {}
+  }, [session?.user?.id, activeId, draft]);
 
   const markConversationRead = useCallback(async () => {
     if (!activeId || !session?.user) return;
@@ -1863,6 +1883,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         if (messageListRef.current) messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
       });
       setDraft("");
+      try { window.localStorage.removeItem("socialhub:draft:" + session.user.id + ":" + activeId); } catch {}
       void fetch("/api/conversations/" + activeId + "/typing", { method: "DELETE" }).catch(() => {});
       setPendingAttachments([]);
       setReplyingToMessage(null);
@@ -2078,23 +2099,27 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     async function loadUsers() {
       setLoading(true);
       setError("");
       try {
-        const response = await fetch("/api/search?q=" + encodeURIComponent(q) + "&take=20", { cache: "no-store" });
+        const endpoint = q.trim()
+          ? "/api/search?q=" + encodeURIComponent(q) + "&take=20"
+          : "/api/users?suggestions=true&take=20";
+        const response = await fetch(endpoint, { cache: "no-store", signal: controller.signal });
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not search.");
         if (!cancelled) {
           const nextResults = (json.users ?? []) as DiscoverUser[];
           setResults(nextResults);
-          setDiscoverPosts(json.posts ?? []);
-          setDiscoverHashtags(json.hashtags ?? []);
+          setDiscoverPosts(q.trim() ? (json.posts ?? []) : []);
+          setDiscoverHashtags(q.trim() ? (json.hashtags ?? []) : []);
           setFollowing(new Set(nextResults.filter((user) => user.isFollowing).map((user) => user.id)));
         }
       } catch (requestError) {
-        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not search users.");
+        if (!cancelled && !(requestError instanceof DOMException && requestError.name === "AbortError")) setError(requestError instanceof Error ? requestError.message : "Could not search users.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -2106,6 +2131,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
 
     return () => {
       cancelled = true;
+      controller.abort();
       window.clearTimeout(timer);
     };
   }, [q]);
@@ -2543,14 +2569,30 @@ function Notifications() {
     if (type === "FRIEND_REQUEST") return "bg-emerald-50 text-emerald-600";
     return "bg-amber-50 text-amber-500";
   }
+  type NotificationFilter = "ALL" | "UNREAD" | "SOCIAL" | "MESSAGES" | "REQUESTS";
+  const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("ALL");
+  const filteredNotifications = notifications.filter((item) => {
+    if (notificationFilter === "UNREAD") return !item.readAt;
+    if (notificationFilter === "SOCIAL") return ["LIKE","COMMENT","FOLLOW","MENTION","SHARE"].includes(item.type);
+    if (notificationFilter === "MESSAGES") return item.type === "MESSAGE";
+    if (notificationFilter === "REQUESTS") return item.type === "FRIEND_REQUEST" || item.type === "FRIEND_ACCEPTED";
+    return true;
+  });
 
   return <Page eyebrow="Notifications" title="Stay in the loop" subtitle="Important activity stays here so you can catch up without hunting through your feed.">
     {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
     <Card className="!p-0 overflow-hidden">
-      <div className="flex items-center justify-between border-b border-gray-100 p-5"><h2 className="text-sm font-black">Recent activity</h2><button onClick={markAllRead} disabled={!session?.user} className="text-xs font-bold text-[#5a4be8] disabled:opacity-40">Mark all as read</button></div>
+      <div className="border-b border-gray-100 p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-black">Recent activity</h2><button onClick={markAllRead} disabled={!session?.user} className="text-xs font-bold text-[#5a4be8] disabled:opacity-40">Mark all as read</button></div>
+        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-0.5">
+          {([["ALL","All"],["UNREAD","Unread"],["SOCIAL","Social"],["MESSAGES","Messages"],["REQUESTS","Requests"]] as Array<[NotificationFilter,string]>).map(([value,label]) => (
+            <button key={value} type="button" onClick={() => setNotificationFilter(value)} className={"shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black " + (notificationFilter === value ? "bg-[#eeebff] text-[#5a4be8]" : "bg-gray-50 text-gray-500 hover:bg-gray-100")}>{label}</button>
+          ))}
+        </div>
+      </div>
       {loading && session?.user ? <div className="space-y-2 p-5">{[1,2,3].map((i)=><div key={i} className="flex gap-3 p-3"><span className="size-10 animate-pulse rounded-2xl bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 w-2/3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-1/3 animate-pulse rounded bg-gray-100"/></div></div>)}</div> : null}
-      {notifications.length > 0 ? <>
-        {notifications.map((item) => {
+      {filteredNotifications.length > 0 ? <>
+        {filteredNotifications.map((item) => {
         const Icon = iconFor(item.type);
         return <button key={item.id} onClick={() => void openNotification(item)} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
           <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(item.type)}`}><Icon size={17}/></span>

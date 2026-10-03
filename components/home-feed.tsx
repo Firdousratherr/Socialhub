@@ -773,6 +773,22 @@ export default function HomeFeed() {
   useEffect(() => {
     feedPostsRef.current = feedPosts;
   }, [feedPosts]);
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    try {
+      const saved = window.localStorage.getItem("socialhub:post-draft:" + session.user.id);
+      if (saved) setNewPost(saved);
+    } catch {}
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    try {
+      const key = "socialhub:post-draft:" + session.user.id;
+      if (newPost.trim()) window.localStorage.setItem(key, newPost);
+      else window.localStorage.removeItem(key);
+    } catch {}
+  }, [session?.user?.id, newPost]);
 
   async function fetchFeed(before?: string | null, append = false) {
     const query = new URLSearchParams({ take: "20", mode: feedMode });

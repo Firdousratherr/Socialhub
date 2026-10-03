@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { Bell, Compass, Home, LogOut, MessageCircle, Settings, Users, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Bell, Bookmark, Compass, Home, LogOut, MessageCircle, Settings, Users, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
 const items = [
@@ -12,6 +12,7 @@ const items = [
   { href: "/friends", label: "Friends", Icon: Users },
   { href: "/messages", label: "Messages", Icon: MessageCircle },
   { href: "/notifications", label: "Notifications", Icon: Bell },
+  { href: "/saved", label: "Saved posts", Icon: Bookmark },
   { href: "/settings", label: "Settings", Icon: Settings },
 ];
 
@@ -20,15 +21,26 @@ export function MobileMenu() {
   const pathname = usePathname();
   const { data: session } = authClient.useSession();
   const [open, setOpen] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const profileHref = session?.user ? "/profile/me" : "/login";
 
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Tab") return;
+      const dialog = document.getElementById("socialhub-mobile-menu");
+      if (!dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled])'));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     };
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    window.requestAnimationFrame(() => closeButtonRef.current?.focus());
     window.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
@@ -60,7 +72,7 @@ export function MobileMenu() {
           <aside id="socialhub-mobile-menu" className="absolute right-0 top-0 flex h-dvh w-[min(380px,92vw)] flex-col border-l border-gray-200 bg-white shadow-[-20px_0_70px_rgba(17,24,39,.18)]">
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#6d5dfc]">Socialhub</p><p className="mt-1 text-lg font-black tracking-[-.03em] text-gray-950">Navigation</p></div>
-              <button type="button" onClick={() => setOpen(false)} className="social-icon-button min-h-11 min-w-11" aria-label="Close navigation menu"><X size={19}/></button>
+              <button ref={closeButtonRef} type="button" onClick={() => setOpen(false)} className="social-icon-button min-h-11 min-w-11" aria-label="Close navigation menu"><X size={19}/></button>
             </div>
             <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
               {session?.user ? <div className="mb-4 rounded-3xl bg-gradient-to-br from-[#f3f0ff] via-white to-[#eef8ff] p-4"><p className="truncate text-sm font-black text-gray-950">{session.user.name}</p><p className="mt-1 truncate text-xs font-medium text-gray-500">{session.user.email}</p><Link href={profileHref} onClick={() => setOpen(false)} className="mt-3 inline-flex min-h-10 items-center rounded-xl bg-gray-950 px-3.5 text-xs font-black text-white">Open profile</Link></div> : null}
