@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
 import { MobileMenu } from "@/components/mobile-menu";
 import { emitPostSyncEvent } from "@/lib/post-sync";
+import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
+import { emitUnreadSummarySync } from "@/hooks/use-unread-summary";
+import { useLivePoll } from "@/hooks/use-live-poll";
 import { BottomNav } from "@/components/bottom-nav";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
@@ -26,9 +29,13 @@ const colors = [
   "from-amber-400 to-rose-500",
 ];
 
-function Avatar({ initials, color = colors[0], size = "md" }: { initials: string; color?: string; size?: "sm"|"md"|"lg"|"xl" }) {
+function Avatar({ initials, color = colors[0], size = "md", image }: { initials: string; color?: string; size?: "sm"|"md"|"lg"|"xl"; image?: string | null }) {
   const sizes = { sm: "size-8 text-[10px]", md: "size-10 text-xs", lg: "size-14 text-sm", xl: "size-24 text-2xl" };
-  return <div className={`grid shrink-0 place-items-center rounded-full bg-gradient-to-br ${color} ${sizes[size]} font-black text-white shadow-sm`}>{initials}</div>;
+  return image ? (
+    <img src={image} alt="" className={`shrink-0 rounded-full object-cover shadow-sm ${sizes[size].split(" ").filter(Boolean)[0]}`} />
+  ) : (
+    <div className={`grid shrink-0 place-items-center rounded-full bg-gradient-to-br ${color} ${sizes[size]} font-black text-white shadow-sm`}>{initials}</div>
+  );
 }
 
 function Page({
@@ -1346,8 +1353,58 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessageText, setEditingMessageText] = useState("");
   const [savingMessage, setSavingMessage] = useState(false);
+  const [newMessagesCount, setNewMessagesCount] = useState(0);
   const attachmentRef = useRef<HTMLInputElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  const lastReadAttemptRef = useRef(0);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const markConversationRead = useCallback(async () => {
+    if (!activeId || !session?.user) return;
+    const now = Date.now();
+    if (now - lastReadAttemptRef.current < 3000) return;
+    lastReadAttemptRef.current = now;
+    try {
+      const response = await fetch("/api/conversations/" + activeId + "/messages", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "read" }),
+      });
+      if (!response.ok) return;
+      setConversations((current) => current.map((conversation) =>
+        conversation.id === activeId ? { ...conversation, unreadCount: 0 } : conversation,
+      ));
+      emitUnreadSummarySync();
+    } catch {
+      // Read state is best-effort and must never block messaging.
+    }
+  }, [activeId, session?.user?.id]);
+
+  useEffect(() => {
+    lastReadAttemptRef.current = 0;
+    messagesRef.current = [];
+    setNewMessagesCount(0);
+    setNextMessagesCursor(null);
+    setDraft("");
+    setPendingAttachments([]);
+    setReplyingToMessage(null);
+  }, [activeId]);
+
+  useEffect(() => {
+    const node = messageListRef.current;
+    if (!node || !activeId || !session?.user) return;
+    const onScroll = () => {
+      if (node.scrollHeight - node.scrollTop - node.clientHeight < 96) {
+        void markConversationRead();
+      }
+    };
+    node.addEventListener("scroll", onScroll, { passive: true });
+    return () => node.removeEventListener("scroll", onScroll);
+  }, [activeId, session?.user?.id, markConversationRead]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1382,7 +1439,9 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
 
     void loadConversations();
-    const timer = window.setInterval(() => { void loadConversations(true); }, 5000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible" && navigator.onLine !== false) void loadConversations(true);
+    }, 5000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -1423,18 +1482,31 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
   }
 
-  async function uploadAttachment(file: File | undefined) {
-    if (!file || uploadingAttachment || pendingAttachments.length >= 4) return;
+  async function uploadAttachments(files: File[]) {
+    if (!files.length || uploadingAttachment || pendingAttachments.length >= 4) return;
+    const available = Math.max(0, 4 - pendingAttachments.length);
     setUploadingAttachment(true);
+    setError("");
+    const uploaded: string[] = [];
+    let uploadError = "";
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await fetch("/api/uploads", { method: "POST", body: formData });
-      const json = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(json.error ?? "Could not upload attachment.");
-      setPendingAttachments((current) => [...current, json.url].slice(0, 4));
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not upload attachment.");
+      for (const file of files.slice(0, available)) {
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          const response = await fetch("/api/uploads", { method: "POST", body: formData });
+          const json = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(json.error ?? "Could not upload attachment.");
+          if (typeof json.url === "string") uploaded.push(json.url);
+        } catch (requestError) {
+          uploadError = requestError instanceof Error ? requestError.message : "Could not upload attachment.";
+          break;
+        }
+      }
+      if (uploaded.length) {
+        setPendingAttachments((current) => [...current, ...uploaded].slice(0, 4));
+      }
+      if (uploadError) setError(uploadError);
     } finally {
       setUploadingAttachment(false);
     }
@@ -1467,42 +1539,61 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       }
 
       try {
-        const response = await fetch(`/api/conversations/${activeId}/messages`, { cache: "no-store" });
+        const response = await fetch("/api/conversations/" + activeId + "/messages", { cache: "no-store" });
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not load messages.");
+
         if (!cancelled) {
           const nextMessages = json.messages as ChatMessage[];
+          const currentMessages = messagesRef.current;
+          const initialLoad = currentMessages.length === 0;
+          const currentIds = new Set(currentMessages.map((message) => message.id));
+          const incomingMessages = initialLoad
+            ? []
+            : nextMessages.filter((message) => !currentIds.has(message.id));
+          const fetchedIds = new Set(nextMessages.map((message) => message.id));
+          const olderAlreadyLoaded = currentMessages.length > nextMessages.length;
+          const mergedMessages = olderAlreadyLoaded
+            ? [...currentMessages.filter((message) => !fetchedIds.has(message.id)), ...nextMessages]
+            : nextMessages;
+
           const container = messageListRef.current;
           const nearBottom = !container || container.scrollHeight - container.scrollTop - container.clientHeight < 140;
-          setMessages(nextMessages);
-          setNextMessagesCursor(json.nextBefore ?? null);
-          if (nearBottom) {
+          setMessages(mergedMessages);
+
+          if (incomingMessages.length) {
+            if (nearBottom) setNewMessagesCount(0);
+            else setNewMessagesCount((count) => count + incomingMessages.length);
+          }
+
+          if (!olderAlreadyLoaded) {
+            setNextMessagesCursor(json.nextBefore ?? null);
+          }
+
+          if (initialLoad || (incomingMessages.length > 0 && nearBottom)) {
             window.requestAnimationFrame(() => {
-              if (messageListRef.current) messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+              if (messageListRef.current) {
+                messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+              }
             });
+            void markConversationRead();
           }
         }
-        void fetch(`/api/conversations/${activeId}/messages`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "read" }),
-        }).then(() => {
-          if (!cancelled) setConversations((current) => current.map((conversation) =>
-            conversation.id === activeId ? { ...conversation, unreadCount: 0 } : conversation
-          ));
-        }).catch(() => {});
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load messages.");
       }
     }
 
     void loadMessages();
-    const timer = window.setInterval(() => { void loadMessages(); }, 2000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible" && navigator.onLine !== false) void loadMessages();
+    }, 2000);
+
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [activeId, session?.user?.id]);
+  }, [activeId, session?.user?.id, markConversationRead]);
 
   useEffect(() => {
     if (!activeId || !session?.user) {
@@ -1522,7 +1613,9 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
 
     void refreshTyping();
-    const timer = window.setInterval(() => { void refreshTyping(); }, 2000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible" && navigator.onLine !== false) void refreshTyping();
+    }, 2000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -1598,6 +1691,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error ?? "Could not edit message.");
       setMessages((current) => current.map((item) => item.id === messageId ? { ...item, ...json.message } : item));
+      emitLiveSync({ type: "message-updated", conversationId: activeId ?? "", messageId });
       setEditingMessageId(null);
       setEditingMessageText("");
     } catch (requestError) {
@@ -1615,6 +1709,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error ?? "Could not delete message.");
       setMessages((current) => current.map((item) => item.id === messageId ? { ...item, ...json.message, deletedAt: json.message.deletedAt } : item));
+      emitLiveSync({ type: "message-deleted", conversationId: activeId ?? "", messageId });
       if (editingMessageId === messageId) {
         setEditingMessageId(null);
         setEditingMessageText("");
@@ -1733,6 +1828,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     const json = await response.json().catch(() => ({}));
     if (!response.ok) { setError(json.error ?? "Could not update conversation."); return; }
     setConversations((current) => current.map((item) => item.id === activeId ? { ...item, ...(action === "archive" || action === "unarchive" ? { archivedAt: json.archivedAt } : { mutedUntil: json.mutedUntil }) } : item));
+    emitUnreadSummarySync();
     setShowConversationOptions(false);
     if (action === "archive") setActiveId(null);
   }
@@ -1752,6 +1848,12 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not send message.");
       setMessages((current) => [...current, json.message as ChatMessage]);
+      setNewMessagesCount(0);
+      emitLiveSync({ type: "message-created", conversationId: activeId, messageId: json.message?.id });
+      emitUnreadSummarySync();
+      window.requestAnimationFrame(() => {
+        if (messageListRef.current) messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+      });
       setDraft("");
       void fetch("/api/conversations/" + activeId + "/typing", { method: "DELETE" }).catch(() => {});
       setPendingAttachments([]);
@@ -1771,7 +1873,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     ) : null}
     {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
-    {newConversationOpen ? <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4"><div className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h2 className="text-base font-black">New message</h2><p className="mt-1 text-xs text-gray-400">Choose a real Socialhub account to start a chat.</p></div><button type="button" onClick={() => setNewConversationOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={16}/></button></div><div className="p-4"><label className="relative block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input autoFocus value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Search people…" className="h-10 w-full rounded-xl bg-gray-50 pl-9 pr-3 text-xs font-semibold outline-none"/></label><div className="mt-3 space-y-1">{people.length ? people.map((person)=><button type="button" key={person.id} onClick={() => void startConversation(person.id)} className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-gray-50"><Avatar initials={person.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><span className="min-w-0"><span className="flex items-center gap-1 truncate text-xs font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-[10px] text-gray-400">@{person.username ?? "member"}</span></span></button>) : <p className="p-6 text-center text-xs text-gray-400">{userQuery.trim() ? "No people found." : "Search for someone to message."}</p>}</div></div></div></div> : null}
+    {newConversationOpen ? <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4"><div className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h2 className="text-base font-black">New message</h2><p className="mt-1 text-xs text-gray-400">Choose a real Socialhub account to start a chat.</p></div><button type="button" onClick={() => setNewConversationOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={16}/></button></div><div className="p-4"><label className="relative block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input autoFocus value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Search people…" className="h-10 w-full rounded-xl bg-gray-50 pl-9 pr-3 text-xs font-semibold outline-none"/></label><div className="mt-3 space-y-1">{people.length ? people.map((person)=><button type="button" key={person.id} onClick={() => void startConversation(person.id)} className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-gray-50"><Avatar initials={person.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={person.image}/><span className="min-w-0"><span className="flex items-center gap-1 truncate text-xs font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-[10px] text-gray-400">@{person.username ?? "member"}</span></span></button>) : <p className="p-6 text-center text-xs text-gray-400">{userQuery.trim() ? "No people found." : "Search for someone to message."}</p>}</div></div></div></div> : null}
 
     {showGroupInfo && active?.isGroup ? (
       <div className="fixed inset-0 z-[85] grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label="Group information">
@@ -1786,7 +1888,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
               <p className="text-[10px] font-black uppercase tracking-[.12em] text-gray-400">Members</p>
               <div className="mt-2 space-y-2">{active.members.map((member) => (
                 <div key={member.userId} className="flex items-center gap-3 rounded-xl bg-white p-2.5">
-                  <Avatar initials={member.user.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="sm"/>
+                  <Avatar initials={member.user.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} image={member.user.image} size="sm"/>
                   <div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate text-xs font-black">{member.user.name}<AccountBadge verified={member.user.isVerified} owner={member.user.isOwner}/></p><p className="text-[10px] text-gray-400">{member.role === "ADMIN" ? "Administrator" : "Member"}</p></div>
                   {activeGroupAdmin && member.userId !== session?.user?.id && member.role !== "ADMIN" ? <button type="button" onClick={() => void removeGroupMember(member.userId)} disabled={groupActionLoading} className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-[10px] font-black text-red-600 disabled:opacity-40">Remove</button> : null}
                 </div>
@@ -1799,8 +1901,8 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       </div>
     ) : null}
 
-    <div className="grid min-h-[620px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:grid-cols-[330px_1fr]">
-      <aside className="border-b border-gray-100 lg:border-b-0 lg:border-r">
+    <div className="messages-shell grid h-[calc(100dvh-240px)] min-h-[420px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:h-auto lg:min-h-[620px] lg:grid-cols-[330px_1fr]">
+      <aside className={(activeId ? "hidden lg:block " : "") + "border-b border-gray-100 lg:border-b-0 lg:border-r"}>
         <div className="flex items-center justify-between border-b border-gray-100 p-4">
           <div className="flex items-center gap-2"><h2 className="text-sm font-black">{showArchivedConversations ? "Archived" : "Inbox"}</h2><button type="button" onClick={() => setShowArchivedConversations((value) => !value)} className="rounded-lg px-2 py-1 text-[10px] font-black text-gray-500 hover:bg-gray-100">{showArchivedConversations ? "Inbox" : "Archived"}</button></div>
           <button type="button" onClick={() => setNewConversationOpen(true)} className="social-icon-button" aria-label="Start a new message"><Pencil size={17}/></button>
@@ -1815,7 +1917,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
             const name = conversation.title ?? other?.name ?? "Conversation";
             const preview = conversation.messages[0]?.content ?? "No messages yet";
             return <button key={conversation.id} onClick={() => setActiveId(conversation.id)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left ${conversation.id===activeId?"bg-[#f4f2ff]":"hover:bg-gray-50"}`}>
-              <Avatar initials={(other?.name ?? name).split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} color={colors[i%colors.length]}/>
+              <Avatar initials={(other?.name ?? name).split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={other?.image} color={colors[i%colors.length]}/>
               <div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate text-xs font-black">{name}<AccountBadge verified={other?.isVerified} owner={other?.isOwner}/></p><p className="mt-1 truncate text-[11px] text-gray-400">{preview}</p></div>
               {conversation.unreadCount ? <span className="min-w-5 rounded-full bg-[#6d5dfc] px-1.5 py-1 text-center text-[9px] font-black text-white">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span> : null}
             </button>;
@@ -1829,11 +1931,11 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         </div>
       </aside>
 
-      <section className="flex min-h-[620px] flex-col">
-        <div className="flex items-center gap-3 border-b border-gray-100 p-4">
-          <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} />
+      <section className={(activeId ? "flex" : "hidden lg:flex") + " message-pane min-h-0 flex-col lg:min-h-[620px]"}>
+        <div className="flex items-center gap-2 border-b border-gray-100 p-3 sm:gap-3 sm:p-4">
+          {active ? <button type="button" onClick={() => setActiveId(null)} className="grid size-9 shrink-0 place-items-center rounded-xl bg-gray-50 text-gray-600 lg:hidden" aria-label="Back to conversations"><ArrowLeft size={17}/></button> : null}
+          <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={activeMember?.image} />
           <div className="flex-1"><p className="flex items-center gap-1.5 text-sm font-black">{activeName}<AccountBadge verified={activeMember?.isVerified} owner={activeMember?.isOwner}/></p><p className="text-[11px] text-gray-400">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
-          <button type="button" onClick={() => setMessageSearch("")} className="social-icon-button" aria-label="Clear message search"><Search size={17}/></button>
           <div className="relative"><button type="button" onClick={() => setShowConversationOptions((value) => !value)} disabled={!active} className="social-icon-button disabled:opacity-40" aria-label="Conversation options"><MoreHorizontal size={18}/></button>
             {showConversationOptions && active ? <div className="absolute right-0 top-11 z-30 w-44 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl">
               <button type="button" onClick={() => void updateConversationAction(active.archivedAt ? "unarchive" : "archive")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.archivedAt ? "Unarchive" : "Archive"}</button>
@@ -1843,13 +1945,23 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
           </div>
         </div>
 
-        <div ref={messageListRef} className="flex-1 space-y-4 overflow-y-auto p-5">
+        <div ref={messageListRef} className="message-list relative min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-3 sm:p-5" style={{ scrollbarGutter: "stable" }}>
+          {newMessagesCount > 0 ? (
+            <div className="sticky top-1 z-10 flex justify-center">
+              <button type="button" onClick={() => {
+                setNewMessagesCount(0);
+                if (messageListRef.current) messageListRef.current.scrollTo({ top: messageListRef.current.scrollHeight, behavior: "smooth" });
+              }} className="rounded-full border border-[#d9d4ff] bg-white/95 px-3 py-1.5 text-[10px] font-black text-[#5a4be8] shadow-md backdrop-blur">
+                {newMessagesCount === 1 ? "1 new message" : newMessagesCount + " new messages"} · Jump to latest
+              </button>
+            </div>
+          ) : null}
           {nextMessagesCursor ? <div className="flex justify-center"><button type="button" onClick={() => void loadOlderMessages()} disabled={loadingOlderMessages} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-[10px] font-black text-gray-600 shadow-sm disabled:opacity-50">{loadingOlderMessages ? "Loading older messages…" : "Load older messages"}</button></div> : null}
           {active && messages.length > 0 ? messages.map((message) => {
             const mine = message.senderId === session?.user?.id;
             return <div key={message.id} className={mine ? "flex justify-end" : "flex items-end gap-2"}>
-              {!mine ? <Avatar initials={message.sender.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} size="sm"/> : null}
-              <div className="max-w-[76%]">
+              {!mine ? <Avatar initials={message.sender.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={message.sender.image} size="sm"/> : null}
+              <div className="max-w-[82%] sm:max-w-[76%]">
                 {!mine ? <p className="mb-1 flex items-center gap-1 pl-1 text-[10px] font-black text-gray-500">{message.sender.name}<AccountBadge verified={message.sender.isVerified} owner={message.sender.isOwner}/></p> : null}
                 {editingMessageId === message.id ? (
                   <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2 shadow-sm">
@@ -1900,9 +2012,9 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
             </span>
           </div>
         ) : null}
-        <form onSubmit={sendMessage} className="border-t border-gray-100 p-3">
+        <form onSubmit={sendMessage} className="message-composer shrink-0 border-t border-gray-100 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
           {replyingToMessage ? <div className="mb-2 flex items-center justify-between rounded-xl bg-[#f4f2ff] px-3 py-2"><div className="min-w-0"><p className="text-[10px] font-black text-[#5a4be8]">Replying to {replyingToMessage.sender.name}</p><p className="truncate text-[10px] text-gray-500">{replyingToMessage.content || "Media message"}</p></div><button type="button" onClick={() => setReplyingToMessage(null)} className="grid size-7 place-items-center rounded-lg bg-white text-gray-400" aria-label="Cancel reply"><X size={13}/></button></div> : null}
-          <input ref={attachmentRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={(event) => { void uploadAttachment(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+          <input ref={attachmentRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={(event) => { void uploadAttachments(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = ""; }} />
           {pendingAttachments.length ? <div className="mb-2 flex gap-2 overflow-x-auto">{pendingAttachments.map((url, index)=><div key={url} className="relative shrink-0"><img src={url} alt="Pending attachment" className="size-16 rounded-xl object-cover"/><button type="button" onClick={() => setPendingAttachments((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-gray-950 text-white"><X size={11}/></button></div>)}</div> : null}
           <div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2"><button type="button" onClick={() => attachmentRef.current?.click()} disabled={!active || uploadingAttachment || pendingAttachments.length >= 4} className="grid size-10 place-items-center rounded-xl bg-white text-gray-500 disabled:opacity-40" aria-label="Attach image"><Paperclip size={16}/></button><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={1} disabled={!active || !session?.user || sending} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60" placeholder={active ? "Write a message…" : "Select a conversation first"}/><button type="submit" disabled={!active || (!draft.trim() && !pendingAttachments.length) || !session?.user || sending} className="grid size-10 place-items-center rounded-xl bg-gray-950 text-white disabled:cursor-not-allowed disabled:opacity-50"><Send size={16}/></button></div>
         </form>
@@ -2004,6 +2116,12 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
       if (!friendResponse.ok) {
         const json = await friendResponse.json().catch(() => ({}));
         setError(json.error ?? "Could not send friend request.");
+      } else {
+        setResults((current) => current.map((row) =>
+          row.id === user.id
+            ? { ...row, friendRequestStatus: "OUTGOING_PENDING", canSendFriendRequest: false, canFollow: false }
+            : row,
+        ));
       }
       return;
     }
@@ -2052,7 +2170,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
             const initials = user.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase();
             const isFollowing = following.has(user.id);
             return <div key={user.id} className="flex items-center gap-3">
-              <Link href={"/profile/" + (user.username ?? user.id)}><Avatar initials={initials} color={colors[i % colors.length]}/></Link>
+              <Link href={"/profile/" + (user.username ?? user.id)}><Avatar initials={initials} image={user.image} color={colors[i % colors.length]}/></Link>
               <div className="min-w-0 flex-1"><Link href={"/profile/" + (user.username ?? user.id)} className="flex items-center gap-1.5 truncate text-xs font-black hover:text-[#5a4be8]">{user.name}<AccountBadge verified={user.isVerified} owner={user.isOwner}/></Link><p className="truncate text-[11px] text-gray-400">@{user.username ?? "member"} · {user._count.followers} followers</p></div>
               <button onClick={()=>void toggleFollow(user)} disabled={user.friendRequestStatus === "OUTGOING_PENDING" || user.friendRequestStatus === "INCOMING_PENDING"} className={isFollowing ? "grid size-9 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600 disabled:opacity-50" : "grid size-9 place-items-center rounded-xl bg-gray-950 text-white disabled:opacity-50"} aria-label={isFollowing ? "Unfollow" : user.friendRequestStatus === "OUTGOING_PENDING" ? "Friend request sent" : user.isPrivate ? "Add friend" : "Follow"}>{isFollowing ? <Check size={15}/> : user.friendRequestStatus === "OUTGOING_PENDING" ? <Check size={15}/> : user.isPrivate ? <UserPlus size={15}/> : <UserPlus size={15}/>}</button>
             </div>;
@@ -2087,6 +2205,9 @@ type FriendPerson = {
   bio: string | null;
   isVerified?: boolean;
   isOwner?: boolean;
+  isFollowing?: boolean;
+  isFriend?: boolean;
+  friendRequestStatus?: "NONE" | "OUTGOING_PENDING" | "INCOMING_PENDING";
 };
 
 type FriendRequestData = {
@@ -2105,53 +2226,63 @@ function Friends() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      if (!session?.user) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const [requestResponse, friendResponse, userResponse] = await Promise.all([
-          fetch("/api/friend-requests", { cache: "no-store" }),
-          fetch("/api/friends", { cache: "no-store" }),
-          fetch("/api/users?take=8", { cache: "no-store" }),
-        ]);
-
-        const requestJson = await requestResponse.json();
-        const friendJson = await friendResponse.json();
-        const userJson = await userResponse.json();
-
-        if (!requestResponse.ok) throw new Error(requestJson.error ?? "Could not load friend requests.");
-        if (!friendResponse.ok) throw new Error(friendJson.error ?? "Could not load friends.");
-        if (!userResponse.ok) throw new Error(userJson.error ?? "Could not load suggestions.");
-
-        if (!cancelled) {
-          setReceived(requestJson.received ?? []);
-          setSent(requestJson.sent ?? []);
-          setFriends(friendJson.friends ?? []);
-          setSuggestions((userJson.users ?? []).filter((user: { id: string }) => user.id !== session.user.id));
-        }
-      } catch (requestError) {
-        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load friends.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  const loadFriends = useCallback(async (silent = false) => {
+    if (!session?.user) {
+      setReceived([]);
+      setSent([]);
+      setSuggestions([]);
+      setFriends([]);
+      setLoading(false);
+      return;
     }
+    if (!silent) setLoading(true);
+    setError("");
+    try {
+      const [requestResponse, friendResponse, userResponse] = await Promise.all([
+        fetch("/api/friend-requests", { cache: "no-store" }),
+        fetch("/api/friends", { cache: "no-store" }),
+        fetch("/api/users?take=12&suggestions=true", { cache: "no-store" }),
+      ]);
+      const requestJson = await requestResponse.json();
+      const friendJson = await friendResponse.json();
+      const userJson = await userResponse.json();
+      if (!requestResponse.ok) throw new Error(requestJson.error ?? "Could not load friend requests.");
+      if (!friendResponse.ok) throw new Error(friendJson.error ?? "Could not load friends.");
+      if (!userResponse.ok) throw new Error(userJson.error ?? "Could not load suggestions.");
 
-    void load();
-    return () => {
-      cancelled = true;
-    };
+      const nextSuggestions = (userJson.users ?? []).filter((user: FriendPerson) =>
+        user.id !== session.user.id &&
+        !user.isFriend &&
+        !user.isFollowing &&
+        (user.friendRequestStatus ?? "NONE") === "NONE",
+      );
+      setReceived(requestJson.received ?? []);
+      setSent(requestJson.sent ?? []);
+      setFriends((friendJson.friends ?? []) as FriendPerson[]);
+      setSuggestions(nextSuggestions);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not load friends.");
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, [session?.user?.id]);
+
+  useEffect(() => { void loadFriends(); }, [loadFriends]);
+  useLivePoll(() => loadFriends(true), 7000, Boolean(session?.user));
+
+  useEffect(() => {
+    return subscribeLiveSync((event) => {
+      if (event.type === "friend-request-changed") void loadFriends(true);
+    });
+  }, [loadFriends]);
 
   async function cancelRequest(requestId: string) {
     const response = await fetch("/api/friend-requests/" + requestId, { method: "DELETE" });
-    if (response.ok) setSent((items) => items.filter((item) => item.id !== requestId));
-    else {
+    if (response.ok) {
+      setSent((items) => items.filter((item) => item.id !== requestId));
+      emitLiveSync({ type: "friend-request-changed" });
+      emitUnreadSummarySync();
+    } else {
       const json = await response.json().catch(() => ({}));
       setError(json.error ?? "Could not cancel friend request.");
     }
@@ -2160,8 +2291,10 @@ function Friends() {
   async function removeFriend(friendId: string) {
     if (!window.confirm("Remove this friend?")) return;
     const response = await fetch("/api/friends/" + friendId, { method: "DELETE" });
-    if (response.ok) setFriends((items) => items.filter((item) => item.id !== friendId));
-    else {
+    if (response.ok) {
+      setFriends((items) => items.filter((item) => item.id !== friendId));
+      emitLiveSync({ type: "friend-request-changed" });
+    } else {
       const json = await response.json().catch(() => ({}));
       setError(json.error ?? "Could not remove friend.");
     }
@@ -2173,9 +2306,13 @@ function Friends() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-
     if (response.ok) {
       setReceived((items) => items.filter((item) => item.id !== requestId));
+      emitLiveSync({ type: "friend-request-changed" });
+      emitUnreadSummarySync();
+    } else {
+      const json = await response.json().catch(() => ({}));
+      setError(json.error ?? "Could not update friend request.");
     }
   }
 
@@ -2185,20 +2322,25 @@ function Friends() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ receiverId: userId }),
     });
-
     if (!response.ok) {
       const json = await response.json().catch(() => ({}));
       setError(json.error ?? "Could not send friend request.");
       return;
     }
-
     setSuggestions((items) => items.filter((user) => user.id !== userId));
+    emitLiveSync({ type: "friend-request-changed" });
+    emitUnreadSummarySync();
   }
 
   const initials = (name: string) => name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase();
-
   const requestCount = received.length;
-  const displayPeople = tab === "requests" ? received.map((item) => item.sender) : tab === "sent" ? sent.map((item) => item.receiver!).filter(Boolean) : tab === "suggestions" ? suggestions : friends;
+  const displayPeople = tab === "requests"
+    ? received.map((item) => item.sender)
+    : tab === "sent"
+      ? sent.map((item) => item.receiver!).filter(Boolean)
+      : tab === "suggestions"
+        ? suggestions
+        : friends;
 
   return <Page eyebrow="Friends" title="Manage your circle" subtitle="Review requests, discover people you know, and keep your connections organized.">
     {!session?.user ? (
@@ -2206,9 +2348,9 @@ function Friends() {
     ) : null}
     {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
-    <div className="mb-5 flex gap-2 rounded-2xl border border-gray-200 bg-white p-1.5">
+    <div className="mb-5 flex gap-2 overflow-x-auto rounded-2xl border border-gray-200 bg-white p-1.5">
       {[["requests","Requests",String(requestCount)],["sent","Sent",String(sent.length)],["suggestions","Suggestions",String(suggestions.length)],["all","All friends",String(friends.length)]].map((item)=>
-        <button key={item[0]} onClick={()=>setTab(item[0])} className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-black ${tab===item[0] ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500"}`}>
+        <button key={item[0]} onClick={()=>setTab(item[0])} className={"flex min-h-10 shrink-0 items-center justify-center rounded-xl px-3 py-2.5 text-xs font-black " + (tab===item[0] ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500")}>
           {item[1]} <span className="ml-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px]">{item[2]}</span>
         </button>
       )}
@@ -2219,23 +2361,23 @@ function Friends() {
       displayPeople.map((person, i) => {
         const request = tab === "requests" ? received[i] : tab === "sent" ? sent[i] : null;
         return <Card key={person.id} className="flex items-center gap-4">
-          <Link href={"/profile/" + (person.username ?? person.id)}><Avatar initials={initials(person.name)} color={colors[i % colors.length]} size="lg"/></Link>
+          <Link href={"/profile/" + (person.username ?? person.id)}><Avatar initials={initials(person.name)} image={person.image} color={colors[i % colors.length]} size="lg"/></Link>
           <div className="min-w-0 flex-1">
             <Link href={"/profile/" + (person.username ?? person.id)} className="flex items-center gap-1 truncate text-sm font-black hover:text-[#5a4be8]">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></Link>
             <p className="text-xs text-gray-400">@{person.username ?? "member"}</p>
             <p className="mt-2 truncate text-[11px] text-gray-400">{person.bio ?? "Socialhub member"}</p>
           </div>
           {tab === "requests" && request ? (
-            <div className="flex gap-2">
+            <div className="flex shrink-0 gap-2">
               <button onClick={()=>void respond(request.id, "ACCEPTED")} className="grid size-9 place-items-center rounded-xl bg-[#6d5dfc] text-white" aria-label="Accept request"><Check size={15}/></button>
               <button onClick={()=>void respond(request.id, "DECLINED")} className="grid size-9 place-items-center rounded-xl bg-gray-100 text-gray-600" aria-label="Decline request"><X size={15}/></button>
             </div>
           ) : tab === "sent" && request ? (
-            <button onClick={()=>void cancelRequest(request.id)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black text-gray-600" aria-label="Cancel friend request">Cancel</button>
+            <button onClick={()=>void cancelRequest(request.id)} className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black text-gray-600" aria-label="Cancel friend request">Cancel</button>
           ) : tab === "suggestions" ? (
-            <button onClick={()=>void sendRequest(person.id)} className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white" aria-label="Send friend request"><UserPlus size={15}/></button>
+            <button onClick={()=>void sendRequest(person.id)} className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-gray-950 px-3 text-[10px] font-black text-white" aria-label={"Add " + person.name + " as a friend"}><UserPlus size={14}/> Add friend</button>
           ) : tab === "all" ? (
-            <button onClick={()=>void removeFriend(person.id)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black text-red-600 hover:bg-red-50" aria-label={"Remove " + person.name}>Remove</button>
+            <button onClick={()=>void removeFriend(person.id)} className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black text-red-600 hover:bg-red-50" aria-label={"Remove " + person.name}>Remove</button>
           ) : null}
         </Card>;
       })}
@@ -2244,7 +2386,7 @@ function Friends() {
         <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-white p-10 text-center">
           <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Users size={20}/></span>
           <p className="mt-3 text-sm font-black">{tab === "requests" ? "No pending requests" : tab === "sent" ? "No sent requests" : tab === "suggestions" ? "No new suggestions" : "No friends yet"}</p>
-          <p className="mt-1 text-xs text-gray-400">Your next connection will appear here.</p>
+          <p className="mt-1 text-xs text-gray-400">{tab === "suggestions" ? "Everyone shown here is currently available to add." : "Your next connection will appear here."}</p>
         </div>
       ) : null}
     </div>
@@ -2272,31 +2414,51 @@ function Notifications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (!session?.user) {
-        setNotifications([]);
-        setLoading(false);
-        return;
-      }
+  const notificationFirstLoadRef = useRef(true);
 
-      try {
-        const response = await fetch("/api/notifications", { cache: "no-store" });
-        const json = await response.json();
-        if (!response.ok) throw new Error(json.error ?? "Could not load notifications.");
-        if (!cancelled) { setNotifications(json.notifications as NotificationData[]); setNextNotificationCursor(json.nextBefore ?? null); }
-      } catch (requestError) {
-        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load notifications.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  const refreshNotifications = useCallback(async () => {
+    if (!session?.user) {
+      setNotifications([]);
+      setNextNotificationCursor(null);
+      notificationFirstLoadRef.current = true;
+      setLoading(false);
+      return;
     }
-    void load();
-    return () => {
-      cancelled = true;
-    };
+
+    const isInitialLoad = notificationFirstLoadRef.current;
+    if (isInitialLoad) setLoading(true);
+    try {
+      const response = await fetch("/api/notifications", { cache: "no-store" });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error ?? "Could not load notifications.");
+      const fresh = (json.notifications ?? []) as NotificationData[];
+      setNotifications((current) => {
+        const freshIds = new Set(fresh.map((item) => item.id));
+        return [...fresh, ...current.filter((item) => !freshIds.has(item.id))];
+      });
+      if (isInitialLoad) setNextNotificationCursor(json.nextBefore ?? null);
+      setError("");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not load notifications.");
+    } finally {
+      notificationFirstLoadRef.current = false;
+      setLoading(false);
+    }
   }, [session?.user?.id]);
+
+  useLivePoll(refreshNotifications, 6500, Boolean(session?.user));
+
+  useEffect(() => {
+    return subscribeLiveSync((event) => {
+      if (
+        event.type === "notification-created" ||
+        event.type === "friend-request-changed" ||
+        event.type === "read-state-changed"
+      ) {
+        void refreshNotifications();
+      }
+    });
+  }, [refreshNotifications]);
 
   async function loadOlderNotifications() {
     if (!nextNotificationCursor || loadingOlderNotifications) return;
@@ -2321,7 +2483,10 @@ function Notifications() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ markAll: true }),
     });
-    if (response.ok) setNotifications((items) => items.map((item) => ({ ...item, readAt: new Date().toISOString() })));
+    if (response.ok) {
+      setNotifications((items) => items.map((item) => ({ ...item, readAt: new Date().toISOString() })));
+      emitUnreadSummarySync();
+    }
   }
 
   async function openNotification(item: NotificationData) {
@@ -2332,7 +2497,10 @@ function Notifications() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notificationId: item.id }),
       });
-      if (response.ok) setNotifications((items) => items.map((row) => row.id === item.id ? { ...row, readAt: new Date().toISOString() } : row));
+      if (response.ok) {
+        setNotifications((items) => items.map((row) => row.id === item.id ? { ...row, readAt: new Date().toISOString() } : row));
+        emitUnreadSummarySync();
+      }
     }
 
     if (item.type === "FOLLOW" && item.actor?.username) {

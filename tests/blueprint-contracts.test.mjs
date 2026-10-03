@@ -197,8 +197,8 @@ test("feed mobile navigation uses messages instead of the legacy create-plus slo
 test("messaging has live refresh, typing presence, and read receipts", () => {
   const component = read("components/social-pages.tsx");
   const typing = read("app/api/conversations/[conversationId]/typing/route.ts");
-  assert.match(component, /setInterval\(\(\) => \{ void loadMessages\(\); \}, 2000\)/);
-  assert.match(component, /setInterval\(\(\) => \{ void refreshTyping\(\); \}, 2000\)/);
+  assert.match(component, /window\.setInterval\(\(\) => \{[\s\S]*?loadMessages\(\);[\s\S]*?\}, 2000\)/);
+  assert.match(component, /window\.setInterval\(\(\) => \{[\s\S]*?refreshTyping\(\);[\s\S]*?\}, 2000\)/);
   assert.match(component, /is typing/);
   assert.match(component, /Seen/);
   assert.match(typing, /export async function GET/);
@@ -306,7 +306,7 @@ test("home feed uses one shared post mapper and one shared mobile navigation", (
   const home = read("components/home-feed.tsx");
   const nav = read("components/bottom-nav.tsx");
   assert.equal((home.match(/function mapApiPostToFeedPost\(/g) ?? []).length, 1);
-  assert.equal((home.match(/\.map\(mapApiPostToFeedPost\)/g) ?? []).length, 2);
+  assert.equal((home.match(/\.map\(mapApiPostToFeedPost\)/g) ?? []).length, 3);
   assert.match(home, /<BottomNav \/>/);
   assert.doesNotMatch(home, /fixed inset-x-2 bottom-2/);
   assert.match(nav, /href: "\/messages"/);
@@ -342,10 +342,131 @@ test("unread summary powers shared navigation badges", () => {
   assert.match(route, /unreadCount/);
   assert.match(route, /friendRequestCount/);
   assert.match(hook, /\/api\/unread-summary/);
-  assert.match(hook, /15000/);
+  assert.match(hook, /8000/);
   assert.match(nav, /summary\.messages/);
   assert.match(nav, /summary\.notifications/);
   assert.match(nav, /summary\.friendRequests/);
-  assert.match(home, /unreadSummary\.messages/);
+  assert.doesNotMatch(home, /unreadSummary\.messages/);
   assert.match(home, /unreadSummary\.notifications/);
+});
+
+
+test("live UI uses a shared visibility-aware sync layer", () => {
+  const live = read("lib/live-sync.ts");
+  const poll = read("hooks/use-live-poll.ts");
+  assert.match(live, /BroadcastChannel/);
+  assert.match(live, /CustomEvent/);
+  assert.match(poll, /document\.visibilityState/);
+  assert.match(poll, /navigator\.onLine/);
+});
+
+test("unread summary polling is shared instead of one interval per mounted badge", () => {
+  const hook = read("hooks/use-unread-summary.ts");
+  assert.match(hook, /listeners = new Set/);
+  assert.match(hook, /8000/);
+  assert.doesNotMatch(hook, /setInterval\(\(\) => void refresh\(\), 15000\)/);
+});
+
+test("notifications refresh live and preserve older pagination results", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /useLivePoll\(refreshNotifications, 6500/);
+  assert.match(page, /freshIds/);
+  assert.match(page, /subscribeLiveSync/);
+});
+
+test("feed exposes a non-jumping new-post affordance and live comment refresh", () => {
+  const feed = read("components/home-feed.tsx");
+  assert.match(feed, /useLivePoll\(refreshLiveFeed, 7000/);
+  assert.match(feed, /newActivityCount/);
+  assert.match(feed, /Jump to latest|new posts.*Show|new post.*Show/);
+  assert.match(feed, /loadComments\(undefined, true\)/);
+  assert.match(feed, /comment-created/);
+});
+
+test("mobile messaging switches between inbox and active chat", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /activeId \? "hidden lg:block/);
+  assert.match(page, /Back to conversations/);
+  assert.match(page, /newMessagesCount/);
+  assert.match(page, /Jump to latest/);
+});
+
+test("live refresh preserves pagination after older feed or chat content has been loaded", () => {
+  const feed = read("components/home-feed.tsx");
+  const pages = read("components/social-pages.tsx");
+  assert.match(feed, /current\.length <= latest\.length/);
+  assert.match(pages, /olderAlreadyLoaded/);
+  assert.match(pages, /mergedMessages/);
+  assert.match(pages, /if \(!olderAlreadyLoaded\) \{\s*setNextMessagesCursor/);
+});
+
+test("friend and message read actions refresh global unread state immediately", () => {
+  const pages = read("components/social-pages.tsx");
+  assert.match(pages, /emitUnreadSummarySync\(\)/);
+  assert.match(pages, /friend-request-changed/);
+});
+
+
+test("mobile message composer remains visible inside a bounded chat viewport", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /messages-shell/);
+  assert.match(page, /h-\[calc\(100dvh-240px\)\]/);
+  assert.match(page, /message-composer/);
+  assert.doesNotMatch(page, /min-h-\[calc\(100dvh-150px\)\]/);
+});
+
+test("message polling preserves unseen indicators and older pagination state", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /incomingMessages/);
+  assert.match(page, /setNewMessagesCount\(\(count\) => count \+ incomingMessages\.length\)/);
+  assert.match(page, /setNextMessagesCursor\(null\)/);
+  assert.match(page, /if \(!olderAlreadyLoaded\)/);
+  assert.doesNotMatch(page, /async function loadMessages\(\) \{\s*setNewMessagesCount\(0\)/);
+});
+
+test("message attachments honor the multiple-file input", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /async function uploadAttachments\(files: File\[\]\)/);
+  assert.match(page, /Array\.from\(event\.currentTarget\.files/);
+  assert.match(page, /slice\(0, available\)/);
+});
+
+test("friend suggestions exclude existing connections and pending requests", () => {
+  const route = read("app/api/users/route.ts");
+  const page = read("components/social-pages.tsx");
+  assert.match(route, /suggestionsMode/);
+  assert.match(route, /!user\.isFollowing/);
+  assert.match(route, /!user\.isFriend/);
+  assert.match(route, /friendRequestStatus === "NONE"/);
+  assert.match(route, /blockedIds/);
+  assert.match(page, /suggestions=true/);
+  assert.match(page, /!user\.isFriend/);
+  assert.match(page, /!user\.isFollowing/);
+});
+
+test("discover private friend requests update their state immediately", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /friendRequestStatus: "OUTGOING_PENDING"/);
+  assert.match(page, /canSendFriendRequest: false/);
+});
+
+test("home keeps messages in the primary bottom bar and removes the non-functional moment promo", () => {
+  const home = read("components/home-feed.tsx");
+  assert.doesNotMatch(home, /aria-label="Messages"/);
+  assert.doesNotMatch(home, /Small updates become meaningful memories/);
+  const nav = read("components/bottom-nav.tsx");
+  assert.match(nav, /href: "\/messages"/);
+});
+
+
+test("message API includes profile imagery and account badges for chat participants", () => {
+  const route = read("app/api/conversations/[conversationId]/messages/route.ts");
+  assert.match(route, /sender: \{ select: \{ id: true, name: true, username: true, image: true, isVerified: true, isOwner: true \} \}/);
+});
+
+test("messages and relationship pages pass real profile images to avatars", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /image=\{activeMember\?\.image\}/);
+  assert.match(page, /image=\{message\.sender\.image\}/);
+  assert.match(page, /image=\{person\.image\}/);
 });
