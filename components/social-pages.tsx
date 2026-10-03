@@ -2099,6 +2099,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     async function loadUsers() {
       setLoading(true);
@@ -2107,7 +2108,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
         const endpoint = q.trim()
           ? "/api/search?q=" + encodeURIComponent(q) + "&take=20"
           : "/api/users?suggestions=true&take=20";
-        const response = await fetch(endpoint, { cache: "no-store" });
+        const response = await fetch(endpoint, { cache: "no-store", signal: controller.signal });
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not search.");
         if (!cancelled) {
@@ -2118,7 +2119,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
           setFollowing(new Set(nextResults.filter((user) => user.isFollowing).map((user) => user.id)));
         }
       } catch (requestError) {
-        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not search users.");
+        if (!cancelled && !(requestError instanceof DOMException && requestError.name === "AbortError")) setError(requestError instanceof Error ? requestError.message : "Could not search users.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -2130,6 +2131,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
 
     return () => {
       cancelled = true;
+      controller.abort();
       window.clearTimeout(timer);
     };
   }, [q]);
