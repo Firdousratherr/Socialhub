@@ -107,7 +107,14 @@ export async function GET(request: Request) {
     }
   }
 
-  const postDisplayCounts = await getPostDisplayCountsMap(posts.map((post) => post.id));
+  const [postDisplayCounts, userMetricOverrides] = await Promise.all([
+    getPostDisplayCountsMap(posts.map((post) => post.id)),
+    prisma.adminMetricOverride.findMany({
+      where: { userId: { in: users.map((user) => user.id) } },
+      select: { userId: true, followers: true, following: true },
+    }),
+  ]);
+  const userMetricById = new Map(userMetricOverrides.map((row) => [row.userId, row]));
   const visiblePosts = posts.map((post) => {
     const display = postDisplayCounts.get(post.id);
     return {
@@ -123,6 +130,10 @@ export async function GET(request: Request) {
   return NextResponse.json({
     users: users.map((user) => ({
       ...user,
+      displayCounts: {
+        followers: userMetricById.get(user.id)?.followers ?? user._count.followers,
+        following: userMetricById.get(user.id)?.following ?? 0,
+      },
       isFollowing: followingIds.has(user.id),
       isFriend: friendIds.includes(user.id),
       friendRequestStatus: friendRequestMap.get(user.id) ?? "NONE",
