@@ -120,6 +120,20 @@ button {
   scrollbar-gutter: stable;
 }
 
+.messages-shell {
+  min-width: 0;
+}
+
+.message-pane,
+.message-list {
+  min-width: 0;
+}
+
+.message-composer {
+  flex-shrink: 0;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
 .safe-bottom {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }

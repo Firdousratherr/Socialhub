@@ -7,14 +7,17 @@ import { getBlockedUserIds } from "@/lib/social-access";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") ?? "").trim();
+  const suggestionsMode = url.searchParams.get("suggestions") === "true";
   const take = Math.min(Math.max(Number(url.searchParams.get("take") ?? 20), 1), 50);
+  const candidateTake = suggestionsMode && q.length === 0 ? Math.min(take * 4, 100) : take;
   const session = await auth.api.getSession({ headers: await headers() });
-  const blockedIds = session?.user ? await getBlockedUserIds(session.user.id) : [];
+  const viewerId = session?.user?.id;
+  const blockedIds = viewerId ? await getBlockedUserIds(viewerId) : [];
 
   const users = await prisma.user.findMany({
     where: {
       isActive: true,
-      ...(session?.user ? { id: { notIn: [session.user.id, ...blockedIds] } } : {}),
+      ...(viewerId ? { id: { notIn: [viewerId, ...blockedIds] } } : {}),
       ...(q
         ? {
             OR: [
@@ -24,8 +27,8 @@ export async function GET(request: Request) {
           }
         : {}),
     },
-    orderBy: { createdAt: "desc" },
-    take,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: candidateTake,
     select: {
       id: true,
       name: true,
@@ -35,45 +38,75 @@ export async function GET(request: Request) {
       isPrivate: true,
       isVerified: true,
       isOwner: true,
-      _count: {
-        select: { followers: true, following: true },
-      },
+      _count: { select: { followers: true, following: true } },
     },
   });
 
-  const followingIds = session?.user
-    ? new Set(
-        (
-          await prisma.follow.findMany({
-            where: { followerId: session.user.id, followingId: { in: users.map((user) => user.id) } },
-            select: { followingId: true },
-          })
-        ).map((row) => row.followingId),
-      )
-    : new Set<string>();
+  if (!viewerId) {
+    return NextResponse.json({ users: suggestionsMode ? users.slice(0, take) : users });
+  }
 
-  const friendIds = session?.user
-    ? new Set(
-        (
-          await prisma.friendRequest.findMany({
-            where: {
-              status: "ACCEPTED",
-              OR: [
-                { senderId: session.user.id, receiverId: { in: users.map((user) => user.id) } },
-                { receiverId: session.user.id, senderId: { in: users.map((user) => user.id) } },
-              ],
-            },
-            select: { senderId: true, receiverId: true },
-          })
-        ).map((row) => (row.senderId === session.user.id ? row.receiverId : row.senderId)),
-      )
-    : new Set<string>();
+  const userIds = users.map((user) => user.id);
+  const [followingRows, friendRows, pendingRows] = await Promise.all([
+    prisma.follow.findMany({
+      where: { followerId: viewerId, followingId: { in: userIds } },
+      select: { followingId: true },
+    }),
+    prisma.friendRequest.findMany({
+      where: {
+        status: "ACCEPTED",
+        OR: [
+          { senderId: viewerId, receiverId: { in: userIds } },
+          { receiverId: viewerId, senderId: { in: userIds } },
+        ],
+      },
+      select: { senderId: true, receiverId: true },
+    }),
+    prisma.friendRequest.findMany({
+      where: {
+        status: "PENDING",
+        OR: [
+          { senderId: viewerId, receiverId: { in: userIds } },
+          { receiverId: viewerId, senderId: { in: userIds } },
+        ],
+      },
+      select: { id: true, senderId: true, receiverId: true },
+    }),
+  ]);
 
-  return NextResponse.json({
-    users: users.map((user) => ({
+  const followingIds = new Set(followingRows.map((row) => row.followingId));
+  const friendIds = new Set(friendRows.map((row) =>
+    row.senderId === viewerId ? row.receiverId : row.senderId,
+  ));
+  const pendingByUser = new Map();
+  for (const row of pendingRows) {
+    const otherId = row.senderId === viewerId ? row.receiverId : row.senderId;
+    pendingByUser.set(otherId, {
+      id: row.id,
+      status: row.senderId === viewerId ? "OUTGOING_PENDING" : "INCOMING_PENDING",
+    });
+  }
+
+  const relationshipAwareUsers = users.map((user) => {
+    const pending = pendingByUser.get(user.id);
+    return {
       ...user,
       isFollowing: followingIds.has(user.id),
       isFriend: friendIds.has(user.id),
-    })),
+      friendRequestStatus: pending?.status ?? "NONE",
+      friendRequestId: pending?.id ?? null,
+      canFollow: !user.isPrivate || friendIds.has(user.id),
+      canSendFriendRequest: !friendIds.has(user.id) && !pending,
+    };
   });
+
+  const visibleUsers = suggestionsMode
+    ? relationshipAwareUsers.filter((user) =>
+        !user.isFollowing &&
+        !user.isFriend &&
+        user.friendRequestStatus === "NONE",
+      ).slice(0, take)
+    : relationshipAwareUsers;
+
+  return NextResponse.json({ users: visibleUsers });
 }

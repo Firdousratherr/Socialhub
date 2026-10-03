@@ -405,3 +405,55 @@ test("friend and message read actions refresh global unread state immediately", 
   assert.match(pages, /emitUnreadSummarySync\(\)/);
   assert.match(pages, /friend-request-changed/);
 });
+
+
+test("mobile message composer remains visible inside a bounded chat viewport", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /messages-shell/);
+  assert.match(page, /h-\[calc\(100dvh-240px\)\]/);
+  assert.match(page, /message-composer/);
+  assert.doesNotMatch(page, /min-h-\[calc\(100dvh-150px\)\]/);
+});
+
+test("message polling preserves unseen indicators and older pagination state", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /incomingMessages/);
+  assert.match(page, /setNewMessagesCount\(\(count\) => count \+ incomingMessages\.length\)/);
+  assert.match(page, /setNextMessagesCursor\(null\)/);
+  assert.match(page, /if \(!olderAlreadyLoaded\)/);
+  assert.doesNotMatch(page, /async function loadMessages\(\) \{\s*setNewMessagesCount\(0\)/);
+});
+
+test("message attachments honor the multiple-file input", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /async function uploadAttachments\(files: File\[\]\)/);
+  assert.match(page, /Array\.from\(event\.currentTarget\.files/);
+  assert.match(page, /slice\(0, available\)/);
+});
+
+test("friend suggestions exclude existing connections and pending requests", () => {
+  const route = read("app/api/users/route.ts");
+  const page = read("components/social-pages.tsx");
+  assert.match(route, /suggestionsMode/);
+  assert.match(route, /!user\.isFollowing/);
+  assert.match(route, /!user\.isFriend/);
+  assert.match(route, /friendRequestStatus === "NONE"/);
+  assert.match(route, /blockedIds/);
+  assert.match(page, /suggestions=true/);
+  assert.match(page, /!user\.isFriend/);
+  assert.match(page, /!user\.isFollowing/);
+});
+
+test("discover private friend requests update their state immediately", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /friendRequestStatus: "OUTGOING_PENDING"/);
+  assert.match(page, /canSendFriendRequest: false/);
+});
+
+test("home keeps messages in the primary bottom bar and removes the non-functional moment promo", () => {
+  const home = read("components/home-feed.tsx");
+  assert.doesNotMatch(home, /aria-label="Messages"/);
+  assert.doesNotMatch(home, /Small updates become meaningful memories/);
+  const nav = read("components/bottom-nav.tsx");
+  assert.match(nav, /href: "\/messages"/);
+});

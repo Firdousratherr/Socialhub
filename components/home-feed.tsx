@@ -1063,7 +1063,7 @@ export default function HomeFeed() {
   }, [feedPosts.length]);
 
   return (
-    <main className="min-h-screen bg-transparent pb-20 md:pb-6">
+    <main className="min-h-screen bg-transparent pb-24 md:pb-6">
       {newActivityCount > 0 ? (
         <div className="sticky top-[74px] z-20 mx-auto -mb-2 flex max-w-[720px] justify-center px-4 pt-2">
           <button type="button" onClick={showPendingLivePosts} className="rounded-full border border-[#d9d4ff] bg-white/95 px-4 py-2 text-xs font-black text-[#5a4be8] shadow-lg backdrop-blur-xl">
@@ -1091,7 +1091,6 @@ export default function HomeFeed() {
 
           <div className="ml-auto flex items-center gap-1.5">
             <button type="button" onClick={() => setSearchOpen((value) => !value)} className="social-icon-button rounded-2xl border border-transparent bg-gray-50 md:hidden" aria-label="Search" aria-expanded={searchOpen}><Search size={19}/></button>
-            <Link href="/messages" className="social-icon-button relative rounded-2xl border border-transparent bg-gray-50 hover:border-[#e3defe] hover:bg-[#f8f6ff]" aria-label="Messages"><MessageCircle size={19}/>{unreadSummary.messages > 0 ? <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[8px] font-black leading-4 text-white">{Math.min(99, unreadSummary.messages)}</span> : null}</Link>
             <Link href="/notifications" className="social-icon-button relative rounded-2xl border border-transparent bg-gray-50 hover:border-[#e3defe] hover:bg-[#f8f6ff]" aria-label="Notifications">
               <Bell size={19}/>
               {unreadSummary.notifications > 0 ? <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[8px] font-black leading-4 text-white">{Math.min(99, unreadSummary.notifications)}</span> : null}
@@ -1231,9 +1230,6 @@ export default function HomeFeed() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-gradient-to-br from-[#171426] to-[#2a2450] p-5 text-white shadow-xl shadow-violet-950/10">
-              <Sparkles size={18}/><p className="mt-4 text-sm font-black leading-5">Small updates become meaningful memories when you share them with your people.</p>
-            </section>
           </div>
         </aside>
       </div>
