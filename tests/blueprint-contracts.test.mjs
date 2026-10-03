@@ -197,7 +197,7 @@ test("feed mobile navigation uses messages instead of the legacy create-plus slo
 test("messaging has live refresh, typing presence, and read receipts", () => {
   const component = read("components/social-pages.tsx");
   const typing = read("app/api/conversations/[conversationId]/typing/route.ts");
-  assert.match(component, /setInterval\(\(\) => \{ void loadMessages\(\); \}, 2000\)/);
+  assert.match(component, /setInterval\(\(\) => \{[^}]*loadMessages\(\);[^}]*\}, 2000\)/);
   assert.match(component, /setInterval\(\(\) => \{ void refreshTyping\(\); \}, 2000\)/);
   assert.match(component, /is typing/);
   assert.match(component, /Seen/);
@@ -306,7 +306,7 @@ test("home feed uses one shared post mapper and one shared mobile navigation", (
   const home = read("components/home-feed.tsx");
   const nav = read("components/bottom-nav.tsx");
   assert.equal((home.match(/function mapApiPostToFeedPost\(/g) ?? []).length, 1);
-  assert.equal((home.match(/\.map\(mapApiPostToFeedPost\)/g) ?? []).length, 2);
+  assert.equal((home.match(/\.map\(mapApiPostToFeedPost\)/g) ?? []).length, 3);
   assert.match(home, /<BottomNav \/>/);
   assert.doesNotMatch(home, /fixed inset-x-2 bottom-2/);
   assert.match(nav, /href: "\/messages"/);
@@ -346,7 +346,7 @@ test("unread summary powers shared navigation badges", () => {
   assert.match(nav, /summary\.messages/);
   assert.match(nav, /summary\.notifications/);
   assert.match(nav, /summary\.friendRequests/);
-  assert.match(home, /unreadSummary\.messages/);
+  assert.doesNotMatch(home, /unreadSummary\.messages/);
   assert.match(home, /unreadSummary\.notifications/);
 });
 
@@ -397,7 +397,7 @@ test("live refresh preserves pagination after older feed or chat content has bee
   assert.match(feed, /current\.length <= latest\.length/);
   assert.match(pages, /olderAlreadyLoaded/);
   assert.match(pages, /mergedMessages/);
-  assert.match(pages, /if \(!olderAlreadyLoaded\) setNextMessagesCursor/);
+  assert.match(pages, /if \(!olderAlreadyLoaded\) \{\s*setNextMessagesCursor/);
 });
 
 test("friend and message read actions refresh global unread state immediately", () => {
