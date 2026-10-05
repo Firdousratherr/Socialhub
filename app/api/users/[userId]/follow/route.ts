@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isBlocked } from "@/lib/social-access";
+import { publicUserWhere } from "@/lib/user-visibility";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 async function getSession(){return auth.api.getSession({headers:await headers()});}
 export async function POST(_request:Request,{params}:{params:Promise<{userId:string}>}){
