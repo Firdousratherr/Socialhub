@@ -965,7 +965,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
   }
 
   async function acceptFriendRequest() {
-    if (!friendRequestId || actionLoading) return;
+    if (!friendRequestId || !profile || actionLoading) return;
     setActionLoading("accept-friend");
     try {
       const response = await fetch("/api/friend-requests/" + encodeURIComponent(friendRequestId), {
