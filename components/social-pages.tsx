@@ -3345,22 +3345,6 @@ function SettingsPage() {
 
         {changingPassword ? (
           <Card>
-           <div className="flex items-center justify-between gap-3">
-             <div><p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Blocked people</p><h2 className="mt-1 text-xl font-black">Manage blocked accounts</h2><p className="mt-1 text-xs leading-5 text-gray-500">Review people you have blocked and restore access when needed.</p></div>
-             <ShieldOff size={19} className="text-gray-400"/>
-           </div>
-           <div className="mt-4 space-y-2">
-             {loadingBlockedUsers ? <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">Loading blocked accounts…</div> :
-              blockedUsers.length ? blockedUsers.map((user) => (
-               <div key={user.id} className="flex items-center gap-3 rounded-2xl border border-gray-100 p-3">
-                 {user.image ? <img src={user.image} alt="" className="size-10 shrink-0 rounded-full object-cover"/> : <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{user.name.slice(0, 1).toUpperCase()}</div>}
-                 <div className="min-w-0 flex-1"><p className="flex items-center gap-1.5 truncate text-xs font-black">{user.name}<AccountBadge verified={user.isVerified} owner={user.isOwner}/></p><p className="truncate text-[11px] text-gray-500">@{user.username ?? "member"} · blocked {formatSocialDate(user.blockedAt)}</p></div>
-                 <button type="button" onClick={() => void unblockUser(user.id)} disabled={unblockingUserId === user.id} className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-700 hover:bg-gray-50 disabled:opacity-40">{unblockingUserId === user.id ? "Unblocking…" : "Unblock"}</button>
-               </div>
-              )) : <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">You have not blocked anyone.</div>}
-           </div>
-         </Card>
-         <Card>
             <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-black">Change password</h2><p className="mt-1 text-xs text-gray-500">Enter your current password, then choose a new one.</p></div><button type="button" onClick={() => setChangingPassword(false)} className="social-icon-button" aria-label="Close password change"><X size={16}/></button></div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="block"><span className="mb-1.5 block text-xs font-black">Current password</span><input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"/></label>
@@ -3404,7 +3388,24 @@ function SettingsPage() {
           </div>
         </Card>
 
-        <Card>
+                 <Card>
+           <div className="flex items-center justify-between gap-3">
+             <div><p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Blocked people</p><h2 className="mt-1 text-xl font-black">Manage blocked accounts</h2><p className="mt-1 text-xs leading-5 text-gray-500">Review people you have blocked and restore access when needed.</p></div>
+             <ShieldOff size={19} className="text-gray-400"/>
+           </div>
+           <div className="mt-4 space-y-2">
+             {loadingBlockedUsers ? <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">Loading blocked accounts…</div> :
+              blockedUsers.length ? blockedUsers.map((user) => (
+               <div key={user.id} className="flex items-center gap-3 rounded-2xl border border-gray-100 p-3">
+                 {user.image ? <img src={user.image} alt="" className="size-10 shrink-0 rounded-full object-cover"/> : <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{user.name.slice(0, 1).toUpperCase()}</div>}
+                 <div className="min-w-0 flex-1"><p className="flex items-center gap-1.5 truncate text-xs font-black">{user.name}<AccountBadge verified={user.isVerified} owner={user.isOwner}/></p><p className="truncate text-[11px] text-gray-500">@{user.username ?? "member"} · blocked {formatSocialDate(user.blockedAt)}</p></div>
+                 <button type="button" onClick={() => void unblockUser(user.id)} disabled={unblockingUserId === user.id} className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-700 hover:bg-gray-50 disabled:opacity-40">{unblockingUserId === user.id ? "Unblocking…" : "Unblock"}</button>
+               </div>
+              )) : <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">You have not blocked anyone.</div>}
+           </div>
+         </Card>
+
+<Card>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div><h2 className="text-sm font-black">Account verification</h2><p className="mt-2 text-xs leading-5 text-gray-500">Verified accounts receive a blue badge. The owner badge is separate and cannot be requested.</p></div>
             <AccountBadge verified={verification.isVerified} owner={verification.isOwner} showLabel size="md"/>
