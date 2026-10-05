@@ -67,6 +67,9 @@ type StoryItem = {
   mediaUrl: string;
   caption: string | null;
   expiresAt: string;
+  viewCount?: number;
+  reactionCount?: number;
+  replyCount?: number;
   author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
 };
 
@@ -759,6 +762,8 @@ export default function HomeFeed() {
   const [feedMode, setFeedMode] = useState<"FOR_YOU" | "FOLLOWING" | "FRIENDS" | "LATEST" | "SAVED">("FOR_YOU");
   const [feedModeOpen, setFeedModeOpen] = useState(false);
   const [loadingFeed, setLoadingFeed] = useState(true);
+  const [initialStoryId, setInitialStoryId] = useState<string | null>(null);
+  const [initialStoryTarget, setInitialStoryTarget] = useState<"mobile" | "desktop" | null>(null);
   const [pendingLivePosts, setPendingLivePosts] = useState<Post[]>([]);
   const [newActivityCount, setNewActivityCount] = useState(0);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -769,6 +774,13 @@ export default function HomeFeed() {
     feedPostsRef.current = feedPosts;
   }, [feedPosts]);
   useEffect(() => {
+    const storyId = new URLSearchParams(window.location.search).get("story");
+    if (!storyId) return;
+    setInitialStoryId(storyId);
+    setInitialStoryTarget(window.matchMedia("(min-width: 1280px)").matches ? "desktop" : "mobile");
+  }, []);
+
+ useEffect(() => {
     if (!session?.user?.id) return;
     try {
       const saved = window.localStorage.getItem("socialhub:post-draft:" + session.user.id);
@@ -1102,7 +1114,17 @@ export default function HomeFeed() {
           </button>
         </div>
       ) : null}
-      <div className="mx-auto max-w-[1440px] px-4 pt-4 sm:px-6 lg:hidden"><StoryCenter stories={stories} onStoriesChange={setStories}/></div>
+      <div className="mx-auto max-w-[1440px] px-4 pt-4 sm:px-6 lg:hidden"><StoryCenter
+        stories={stories}
+        onStoriesChange={setStories}
+        initialStoryId={initialStoryTarget === "mobile" ? initialStoryId : null}
+        onInitialStoryHandled={() => {
+          setInitialStoryId(null);
+          const url = new URL(window.location.href);
+          url.searchParams.delete("story");
+          window.history.replaceState({}, "", url.toString());
+        }}
+      /></div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,680px)_300px]">
         <section className="min-w-0 2xl:max-w-[680px]">
@@ -1183,7 +1205,17 @@ export default function HomeFeed() {
 
         <aside className="hidden xl:block">
           <div className="sticky top-24 space-y-5">
-            <StoryCenter stories={visibleStories} onStoriesChange={setStories}/>
+            <StoryCenter
+              stories={visibleStories}
+              onStoriesChange={setStories}
+              initialStoryId={initialStoryTarget === "desktop" ? initialStoryId : null}
+              onInitialStoryHandled={() => {
+                setInitialStoryId(null);
+                const url = new URL(window.location.href);
+                url.searchParams.delete("story");
+                window.history.replaceState({}, "", url.toString());
+              }}
+            />
 
                         <section className="social-card rounded-3xl p-4">
               <div className="flex items-center justify-between">
