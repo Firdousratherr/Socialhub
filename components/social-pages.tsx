@@ -1069,7 +1069,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
 
     <div className="overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)]">
       <div
-        className="relative h-48 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,.24),transparent_22%),linear-gradient(135deg,#5a4be8,#2e9fe9_55%,#51d3b4)] bg-cover bg-center"
+        className="relative h-40 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,.24),transparent_22%),linear-gradient(135deg,#5a4be8,#2e9fe9_55%,#51d3b4)] bg-cover bg-center sm:h-[220px]"
         style={profile?.coverImage ? { backgroundImage: `url("${profile.coverImage}")` } : undefined}
       >
         {isOwner ? (
@@ -1099,7 +1099,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
       </div>
 
       <div className="relative min-w-0 px-4 pb-6 sm:px-8">
-        <div className="-mt-12 flex min-w-0 flex-col gap-4 sm:-mt-14 sm:flex-row sm:items-end">
+        <div className="-mt-12 flex min-w-0 flex-col gap-3 sm:-mt-14">
           <div className="relative rounded-full border-4 border-white bg-white">
             {isOwner ? (
               <>
