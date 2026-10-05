@@ -30,7 +30,8 @@ export async function GET(request: Request) {
   const takeParam = Number(url.searchParams.get("take") ?? "50");
   const take = Number.isFinite(takeParam) ? Math.min(Math.max(Math.floor(takeParam), 1), 100) : 50;
 
-  const logs = await prisma.adminAuditLog.findMany({
+  const [logs, events] = await Promise.all([
+    prisma.adminAuditLog.findMany({
     where: {
       AND: [
         ...(cursor ? [{ OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] }] : []),
@@ -49,9 +50,49 @@ export async function GET(request: Request) {
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: isCsv ? 1000 : take + 1,
-  });
+    }),
+    prisma.adminAuditEvent.findMany({
+      where: {
+        AND: [
+          ...(cursor ? [{ OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] }] : []),
+          ...(action ? [{ action: { contains: action, mode: "insensitive" as const } }] : []),
+          ...(targetType ? [{ resource: { contains: targetType, mode: "insensitive" as const } }] : []),
+          ...(adminId ? [{ actorId: adminId }] : []),
+          ...(q ? [{
+            OR: [
+              { action: { contains: q, mode: "insensitive" as const } },
+              { resource: { contains: q, mode: "insensitive" as const } },
+              { resourceId: { contains: q, mode: "insensitive" as const } },
+              { reason: { contains: q, mode: "insensitive" as const } },
+            ],
+          }] : []),
+        ],
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: take + 1,
+    }),
+  ]);
+
+  const richEvents = events.slice(0, take).map((event) => ({
+    id: event.id,
+    adminId: event.actorId,
+    action: event.action,
+    targetType: event.resource,
+    targetId: event.resourceId,
+    details: JSON.stringify({
+      reason: event.reason,
+      permission: event.permission,
+      outcome: event.outcome,
+      riskLevel: event.riskLevel,
+      before: event.before,
+      after: event.after,
+      caseId: event.caseId,
+    }),
+    createdAt: event.createdAt,
+  }));
 
   const hasMore = logs.length > take;
+
   const page = logs.slice(0, take);
   const oldest = page.at(-1);
   const nextBefore = hasMore && oldest ? Buffer.from(JSON.stringify({ createdAt: oldest.createdAt.toISOString(), id: oldest.id })).toString("base64url") : null;
@@ -62,5 +103,5 @@ export async function GET(request: Request) {
     return new NextResponse(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": "attachment; filename=admin-audit.csv" } });
   }
 
-  return NextResponse.json({ logs: page, nextBefore });
+  return NextResponse.json({ logs: page, events: richEvents, nextBefore });
 }
