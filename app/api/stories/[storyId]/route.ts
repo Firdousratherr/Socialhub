@@ -78,7 +78,7 @@ export async function GET(
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
-  const limit = await consumeMutationRateLimit("story-actions", request, session.user.id, 120, 60);
+  const limit = await consumeMutationRateLimit("story-actions", _request, session.user.id, 120, 60);
   if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
 
   const { storyId } = await params;
