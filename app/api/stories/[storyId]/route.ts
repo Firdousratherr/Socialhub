@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { consumeMutationRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -76,6 +77,9 @@ export async function GET(
   if (!session?.user) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
+
+  const limit = await consumeMutationRateLimit("story-actions", request, session.user.id, 120, 60);
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
 
   const { storyId } = await params;
   const access = await getAccessibleStory(storyId, session.user.id);
