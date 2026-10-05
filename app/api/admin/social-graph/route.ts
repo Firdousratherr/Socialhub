@@ -5,7 +5,7 @@ import { requireAdminPermission } from "@/lib/admin-permissions";
 import { recordAdminEvent } from "@/lib/admin-operations";
 
 const actionSchema = z.object({
-  action: z.enum(["UNFOLLOW", "REMOVE_FRIEND", "CANCEL_FRIEND_REQUEST", "REMOVE_BLOCK"]),
+  action: z.enum(["UNFOLLOW", "REMOVE_FOLLOWER", "REMOVE_FRIEND", "CANCEL_FRIEND_REQUEST", "REMOVE_BLOCK"]),
   userId: z.string().min(1),
   targetId: z.string().min(1),
 });
@@ -74,6 +74,9 @@ export async function POST(request: Request) {
   let affected = 0;
   if (action === "UNFOLLOW") {
     affected = (await prisma.follow.deleteMany({ where: { followerId: userId, followingId: targetId } })).count;
+  }
+  if (action === "REMOVE_FOLLOWER") {
+    affected = (await prisma.follow.deleteMany({ where: { followerId: targetId, followingId: userId } })).count;
   }
   if (action === "REMOVE_FRIEND") {
     affected = (await prisma.friendRequest.updateMany({
