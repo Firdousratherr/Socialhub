@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
+import { createPortal } from "react-dom";
 import { AdminWorkspace } from "@/components/admin-workspace";
 import { AccountBadge } from "@/components/account-badge";
 import { emitPostSyncEvent } from "@/lib/post-sync";
@@ -644,6 +645,10 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [websiteError, setWebsiteError] = useState("");
   const [profileTab, setProfileTab] = useState<"posts" | "photos" | "friends">("posts");
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [profileMenuReady, setProfileMenuReady] = useState(false);
+  const [profileMenuPosition, setProfileMenuPosition] = useState({ top: 0, left: 0 });
+  const profileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const [friends, setFriends] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; bio: string | null; isVerified?: boolean; isOwner?: boolean }>>([]);
   const [friendsHidden, setFriendsHidden] = useState(false);
   const [relationshipView, setRelationshipView] = useState<"followers" | "following" | "mutual" | null>(null);
@@ -669,6 +674,44 @@ function Profile({ username = "firdous" }: { username?: string }) {
     website: "",
     isPrivate: false,
   });
+
+  useEffect(() => {
+    setProfileMenuReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+
+    const reposition = () => {
+      const anchor = profileMenuButtonRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const width = 190;
+      const gap = 8;
+      setProfileMenuPosition({
+        top: Math.min(window.innerHeight - 210, rect.bottom + gap),
+        left: Math.min(window.innerWidth - width - 10, Math.max(10, rect.right - width)),
+      });
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!profileMenuRef.current?.contains(target) && !profileMenuButtonRef.current?.contains(target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    reposition();
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    document.addEventListener("pointerdown", onPointerDown);
+
+    return () => {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [profileMenuOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1219,7 +1262,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
               ) : (
                 <Link href="/login" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white"><LogIn size={15}/>Sign in to interact</Link>
               )}
-              <div className="relative shrink-0"><button type="button" onClick={() => setProfileMenuOpen((value) => !value)} className="grid size-11 place-items-center rounded-xl border border-gray-200 bg-white text-gray-700" aria-label="More profile actions" aria-expanded={profileMenuOpen}><MoreHorizontal size={18}/></button>{profileMenuOpen ? <div className="absolute right-0 top-12 z-20 w-44 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl"><button type="button" onClick={() => { setProfileMenuOpen(false); void shareProfile(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50"><Share2 size={15}/>Share profile</button><button type="button" onClick={() => { setProfileMenuOpen(false); void reportUser(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50"><Shield size={15}/>Report</button><button type="button" onClick={() => { setProfileMenuOpen(false); void blockUser(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50"><ShieldOff size={15}/>Block</button></div> : null}</div>
+              <div className="relative shrink-0"><button ref={profileMenuButtonRef} type="button" onClick={() => setProfileMenuOpen((value) => !value)} className="grid size-11 place-items-center rounded-xl border border-gray-200 bg-white text-gray-700 shadow-sm" aria-label="More profile actions" aria-expanded={profileMenuOpen} aria-haspopup="menu"><MoreHorizontal size={18}/></button></div>
             </div>
           </div>
         ) : null}
@@ -1291,6 +1334,25 @@ function Profile({ username = "firdous" }: { username?: string }) {
             </div>
           </div>
         ) : null}
+
+        {profileMenuOpen && profileMenuReady
+          ? createPortal(
+              <div
+                ref={profileMenuRef}
+                className="fixed z-[9999] w-[190px] overflow-hidden rounded-2xl border border-gray-200 bg-white p-1.5 shadow-2xl"
+                style={{ top: profileMenuPosition.top, left: profileMenuPosition.left }}
+                role="menu"
+                aria-label="Profile actions"
+              >
+                <button type="button" onClick={() => { setProfileMenuOpen(false); void shareProfile(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50" role="menuitem"><Share2 size={15}/>Share profile</button>
+                {!isOwner ? <>
+                  <button type="button" onClick={() => { setProfileMenuOpen(false); void reportUser(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50" role="menuitem"><Shield size={15}/>Report</button>
+                  <button type="button" onClick={() => { setProfileMenuOpen(false); void blockUser(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50" role="menuitem"><ShieldOff size={15}/>Block</button>
+                </> : null}
+              </div>,
+              document.body,
+            )
+          : null}
 
         <div className="mt-7 flex gap-2 overflow-x-auto border-b border-gray-100 pb-3 text-xs font-black scrollbar-none">
           {(["posts","photos","friends"] as const).map((tab) => <button key={tab} type="button" onClick={() => setProfileTab(tab)} className={profileTab === tab ? "border-b-2 border-[#6d5dfc] pb-3 text-[#5a4be8]" : "pb-3 text-gray-500"}>{tab[0].toUpperCase() + tab.slice(1)}</button>)}
