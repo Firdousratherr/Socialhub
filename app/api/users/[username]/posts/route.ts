@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { areFriends, isBlocked } from "@/lib/social-access";
 import { getPostDisplayCountsMap } from "@/lib/post-metrics";
+import { publicUserWhere } from "@/lib/user-visibility";
 
 function decodeCursor(value: string | null) {
   if (!value) return null;
@@ -35,8 +36,14 @@ export async function GET(
 
   const session = await auth.api.getSession({ headers: await headers() });
   const viewerId = session?.user?.id;
-  const user = await prisma.user.findUnique({
-    where: { username },
+  const user = await prisma.user.findFirst({
+    where: {
+      username,
+      OR: [
+        ...(viewerId ? [{ id: viewerId }] : []),
+        publicUserWhere,
+      ],
+    },
     select: { id: true, isActive: true, isPrivate: true },
   });
   if (!user?.isActive) return NextResponse.json({ error: "User not found." }, { status: 404 });
