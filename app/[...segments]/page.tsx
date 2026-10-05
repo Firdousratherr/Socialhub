@@ -1,3 +1,24 @@
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ segments: string[] }>;
+}): Promise<Metadata> {
+  const { segments } = await params;
+  const titles: Record<string, string> = {
+    login: "Sign in",
+    signup: "Create account",
+    discover: "Discover",
+    friends: "Friends",
+    messages: "Messages",
+    notifications: "Notifications",
+    settings: "Settings",
+    saved: "Saved posts",
+  };
+  const first = segments[0] ?? "";
+  return { title: titles[first] ?? "Socialhub" };
+}
+
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
