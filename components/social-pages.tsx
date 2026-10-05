@@ -45,6 +45,7 @@ function Page({
   action,
   fallbackHref = "/home",
   children,
+  wide = false,
 }: {
   eyebrow?: string;
   title: string;
@@ -52,6 +53,7 @@ function Page({
   action?: React.ReactNode;
   fallbackHref?: string;
   children: React.ReactNode;
+  wide?: boolean;
 }) {
   const router = useRouter();
 
@@ -65,7 +67,7 @@ function Page({
 
   return (
     <main className="min-h-screen pb-24 md:pb-8">
-      <div className="mx-auto w-full max-w-[760px] px-3 py-3 sm:px-4 sm:py-5 lg:px-0">
+      <div className={"mx-auto w-full px-3 py-3 sm:px-4 sm:py-5 lg:px-0 " + (wide ? "max-w-[980px]" : "max-w-[760px]")}>
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <button type="button" onClick={goBack} className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50" aria-label="Go back">
@@ -1891,7 +1893,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
   }
 
-  return <Page eyebrow="Messages" title="Your conversations" subtitle="Focused one-to-one and group messaging, designed to be easy to pick back up.">
+  return <Page wide eyebrow="Messages" title="Your conversations" subtitle="Focused one-to-one and group messaging, designed to be easy to pick back up.">
     {!session?.user ? (
       <div className="mb-5 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-4 py-3 text-xs font-semibold text-[#5a4be8]">
         Sign in to load your real conversations. The interface stays browsable while you are signed out.
@@ -2178,7 +2180,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
     }
   }
 
-  return <Page eyebrow="Discover" title="Find your next connection" subtitle="Search people, browse topics, and explore conversations worth joining.">
+  return <Page wide eyebrow="Discover" title="Find your next connection" subtitle="Search people, browse topics, and explore conversations worth joining.">
     <div className="space-y-5">
       <Card>
         <div className="relative">
@@ -3025,7 +3027,7 @@ function SettingsPage() {
     }
   }
 
-  return <Page eyebrow="Settings" title="Make Socialhub yours" subtitle="Control account, privacy, notifications, and security from one place.">
+  return <Page wide eyebrow="Settings" title="Make Socialhub yours" subtitle="Control account, privacy, notifications, and security from one place.">
     {!session?.user ? (
       <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-4 py-3 text-xs font-semibold text-[#5a4be8]">
         <span>Sign in to save account settings.</span>
