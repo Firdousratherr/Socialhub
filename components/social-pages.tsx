@@ -2854,6 +2854,10 @@ function SettingsPage() {
   const [revokeOtherSessions, setRevokeOtherSessions] = useState(true);
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [activeSettingsSection, setActiveSettingsSection] = useState("general");
+  const [blockedUsers, setBlockedUsers] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean; blockedAt: string }>>([]);
+  const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
+  const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null);
+  const [exportingData, setExportingData] = useState(false);
 
   useEffect(() => {
     const ids = ["general", "privacy", "notifications", "security", "help"];
@@ -2912,6 +2916,16 @@ function SettingsPage() {
 
   useEffect(() => {
     if (!session?.user) return;
+    setLoadingBlockedUsers(true);
+    void fetch("/api/blocks", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(json.error ?? "Could not load blocked users.");
+        setBlockedUsers(Array.isArray(json.blockedUsers) ? json.blockedUsers : []);
+      })
+      .catch((error) => setMessage(error instanceof Error ? error.message : "Could not load blocked users."))
+      .finally(() => setLoadingBlockedUsers(false));
+
     void fetch("/api/notification-preferences", { cache: "no-store" })
       .then(async (response) => {
         const json = await response.json().catch(() => ({}));
@@ -3043,6 +3057,53 @@ function SettingsPage() {
       setMessage(allOther ? `Signed out of ${json.revoked ?? 0} other session(s).` : "Session revoked.");
     } catch (requestError) {
       setMessage(requestError instanceof Error ? requestError.message : "Could not revoke session.");
+    }
+  }
+
+  async function unblockUser(userId: string) {
+    if (unblockingUserId) return;
+    setUnblockingUserId(userId);
+    try {
+      const response = await fetch("/api/blocks", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not unblock user.");
+      setBlockedUsers((current) => current.filter((user) => user.id !== userId));
+      setMessage("User unblocked.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not unblock user.");
+    } finally {
+      setUnblockingUserId(null);
+    }
+  }
+
+  async function downloadAccountData() {
+    if (!session?.user || exportingData) return;
+    setExportingData(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/privacy/export", { cache: "no-store" });
+      if (!response.ok) {
+        const json = await response.json().catch(() => ({}));
+        throw new Error(json.error ?? "Could not export account data.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "socialhub-account-data.json";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setMessage("Account data downloaded to this device.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not export account data.");
+    } finally {
+      setExportingData(false);
     }
   }
 
@@ -3327,7 +3388,24 @@ function SettingsPage() {
           </div>
         </Card>
 
-        <Card>
+                 <Card>
+           <div className="flex items-center justify-between gap-3">
+             <div><p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Blocked people</p><h2 className="mt-1 text-xl font-black">Manage blocked accounts</h2><p className="mt-1 text-xs leading-5 text-gray-500">Review people you have blocked and restore access when needed.</p></div>
+             <ShieldOff size={19} className="text-gray-400"/>
+           </div>
+           <div className="mt-4 space-y-2">
+             {loadingBlockedUsers ? <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">Loading blocked accounts…</div> :
+              blockedUsers.length ? blockedUsers.map((user) => (
+               <div key={user.id} className="flex items-center gap-3 rounded-2xl border border-gray-100 p-3">
+                 {user.image ? <img src={user.image} alt="" className="size-10 shrink-0 rounded-full object-cover"/> : <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{user.name.slice(0, 1).toUpperCase()}</div>}
+                 <div className="min-w-0 flex-1"><p className="flex items-center gap-1.5 truncate text-xs font-black">{user.name}<AccountBadge verified={user.isVerified} owner={user.isOwner}/></p><p className="truncate text-[11px] text-gray-500">@{user.username ?? "member"} · blocked {formatSocialDate(user.blockedAt)}</p></div>
+                 <button type="button" onClick={() => void unblockUser(user.id)} disabled={unblockingUserId === user.id} className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-700 hover:bg-gray-50 disabled:opacity-40">{unblockingUserId === user.id ? "Unblocking…" : "Unblock"}</button>
+               </div>
+              )) : <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">You have not blocked anyone.</div>}
+           </div>
+         </Card>
+
+<Card>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div><h2 className="text-sm font-black">Account verification</h2><p className="mt-2 text-xs leading-5 text-gray-500">Verified accounts receive a blue badge. The owner badge is separate and cannot be requested.</p></div>
             <AccountBadge verified={verification.isVerified} owner={verification.isOwner} showLabel size="md"/>
@@ -3357,7 +3435,13 @@ function SettingsPage() {
                 </div>
               )) : <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">No active sessions were found.</div>}
             </div>
-            <button onClick={()=>void signOut()} className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-700 hover:bg-gray-50">Sign out current device</button>
+            <button type="button" onClick={()=>void signOut()} className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-700 hover:bg-gray-50">Sign out current device</button>
+            <div className="mt-4 rounded-2xl bg-gray-50 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div><p className="text-xs font-black">Download account data</p><p className="mt-1 text-[11px] leading-5 text-gray-500">Export your profile, posts, comments, connections, saves, stories, and notification/privacy settings as JSON.</p></div>
+                <button type="button" onClick={() => void downloadAccountData()} disabled={exportingData} className="shrink-0 rounded-xl bg-gray-950 px-3.5 py-2.5 text-xs font-black text-white disabled:opacity-40">{exportingData ? "Preparing…" : "Download JSON"}</button>
+              </div>
+            </div>
           </Card>
         ) : null}
 

@@ -73,6 +73,8 @@ type StoryItem = {
   author: { id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean };
 };
 
+type TrendItem = { tag: string; posts: number };
+
 type SuggestedUser = {
   id: string;
   name: string;
@@ -749,6 +751,7 @@ export default function HomeFeed() {
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [suggestedUsers, setSuggestedUsers] = useState<SuggestedUser[]>([]);
+  const [trends, setTrends] = useState<TrendItem[]>([]);
   const [newPost, setNewPost] = useState("");
   const [visibility, setVisibility] = useState<Post["visibility"]>("PUBLIC");
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
@@ -814,14 +817,16 @@ export default function HomeFeed() {
     async function load() {
       setLoadingFeed(true);
       try {
-        const [feedResponse, storyResponse, usersResponse] = await Promise.all([
+        const [feedResponse, storyResponse, usersResponse, trendsResponse] = await Promise.all([
           fetch("/api/posts?take=20&mode=" + encodeURIComponent(feedMode), { cache: "no-store" }),
           fetch("/api/stories", { cache: "no-store" }),
           fetch("/api/users?suggestions=true&take=3", { cache: "no-store" }),
+          fetch("/api/discover/trends", { cache: "no-store" }),
         ]);
         const feedJson = await feedResponse.json();
         const storyJson = await storyResponse.json();
         const usersJson = await usersResponse.json();
+         const trendsJson = await trendsResponse.json();
         if (cancelled) return;
 
         if (feedResponse.ok) {
@@ -832,6 +837,7 @@ export default function HomeFeed() {
 
         if (storyResponse.ok) setStories((storyJson.stories ?? []) as StoryItem[]);
         if (usersResponse.ok) setSuggestedUsers((usersJson.users ?? []) as SuggestedUser[]);
+         if (trendsResponse.ok) setTrends((trendsJson.trends ?? []) as TrendItem[]);
       } catch (loadError) {
         if (!cancelled) setFeedError(loadError instanceof Error ? loadError.message : "Could not load your feed.");
       } finally {
@@ -1233,12 +1239,12 @@ export default function HomeFeed() {
             <section className="social-card rounded-3xl p-4">
               <div><h2 className="text-sm font-black">Trending topics</h2><p className="mt-1 text-[11px] text-[var(--muted)]">What people are talking about.</p></div>
               <div className="mt-3 space-y-1">
-                {[["#Socialhub", "1.2k posts"], ["#Photography", "846 posts"], ["#Weekend", "612 posts"], ["#TechTalk", "488 posts"]].map(([tag, count], index) => (
-                  <Link key={tag} href={"/discover?q=" + encodeURIComponent(tag)} className="flex min-h-11 items-center justify-between rounded-2xl px-3 hover:bg-[var(--surface-muted)]">
-                    <span><span className="block text-xs font-black">{tag}</span><span className="text-[10px] font-medium text-[var(--muted)]">Trending #{index + 1}</span></span>
-                    <span className="text-[10px] font-semibold text-[var(--muted)]">{count}</span>
+                {trends.length ? trends.slice(0, 6).map((trend, index) => (
+                  <Link key={trend.tag} href={"/discover?q=" + encodeURIComponent(trend.tag)} className="flex min-h-11 items-center justify-between rounded-2xl px-3 hover:bg-[var(--surface-muted)]">
+                    <span><span className="block text-xs font-black">{trend.tag}</span><span className="text-[10px] font-medium text-[var(--muted)]">Trending #{index + 1}</span></span>
+                    <span className="text-[10px] font-semibold text-[var(--muted)]">{trend.posts} {trend.posts === 1 ? "post" : "posts"}</span>
                   </Link>
-                ))}
+                )) : <p className="px-3 py-4 text-xs text-[var(--muted)]">Nothing is trending yet.</p>}
               </div>
             </section>
 

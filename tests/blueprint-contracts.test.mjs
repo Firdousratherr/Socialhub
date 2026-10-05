@@ -766,3 +766,25 @@ test("Emergency platform controls are enforced at runtime", () => {
   assert.match(read("app/api/users/[userId]/follow/route.ts"), /platformEnabled\("social",?\s*true\)/);
   assert.match(read("app/api/friend-requests/route.ts"), /platformEnabled\("social",?\s*true\)/);
 });
+
+test("platform announcements are wired into the signed-in shell", () => {
+  assert.equal(read("components/app-shell.tsx").includes("PlatformAnnouncements"), true);
+  assert.equal(read("components/platform-announcements.tsx").includes("/api/announcements"), true);
+});
+test("home feed uses live trend data instead of hard-coded trend counters", () => {
+  const source = read("components/home-feed.tsx");
+  assert.equal(source.includes('/api/discover/trends'), true);
+  assert.equal(source.includes('"#Socialhub", "1.2k posts"'), false);
+});
+test("same-tab sync events carry a browser source id", () => {
+  assert.equal(read("lib/live-sync.ts").includes("sourceId"), true);
+  assert.equal(read("lib/post-sync.ts").includes("sourceId"), true);
+});
+test("blocked-account management and account export endpoints are present", () => {
+  assert.equal(read("app/api/blocks/route.ts").includes("export async function GET"), true);
+  assert.equal(read("app/api/privacy/export/route.ts").includes("account-export"), true);
+});
+test("root recovery boundaries are present", () => {
+  assert.equal(read("app/error.tsx").includes("reset"), true);
+  assert.equal(read("app/loading.tsx").includes("Loading Socialhub"), true);
+});

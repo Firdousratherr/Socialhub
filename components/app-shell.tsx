@@ -8,6 +8,7 @@ import { Bell, Bookmark, Compass, Home, LogOut, MessageCircle, Search, Settings,
 import { authClient } from "@/lib/auth-client";
 import { useUnreadSummary } from "@/hooks/use-unread-summary";
 import { MobileMenu } from "@/components/mobile-menu";
+import { PlatformAnnouncements } from "@/components/platform-announcements";
 import { BottomNav } from "@/components/bottom-nav";
 import { Avatar } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/social-ui";
@@ -263,6 +264,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </form>
         ) : null}
       </header>
+      <PlatformAnnouncements />
 
       <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-4 px-3 py-3 sm:gap-6 sm:px-5 sm:py-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:px-7 lg:py-6">
         <aside className="hidden lg:block">

@@ -5,16 +5,20 @@ export type LiveSyncEvent =
   | { type: "follow-updated"; userId: string; following: boolean };
 
 const CHANNEL_NAME = "socialhub-live-sync";
+const CLIENT_ID = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+  ? crypto.randomUUID()
+  : "client-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+type WireEvent = LiveSyncEvent & { sourceId: string };
 type Listener = (event: LiveSyncEvent) => void;
 
 export function emitLiveSync(event: LiveSyncEvent) {
   if (typeof window === "undefined") return;
 
-  window.dispatchEvent(new CustomEvent<LiveSyncEvent>(CHANNEL_NAME, { detail: event }));
+  window.dispatchEvent(new CustomEvent<LiveSyncEvent>(CHANNEL_NAME, { detail: { ...event, sourceId: CLIENT_ID } as LiveSyncEvent }));
 
   try {
     const channel = new BroadcastChannel(CHANNEL_NAME);
-    channel.postMessage(event);
+    channel.postMessage({ ...event, sourceId: CLIENT_ID } as WireEvent);
     channel.close();
   } catch {
     // BroadcastChannel is unavailable in some browsers/webviews.
@@ -30,8 +34,8 @@ export function subscribeLiveSync(listener: Listener) {
   };
 
   let channel: BroadcastChannel | null = null;
-  const onChannelMessage = (event: MessageEvent<LiveSyncEvent>) => {
-    if (event.data) listener(event.data);
+  const onChannelMessage = (event: MessageEvent<WireEvent>) => {
+    if (event.data && event.data.sourceId !== CLIENT_ID) listener(event.data);
   };
 
   window.addEventListener(CHANNEL_NAME, onWindowEvent);
