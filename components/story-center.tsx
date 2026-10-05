@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import {
   Camera,
   ChevronLeft,
@@ -16,6 +16,7 @@ import {
   Trash2,
   Users,
   X,
+  ChevronUp,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { AccountBadge } from "@/components/account-badge";
@@ -27,6 +28,7 @@ const REACTION_EMOJIS = ["❤️", "😂", "😮", "😢", "🔥", "👍"] as co
 type Story = {
   id: string;
   mediaUrl: string;
+  mediaType?: "IMAGE" | "VIDEO";
   caption: string | null;
   expiresAt: string;
   createdAt?: string;
@@ -132,6 +134,8 @@ export function StoryCenter({
   const [replyText, setReplyText] = useState("");
   const [interactionLoading, setInteractionLoading] = useState(false);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [activityExpanded, setActivityExpanded] = useState(false);
+  const activityTouchStartY = useRef<number | null>(null);
 
   const groups = useMemo(() => {
     const map = new Map<string, { author: Story["author"]; stories: Story[] }>();
@@ -252,6 +256,7 @@ export function StoryCenter({
   useEffect(() => {
     setReplyText("");
     setShowViewers(false);
+    setActivityExpanded(false);
   }, [active?.id]);
 
   async function pickPhoto(file: File | undefined) {
@@ -471,8 +476,12 @@ export function StoryCenter({
             const total = group.stories.length;
             const latest = group.stories[0];
             return (
-              <button key={group.author.id} type="button" onClick={() => openStoryGroup(group)} className="min-w-[74px] text-center">
-                <div className={"relative mx-auto grid size-16 place-items-center rounded-full p-[2px] " + (viewed ? "bg-gray-300" : "bg-gradient-to-br from-[#6d5dfc] via-[#d957ff] to-[#ffb347]")}>
+              <button key={group.author.id} type="button" onClick={() => openStoryGroup(group)} className="min-w-[78px] text-center">
+                <div
+                  className={"relative mx-auto grid size-16 place-items-center rounded-full p-[2px] transition-transform active:scale-95 " +
+                    (viewed ? "bg-gray-300" : "bg-gradient-to-br from-[#6d5dfc] via-[#d957ff] to-[#ffb347]")}
+                  aria-label={(total > 1 ? total + " stories from " : "") + (session?.user?.id === group.author.id ? "your story" : group.author.name)}
+                >
                   <div className="grid size-full place-items-center rounded-full bg-white p-[2px]">
                     {group.author.image ? (
                       <img src={group.author.image} alt="" className="size-full rounded-full object-cover" />
@@ -485,14 +494,16 @@ export function StoryCenter({
                       <Plus size={12}/>
                     </span>
                   ) : null}
-                  {total > 1 ? <span className="absolute -right-1 -top-1 rounded-full bg-gray-950 px-1.5 py-0.5 text-[9px] font-black text-white">{total}</span> : null}
+                  {total > 1 ? (
+                    <span className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-[#d957ff]/20" aria-hidden="true" />
+                  ) : null}
                 </div>
                 <span className="mt-2 flex items-center justify-center gap-1 truncate text-xs font-bold text-gray-500">
                   {session?.user?.id === group.author.id ? "Your story" : group.author.name.split(" ")[0]}
                   <AccountBadge verified={group.author.isVerified} owner={group.author.isOwner}/>
                 </span>
                 <span className="mt-0.5 block truncate text-[9px] font-semibold text-gray-400">
-                  {latest ? timeRemaining(latest.expiresAt) : ""}
+                  {total > 1 ? total + " stories · " : ""}{latest ? timeRemaining(latest.expiresAt) : ""}
                 </span>
               </button>
             );
@@ -546,13 +557,13 @@ export function StoryCenter({
       ) : null}
 
       {active ? (
-        <div className="fixed inset-0 z-[85] bg-black/90 p-2 sm:p-6" role="dialog" aria-modal="true" aria-label={"Story from " + active.author.name}>
-          <button type="button" onClick={() => setViewer(null)} className="absolute right-3 top-3 z-20 grid size-11 place-items-center rounded-full bg-white/10 text-white backdrop-blur" aria-label="Close story viewer"><X size={19}/></button>
+        <div className="fixed inset-0 z-[85] overflow-hidden bg-black/95 p-2 sm:p-5" role="dialog" aria-modal="true" aria-label={"Story from " + active.author.name}>
+          <button type="button" onClick={() => setViewer(null)} className="absolute right-3 top-3 z-30 grid size-11 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition active:scale-95" aria-label="Close story viewer"><X size={19}/></button>
 
           <div className="mx-auto flex h-full max-w-5xl items-center justify-center gap-3 sm:gap-5">
             <button type="button" disabled={!canGoPrevious} onClick={() => moveStory(-1)} className="hidden size-11 shrink-0 place-items-center rounded-full bg-white/10 text-white backdrop-blur disabled:opacity-20 sm:grid" aria-label="Previous story"><ChevronLeft size={22}/></button>
 
-            <div className="relative flex h-full max-h-[94vh] w-full max-w-[540px] flex-col overflow-hidden rounded-[2rem] bg-black shadow-2xl">
+            <div className="relative flex h-full max-h-[94vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-[#09090b] shadow-2xl">
               <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex gap-1.5">
                 {activeGroup?.stories.map((story, index) => (
                   <span key={story.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/25">
@@ -561,7 +572,7 @@ export function StoryCenter({
                 ))}
               </div>
 
-              <div className="absolute inset-x-4 top-7 z-10 flex items-center gap-3">
+              <div className="absolute inset-x-4 top-7 z-20 flex items-center gap-3">
                 {active.author.image ? <img src={active.author.image} alt="" className="size-9 rounded-full border border-white/30 object-cover"/> : <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-[11px] font-black text-white">{initials(active.author.name)}</span>}
                 <div className="min-w-0 flex-1 text-white">
                   <p className="flex items-center gap-1 truncate text-sm font-black">{active.author.name}<AccountBadge verified={active.author.isVerified} owner={active.author.isOwner}/></p>
@@ -574,77 +585,128 @@ export function StoryCenter({
                 ) : null}
               </div>
 
-              <div className="min-h-0 flex-1 overflow-hidden">
-                <img src={active.mediaUrl} alt={active.caption ?? "Story"} className="size-full object-contain" />
+              <div className="relative mx-3 mt-3 h-[48vh] min-h-[270px] max-h-[56vh] overflow-hidden rounded-[1.75rem] bg-black ring-1 ring-white/10 sm:h-[56vh] sm:max-h-[60vh]">
+                {active.mediaType === "VIDEO" ? (
+                  <video
+                    src={active.mediaUrl}
+                    className="size-full object-contain"
+                    autoPlay
+                    muted
+                    playsInline
+                    controls
+                    preload="metadata"
+                    aria-label={active.caption ?? "Story video"}
+                  />
+                ) : (
+                  <img src={active.mediaUrl} alt={active.caption ?? "Story image"} className="size-full object-contain" />
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => moveStory(-1)}
+                  disabled={!canGoPrevious}
+                  className="absolute inset-y-8 left-0 z-10 w-[30%] cursor-w-resize disabled:cursor-default disabled:opacity-0"
+                  aria-label="Previous story"
+                />
+                <button
+                  type="button"
+                  onClick={() => moveStory(1)}
+                  disabled={!canGoNext}
+                  className="absolute inset-y-8 right-0 z-10 w-[30%] cursor-e-resize disabled:cursor-default disabled:opacity-0"
+                  aria-label="Next story"
+                />
               </div>
 
-              <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/95 via-black/65 to-transparent p-4 pt-20 text-white sm:p-5 sm:pt-24">
-                {active.caption ? <p className="max-w-[92%] text-sm leading-6 text-white/90">{active.caption}</p> : null}
+              <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 text-white scrollbar-none sm:px-4">
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-3 sm:p-4">
+                  {active.caption ? <p className="text-sm leading-6 text-white/90">{active.caption}</p> : null}
 
-                <div className="mt-3 flex items-center gap-2 text-[10px] font-black text-white/70">
-                  <span className="inline-flex items-center gap-1"><Eye size={12}/> {fullCount(storyViewCount)} views</span>
-                  <span>·</span>
-                  <span className="inline-flex items-center gap-1 text-rose-200"><Heart size={12} fill="currentColor"/> {fullCount(storyLikeCount)} likes</span>
-                  <span>·</span>
-                  <span className="inline-flex items-center gap-1"><MessageCircle size={12}/> {fullCount(storyReplyCount)} replies</span>
+                  <div className={"flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-black " + (active.caption ? "mt-3" : "")}>
+                    <span className="inline-flex items-center gap-1 text-white/70"><Eye size={12}/> {fullCount(storyViewCount)} views</span>
+                    <span className="inline-flex items-center gap-1 text-rose-200"><Heart size={12} fill="currentColor"/> {fullCount(storyLikeCount)} likes</span>
+                    <span className="inline-flex items-center gap-1 text-white/70"><MessageCircle size={12}/> {fullCount(storyReplyCount)} replies</span>
+                  </div>
                 </div>
 
-                <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                  {REACTION_EMOJIS.map((emoji) => {
-                    const count = reactionCounts.find((item) => item.emoji === emoji)?.count ?? 0;
-                    const activeReaction = myStoryReaction === emoji;
-                    return (
-                      <button
-                        key={emoji}
-                        type="button"
-                        disabled={interactionLoading || active.author.id === session?.user?.id}
-                        onClick={() => activeReaction ? void removeStoryReaction() : void reactToStory(emoji)}
-                        className={"flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-sm transition " + (activeReaction ? "bg-white text-black" : "bg-white/10 text-white") + (active.author.id === session?.user?.id ? " opacity-70" : "")}
-                        aria-label={(activeReaction ? "Remove " : "React with ") + emoji + " (" + count + ")"}
-                      >
-                        <span>{emoji}</span>
-                        {count > 0 ? <span className="text-[9px] font-black">{compactCount(count)}</span> : null}
-                      </button>
-                    );
-                  })}
+                <div className="mt-2 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-black text-white/90">Reactions</p>
+                    <span className="text-[10px] font-bold text-white/45">{fullCount(totalReactions)} total</span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    {REACTION_EMOJIS.map((emoji) => {
+                      const count = reactionCounts.find((item) => item.emoji === emoji)?.count ?? 0;
+                      const activeReaction = myStoryReaction === emoji;
+                      return (
+                        <button
+                          key={emoji}
+                          type="button"
+                          disabled={interactionLoading || active.author.id === session?.user?.id}
+                          onClick={() => activeReaction ? void removeStoryReaction() : void reactToStory(emoji)}
+                          className={"flex min-w-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-2.5 py-2 transition active:scale-95 " + (activeReaction ? "bg-white text-black" : "bg-white/10 text-white") + (active.author.id === session?.user?.id ? " opacity-70" : "")}
+                          aria-label={(activeReaction ? "Remove " : "React with ") + emoji + " (" + count + ")"}
+                        >
+                          <span className="text-base leading-none">{emoji}</span>
+                          <span className="text-[9px] font-black">{compactCount(count)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {active.author.id !== session?.user?.id && session?.user ? (
-                  <form onSubmit={(event) => { event.preventDefault(); void replyToStory(); }} className="mt-3 flex items-center gap-2">
-                    <div className="relative min-w-0 flex-1">
-                      <input
-                        value={replyText}
-                        onChange={(event) => setReplyText(event.target.value)}
-                        maxLength={500}
-                        className="h-11 w-full rounded-2xl border border-white/10 bg-white/10 px-4 pr-10 text-sm text-white outline-none placeholder:text-white/45 focus:bg-white/15"
-                        placeholder={ownReplyExists ? "Send another reply…" : "Reply to this story…"}
-                        aria-label="Reply to story"
-                      />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/35"><MessageCircle size={16}/></span>
+                  <form onSubmit={(event) => { event.preventDefault(); void replyToStory(); }} className="mt-2 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-3">
+                    <div className="flex items-center gap-2">
+                      <div className="relative min-w-0 flex-1">
+                        <input
+                          value={replyText}
+                          onChange={(event) => setReplyText(event.target.value)}
+                          maxLength={500}
+                          className="h-11 w-full rounded-2xl border border-white/10 bg-white/10 px-4 pr-10 text-sm text-white outline-none placeholder:text-white/45 focus:bg-white/15 focus:ring-2 focus:ring-white/10"
+                          placeholder={ownReplyExists ? "Send another reply…" : "Reply to this story…"}
+                          aria-label="Reply to story"
+                        />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/35"><MessageCircle size={16}/></span>
+                      </div>
+                      <button type="submit" disabled={!replyText.trim() || interactionLoading} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-white text-gray-950 shadow disabled:opacity-40" aria-label="Send story reply">
+                        {interactionLoading ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>}
+                      </button>
                     </div>
-                    <button type="submit" disabled={!replyText.trim() || interactionLoading} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-white text-gray-950 disabled:opacity-40" aria-label="Send story reply">
-                      {interactionLoading ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>}
-                    </button>
                   </form>
                 ) : null}
 
                 {latestReplies.length ? (
-                  <div className="mt-3 max-h-20 space-y-1.5 overflow-y-auto rounded-2xl bg-black/25 p-2.5">
+                  <div className="mt-2 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-3">
                     <div className="flex items-center justify-between gap-2 text-[10px] font-black text-white/60">
                       <span>{active.author.id === session?.user?.id ? "Story replies" : "Your replies"}</span>
                       <span>{storyReplyCount}</span>
                     </div>
-                    {latestReplies.map((reply) => (
-                      <p key={reply.id} className="text-xs leading-5 text-white/85">
-                        <span className="font-black">{reply.author.id === session?.user?.id ? "You" : reply.author.name}:</span>{" "}
-                        {reply.content}
-                      </p>
-                    ))}
+                    <div className="mt-2 max-h-24 space-y-1.5 overflow-y-auto scrollbar-none">
+                      {latestReplies.map((reply) => (
+                        <p key={reply.id} className="text-xs leading-5 text-white/85">
+                          <span className="font-black">{reply.author.id === session?.user?.id ? "You" : reply.author.name}:</span>{" "}
+                          {reply.content}
+                        </p>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
 
                 {active.author.id === session?.user?.id ? (
-                  <button type="button" onClick={() => void removeStory()} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/15">
+                  <button
+                    type="button"
+                    onClick={() => { setShowViewers((value) => !value); setActivityExpanded(false); }}
+                    className="relative mt-2 flex w-full items-center justify-center gap-2 rounded-[1.5rem] border border-white/10 bg-white/[0.05] px-4 py-3 text-xs font-black text-white/85 transition active:scale-[0.99]"
+                    aria-expanded={showViewers}
+                  >
+                    <ChevronUp size={15} />
+                    <span>Pull up for analysis & views</span>
+                    <span className="rounded-full bg-white/10 px-2 py-1 text-[9px]">{compactCount(storyViewCount)}</span>
+                  </button>
+                ) : null}
+
+                {active.author.id === session?.user?.id ? (
+                  <button type="button" onClick={() => void removeStory()} className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/15">
                     <Trash2 size={14}/> Delete story
                   </button>
                 ) : null}
@@ -662,24 +724,80 @@ export function StoryCenter({
           </div>
 
           {showViewers && active.author.id === session?.user?.id ? (
-            <div className="fixed inset-x-0 bottom-0 z-[95] max-h-[68vh] rounded-t-[2rem] border border-white/10 bg-[#15151c] text-white shadow-2xl sm:inset-auto sm:right-6 sm:top-1/2 sm:bottom-auto sm:w-[360px] sm:-translate-y-1/2 sm:rounded-[2rem]">
-              <div className="flex items-center justify-between gap-3 border-b border-white/10 p-4">
-                <div><p className="text-sm font-black">Story viewers</p><p className="mt-0.5 text-xs text-white/55">{fullCount(storyViewCount)} total views</p></div>
-                <button type="button" onClick={() => setShowViewers(false)} className="grid size-9 place-items-center rounded-xl bg-white/10" aria-label="Close viewers"><X size={16}/></button>
+            <div
+              className={"fixed inset-x-0 bottom-0 z-[95] overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#15151c] text-white shadow-2xl transition-[height] duration-200 " +
+                (activityExpanded ? "h-[76vh] sm:h-auto sm:max-h-[78vh]" : "h-[22vh] sm:h-auto sm:max-h-[78vh]")}
+              onTouchStart={(event: TouchEvent<HTMLDivElement>) => { activityTouchStartY.current = event.touches[0]?.clientY ?? null; }}
+              onTouchEnd={(event: TouchEvent<HTMLDivElement>) => {
+                const start = activityTouchStartY.current;
+                const end = event.changedTouches[0]?.clientY ?? null;
+                activityTouchStartY.current = null;
+                if (start === null || end === null) return;
+                const delta = end - start;
+                if (delta < -36) setActivityExpanded(true);
+                if (delta > 36) setActivityExpanded(false);
+              }}
+              role="region"
+              aria-label="Story activity"
+            >
+              <div className="flex justify-center pt-2 sm:hidden">
+                <span className="h-1 w-12 rounded-full bg-white/20" />
               </div>
-              <div className="max-h-[52vh] overflow-y-auto p-3">
-                {storyViewers.length ? storyViewers.map((view) => (
-                  <div key={view.id} className="flex items-center gap-3 rounded-2xl px-2.5 py-2.5 hover:bg-white/5">
-                    {view.viewer.image ? <img src={view.viewer.image} alt="" className="size-10 rounded-full object-cover"/> : <span className="grid size-10 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-xs font-black">{initials(view.viewer.name)}</span>}
-                    <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-1 text-xs font-black">{view.viewer.name}<AccountBadge verified={view.viewer.isVerified} owner={view.viewer.isOwner}/></p>
-                      <p className="mt-0.5 truncate text-[10px] text-white/50">@{view.viewer.username ?? "member"} · {formatSocialDateTime(view.viewedAt)}</p>
+              <div className="flex items-center justify-between gap-3 border-b border-white/10 p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-black">Story activity</p>
+                  <p className="mt-0.5 text-xs text-white/55">{fullCount(storyViewCount)} views · {fullCount(totalReactions)} reactions · {fullCount(storyReplyCount)} replies</p>
+                </div>
+                <button type="button" onClick={() => setShowViewers(false)} className="grid size-9 place-items-center rounded-xl bg-white/10" aria-label="Close story activity"><X size={16}/></button>
+              </div>
+
+              {activityExpanded ? (
+                <div className="max-h-[calc(76vh-72px)] overflow-y-auto p-3 sm:max-h-[70vh]">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-2xl bg-white/5 p-3 text-center"><p className="text-lg font-black">{fullCount(storyViewCount)}</p><p className="mt-1 text-[9px] font-bold text-white/45">Views</p></div>
+                    <div className="rounded-2xl bg-white/5 p-3 text-center"><p className="text-lg font-black">{fullCount(storyLikeCount)}</p><p className="mt-1 text-[9px] font-bold text-white/45">Likes</p></div>
+                    <div className="rounded-2xl bg-white/5 p-3 text-center"><p className="text-lg font-black">{fullCount(storyReplyCount)}</p><p className="mt-1 text-[9px] font-bold text-white/45">Replies</p></div>
+                  </div>
+
+                  <div className="mt-3 rounded-2xl bg-white/5 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-black">Reaction breakdown</p>
+                      <span className="text-[9px] font-bold text-white/40">{fullCount(totalReactions)} total</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
+                      {REACTION_EMOJIS.map((emoji) => {
+                        const count = reactionCounts.find((item) => item.emoji === emoji)?.count ?? 0;
+                        return <div key={emoji} className="rounded-xl bg-black/20 px-2 py-2 text-center"><div className="text-base">{emoji}</div><div className="mt-0.5 text-[9px] font-black text-white/65">{compactCount(count)}</div></div>;
+                      })}
                     </div>
                   </div>
-                )) : (
-                  <div className="p-8 text-center text-xs text-white/50"><Users className="mx-auto mb-2" size={20}/>No viewers yet.</div>
-                )}
-              </div>
+
+                  <div className="mt-3 rounded-2xl bg-white/5 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-black">Viewers</p>
+                      <span className="text-[9px] font-bold text-white/40">{fullCount(storyViewCount)} total</span>
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      {storyViewers.length ? storyViewers.map((view) => (
+                        <div key={view.id} className="flex items-center gap-3 rounded-2xl px-2.5 py-2 hover:bg-white/5">
+                          {view.viewer.image ? <img src={view.viewer.image} alt="" className="size-9 rounded-full object-cover"/> : <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-[10px] font-black">{initials(view.viewer.name)}</span>}
+                          <div className="min-w-0 flex-1">
+                            <p className="flex items-center gap-1 text-xs font-black">{view.viewer.name}<AccountBadge verified={view.viewer.isVerified} owner={view.viewer.isOwner}/></p>
+                            <p className="mt-0.5 truncate text-[9px] text-white/45">@{view.viewer.username ?? "member"} · {formatSocialDateTime(view.viewedAt)}</p>
+                          </div>
+                        </div>
+                      )) : (
+                        <div className="py-8 text-center text-xs text-white/50"><Users className="mx-auto mb-2" size={20}/>No viewers yet.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setActivityExpanded(true)} className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left">
+                  <span className="text-xs font-black">Swipe up to see viewers & analysis</span>
+                  <ChevronUp size={17} className="text-white/60" />
+                </button>
+              )}
             </div>
           ) : null}
         </div>
