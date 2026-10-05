@@ -186,16 +186,16 @@ export function StoryCenter({
         <div className="hidden items-center justify-between gap-3 sm:flex">
           <div>
             <h2 className="text-sm font-black">Stories</h2>
-            <p className="mt-0.5 text-[10px] font-semibold text-gray-400">Real stories expire after 24 hours.</p>
+            <p className="mt-0.5 text-xs font-semibold text-gray-500">Real stories expire after 24 hours.</p>
           </div>
           {session?.user ? (
-            <button type="button" onClick={() => setComposerOpen(true)} className="flex items-center gap-1.5 rounded-xl bg-gray-950 px-3 py-2 text-[11px] font-black text-white">
+            <button type="button" onClick={() => setComposerOpen(true)} className="flex items-center gap-1.5 rounded-xl bg-gray-950 px-3 py-2 text-xs font-black text-white">
               <Plus size={14} /> Create
             </button>
           ) : null}
         </div>
 
-        {error ? <div role="alert" className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600">{error}</div> : null}
+        {error ? <div role="alert" className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">{error}</div> : null}
 
         <div className="mt-1 flex gap-3 overflow-x-auto pb-1 sm:mt-4 scrollbar-none">
           {session?.user ? (
@@ -211,12 +211,12 @@ export function StoryCenter({
                   {author.image ? <img src={author.image} alt="" className="size-full rounded-full object-cover" /> : <span className="grid size-full place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-sm font-black text-white">{author.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()}</span>}
                 </div>
               </div>
-              <span className="mt-2 flex items-center justify-center gap-1 truncate text-[10px] font-bold text-gray-500">{author.id === session?.user?.id ? "Your story" : author.name.split(" ")[0]}<AccountBadge verified={author.isVerified} owner={author.isOwner} /></span>
+              <span className="mt-2 flex items-center justify-center gap-1 truncate text-xs font-bold text-gray-500">{author.id === session?.user?.id ? "Your story" : author.name.split(" ")[0]}<AccountBadge verified={author.isVerified} owner={author.isOwner} /></span>
             </button>
           )) : (
             <div className="flex items-center gap-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3">
-              <Camera size={18} className="text-gray-400" />
-              <p className="text-[11px] font-semibold text-gray-400">No active stories yet. Create the first one.</p>
+              <Camera size={18} className="text-gray-500" />
+              <p className="text-xs font-semibold text-gray-500">No active stories yet. Create the first one.</p>
             </div>
           )}
         </div>
@@ -225,10 +225,10 @@ export function StoryCenter({
       {composerOpen ? (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-black/55 p-4">
           <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">
-            <div className="flex items-center justify-between"><div><h2 className="text-lg font-black">Create a story</h2><p className="mt-1 text-xs text-gray-400">Your story disappears automatically after 24 hours.</p></div><button type="button" onClick={() => setComposerOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={17}/></button></div>
+            <div className="flex items-center justify-between"><div><h2 className="text-lg font-black">Create a story</h2><p className="mt-1 text-xs text-gray-500">Your story disappears automatically after 24 hours.</p></div><button type="button" onClick={() => setComposerOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={17}/></button></div>
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(event) => { void pickPhoto(event.target.files?.[0]); event.currentTarget.value = ""; }} />
             <div className="mt-5 overflow-hidden rounded-3xl bg-gray-50">
-              {preview ? <div className="relative"><img src={preview} alt="Story preview" className="max-h-[430px] w-full object-cover"/><button type="button" onClick={() => setPreview(null)} className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-black/60 text-white"><X size={16}/></button></div> : <button type="button" onClick={() => fileRef.current?.click()} className="grid min-h-64 w-full place-items-center border-2 border-dashed border-gray-200 p-6 text-center"><span className="grid size-12 place-items-center rounded-2xl bg-white text-[#6d5dfc]"><ImageIcon size={21}/></span><span className="mt-3 text-sm font-black">Choose a photo</span><span className="mt-1 text-xs text-gray-400">JPG, PNG, WebP or GIF</span></button>}
+              {preview ? <div className="relative"><img src={preview} alt="Story preview" className="max-h-[430px] w-full object-cover"/><button type="button" onClick={() => setPreview(null)} className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-black/60 text-white"><X size={16}/></button></div> : <button type="button" onClick={() => fileRef.current?.click()} className="grid min-h-64 w-full place-items-center border-2 border-dashed border-gray-200 p-6 text-center"><span className="grid size-12 place-items-center rounded-2xl bg-white text-[#6d5dfc]"><ImageIcon size={21}/></span><span className="mt-3 text-sm font-black">Choose a photo</span><span className="mt-1 text-xs text-gray-500">JPG, PNG, WebP or GIF</span></button>}
             </div>
             <textarea value={caption} onChange={(event) => setCaption(event.target.value)} maxLength={500} rows={3} className="mt-4 w-full resize-none rounded-2xl bg-gray-50 p-3 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Add a caption…" />
             <div className="mt-3 flex items-center justify-between gap-3">
@@ -261,10 +261,10 @@ export function StoryCenter({
                 </div>
                 {session?.user && active.author.id !== session.user.id ? <div className="mt-3 flex gap-2">
                   <input value={replyText} onChange={(event) => setReplyText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void replyToStory(); } }} maxLength={500} className="min-w-0 flex-1 rounded-xl bg-white/10 px-3 py-2 text-xs text-white outline-none placeholder:text-white/50" placeholder="Reply to story…"/>
-                  <button type="button" onClick={() => void replyToStory()} disabled={!replyText.trim() || interactionLoading} className="rounded-xl bg-white px-3 py-2 text-[10px] font-black text-gray-950 disabled:opacity-40">Reply</button>
+                  <button type="button" onClick={() => void replyToStory()} disabled={!replyText.trim() || interactionLoading} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-gray-950 disabled:opacity-40">Reply</button>
                 </div> : null}
-                {storyReplies.length ? <div className="mt-3 max-h-24 space-y-1 overflow-y-auto">{storyReplies.slice(-3).map((reply) => <p key={reply.id} className="text-[10px] text-white/80"><span className="inline-flex items-center gap-1 font-black">{reply.author.name}<AccountBadge verified={reply.author.isVerified} owner={reply.author.isOwner}/></span> {reply.content}</p>)}</div> : null}
-                {active.author.id === session?.user?.id ? <button type="button" onClick={() => void removeStory()} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-[11px] font-bold"><Trash2 size={14}/> Delete</button> : null}
+                {storyReplies.length ? <div className="mt-3 max-h-24 space-y-1 overflow-y-auto">{storyReplies.slice(-3).map((reply) => <p key={reply.id} className="text-xs text-white/80"><span className="inline-flex items-center gap-1 font-black">{reply.author.name}<AccountBadge verified={reply.author.isVerified} owner={reply.author.isOwner}/></span> {reply.content}</p>)}</div> : null}
+                {active.author.id === session?.user?.id ? <button type="button" onClick={() => void removeStory()} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-xs font-bold"><Trash2 size={14}/> Delete</button> : null}
               </div>
             </div>
             <button type="button" disabled={viewerIndex === stories.length - 1} onClick={() => void openStory(Math.min(stories.length - 1, (viewerIndex ?? 0) + 1))} className="absolute right-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white disabled:opacity-30"><ChevronRight size={21}/></button>
