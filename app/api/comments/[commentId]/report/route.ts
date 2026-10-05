@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { consumeMutationRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -7,6 +8,10 @@ import { canViewPost } from "@/lib/post-access";
 export async function POST(request: Request, { params }: { params: Promise<{ commentId: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
+  const limit = await consumeMutationRateLimit("comment-reports", request, session.user.id, 10, 3600);
+
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
 
   const { commentId } = await params;
   const comment = await prisma.comment.findUnique({ where: { id: commentId }, select: { id: true, postId: true } });
