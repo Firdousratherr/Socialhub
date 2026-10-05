@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, Bell, Database, Flag, Search, Shield, Trash2, UserCog, Users, Wrench, BarChart3, HardDrive, RefreshCw, Archive, Pencil, Zap } from "lucide-react";
+import { Activity, Bell, Database, Flag, Search, Shield, Trash2, UserCog, Users, Wrench, BarChart3, HardDrive, RefreshCw, Archive, Pencil, Zap, History } from "lucide-react";
 import { MODERATOR_PERMISSION_PRESETS } from "@/lib/admin-permission-presets";
 
 type Tab="security"|"search"|"platform"|"moderation"|"analytics"|"storage"|"permissions"|"health";
