@@ -1,3 +1,9 @@
+import type { Metadata } from "next";
+import { notFound, redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { SocialPages } from "@/components/social-pages";
+import { getCurrentSession, requireUser, sanitizeNextPath } from "@/lib/route-access";
+
 export async function generateMetadata({
   params,
 }: {
@@ -18,36 +24,31 @@ export async function generateMetadata({
   return { title: titles[first] ?? "Socialhub" };
 }
 
-import type { Metadata } from "next";
-import { headers } from "next/headers";
-import { notFound, redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { SocialPages } from "@/components/social-pages";
-
 export default async function CatchAllPage({
   params,
   searchParams,
 }: {
   params: Promise<{ segments: string[] }>;
-  searchParams: Promise<{ q?: string | string[] }>;
+  searchParams: Promise<{ q?: string | string[]; next?: string | string[] }>;
 }) {
   const { segments } = await params;
   const queryParams = await searchParams;
   const search = Array.isArray(queryParams.q) ? queryParams.q[0] : queryParams.q;
+  const nextParam = Array.isArray(queryParams.next) ? queryParams.next[0] : queryParams.next;
   const first = segments[0] ?? "";
 
   if (first === "login" || first === "signup") {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getCurrentSession();
     if (session?.user) redirect("/home");
-    return <SocialPages screen={{ kind: first }} />;
+    return <SocialPages screen={{ kind: first, next: sanitizeNextPath(nextParam, "/home") }} />;
   }
+
+  const pathname = "/" + segments.map((segment) => encodeURIComponent(segment)).join("/");
+  const nextPath = sanitizeNextPath(pathname + (search ? "?q=" + encodeURIComponent(search) : ""), "/home");
+  const session = await requireUser(nextPath);
 
   if (first === "profile") {
     if (segments[1] === "me") {
-      const session = await auth.api.getSession({ headers: await headers() });
-      if (!session?.user) redirect("/login?next=/profile/me");
-
       const user = await prisma.user.findUnique({
         where: { id: session.user.id },
         select: { username: true },
@@ -60,11 +61,7 @@ export default async function CatchAllPage({
     return <SocialPages screen={{ kind: "profile", username: segments[1] ?? "firdous" }} />;
   }
 
-
   if (first === "admin") {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) redirect("/login?next=/admin");
-
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { role: true, isActive: true },
