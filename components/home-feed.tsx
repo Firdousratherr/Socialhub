@@ -118,10 +118,6 @@ function Avatar({
   );
 }
 
-function pluralCount(value: number, singular: string, plural = singular + "s") {
-  return value + " " + (value === 1 ? singular : plural);
-}
-
 function timeLabel(createdAt: string) {
   const seconds = Math.max(1, Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000));
   if (seconds < 60) return "just now";
