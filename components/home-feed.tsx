@@ -724,6 +724,9 @@ function PostCard({
           onComment={() => setCommentsOpen((value) => !value)}
           onShare={() => void sharePost()}
           onSave={() => void toggleSave()}
+          likeCountDisplay={compactCount(likeCount)}
+          likeCountExact={fullCount(likeCount)}
+          commentControlId={"comments-" + post.id}
         />
 
         {commentsOpen ? (
