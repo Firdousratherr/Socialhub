@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getBlockedUserIds } from "@/lib/social-access";
 import { getPostDisplayCountsMap } from "@/lib/post-metrics";
+import { publicUserWhere } from "@/lib/user-visibility";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
   const [users, posts] = await Promise.all([
     prisma.user.findMany({
       where: {
-        isActive: true,
+        ...publicUserWhere,
         ...(viewerId ? { id: { not: viewerId } } : {}),
         ...(blockedIds.length ? { id: { notIn: blockedIds } } : {}),
         ...(q ? {
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
     prisma.post.findMany({
       where: {
         author: {
-          isActive: true,
+          ...publicUserWhere,
           ...(blockedIds.length ? { id: { notIn: blockedIds } } : {}),
         },
         ...(q ? { content: { contains: q.replace(/^#/, ""), mode: "insensitive" } } : {}),
