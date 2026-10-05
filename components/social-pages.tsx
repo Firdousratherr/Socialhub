@@ -9,6 +9,8 @@ import { AdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
 import { emitPostSyncEvent } from "@/lib/post-sync";
 import { compactCount, fullCount } from "@/lib/compact-count";
+import { formatJoinedDate, formatSocialDate, formatSocialDateTime } from "@/lib/social-date";
+import { PostContent } from "@/components/post-content";
 import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
 import { emitUnreadSummarySync } from "@/hooks/use-unread-summary";
 import { useLivePoll } from "@/hooks/use-live-poll";
@@ -120,12 +122,40 @@ function Auth({ signup = false }: { signup?: boolean }) {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"form" | "verify-signup" | "forgot" | "forgot-verify">("form");
   const [cooldown, setCooldown] = useState(0);
+  const [usernameAvailability, setUsernameAvailability] = useState<"checking" | "available" | "taken" | "">("");
 
   useEffect(() => {
     if (!cooldown) return;
     const timer = window.setInterval(() => setCooldown((value) => Math.max(0, value - 1)), 1000);
     return () => window.clearInterval(timer);
   }, [cooldown]);
+
+  useEffect(() => {
+    if (!signup) return;
+    const candidate = email.trim().toLowerCase().split("@")[0].replace(/[^a-z0-9._]/g, "").replace(/^[._]+|[._]+$/g, "").slice(0, 24);
+    if (candidate.length < 3 || !email.includes("@")) {
+      setUsernameAvailability("");
+      return;
+    }
+    let cancelled = false;
+    setUsernameAvailability("checking");
+    const timer = window.setTimeout(() => {
+      void fetch("/api/users?q=" + encodeURIComponent(candidate) + "&take=20", { cache: "no-store" })
+        .then(async (response) => {
+          const json = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error("Could not check username.");
+          const exists = (json.users ?? []).some((user: { username?: string | null }) => user.username?.toLowerCase() === candidate);
+          if (!cancelled) setUsernameAvailability(exists ? "taken" : "available");
+        })
+        .catch(() => {
+          if (!cancelled) setUsernameAvailability("");
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [email, signup]);
 
   async function sendSignupOtp() {
     if (!email.trim() || cooldown) return;
@@ -294,7 +324,17 @@ function Auth({ signup = false }: { signup?: boolean }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           {signup && <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Full name</span><input value={name} onChange={(e)=>setName(e.target.value)} autoComplete="name" required className="h-13 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Your name"/></label>}
           <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Email</span><div className="relative"><Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={17}/><input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} autoComplete="email" required className="h-13 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="you@example.com"/></div></label>
-          {signup && <div className="rounded-2xl border border-[#eeeaff] bg-[#f8f7ff] p-3 text-xs leading-5 text-gray-500"><span className="font-black text-gray-700">Username:</span> @{email.split("@")[0] || "yourname"} · You can change it later from your profile.</div>}
+          {signup && (() => {
+            const previewUsername = email.trim().toLowerCase().split("@")[0].replace(/[^a-z0-9._]/g, "").replace(/^[._]+|[._]+$/g, "").slice(0, 24) || "yourname";
+            return (
+              <div className="rounded-2xl border border-[#eeeaff] bg-[#f8f7ff] p-3 text-xs leading-5 text-gray-500" aria-live="polite">
+                <span className="font-black text-gray-700">Username:</span> @{previewUsername} · You can change it later from your profile.
+                {usernameAvailability === "checking" ? <span className="ml-2 font-bold text-gray-400">Checking availability…</span> : null}
+                {usernameAvailability === "available" ? <span className="ml-2 font-bold text-emerald-600">Available</span> : null}
+                {usernameAvailability === "taken" ? <span className="ml-2 font-bold text-amber-600">Already taken · a unique username will be generated.</span> : null}
+              </div>
+            );
+          })()}
           <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Password</span><div className="relative"><Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={17}/><input type={show ? "text" : "password"} value={password} onChange={(e)=>setPassword(e.target.value)} autoComplete={signup ? "new-password" : "current-password"} minLength={8} required className="h-13 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-20 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="••••••••"/><button type="button" onClick={()=>setShow(v=>!v)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1.5 text-xs font-bold text-gray-500 hover:bg-white">{show ? "Hide" : "Show"}</button></div></label>
           {!signup && <div className="flex items-center justify-between text-xs font-semibold text-gray-500"><label className="flex items-center gap-2"><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="size-4 accent-[#6d5dfc]"/>Remember me</label><button type="button" onClick={()=>{setError("");setNotice("");setStep("forgot");}} className="font-black text-[#5a4be8] hover:text-[#4336c9]">Forgot password?</button></div>}
           {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">{error}</div> : null}
@@ -563,7 +603,7 @@ function ProfilePostCard({
           {image ? <img src={image} alt="" className="size-9 rounded-full object-cover"/> : <Avatar initials={displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="sm"/>}
           <div className="min-w-0">
             <p className="flex items-center gap-1 text-xs font-black">{displayName}<AccountBadge verified={verified} owner={owner}/></p>
-            <p className="text-xs text-gray-500">{new Date(post.createdAt).toLocaleDateString()}</p>
+            <p className="text-xs text-gray-500">{formatSocialDate(post.createdAt)}</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -571,7 +611,7 @@ function ProfilePostCard({
           {isOwner ? <button type="button" onClick={() => void deletePost()} disabled={Boolean(busy)} className="grid size-8 place-items-center rounded-xl border border-red-100 bg-white text-red-500" aria-label="Delete post"><Trash2 size={14}/></button> : <button type="button" onClick={() => void reportPost()} disabled={Boolean(busy)} className="grid size-8 place-items-center rounded-xl border border-gray-200 bg-white text-gray-500" aria-label="Report post"><Shield size={14}/></button>}
         </div>
       </div>
-      {post.content ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-600">{post.content}</p> : null}
+      {post.content ? <PostContent content={post.content} className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-600"/> : null}
       {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
         <button type="button" onClick={() => void toggleLike()} disabled={Boolean(busy)} title={fullCount(likeCount) + " likes"} aria-label={(liked ? "Unlike" : "Like") + " · " + fullCount(likeCount) + " likes"} className={"inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-black " + (liked ? "bg-rose-50 text-rose-600" : "bg-white text-gray-500")}><Heart size={14} fill={liked ? "currentColor" : "none"}/>{compactCount(likeCount)}</button>
@@ -600,6 +640,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
   const [error, setError] = useState("");
+  const [websiteError, setWebsiteError] = useState("");
   const [profileTab, setProfileTab] = useState<"posts" | "photos" | "friends">("posts");
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [friends, setFriends] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; bio: string | null; isVerified?: boolean; isOwner?: boolean }>>([]);
@@ -779,6 +820,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
     if (!session?.user || saving) return;
     setSaving(true);
     setError("");
+    setWebsiteError("");
 
     try {
       const response = await fetch("/api/profile", {
@@ -791,7 +833,9 @@ function Profile({ username = "firdous" }: { username?: string }) {
       setProfile((json.profile as ProfileData) ?? profile);
       setEditing(false);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not update profile.");
+      const message = requestError instanceof Error ? requestError.message : "Could not update profile.";
+      if (/url/i.test(message) && form.website.trim()) setWebsiteError(message);
+      else setError(message);
     } finally {
       setSaving(false);
     }
@@ -869,6 +913,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
       if (!response.ok) throw new Error(json.error ?? "Could not update follow status.");
       const nextFollowing = Boolean(json.following);
       setFollowing(nextFollowing);
+      emitLiveSync({ type: "follow-updated", userId: profile.id, following: nextFollowing });
       setProfile((current) => current ? {
         ...current,
         _count: {
@@ -933,6 +978,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
       setFriendRequestStatus("FRIENDS");
       setFriendRequestId(null);
       setFollowing(true);
+      emitLiveSync({ type: "follow-updated", userId: profile.id, following: true });
       setCanMessage(true);
       setProfile((current) => current ? {
         ...current,
@@ -981,6 +1027,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
       setFriendRequestStatus("NONE");
       setFriendRequestId(null);
       setFollowing(false);
+      emitLiveSync({ type: "follow-updated", userId: profile.id, following: false });
       setProfile((current) => current ? {
         ...current,
         isFriend: false,
@@ -1182,7 +1229,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
             <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Username</span><input value={form.username} onChange={(e)=>setForm((value)=>({...value,username:e.target.value}))} className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
             <label className="block sm:col-span-2"><span className="mb-2 block text-xs font-bold text-gray-600">Bio</span><textarea value={form.bio} onChange={(e)=>setForm((value)=>({...value,bio:e.target.value}))} className="min-h-24 w-full resize-none rounded-xl border border-gray-200 bg-white p-3 text-sm"/></label>
             <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Location</span><input value={form.location} onChange={(e)=>setForm((value)=>({...value,location:e.target.value}))} className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
-            <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Website</span><input type="url" value={form.website} onChange={(e)=>setForm((value)=>({...value,website:e.target.value}))} placeholder="https://example.com" className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
+            <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Website</span><input type="url" value={form.website} onChange={(e)=>{ setWebsiteError(""); setForm((value)=>({...value,website:e.target.value})); }} placeholder="https://example.com" aria-invalid={Boolean(websiteError)} aria-describedby={websiteError ? "profile-website-error" : undefined} className={"h-11 w-full rounded-xl border bg-white px-3 text-sm " + (websiteError ? "border-red-300" : "border-gray-200")}/>{websiteError ? <span id="profile-website-error" className="mt-1.5 block text-xs font-bold text-red-600">{websiteError}</span> : null}</label>
             <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 sm:col-span-2"><input type="checkbox" checked={form.isPrivate} onChange={(e)=>setForm((value)=>({...value,isPrivate:e.target.checked}))} className="size-4 accent-[#6d5dfc]"/><span><span className="block text-xs font-black text-gray-700">Private account</span><span className="mt-0.5 block text-xs text-gray-500">Limit profile posts to you and accepted friends.</span></span></label>
             <div className="flex items-end justify-end sm:col-span-2"><button disabled={saving} type="submit" className="h-11 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white disabled:opacity-60">{saving ? "Saving…" : "Save changes"}</button></div>
           </form>
@@ -1191,7 +1238,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
             <p className="mt-5 max-w-2xl text-sm leading-6 text-gray-600">{profile?.bio ?? form.bio}</p>
             <div className="mt-5 w-full overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
   <div className="grid grid-cols-3 divide-x divide-gray-100">
-    <div className="px-3 py-3 text-center" title={fullCount(postCount) + " posts"}><strong className="block text-xl font-black">{compactCount(postCount)}</strong><span className="text-xs font-medium text-gray-500">posts</span></div>
+    <div className="px-3 py-3 text-center" title={fullCount(postCount) + " posts"}><strong className="block text-xl font-black">{compactCount(postCount)}</strong><span className="text-xs font-bold uppercase tracking-[.08em] text-gray-500">posts</span></div>
     <button type="button" onClick={() => void openRelationships("followers")} title={fullCount(followerCount) + " followers"} className="px-3 py-3 text-center hover:bg-white"><strong className="block text-base font-black">{compactCount(followerCount)}</strong><span className="text-xs font-bold uppercase tracking-[.08em] text-gray-500">followers</span></button>
     <button type="button" onClick={() => void openRelationships("following")} title={fullCount(followingCount) + " following"} className="px-3 py-3 text-center hover:bg-white"><strong className="block text-base font-black">{compactCount(followingCount)}</strong><span className="text-xs font-bold uppercase tracking-[.08em] text-gray-500">following</span></button>
   </div>
@@ -1212,7 +1259,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
         <div className="mt-5 flex min-w-0 flex-wrap items-center gap-2">
           {profile?.website ? <a href={profile.website} target="_blank" rel="noreferrer" className="rounded-full bg-gray-50 px-3 py-1.5 text-xs font-bold text-[#5a4be8] hover:bg-[#eeebff]">{profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}</a> : null}
           {profile?.isPrivate ? <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">Private account</span> : null}
-          {profile?.createdAt ? <span className="rounded-full bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-500">Joined {new Date(profile.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span> : null}
+          {profile?.createdAt ? <span className="rounded-full bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-500">Joined {formatJoinedDate(profile.createdAt)}</span> : null}
         </div>
         {relationshipView ? (
           <div className="fixed inset-0 z-[70] grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label={relationshipView}>
@@ -2153,7 +2200,15 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
 
   useEffect(() => {
     setQ(initialQuery);
+    setDiscoverTab(initialQuery.trim().startsWith("#") ? "posts" : "people");
   }, [initialQuery]);
+
+  useEffect(() => {
+    const urlQuery = new URLSearchParams(window.location.search).get("q") ?? "";
+    if (urlQuery !== q) {
+      router.replace(q.trim() ? "/discover?q=" + encodeURIComponent(q.trim()) : "/discover", { scroll: false });
+    }
+  }, [q, router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2237,6 +2292,8 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
     });
 
     if (response.ok) {
+      const nextFollowing = !isFollowing;
+      emitLiveSync({ type: "follow-updated", userId: user.id, following: nextFollowing });
       setFollowing((current) => {
         const next = new Set(current);
         if (isFollowing) next.delete(user.id);
@@ -2254,7 +2311,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
       <Card>
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18}/>
-          <input value={q} onChange={(e)=>setQ(e.target.value)} className="h-12 w-full rounded-2xl bg-gray-50 pl-11 text-sm font-semibold outline-none focus:bg-white" placeholder="Search people and usernames…"/>
+          <input value={q} onChange={(e)=>{ const value = e.target.value; setQ(value); if (value.trim().startsWith("#")) setDiscoverTab("posts"); else setDiscoverTab("people"); }} className="h-12 w-full rounded-2xl bg-gray-50 pl-11 text-sm font-semibold outline-none focus:bg-white" placeholder="Search people and usernames…"/>
         </div>
         <div className="mt-4 overflow-hidden">
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -2280,7 +2337,7 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
           })}</div>
         </Card> : discoverTab === "posts" ? <Card>
           <div className="flex justify-between"><h2 className="text-sm font-black">Post results</h2><span className="text-xs font-bold text-gray-500">{discoverPosts.length} posts</span></div>
-          <div className="mt-4 space-y-3">{discoverPosts.length ? discoverPosts.map((post) => <Link key={post.id} href={"/home#post-" + encodeURIComponent(post.id)} className="block rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><div className="flex items-center gap-3"><Avatar initials={post.author.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><div><p className="flex items-center gap-1.5 text-xs font-black">{post.author.name}<AccountBadge verified={post.author.isVerified} owner={post.author.isOwner}/></p><p className="text-xs text-gray-500">@{post.author.username ?? "member"} · {new Date(post.createdAt).toLocaleString()}</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">{post.content ?? "Media post"}</p><p className="mt-2 text-xs text-gray-500"><span title={fullCount(post.displayCounts?.likes ?? post._count.likes) + " likes"}>{compactCount(post.displayCounts?.likes ?? post._count.likes)} likes</span> · <span title={fullCount(post.displayCounts?.comments ?? post._count.comments) + " comments"}>{compactCount(post.displayCounts?.comments ?? post._count.comments)} comments</span></p></Link>) : <p className="py-8 text-center text-xs text-gray-500">No matching posts found.</p>}</div>
+          <div className="mt-4 space-y-3">{discoverPosts.length ? discoverPosts.map((post) => <Link key={post.id} href={"/home#post-" + encodeURIComponent(post.id)} className="block rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><div className="flex items-center gap-3"><Avatar initials={post.author.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><div><p className="flex items-center gap-1.5 text-xs font-black">{post.author.name}<AccountBadge verified={post.author.isVerified} owner={post.author.isOwner}/></p><p className="text-xs text-gray-500">@{post.author.username ?? "member"} · {formatSocialDateTime(post.createdAt)}</p></div></div><PostContent content={post.content ?? "Media post"} className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-600"/><p className="mt-2 text-xs text-gray-500"><span title={fullCount(post.displayCounts?.likes ?? post._count.likes) + " likes"}>{compactCount(post.displayCounts?.likes ?? post._count.likes)} likes</span> · <span title={fullCount(post.displayCounts?.comments ?? post._count.comments) + " comments"}>{compactCount(post.displayCounts?.comments ?? post._count.comments)} comments</span></p></Link>) : <p className="py-8 text-center text-xs text-gray-500">No matching posts found.</p>}</div>
         </Card> : <Card>
           <div className="flex justify-between"><h2 className="text-sm font-black">Hashtags</h2><span className="text-xs font-bold text-gray-500">{discoverHashtags.length} tags</span></div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">{discoverHashtags.length ? discoverHashtags.map((item) => <Link key={item.tag} href={"/discover?q=" + encodeURIComponent(item.tag)} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><span className="block text-sm font-black text-[#5a4be8]">{item.tag}</span><span className="mt-1 block text-xs text-gray-500">{item.count} matching posts in the current result set</span></Link>) : <p className="py-8 text-center text-xs text-gray-500">No matching hashtags found.</p>}</div>
@@ -2664,7 +2721,7 @@ function Notifications() {
         const Icon = iconFor(item.type);
         return <button key={item.id} onClick={() => void openNotification(item)} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
           <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(item.type)}`}><Icon size={17}/></span>
-          <span className="flex-1"><span className="block text-sm font-bold">{item.type === "SYSTEM" ? (item.title ?? "Account update") : <>{item.actor?.name ?? "Socialhub"} <AccountBadge verified={item.actor?.isVerified} owner={item.actor?.isOwner}/>{item.type === "LIKE" ? " liked your post." : item.type === "FOLLOW" ? " started following you." : item.type === "COMMENT" ? " commented on your post." : item.type === "FRIEND_REQUEST" ? " sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? " accepted your friend request." : item.type === "MESSAGE" ? " sent you a message." : item.type === "MENTION" ? " mentioned you." : " interacted with your content."}</>}</span><span className="mt-1 block text-xs text-gray-500">{item.type === "SYSTEM" && item.body ? item.body + " · " : ""}{new Date(item.createdAt).toLocaleString()}</span></span>
+          <span className="flex-1"><span className="block text-sm font-bold">{item.type === "SYSTEM" ? (item.title ?? "Account update") : <>{item.actor?.name ?? "Socialhub"} <AccountBadge verified={item.actor?.isVerified} owner={item.actor?.isOwner}/>{item.type === "LIKE" ? " liked your post." : item.type === "FOLLOW" ? " started following you." : item.type === "COMMENT" ? " commented on your post." : item.type === "FRIEND_REQUEST" ? " sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? " accepted your friend request." : item.type === "MESSAGE" ? " sent you a message." : item.type === "MENTION" ? " mentioned you." : " interacted with your content."}</>}</span><span className="mt-1 block text-xs text-gray-500">{item.type === "SYSTEM" && item.body ? item.body + " · " : ""}{formatSocialDateTime(item.createdAt)}</span></span>
           {!item.readAt ? <span className="mt-2 size-2 shrink-0 rounded-full bg-[#6d5dfc]"/> : null}
         </button>;
         })}
@@ -3206,7 +3263,7 @@ function SettingsPage() {
             <div><h2 className="text-sm font-black">Account verification</h2><p className="mt-2 text-xs leading-5 text-gray-500">Verified accounts receive a blue badge. The owner badge is separate and cannot be requested.</p></div>
             <AccountBadge verified={verification.isVerified} owner={verification.isOwner} showLabel size="md"/>
           </div>
-          {verification.isVerified || verification.isOwner ? <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-xs font-bold text-blue-700">Your account already has platform trust status.</div> : verification.status === "PENDING" ? <div className="mt-4 rounded-2xl bg-amber-50 p-4"><p className="text-xs font-black text-amber-800">Verification request pending</p><p className="mt-1 text-xs text-amber-700">Submitted {verification.createdAt ? new Date(verification.createdAt).toLocaleString() : "recently"}.</p></div> : <div className="mt-4 space-y-3"><textarea value={verificationReason} onChange={(e)=>setVerificationReason(e.target.value)} rows={4} maxLength={500} placeholder="Explain why your account should be verified (20–500 characters)." className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs outline-none focus:border-[#a79dff] focus:bg-white"/><div className="flex items-center justify-between gap-3"><p className="text-xs text-gray-500">{verificationReason.trim().length}/500 characters</p><button type="button" onClick={()=>void submitVerificationRequest()} disabled={!session?.user || verificationSubmitting || verificationReason.trim().length < 20} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50 disabled:bg-gray-400">{verificationSubmitting?"Submitting…":"Request blue tick"}</button></div>{verification.status==="REJECTED" && verification.adminNote ? <p className="text-xs text-red-600">Previous review: {verification.adminNote}</p> : null}</div>}
+          {verification.isVerified || verification.isOwner ? <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-xs font-bold text-blue-700">Your account already has platform trust status.</div> : verification.status === "PENDING" ? <div className="mt-4 rounded-2xl bg-amber-50 p-4"><p className="text-xs font-black text-amber-800">Verification request pending</p><p className="mt-1 text-xs text-amber-700">Submitted {verification.createdAt ? formatSocialDateTime(verification.createdAt) : "recently"}.</p></div> : <div className="mt-4 space-y-3"><textarea value={verificationReason} onChange={(e)=>setVerificationReason(e.target.value)} rows={4} maxLength={500} placeholder="Explain why your account should be verified (20–500 characters)." className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs outline-none focus:border-[#a79dff] focus:bg-white"/><div className="flex items-center justify-between gap-3"><p className="text-xs text-gray-500">{verificationReason.trim().length}/500 characters</p><button type="button" onClick={()=>void submitVerificationRequest()} disabled={!session?.user || verificationSubmitting || verificationReason.trim().length < 20} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50 disabled:bg-gray-400">{verificationSubmitting?"Submitting…":"Request blue tick"}</button></div>{verification.status==="REJECTED" && verification.adminNote ? <p className="text-xs text-red-600">Previous review: {verification.adminNote}</p> : null}</div>}
         </Card>
 <Card id="notifications" className={activeSettingsSection === "notifications" ? "block" : "hidden lg:block"}>
           <p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Notifications</p>
@@ -3226,7 +3283,7 @@ function SettingsPage() {
                sessions.length ? sessions.map((item) => (
                 <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-gray-100 p-3">
                   <span className={"grid size-9 place-items-center rounded-xl " + (item.isCurrent ? "bg-[#eeebff] text-[#5a4be8]" : "bg-gray-100 text-gray-500")}><Shield size={16}/></span>
-                  <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{item.isCurrent ? "Current device" : formatSessionDevice(item.userAgent)}</span><span className="mt-0.5 block truncate text-xs text-gray-500">{item.ipAddress ? item.ipAddress + " · " : ""}{new Date(item.updatedAt).toLocaleString()}</span></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{item.isCurrent ? "Current device" : formatSessionDevice(item.userAgent)}</span><span className="mt-0.5 block truncate text-xs text-gray-500">{item.ipAddress ? item.ipAddress + " · " : ""}{formatSocialDateTime(item.updatedAt)}</span></span>
                   {!item.isCurrent ? <button type="button" onClick={() => void revokeSession(item.id)} className="rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-xs font-black text-gray-600 hover:bg-gray-50">Revoke</button> : null}
                 </div>
               )) : <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">No active sessions were found.</div>}
@@ -3266,7 +3323,7 @@ export function SocialPages({ screen }: { screen: Screen }) {
   const content =
     screen.kind==="profile" ? <Profile username={screen.username}/> :
     screen.kind==="messages" ? <Messages initialConversationId={screen.search}/> :
-    screen.kind==="discover" ? <Discover/> :
+    screen.kind==="discover" ? <Discover initialQuery={screen.search ?? ""}/> :
     screen.kind==="friends" ? <Friends/> :
     screen.kind==="notifications" ? <Notifications/> :
     screen.kind==="settings" ? <SettingsPage/> :
