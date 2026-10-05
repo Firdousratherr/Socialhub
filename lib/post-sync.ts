@@ -15,7 +15,8 @@ const CLIENT_ID = typeof crypto !== "undefined" && typeof crypto.randomUUID === 
 
 export function emitPostSyncEvent(event: PostSyncEvent) {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent<PostSyncEvent>(CHANNEL_NAME, { detail: { ...event, sourceId: CLIENT_ID } as PostSyncEvent }));
+  const wireEvent: WireEvent = { ...event, sourceId: CLIENT_ID };
+  window.dispatchEvent(new CustomEvent<WireEvent>(CHANNEL_NAME, { detail: wireEvent }));
   try {
     const channel = new BroadcastChannel(CHANNEL_NAME);
     channel.postMessage({ ...event, sourceId: CLIENT_ID } as WireEvent);
@@ -29,8 +30,10 @@ export function subscribePostSync(listener: PostSyncListener) {
   if (typeof window === "undefined") return () => undefined;
 
   const onWindowEvent = (event: Event) => {
-    const detail = (event as CustomEvent<PostSyncEvent>).detail;
-    if (detail) listener(detail);
+    const detail = (event as CustomEvent<WireEvent>).detail;
+    if (!detail) return;
+    const { sourceId: _sourceId, ...payload } = detail;
+    listener(payload);
   };
 
   let channel: BroadcastChannel | null = null;
