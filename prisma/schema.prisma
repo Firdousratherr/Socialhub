@@ -36,6 +36,12 @@ enum AdminPermissionKey {
   SECURITY_MANAGE
   ADMIN_MANAGE
   PRIVACY_OPERATIONS
+  CASES_MANAGE
+  ENFORCEMENT_MANAGE
+  RISK_VIEW
+  APPROVALS_MANAGE
+  DATA_INTEGRITY
+  RATE_LIMITS_VIEW
 }
 
 enum PostVisibility {
@@ -109,6 +115,10 @@ model User {
   ownerSince    DateTime?
   suspensionReason String?
   suspendedUntil DateTime?
+  postingRestrictedUntil DateTime?
+  commentingRestrictedUntil DateTime?
+  messagingRestrictedUntil DateTime?
+  socialRestrictedUntil DateTime?
   deletedAt DateTime?
   forcePasswordResetAt DateTime?
   twoFactorEnabled Boolean @default(false)
@@ -775,4 +785,159 @@ model TwoFactor {
   lockedUntil DateTime?
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@index([userId])
+}
+
+
+model AdminCase {
+  id              String   @id @default(cuid())
+  title           String
+  category        String   @default("OTHER")
+  status          String   @default("OPEN")
+  priority        String   @default("MEDIUM")
+  subjectUserId   String?
+  postId          String?
+  commentId       String?
+  conversationId  String?
+  assignedToId    String?
+  createdById     String
+  reason          String?
+  resolution      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  resolvedAt      DateTime?
+
+  @@index([status, priority, createdAt])
+  @@index([subjectUserId, createdAt])
+  @@index([assignedToId, status, priority])
+}
+
+model AdminCaseEvent {
+  id          String   @id @default(cuid())
+  caseId      String
+  actorId     String?
+  type        String
+  details     String?
+  createdAt   DateTime @default(now())
+
+  @@index([caseId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model AdminEnforcementAction {
+  id            String   @id @default(cuid())
+  subjectUserId String
+  actorId       String
+  caseId        String?
+  action        String
+  reason        String
+  expiresAt     DateTime?
+  reversedAt    DateTime?
+  metadata      String?
+  createdAt     DateTime @default(now())
+
+  @@index([subjectUserId, createdAt])
+  @@index([caseId, createdAt])
+  @@index([action, createdAt])
+}
+
+model AdminRiskSignal {
+  id            String   @id @default(cuid())
+  userId        String
+  kind          String
+  score         Int
+  details       String?
+  detectedAt    DateTime @default(now())
+  resolvedAt    DateTime?
+
+  @@index([userId, detectedAt])
+  @@index([score, detectedAt])
+  @@index([resolvedAt, detectedAt])
+}
+
+model AdminAppeal {
+  id            String   @id @default(cuid())
+  userId        String
+  caseId        String?
+  reason        String
+  evidence      String?
+  status        String   @default("PENDING")
+  reviewerId    String?
+  reviewerNote  String?
+  createdAt     DateTime @default(now())
+  reviewedAt    DateTime?
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([caseId, createdAt])
+}
+
+model AdminApprovalRequest {
+  id            String   @id @default(cuid())
+  requesterId   String
+  approverId    String?
+  action        String
+  targetType    String
+  targetId      String
+  payload       String?
+  reason        String
+  status        String   @default("PENDING")
+  createdAt     DateTime @default(now())
+  decidedAt     DateTime?
+  decisionNote  String?
+
+  @@index([status, createdAt])
+  @@index([requesterId, createdAt])
+  @@index([targetType, targetId])
+}
+
+model AdminFlagChange {
+  id          String   @id @default(cuid())
+  flagKey     String
+  actorId     String
+  before      Boolean
+  after       Boolean
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  @@index([flagKey, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model AdminSettingChange {
+  id          String   @id @default(cuid())
+  settingKey  String
+  actorId     String
+  before      String?
+  after       String?
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  @@index([settingKey, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model AdminAuditEvent {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actorRole   String?
+  action      String
+  resource    String
+  resourceId  String?
+  caseId      String?
+  reason      String?
+  permission  String?
+  outcome     String   @default("SUCCESS")
+  riskLevel   String   @default("LOW")
+  before      String?
+  after       String?
+  ipAddress   String?
+  userAgent   String?
+  sessionId   String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([resource, resourceId, createdAt])
+  @@index([caseId, createdAt])
+  @@index([riskLevel, createdAt])
+  @@index([outcome, createdAt])
 }

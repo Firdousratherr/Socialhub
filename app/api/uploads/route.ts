@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { safeDeleteBlob } from "@/lib/blob-cleanup";
+import { platformEnabled } from "@/lib/platform-controls";
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_DAILY_UPLOAD_BYTES = Number(process.env.MAX_DAILY_UPLOAD_BYTES ?? 25 * 1024 * 1024);
@@ -39,6 +40,8 @@ export async function POST(request: Request) {
   const rl = await consumeRateLimit(rateLimitKey("upload", request, session.user.id), 20, 60);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
 
+  const uploadsEnabled = await platformEnabled("uploads", true);
+  if (!uploadsEnabled) return NextResponse.json({ error: "Uploads are temporarily disabled by the platform administrator." }, { status: 503 });
   const formData = await request.formData().catch(() => null);
   const file = formData?.get("file");
 

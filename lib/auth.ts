@@ -74,7 +74,15 @@ export const auth = betterAuth({
             where: { id: session.userId },
             select: { isActive: true, deletedAt: true, suspendedUntil: true },
           });
-          if (!row?.isActive || row.deletedAt || (row.suspendedUntil && row.suspendedUntil > new Date())) return false;
+          const now = new Date();
+          if (row?.suspendedUntil && row.suspendedUntil <= now && !row.deletedAt) {
+            await prisma.user.update({
+              where: { id: session.userId },
+              data: { isActive: true, suspensionReason: null, suspendedUntil: null },
+            });
+            return { data: session };
+          }
+          if (!row?.isActive || row.deletedAt || (row.suspendedUntil && row.suspendedUntil > now)) return false;
           return { data: session };
         },
       },

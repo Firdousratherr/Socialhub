@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { messageInputSchema } from "@/lib/validation";
 import { canSendMessageInConversation } from "@/lib/conversation-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { platformEnabled } from "@/lib/platform-controls";
+import { getActiveUserRestriction } from "@/lib/user-restrictions";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -24,6 +26,8 @@ export async function GET(
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
+  const messagingEnabled = await platformEnabled("messaging", true);
+  if (!messagingEnabled) return NextResponse.json({ error: "Messaging is temporarily disabled by the platform administrator." }, { status: 503 });
   const { conversationId } = await params;
   if (!(await isMember(conversationId, session.user.id))) {
     return NextResponse.json({ error: "Conversation access denied." }, { status: 403 });
@@ -80,6 +84,10 @@ export async function POST(
     return NextResponse.json({ error: "Conversation access denied." }, { status: 403 });
   }
 
+  const messagingRestriction = await getActiveUserRestriction(session.user.id, "messagingRestrictedUntil");
+  if (messagingRestriction) {
+    return NextResponse.json({ error: "Messaging is temporarily restricted.", restrictedUntil: messagingRestriction.toISOString() }, { status: 403 });
+  }
   const sendAccess = await canSendMessageInConversation(conversationId, session.user.id);
   if (!sendAccess.allowed) {
     return NextResponse.json({ error: sendAccess.reason ?? "Messaging is unavailable in this conversation." }, { status: 403 });
