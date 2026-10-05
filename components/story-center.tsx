@@ -143,9 +143,12 @@ export function StoryCenter({
     return Array.from(map.values());
   }, [stories]);
 
-  const ownGroup = session?.user?.id ? groups.find((group) => group.author.id === session.user.id) : undefined;
+  const currentUserId = session?.user?.id ?? null;
+  const ownGroup = currentUserId
+    ? groups.find((group) => group.author.id === currentUserId)
+    : undefined;
   const displayGroups = ownGroup
-    ? [ownGroup, ...groups.filter((group) => group.author.id !== session.user?.id)]
+    ? [ownGroup, ...groups.filter((group) => group.author.id !== currentUserId)]
     : groups;
 
   const activeGroup = viewer ? displayGroups.find((group) => group.author.id === viewer.authorId) : null;
