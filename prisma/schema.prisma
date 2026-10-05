@@ -71,6 +71,8 @@ enum NotificationType {
   MENTION
   SHARE
   SYSTEM
+  STORY_REPLY
+  STORY_REACTION
 }
 
 enum StoryAudience {
@@ -398,6 +400,7 @@ model Notification {
   postId    String?
   commentId String?
   messageId String?
+  storyId   String?
   title     String?
   body      String?
   readAt    DateTime?
@@ -408,9 +411,11 @@ model Notification {
   post      Post?       @relation(fields: [postId], references: [id], onDelete: Cascade)
   comment   Comment?    @relation(fields: [commentId], references: [id], onDelete: Cascade)
   message   Message?    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  story     Story?      @relation(fields: [storyId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt, createdAt])
   @@index([actorId, createdAt])
+  @@index([storyId])
 }
 
 model UserPrivacySetting {
@@ -439,6 +444,8 @@ model NotificationPreference {
   mentions         Boolean  @default(true)
   shares           Boolean  @default(true)
   system           Boolean  @default(true)
+  storyReplies     Boolean  @default(true)
+  storyReactions   Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -458,6 +465,7 @@ model Story {
   views      StoryView[]
   replies    StoryReply[]
   reactions  StoryReaction[]
+  notifications Notification[]
 
   @@index([authorId, expiresAt])
   @@index([expiresAt, audience])

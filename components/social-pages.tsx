@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
+import { createPortal } from "react-dom";
 import { AdminWorkspace } from "@/components/admin-workspace";
 import { AccountBadge } from "@/components/account-badge";
 import { emitPostSyncEvent } from "@/lib/post-sync";
@@ -644,6 +645,10 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [websiteError, setWebsiteError] = useState("");
   const [profileTab, setProfileTab] = useState<"posts" | "photos" | "friends">("posts");
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [profileMenuReady, setProfileMenuReady] = useState(false);
+  const [profileMenuPosition, setProfileMenuPosition] = useState({ top: 0, left: 0 });
+  const profileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const [friends, setFriends] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; bio: string | null; isVerified?: boolean; isOwner?: boolean }>>([]);
   const [friendsHidden, setFriendsHidden] = useState(false);
   const [relationshipView, setRelationshipView] = useState<"followers" | "following" | "mutual" | null>(null);
@@ -669,6 +674,44 @@ function Profile({ username = "firdous" }: { username?: string }) {
     website: "",
     isPrivate: false,
   });
+
+  useEffect(() => {
+    setProfileMenuReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+
+    const reposition = () => {
+      const anchor = profileMenuButtonRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const width = 190;
+      const gap = 8;
+      setProfileMenuPosition({
+        top: Math.min(window.innerHeight - 210, rect.bottom + gap),
+        left: Math.min(window.innerWidth - width - 10, Math.max(10, rect.right - width)),
+      });
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!profileMenuRef.current?.contains(target) && !profileMenuButtonRef.current?.contains(target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    reposition();
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    document.addEventListener("pointerdown", onPointerDown);
+
+    return () => {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [profileMenuOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1219,7 +1262,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
               ) : (
                 <Link href="/login" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white"><LogIn size={15}/>Sign in to interact</Link>
               )}
-              <div className="relative shrink-0"><button type="button" onClick={() => setProfileMenuOpen((value) => !value)} className="grid size-11 place-items-center rounded-xl border border-gray-200 bg-white text-gray-700" aria-label="More profile actions" aria-expanded={profileMenuOpen}><MoreHorizontal size={18}/></button>{profileMenuOpen ? <div className="absolute right-0 top-12 z-20 w-44 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl"><button type="button" onClick={() => { setProfileMenuOpen(false); void shareProfile(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50"><Share2 size={15}/>Share profile</button><button type="button" onClick={() => { setProfileMenuOpen(false); void reportUser(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50"><Shield size={15}/>Report</button><button type="button" onClick={() => { setProfileMenuOpen(false); void blockUser(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50"><ShieldOff size={15}/>Block</button></div> : null}</div>
+              <div className="relative shrink-0"><button ref={profileMenuButtonRef} type="button" onClick={() => setProfileMenuOpen((value) => !value)} className="grid size-11 place-items-center rounded-xl border border-gray-200 bg-white text-gray-700 shadow-sm" aria-label="More profile actions" aria-expanded={profileMenuOpen} aria-haspopup="menu"><MoreHorizontal size={18}/></button></div>
             </div>
           </div>
         ) : null}
@@ -1291,6 +1334,25 @@ function Profile({ username = "firdous" }: { username?: string }) {
             </div>
           </div>
         ) : null}
+
+        {profileMenuOpen && profileMenuReady
+          ? createPortal(
+              <div
+                ref={profileMenuRef}
+                className="fixed z-[9999] w-[190px] overflow-hidden rounded-2xl border border-gray-200 bg-white p-1.5 shadow-2xl"
+                style={{ top: profileMenuPosition.top, left: profileMenuPosition.left }}
+                role="menu"
+                aria-label="Profile actions"
+              >
+                <button type="button" onClick={() => { setProfileMenuOpen(false); void shareProfile(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50" role="menuitem"><Share2 size={15}/>Share profile</button>
+                {!isOwner ? <>
+                  <button type="button" onClick={() => { setProfileMenuOpen(false); void reportUser(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50" role="menuitem"><Shield size={15}/>Report</button>
+                  <button type="button" onClick={() => { setProfileMenuOpen(false); void blockUser(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50" role="menuitem"><ShieldOff size={15}/>Block</button>
+                </> : null}
+              </div>,
+              document.body,
+            )
+          : null}
 
         <div className="mt-7 flex gap-2 overflow-x-auto border-b border-gray-100 pb-3 text-xs font-black scrollbar-none">
           {(["posts","photos","friends"] as const).map((tab) => <button key={tab} type="button" onClick={() => setProfileTab(tab)} className={profileTab === tab ? "border-b-2 border-[#6d5dfc] pb-3 text-[#5a4be8]" : "pb-3 text-gray-500"}>{tab[0].toUpperCase() + tab.slice(1)}</button>)}
@@ -2556,7 +2618,7 @@ function Friends() {
 }
 type NotificationData = {
   id: string;
-  type: "LIKE" | "COMMENT" | "FOLLOW" | "FRIEND_REQUEST" | "FRIEND_ACCEPTED" | "MESSAGE" | "MENTION" | "SHARE" | "SYSTEM";
+  type: "LIKE" | "COMMENT" | "FOLLOW" | "FRIEND_REQUEST" | "FRIEND_ACCEPTED" | "MESSAGE" | "MENTION" | "SHARE" | "SYSTEM" | "STORY_REPLY" | "STORY_REACTION";
   readAt: string | null;
   createdAt: string;
   title?: string | null;
@@ -2565,6 +2627,7 @@ type NotificationData = {
   post?: { id: string; content: string | null; mediaUrl: string | null } | null;
   comment?: { id: string; content: string } | null;
   message?: { id: string; conversationId: string } | null;
+  story?: { id: string } | null;
 };
 
 function Notifications() {
@@ -2671,6 +2734,8 @@ function Notifications() {
       router.push("/friends");
     } else if (item.type === "MESSAGE" && item.message?.conversationId) {
       router.push("/messages?conversation=" + encodeURIComponent(item.message.conversationId));
+    } else if ((item.type === "STORY_REPLY" || item.type === "STORY_REACTION") && item.story?.id) {
+      router.push("/home?story=" + encodeURIComponent(item.story.id));
     } else if (item.post?.id) {
       router.push("/home#post-" + encodeURIComponent(item.post.id));
     } else {
@@ -2679,8 +2744,8 @@ function Notifications() {
   }
 
   function iconFor(type: NotificationData["type"]) {
-    if (type === "LIKE") return Heart;
-    if (type === "COMMENT" || type === "MESSAGE") return MessageCircle;
+    if (type === "LIKE" || type === "STORY_REACTION") return Heart;
+    if (type === "COMMENT" || type === "MESSAGE" || type === "STORY_REPLY") return MessageCircle;
     if (type === "FOLLOW") return UserPlus;
     if (type === "FRIEND_REQUEST" || type === "FRIEND_ACCEPTED") return Users;
     if (type === "MENTION") return AtSign;
@@ -2689,9 +2754,9 @@ function Notifications() {
   }
 
   function styleFor(type: NotificationData["type"]) {
-    if (type === "LIKE") return "bg-rose-50 text-rose-500";
+    if (type === "LIKE" || type === "STORY_REACTION") return "bg-rose-50 text-rose-500";
     if (type === "FOLLOW" || type === "FRIEND_ACCEPTED") return "bg-violet-50 text-violet-600";
-    if (type === "COMMENT" || type === "MESSAGE" || type === "MENTION") return "bg-sky-50 text-sky-500";
+    if (type === "COMMENT" || type === "MESSAGE" || type === "STORY_REPLY" || type === "MENTION") return "bg-sky-50 text-sky-500";
     if (type === "FRIEND_REQUEST") return "bg-emerald-50 text-emerald-600";
     return "bg-amber-50 text-amber-500";
   }
@@ -2699,7 +2764,7 @@ function Notifications() {
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("ALL");
   const filteredNotifications = notifications.filter((item) => {
     if (notificationFilter === "UNREAD") return !item.readAt;
-    if (notificationFilter === "SOCIAL") return ["LIKE","COMMENT","FOLLOW","MENTION","SHARE"].includes(item.type);
+    if (notificationFilter === "SOCIAL") return ["LIKE","COMMENT","FOLLOW","MENTION","SHARE","STORY_REPLY","STORY_REACTION"].includes(item.type);
     if (notificationFilter === "MESSAGES") return item.type === "MESSAGE";
     if (notificationFilter === "REQUESTS") return item.type === "FRIEND_REQUEST" || item.type === "FRIEND_ACCEPTED";
     return true;
@@ -2722,7 +2787,7 @@ function Notifications() {
         const Icon = iconFor(item.type);
         return <button key={item.id} onClick={() => void openNotification(item)} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
           <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(item.type)}`}><Icon size={17}/></span>
-          <span className="flex-1"><span className="block text-sm font-bold">{item.type === "SYSTEM" ? (item.title ?? "Account update") : <>{item.actor?.name ?? "Socialhub"} <AccountBadge verified={item.actor?.isVerified} owner={item.actor?.isOwner}/>{item.type === "LIKE" ? " liked your post." : item.type === "FOLLOW" ? " started following you." : item.type === "COMMENT" ? " commented on your post." : item.type === "FRIEND_REQUEST" ? " sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? " accepted your friend request." : item.type === "MESSAGE" ? " sent you a message." : item.type === "MENTION" ? " mentioned you." : " interacted with your content."}</>}</span><span className="mt-1 block text-xs text-gray-500">{item.type === "SYSTEM" && item.body ? item.body + " · " : ""}{formatSocialDateTime(item.createdAt)}</span></span>
+          <span className="flex-1"><span className="block text-sm font-bold">{item.type === "SYSTEM" ? (item.title ?? "Account update") : <>{item.actor?.name ?? "Socialhub"} <AccountBadge verified={item.actor?.isVerified} owner={item.actor?.isOwner}/>{item.type === "LIKE" ? " liked your post." : item.type === "FOLLOW" ? " started following you." : item.type === "COMMENT" ? " commented on your post." : item.type === "FRIEND_REQUEST" ? " sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? " accepted your friend request." : item.type === "MESSAGE" ? " sent you a message." : item.type === "STORY_REPLY" ? " replied to your story." : item.type === "STORY_REACTION" ? " reacted to your story." : item.type === "MENTION" ? " mentioned you." : " interacted with your content."}</>}</span><span className="mt-1 block text-xs text-gray-500">{item.type === "SYSTEM" && item.body ? item.body + " · " : ""}{formatSocialDateTime(item.createdAt)}</span></span>
           {!item.readAt ? <span className="mt-2 size-2 shrink-0 rounded-full bg-[#6d5dfc]"/> : null}
         </button>;
         })}
@@ -3273,7 +3338,7 @@ function SettingsPage() {
           <p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Notifications</p>
           <h2 className="mt-1 text-xl font-black">Choose what reaches you</h2>
           <p className="mt-2 text-xs leading-5 text-gray-500">Choose which activity appears in your notification inbox.</p>
-          <div className="mt-4 divide-y divide-gray-100"><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Likes</p><p className="mt-0.5 text-xs text-gray-500">When someone likes your posts.</p></div><SettingsToggle value={Boolean(preferences.likes)} disabled={!session?.user || savingPreference === "likes"} onChange={(value)=>void updatePreference("likes", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Comments</p><p className="mt-0.5 text-xs text-gray-500">When someone comments on your posts.</p></div><SettingsToggle value={Boolean(preferences.comments)} disabled={!session?.user || savingPreference === "comments"} onChange={(value)=>void updatePreference("comments", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Follows</p><p className="mt-0.5 text-xs text-gray-500">When someone follows you.</p></div><SettingsToggle value={Boolean(preferences.follows)} disabled={!session?.user || savingPreference === "follows"} onChange={(value)=>void updatePreference("follows", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests</p><p className="mt-0.5 text-xs text-gray-500">When someone sends you a friend request.</p></div><SettingsToggle value={Boolean(preferences.friendRequests)} disabled={!session?.user || savingPreference === "friendRequests"} onChange={(value)=>void updatePreference("friendRequests", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests accepted</p><p className="mt-0.5 text-xs text-gray-500">When a friend request is accepted.</p></div><SettingsToggle value={Boolean(preferences.friendAccepted)} disabled={!session?.user || savingPreference === "friendAccepted"} onChange={(value)=>void updatePreference("friendAccepted", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Messages</p><p className="mt-0.5 text-xs text-gray-500">When you receive a new message notification.</p></div><SettingsToggle value={Boolean(preferences.messages)} disabled={!session?.user || savingPreference === "messages"} onChange={(value)=>void updatePreference("messages", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Mentions</p><p className="mt-0.5 text-xs text-gray-500">When someone mentions you.</p></div><SettingsToggle value={Boolean(preferences.mentions)} disabled={!session?.user || savingPreference === "mentions"} onChange={(value)=>void updatePreference("mentions", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Shares</p><p className="mt-0.5 text-xs text-gray-500">When your content is shared.</p></div><SettingsToggle value={Boolean(preferences.shares)} disabled={!session?.user || savingPreference === "shares"} onChange={(value)=>void updatePreference("shares", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">System</p><p className="mt-0.5 text-xs text-gray-500">Important account and platform notices.</p></div><SettingsToggle value={Boolean(preferences.system)} disabled={!session?.user || savingPreference === "system"} onChange={(value)=>void updatePreference("system", value)}/></div></div>
+          <div className="mt-4 divide-y divide-gray-100"><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Likes</p><p className="mt-0.5 text-xs text-gray-500">When someone likes your posts.</p></div><SettingsToggle value={Boolean(preferences.likes)} disabled={!session?.user || savingPreference === "likes"} onChange={(value)=>void updatePreference("likes", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Comments</p><p className="mt-0.5 text-xs text-gray-500">When someone comments on your posts.</p></div><SettingsToggle value={Boolean(preferences.comments)} disabled={!session?.user || savingPreference === "comments"} onChange={(value)=>void updatePreference("comments", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Follows</p><p className="mt-0.5 text-xs text-gray-500">When someone follows you.</p></div><SettingsToggle value={Boolean(preferences.follows)} disabled={!session?.user || savingPreference === "follows"} onChange={(value)=>void updatePreference("follows", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests</p><p className="mt-0.5 text-xs text-gray-500">When someone sends you a friend request.</p></div><SettingsToggle value={Boolean(preferences.friendRequests)} disabled={!session?.user || savingPreference === "friendRequests"} onChange={(value)=>void updatePreference("friendRequests", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests accepted</p><p className="mt-0.5 text-xs text-gray-500">When a friend request is accepted.</p></div><SettingsToggle value={Boolean(preferences.friendAccepted)} disabled={!session?.user || savingPreference === "friendAccepted"} onChange={(value)=>void updatePreference("friendAccepted", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Messages</p><p className="mt-0.5 text-xs text-gray-500">When you receive a new message notification.</p></div><SettingsToggle value={Boolean(preferences.messages)} disabled={!session?.user || savingPreference === "messages"} onChange={(value)=>void updatePreference("messages", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Mentions</p><p className="mt-0.5 text-xs text-gray-500">When someone mentions you.</p></div><SettingsToggle value={Boolean(preferences.mentions)} disabled={!session?.user || savingPreference === "mentions"} onChange={(value)=>void updatePreference("mentions", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Shares</p><p className="mt-0.5 text-xs text-gray-500">When your content is shared.</p></div><SettingsToggle value={Boolean(preferences.shares)} disabled={!session?.user || savingPreference === "shares"} onChange={(value)=>void updatePreference("shares", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Story replies</p><p className="mt-0.5 text-xs text-gray-500">When someone replies to one of your stories.</p></div><SettingsToggle value={Boolean(preferences.storyReplies)} disabled={!session?.user || savingPreference === "storyReplies"} onChange={(value)=>void updatePreference("storyReplies", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Story reactions</p><p className="mt-0.5 text-xs text-gray-500">When someone reacts to one of your stories.</p></div><SettingsToggle value={Boolean(preferences.storyReactions)} disabled={!session?.user || savingPreference === "storyReactions"} onChange={(value)=>void updatePreference("storyReactions", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">System</p><p className="mt-0.5 text-xs text-gray-500">Important account and platform notices.</p></div><SettingsToggle value={Boolean(preferences.system)} disabled={!session?.user || savingPreference === "system"} onChange={(value)=>void updatePreference("system", value)}/></div></div>
         </Card>
 
         {session?.user ? (

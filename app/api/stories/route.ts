@@ -46,40 +46,77 @@ export async function GET() {
             OR: [
               { audience: "PUBLIC" },
               { authorId: session.user.id },
-              ...(friendIds.length ? [{ audience: "FRIENDS" as const, authorId: { in: friendIds } }] : []),
+              ...(friendIds.length
+                ? [{ audience: "FRIENDS" as const, authorId: { in: friendIds } }]
+                : []),
             ],
           }
         : { audience: "PUBLIC" }),
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: 100,
     include: {
-      author: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } },
+      author: {
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          image: true,
+          isVerified: true,
+          isOwner: true,
+        },
+      },
+      _count: {
+        select: {
+          views: true,
+          replies: true,
+          reactions: true,
+        },
+      },
     },
   });
 
-  const viewedIds = session?.user
-    ? new Set(
-        (
-          await prisma.storyView.findMany({
-            where: { viewerId: session.user.id, storyId: { in: stories.map((story) => story.id) } },
-            select: { storyId: true },
-          })
-        ).map((view) => view.storyId),
-      )
-    : new Set<string>();
+  const storyIds = stories.map((story) => story.id);
+  const viewedIds =
+    session?.user && storyIds.length
+      ? new Set(
+          (
+            await prisma.storyView.findMany({
+              where: {
+                viewerId: session.user.id,
+                storyId: { in: storyIds },
+              },
+              select: { storyId: true },
+            })
+          ).map((view) => view.storyId),
+        )
+      : new Set<string>();
 
   return NextResponse.json({
-    stories: stories.map((story) => ({ ...story, hasViewed: viewedIds.has(story.id) })),
+    stories: stories.map((story) => ({
+      ...story,
+      viewCount: story._count.views,
+      replyCount: story._count.replies,
+      reactionCount: story._count.reactions,
+      hasViewed: session?.user?.id === story.author.id || viewedIds.has(story.id),
+    })),
   });
 }
 
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  if (!session?.user) {
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
 
   const storiesEnabled = await platformEnabled("stories", true);
-  if (!storiesEnabled) return NextResponse.json({ error: "Stories are temporarily disabled by the platform administrator." }, { status: 503 });
+  if (!storiesEnabled) {
+    return NextResponse.json(
+      { error: "Stories are temporarily disabled by the platform administrator." },
+      { status: 503 },
+    );
+  }
+
   const parsed = storyInputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
@@ -96,12 +133,24 @@ export async function POST(request: Request) {
   }
 
   if (parsed.data.expiresAt > maxExpiry) {
-    return NextResponse.json({ error: "Stories can expire at most 24 hours after creation." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Stories can expire at most 24 hours after creation." },
+      { status: 400 },
+    );
   }
 
-  const storyRestriction = await getActiveUserRestriction(session.user.id, "postingRestrictedUntil");
+  const storyRestriction = await getActiveUserRestriction(
+    session.user.id,
+    "postingRestrictedUntil",
+  );
   if (storyRestriction) {
-    return NextResponse.json({ error: "Story creation is temporarily restricted.", restrictedUntil: storyRestriction.toISOString() }, { status: 403 });
+    return NextResponse.json(
+      {
+        error: "Story creation is temporarily restricted.",
+        restrictedUntil: storyRestriction.toISOString(),
+      },
+      { status: 403 },
+    );
   }
 
   const story = await prisma.story.create({
@@ -113,9 +162,36 @@ export async function POST(request: Request) {
       expiresAt: parsed.data.expiresAt,
     },
     include: {
-      author: { select: { id: true, name: true, username: true, image: true, isVerified: true, isOwner: true } },
+      author: {
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          image: true,
+          isVerified: true,
+          isOwner: true,
+        },
+      },
+      _count: {
+        select: {
+          views: true,
+          replies: true,
+          reactions: true,
+        },
+      },
     },
   });
 
-  return NextResponse.json({ story }, { status: 201 });
+  return NextResponse.json(
+    {
+      story: {
+        ...story,
+        viewCount: 0,
+        replyCount: story._count.replies,
+        reactionCount: story._count.reactions,
+        hasViewed: true,
+      },
+    },
+    { status: 201 },
+  );
 }
