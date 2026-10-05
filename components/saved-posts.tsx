@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { Bookmark, Heart, MessageCircle, Share2, Trash2 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { compactCount, fullCount } from "@/lib/compact-count";
+import { formatSocialDate } from "@/lib/social-date";
+import { PostContent } from "@/components/post-content";
 import { AppShell } from "@/components/app-shell";
 
 type SavedPost = {
@@ -52,15 +54,15 @@ export default function SavedPosts() {
   return <AppShell><main className="min-h-screen bg-transparent">
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
       <div className="flex items-center justify-between gap-3">
-        <div><p className="text-xs font-bold text-[#5a4be8]">Saved</p><h1 className="page-heading mt-1">Saved posts</h1><p className="page-description mt-1">Keep useful posts in one private place.</p></div>
+        <div><p className="text-xs font-black uppercase tracking-[.16em] text-[#6d5dfc]">SAVED</p><h1 className="page-heading mt-1">Saved posts</h1><p className="page-description mt-1">Keep useful posts in one private place.</p></div>
         <span className="grid size-11 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><Bookmark size={19}/></span>
       </div>
       {error ? <div role="alert" className="mt-5 rounded-2xl bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
       <div className="mt-5 space-y-4">
         {loading && !posts.length ? [1,2,3].map((i)=><div key={i} className="h-40 animate-pulse rounded-3xl bg-white"/>)
         : posts.length ? posts.map((post)=><article key={post.id} className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-          <div className="p-4"><div className="flex items-center gap-3"><Link href={"/profile/"+encodeURIComponent(post.author.username ?? post.author.id)} className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{post.author.image ? <img src={post.author.image} alt="" className="size-full object-cover"/> : post.author.name.slice(0,1).toUpperCase()}</Link><div className="min-w-0 flex-1"><Link href={"/profile/"+encodeURIComponent(post.author.username ?? post.author.id)} className="block truncate text-xs font-black">{post.author.name}</Link><p className="text-xs text-gray-500">@{post.author.username ?? "member"} · {new Date(post.createdAt).toLocaleDateString()}</p></div><button type="button" onClick={()=>void remove(post.id)} className="grid size-9 place-items-center rounded-xl bg-gray-50 text-gray-500 hover:bg-red-50 hover:text-red-600" title="Remove from saved"><Trash2 size={15}/></button></div>
-            {post.content ? <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-gray-700">{post.content}</p> : null}
+          <div className="p-4"><div className="flex items-center gap-3"><Link href={"/profile/"+encodeURIComponent(post.author.username ?? post.author.id)} className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{post.author.image ? <img src={post.author.image} alt="" className="size-full object-cover"/> : post.author.name.slice(0,1).toUpperCase()}</Link><div className="min-w-0 flex-1"><Link href={"/profile/"+encodeURIComponent(post.author.username ?? post.author.id)} className="block truncate text-xs font-black">{post.author.name}</Link><p className="text-xs text-gray-500">@{post.author.username ?? "member"} · {formatSocialDate(post.createdAt)}</p></div><button type="button" onClick={()=>void remove(post.id)} className="grid size-9 place-items-center rounded-xl bg-gray-50 text-gray-500 hover:bg-red-50 hover:text-red-600" title="Remove from saved"><Trash2 size={15}/></button></div>
+            {post.content ? <PostContent content={post.content} className="mt-4 whitespace-pre-wrap text-sm leading-6 text-gray-700"/> : null}
           </div>
           {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="max-h-[520px] w-full object-cover"/> : null}
           <div className="flex items-center gap-4 border-t border-gray-100 px-4 py-3 text-xs font-black text-gray-500"><span title={fullCount(post.displayCounts.likes)+" likes"} className="inline-flex items-center gap-1"><Heart size={14}/>{compactCount(post.displayCounts.likes)}</span><span title={fullCount(post.displayCounts.comments)+" comments"} className="inline-flex items-center gap-1"><MessageCircle size={14}/>{compactCount(post.displayCounts.comments)}</span><span title={fullCount(post.displayCounts.shares)+" shares"} className="inline-flex items-center gap-1"><Share2 size={14}/>{compactCount(post.displayCounts.shares)}</span></div>
