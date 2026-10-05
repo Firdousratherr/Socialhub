@@ -7,13 +7,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
-import { MobileMenu } from "@/components/mobile-menu";
 import { emitPostSyncEvent } from "@/lib/post-sync";
 import { compactCount, fullCount } from "@/lib/compact-count";
 import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
 import { emitUnreadSummarySync } from "@/hooks/use-unread-summary";
 import { useLivePoll } from "@/hooks/use-live-poll";
 import { BottomNav } from "@/components/bottom-nav";
+import { SignedInShell } from "@/components/signed-in-shell";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
@@ -65,7 +65,8 @@ function Page({
   }
 
   return (
-    <main className="min-h-screen pb-24 md:pb-8">
+    <SignedInShell>
+      <main className="min-h-screen pb-24 md:pb-8">
       <div className="mx-auto max-w-[1100px] px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="mb-6 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
@@ -80,13 +81,13 @@ function Page({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {action}
-            <MobileMenu />
           </div>
         </div>
         {children}
       </div>
       <BottomNav />
-    </main>
+      </main>
+    </SignedInShell>
   );
 }
 

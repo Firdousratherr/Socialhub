@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { publicUserWhere } from "@/lib/user-visibility";
 import { SocialPages } from "@/components/social-pages";
 
 const SITE_URL = "https://socialhub-ruby.vercel.app";
@@ -26,8 +27,8 @@ function safeExternalUrl(value: string | null) {
 }
 
 async function getProfile(username: string) {
-  return prisma.user.findUnique({
-    where: { username },
+  return prisma.user.findFirst({
+    where: { ...publicUserWhere, username },
     select: {
       id: true,
       username: true,

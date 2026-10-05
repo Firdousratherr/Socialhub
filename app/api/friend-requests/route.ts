@@ -11,7 +11,7 @@ export async function POST(request:Request){
  const rl=await consumeRateLimit(rateLimitKey("friend-requests",request,session.user.id),15,60);if(!rl.allowed)return rateLimitResponse(rl.retryAfter);
  const parsed=friendRequestInputSchema.safeParse(await request.json().catch(()=>null));if(!parsed.success)return NextResponse.json({error:"Invalid friend request."},{status:400});
  const {receiverId}=parsed.data;if(receiverId===session.user.id)return NextResponse.json({error:"You cannot send yourself a friend request."},{status:400});
- const receiver=await prisma.user.findUnique({where:{id:receiverId},select:{id:true,isActive:true,privacySetting:{select:{allowFriendRequests:true}}}});
+ const receiver=await prisma.user.findFirst({where:{id:receiverId,...publicUserWhere},select:{id:true,isActive:true,privacySetting:{select:{allowFriendRequests:true}}}});
  if(!receiver?.isActive)return NextResponse.json({error:"User not found."},{status:404});
  if(receiver.privacySetting&&!receiver.privacySetting.allowFriendRequests)return NextResponse.json({error:"This user is not accepting new friend requests."},{status:403});
  const block=await prisma.block.findFirst({where:{OR:[{blockerId:session.user.id,blockedId:receiverId},{blockerId:receiverId,blockedId:session.user.id}]},select:{blockerId:true}});

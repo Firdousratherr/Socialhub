@@ -1,9 +1,15 @@
 "use client";
 
+
+import { useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Home, Search } from "lucide-react";
 
 export default function NotFound() {
+  useEffect(() => {
+    document.title = "Page not found · Socialhub";
+  }, []);
+
   return (
     <main className="min-h-screen bg-[#f7f6ff] px-4 py-10 sm:px-6">
       <div className="mx-auto flex min-h-[80vh] max-w-2xl items-center justify-center">

@@ -8,11 +8,12 @@ import { APIError } from "better-auth/api";
 
 function usernameBaseFromEmail(email: string) {
   const localPart = email.split("@")[0] ?? "";
-  const normalized = localPart
+  const basePart = localPart.split("+")[0] ?? "";
+  const normalized = basePart
     .toLowerCase()
     .replace(/[^a-z0-9._]/g, "")
     .replace(/^[._]+|[._]+$/g, "")
-    .slice(0, 24);
+    .slice(0, 30);
 
   if (normalized.length >= 3) return normalized;
   return "member";

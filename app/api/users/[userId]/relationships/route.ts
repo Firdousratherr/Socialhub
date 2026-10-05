@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isBlocked } from "@/lib/social-access";
+import { publicUserWhere } from "@/lib/user-visibility";
 
 function decodeCursor(value: string | null) {
   if (!value) return null;
@@ -46,8 +47,14 @@ export async function GET(
   const session = await auth.api.getSession({ headers: await headers() });
   const viewerId = session?.user?.id;
 
-  const target = await prisma.user.findUnique({
-    where: { id: userId },
+  const target = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      OR: [
+        ...(viewerId ? [{ id: viewerId }] : []),
+        publicUserWhere,
+      ],
+    },
     select: {
       id: true,
       isActive: true,
@@ -103,6 +110,7 @@ export async function GET(
       const rows = await prisma.follow.findMany({
         where: {
           followingId: userId,
+          follower: { is: publicUserWhere },
           ...(before ? {
             OR: [
               { createdAt: { lt: before.createdAt } },
@@ -129,6 +137,7 @@ export async function GET(
     const rows = await prisma.follow.findMany({
       where: {
         followerId: userId,
+        following: { is: publicUserWhere },
         ...(before ? {
           OR: [
             { createdAt: { lt: before.createdAt } },
@@ -154,13 +163,13 @@ export async function GET(
 
   const [followersRows, followingRows] = await Promise.all([
     prisma.follow.findMany({
-      where: { followingId: userId },
+      where: { followingId: userId, follower: publicUserWhere },
       orderBy: [{ createdAt: "desc" }, { followerId: "desc" }],
       take: take + 1,
       select: { createdAt: true, follower: { select: personSelect } },
     }),
     prisma.follow.findMany({
-      where: { followerId: userId },
+      where: { followerId: userId, following: publicUserWhere },
       orderBy: [{ createdAt: "desc" }, { followingId: "desc" }],
       take: take + 1,
       select: { createdAt: true, following: { select: personSelect } },
@@ -186,7 +195,7 @@ export async function GET(
     const mutualIds = Array.from(viewerFriendIds).filter((id) => targetFriendIds.has(id)).slice(0, 20);
     if (mutualIds.length) {
       const users = await prisma.user.findMany({
-        where: { id: { in: mutualIds }, isActive: true },
+        where: { id: { in: mutualIds }, ...publicUserWhere },
         select: personSelect,
       });
       const byId = new Map(users.map((user) => [user.id, user]));

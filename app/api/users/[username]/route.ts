@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { areFriends, isBlocked } from "@/lib/social-access";
+import { publicUserWhere } from "@/lib/user-visibility";
 
 export async function GET(
   _request: Request,
@@ -11,8 +12,14 @@ export async function GET(
   const { username } = await params;
   const session = await auth.api.getSession({ headers: await headers() });
 
-  const user = await prisma.user.findUnique({
-    where: { username },
+  const user = await prisma.user.findFirst({
+    where: {
+      username,
+      OR: [
+        ...(session?.user?.id ? [{ id: session.user.id }] : []),
+        publicUserWhere,
+      ],
+    },
     select: {
       id: true, name: true, username: true, email: true, bio: true, image: true,
       coverImage: true, website: true, location: true, isPrivate: true, isVerified: true, isOwner: true, verifiedAt: true, ownerSince: true, createdAt: true,
