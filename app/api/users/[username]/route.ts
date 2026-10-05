@@ -89,6 +89,14 @@ export async function GET(
       }),
   );
 
+  const muted = Boolean(
+    session?.user &&
+      await prisma.mute.findUnique({
+        where: { muterId_mutedId: { muterId: session.user.id, mutedId: user.id } },
+        select: { muterId: true },
+      }),
+  );
+
   const canSeeFriendsPosts = isSelf || friends;
   const { privacySetting, ...safeUser } = user;
   const canMessage = !isSelf && (!privacySetting || privacySetting.allowMessagesEveryone || friends);
@@ -97,6 +105,7 @@ export async function GET(
       ...safeUser,
       email: isSelf ? safeUser.email : undefined,
       isFollowing: following,
+      isMuted: muted,
       isFriend: friends,
       friendRequestStatus,
       friendRequestId: pendingFriendRequest?.id ?? null,
