@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { storyInputSchema } from "@/lib/validation";
 import { getBlockedUserIds } from "@/lib/social-access";
+import { getActiveUserRestriction } from "@/lib/user-restrictions";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
