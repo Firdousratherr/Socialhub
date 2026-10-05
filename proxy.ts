@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireSameOrigin } from "@/lib/request-security";
 import { auth } from "@/lib/auth";
-import { isPublicPagePath } from "@/lib/route-access";
+import { isPublicPagePath } from "@/lib/route-policy";
 
 export async function proxy(request: NextRequest) {
   const requestId = randomUUID();

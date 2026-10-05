@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { SocialPages } from "@/components/social-pages";
-import { getCurrentSession, requireUser, sanitizeNextPath } from "@/lib/route-access";
+import { getCurrentSession, requireUser } from "@/lib/route-access";
+import { sanitizeNextPath } from "@/lib/route-policy";
 
 export async function generateMetadata({
   params,

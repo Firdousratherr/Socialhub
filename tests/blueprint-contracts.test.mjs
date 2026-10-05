@@ -861,11 +861,12 @@ test("admin bulk operations provide a dry-run safety preview", () => {
 
 test("private page routing has a centralized authentication policy and login return path", () => {
   const access = read("lib/route-access.ts");
+  const policy = read("lib/route-policy.ts");
   const proxy = read("proxy.ts");
   const route = read("app/[...segments]/page.tsx");
-  assert.match(access, /PUBLIC_PAGE_PATHS/);
-  assert.match(access, /sanitizeNextPath/);
-  assert.match(access, /loginRedirectPath/);
+  assert.match(policy, /PUBLIC_PAGE_PATHS/);
+  assert.match(policy, /sanitizeNextPath/);
+  assert.match(policy, /loginRedirectPath/);
   assert.match(access, /requireUser/);
   assert.match(proxy, /auth\.api\.getSession/);
   assert.match(proxy, /NextResponse\.redirect/);
