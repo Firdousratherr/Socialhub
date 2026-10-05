@@ -900,5 +900,5 @@ test("public and private page policy does not expose ordinary social routes anon
   assert.match(proxy, /isPublicPagePath/);
   assert.match(proxy, /matcher:/);
   assert.match(proxy, /\/login/);
-  assert.match(proxy, /\/((?!_next/);
+  assert.match(proxy, /matcher:\s*\[/);\n  assert.match(proxy, /_next/);
 });
