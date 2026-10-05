@@ -22,6 +22,7 @@ async function getAccessibleStory(storyId: string, userId: string) {
       audience: true,
       expiresAt: true,
       mediaUrl: true,
+      mediaType: true,
       caption: true,
       createdAt: true,
       author: {
@@ -159,6 +160,8 @@ export async function GET(
     story: {
       id: access.story.id,
       author: access.story.author,
+      mediaUrl: access.story.mediaUrl,
+      mediaType: access.story.mediaType,
       caption: access.story.caption,
       expiresAt: access.story.expiresAt,
       createdAt: access.story.createdAt,

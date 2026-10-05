@@ -614,13 +614,50 @@ test("stories expose authoritative views, reactions, replies, and owner viewers"
   assert.match(detail, /reactionCounts/);
   assert.match(detail, /viewers/);
   assert.match(detail, /authorId: session\.user\.id/);
-  assert.match(storyUi, /Story viewers/);
+  assert.match(storyUi, /Story activity/);
+  assert.match(storyUi, /Viewers/);
   assert.match(storyUi, /views/);
   assert.match(storyUi, /likes/);
   assert.match(storyUi, /replies/);
   assert.match(schema, /model StoryView/);
   assert.match(schema, /model StoryReply/);
   assert.match(schema, /model StoryReaction/);
+});
+
+test("story viewer keeps multi-story icons clean and media compact", () => {
+  const storyUi = read("components/story-center.tsx");
+  assert.doesNotMatch(storyUi, /bg-gray-950 px-1\.5 py-0\.5 text-\[9px\] font-black text-white.*\{total\}/);
+  assert.match(storyUi, /total > 1 \? total \+ " stories/);
+  assert.match(storyUi, /h-\[48vh\].*max-h-\[56vh\]/);
+  assert.match(storyUi, /mediaType === "VIDEO"/);
+  assert.match(storyUi, /cursor-w-resize/);
+  assert.match(storyUi, /cursor-e-resize/);
+});
+
+test("story activity can expand with swipe gestures and exposes analysis", () => {
+  const storyUi = read("components/story-center.tsx");
+  assert.match(storyUi, /activityTouchStartY/);
+  assert.match(storyUi, /delta < -36/);
+  assert.match(storyUi, /Pull up for analysis & views/);
+  assert.match(storyUi, /Reaction breakdown/);
+  assert.match(storyUi, /Swipe up to see viewers & analysis/);
+});
+
+test("stories accept validated image and video media", () => {
+  const validation = read("lib/validation.ts");
+  const uploads = read("app/api/uploads/route.ts");
+  const stories = read("app/api/stories/route.ts");
+  const detail = read("app/api/stories/[storyId]/route.ts");
+  const schema = read("prisma/schema.prisma");
+  const migration = read("prisma/migrations/20261005190000_story_media_type/migration.sql");
+  assert.match(validation, /mediaType: z\.enum\(\["IMAGE", "VIDEO"\]\)/);
+  assert.match(uploads, /video\/mp4/);
+  assert.match(uploads, /video\/webm/);
+  assert.match(uploads, /detectVideoType/);
+  assert.match(stories, /mediaType: parsed\.data\.mediaType/);
+  assert.match(detail, /mediaType: access\.story\.mediaType/);
+  assert.match(schema, /mediaType\s+String\s+@default\("IMAGE"\)/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS "mediaType"/);
 });
 
 test("story replies and reactions have dedicated preference-aware notifications", () => {
