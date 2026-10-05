@@ -6,12 +6,9 @@ import {
   ArrowLeft,
   BarChart3,
   Bell,
-  Check,
   ChevronRight,
   FileText,
-  Flag,
   Gauge,
-  HardDrive,
   History,
   Layers3,
   MessageSquare,
@@ -20,7 +17,6 @@ import {
   Settings2,
   Shield,
   ShieldCheck,
-  Trash2,
   UserCog,
   UserRound,
   Users,
@@ -445,7 +441,7 @@ export function AdminWorkspace({ section = "overview" }: { section?: string }) {
                   title="Operations"
                   description="Runtime controls, announcements, feature flags, storage, system health, and administrator permissions stay available through the existing audited operations center."
                 />
-                <AdminControlCenter />
+                <AdminControlCenter initialTab="platform" />
               </>
             ) : null}
             {active === "security" ? (
@@ -456,7 +452,7 @@ export function AdminWorkspace({ section = "overview" }: { section?: string }) {
                   icon={ShieldCheck}
                   description="Review privileged sessions, admin accounts, rate-limit state, permissions, and related security operations."
                 />
-                <AdminControlCenter />
+                <AdminControlCenter initialTab="security" />
               </>
             ) : null}
             {active === "audit" ? <AuditWorkspace onNotice={setNotice} /> : null}
