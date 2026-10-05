@@ -71,6 +71,8 @@ enum NotificationType {
   MENTION
   SHARE
   SYSTEM
+  STORY_REPLY
+  STORY_REACTION
 }
 
 enum StoryAudience {
@@ -398,6 +400,7 @@ model Notification {
   postId    String?
   commentId String?
   messageId String?
+  storyId   String?
   title     String?
   body      String?
   readAt    DateTime?
@@ -458,6 +461,7 @@ model Story {
   views      StoryView[]
   replies    StoryReply[]
   reactions  StoryReaction[]
+  notifications Notification[]
 
   @@index([authorId, expiresAt])
   @@index([expiresAt, audience])
