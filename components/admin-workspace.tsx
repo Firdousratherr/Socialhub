@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { AdminControlCenter } from "@/components/admin-control-center";
+import { AdminPanel as LegacyAdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
 
 type Section =
@@ -2215,17 +2216,13 @@ function AuditWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
 }
 
 function LegacyPanel() {
-  // Dynamically requiring a client component is unnecessary; this compatibility view
-  // is intentionally implemented as a link target instead of duplicating the old tree.
   return (
     <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-      <p className="text-xs font-black">Compatibility route preserved</p>
-      <p className="mt-1 text-[10px] leading-5 text-gray-500">
-        The legacy admin implementation remains in the repository for rollback and feature parity. The new workspace above owns the default admin navigation.
+      <p className="mb-4 text-xs font-black">Compatibility surface</p>
+      <p className="mb-4 text-[10px] leading-5 text-gray-500">
+        The previous admin implementation remains reachable here so established operations have a safe rollback path while the reorganized workspace is used by default.
       </p>
-      <a href="/admin/legacy" className="mt-3 inline-flex rounded-xl bg-gray-950 px-4 py-2.5 text-[10px] font-black text-white">
-        Open legacy admin surface
-      </a>
+      <LegacyAdminPanel section="overview" />
     </div>
   );
 }
