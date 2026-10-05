@@ -7,6 +7,7 @@ import { canViewPost } from "@/lib/post-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { platformEnabled } from "@/lib/platform-controls";
 import { getActiveUserRestriction } from "@/lib/user-restrictions";
+import { createMentionNotifications } from "@/lib/mentions";
 
 function decodeCursor(value: string | null) {
   if (!value) return null;
