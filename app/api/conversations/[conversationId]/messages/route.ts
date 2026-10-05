@@ -24,6 +24,8 @@ export async function GET(
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
+  const messagingEnabled = await platformEnabled("messaging", true);
+  if (!messagingEnabled) return NextResponse.json({ error: "Messaging is temporarily disabled by the platform administrator." }, { status: 503 });
   const { conversationId } = await params;
   if (!(await isMember(conversationId, session.user.id))) {
     return NextResponse.json({ error: "Conversation access denied." }, { status: 403 });
