@@ -60,7 +60,10 @@ export default async function CatchAllPage({
       return <SocialPages screen={{ kind: "profile", username: user.username }} />;
     }
 
-    if (!segments[1]) redirect("/login");
+    if (!segments[1]) {
+      const session = await auth.api.getSession({ headers: await headers() });
+      redirect(session?.user ? "/profile/me" : "/login");
+    }
     return <SocialPages screen={{ kind: "profile", username: segments[1] }} />;
   }
 
