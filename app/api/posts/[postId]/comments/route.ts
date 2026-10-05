@@ -6,6 +6,7 @@ import { commentInputSchema } from "@/lib/validation";
 import { canViewPost } from "@/lib/post-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { createMentionNotifications } from "@/lib/mentions";
+import { getActiveUserRestriction } from "@/lib/user-restrictions";
 
 function decodeCursor(value: string | null) {
   if (!value) return null;
