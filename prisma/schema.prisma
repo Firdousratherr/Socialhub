@@ -444,6 +444,8 @@ model NotificationPreference {
   mentions         Boolean  @default(true)
   shares           Boolean  @default(true)
   system           Boolean  @default(true)
+  storyReplies     Boolean  @default(true)
+  storyReactions   Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
