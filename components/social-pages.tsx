@@ -2184,11 +2184,10 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
           <input value={q} onChange={(e)=>setQ(e.target.value)} className="h-12 w-full rounded-2xl bg-gray-50 pl-11 text-sm font-semibold outline-none focus:bg-white" placeholder="Search people and usernames…"/>
         </div>
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <div className="flex gap-2">
+        <div className="mt-4 overflow-hidden">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
             {([["people","People"],["posts","Posts"],["hashtags","Hashtags"]] as const).map(([value,label]) => <button key={value} type="button" onClick={() => setDiscoverTab(value)} className={"rounded-xl px-3.5 py-2 text-xs font-black " + (discoverTab === value ? "bg-[#eeebff] text-[#5a4be8]" : "bg-gray-50 text-gray-400")}>{label}</button>)}
           </div>
-          <span className="text-[11px] font-semibold text-gray-400">Results come from real Socialhub data.</span>
         </div>
       </Card>
 
