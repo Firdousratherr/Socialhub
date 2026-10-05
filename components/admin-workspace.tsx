@@ -439,6 +439,7 @@ export function AdminWorkspace({ section = "overview" }: { section?: string }) {
                 <SectionHeader
                   eyebrow="Platform operations"
                   title="Operations"
+                  icon={Wrench}
                   description="Runtime controls, announcements, feature flags, storage, system health, and administrator permissions stay available through the existing audited operations center."
                 />
                 <AdminControlCenter initialTab="platform" />
