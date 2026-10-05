@@ -632,6 +632,7 @@ test("story viewer keeps multi-story icons clean and media compact", () => {
   assert.match(storyUi, /story-rail/);
   assert.match(storyUi, /story-avatar-ring/);
   assert.match(storyUi, /STORY_IMAGE_DURATION_MS/);
+  assert.match(storyUi, /story-progress-fill/);
   assert.match(storyUi, /ArrowLeft/);
   assert.match(storyUi, /ArrowRight/);
   assert.match(storyUi, /h-\[48vh\].*max-h-\[56vh\]/);
