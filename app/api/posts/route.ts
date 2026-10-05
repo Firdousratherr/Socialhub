@@ -7,6 +7,7 @@ import { getBlockedUserIds } from "@/lib/social-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { getPostDisplayCountsMap } from "@/lib/post-metrics";
 import { createMentionNotifications } from "@/lib/mentions";
+import { getActiveUserRestriction } from "@/lib/user-restrictions";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
