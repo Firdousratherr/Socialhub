@@ -39,7 +39,7 @@ export async function GET() {
         userId: session.user.id,
         readAt: null,
         ...(enabledTypes.length ? { type: { in: enabledTypes, not: "MESSAGE" } } : { id: { in: [] } }),
-        ...(mutedIds.length ? { actorId: { notIn: mutedIds } } : {}),
+        ...(mutedIds.length ? { AND: [{ OR: [{ actorId: null }, { actorId: { notIn: mutedIds } }] }] } : {}),
       },
     }),
     prisma.friendRequest.count({
