@@ -67,7 +67,7 @@ button { cursor: pointer; }
 
 .social-card {
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.94);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
   box-shadow: var(--shadow-card);
   backdrop-filter: blur(14px);
 }
@@ -79,35 +79,35 @@ button { cursor: pointer; }
   align-items: center;
   justify-content: center;
   border-radius: 14px;
-  color: #4b5563;
+  color: var(--muted);
   transition: 160ms ease-out;
 }
 
-.social-icon-button:hover { background: #f1f2f7; color: #111827; }
+.social-icon-button:hover { background: var(--surface-muted); color: var(--foreground); }
 
 .social-icon-button:focus-visible,
 .social-nav-link:focus-visible,
 .social-button:focus-visible,
 .social-input:focus-visible {
-  outline: 3px solid rgba(90, 75, 232, 0.28);
+  outline: 3px solid color-mix(in srgb, var(--accent) 30%, transparent);
   outline-offset: 2px;
 }
 
 .social-input {
   min-height: 44px;
-  border: 1px solid rgba(17, 24, 39, 0.1);
+  border: 1px solid var(--border);
   border-radius: 14px;
-  background: rgba(247, 248, 251, 0.95);
+  background: var(--surface-muted);
   color: var(--foreground);
   transition: 160ms ease-out;
 }
 
-.social-input::placeholder { color: #6b7280; }
+.social-input::placeholder { color: var(--muted); }
 
 .social-input:focus {
-  border-color: rgba(90, 75, 232, 0.4);
-  background: #fff;
-  box-shadow: 0 0 0 4px rgba(90, 75, 232, 0.08);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--surface);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .social-button {
@@ -128,12 +128,21 @@ button { cursor: pointer; }
   gap: 12px;
   border-radius: 12px;
   padding: 0 14px;
-  color: #4b5563;
+  color: var(--muted);
   transition: 160ms ease-out;
 }
 
-.social-nav-link:hover { background: #f1f2f7; color: #111827; }
+.social-nav-link:hover { background: var(--surface-muted); color: var(--foreground); }
 .social-nav-link[data-active="true"] { background: var(--accent-soft); color: var(--accent-strong); font-weight: 800; }
+
+.social-icon-button:focus-visible,
+.social-nav-link:focus-visible,
+.social-button:focus-visible,
+.social-input:focus-visible,
+.social-action-button:focus-visible,
+.social-composer-tool:focus-visible,
+.social-audience-trigger:focus-visible,
+.social-follow-button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 30%, transparent); outline-offset: 2px; }
 
 .chat-scroll { overscroll-behavior: contain; scrollbar-gutter: stable; }
 .messages-shell, .message-pane, .message-list { min-width: 0; }
