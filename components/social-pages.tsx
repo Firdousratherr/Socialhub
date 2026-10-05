@@ -7,7 +7,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
-import { MobileMenu } from "@/components/mobile-menu";
 import { emitPostSyncEvent } from "@/lib/post-sync";
 import { compactCount, fullCount } from "@/lib/compact-count";
 import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
@@ -82,7 +81,6 @@ function Page({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {action}
-            <MobileMenu />
           </div>
         </div>
         {children}
