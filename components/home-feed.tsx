@@ -15,7 +15,6 @@ import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
 import { EmptyState, FollowSuggestion, PostActions, PostComposer, SkeletonCard, Toast } from "@/components/social-ui";
 import {
-  Image as ImageIcon,
   Loader2,
   MessageCircle,
   MoreHorizontal,
@@ -24,7 +23,6 @@ import {
   Search,
   Send,
   Share2,
-  Bookmark,
   Users,
   ShieldAlert,
   Sparkles,
