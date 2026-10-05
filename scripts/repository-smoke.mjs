@@ -30,7 +30,7 @@ const requiredFiles = [
   "app/api/admin/stories/route.ts",
   "app/api/announcements/route.ts",
   "app/two-factor/page.tsx",
-  "middleware.ts",
+  "proxy.ts",
   "lib/auth.ts",
   "lib/post-access.ts",
   "lib/social-access.ts",
@@ -72,6 +72,7 @@ const requiredSchemaModels = [
   "model ProfileView",
   "model RateLimitBucket",
   "model TwoFactor",
+  "model Mute",
 ];
 const missingModels = requiredSchemaModels.filter((marker) => !schema.includes(marker));
 if (missingModels.length) {
