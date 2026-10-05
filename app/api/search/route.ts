@@ -59,7 +59,7 @@ export async function GET(request: Request) {
     prisma.post.findMany({
       where: {
         author: {
-          ...publicUserWhere,
+          is: publicUserWhere,
           ...(blockedIds.length ? { id: { notIn: blockedIds } } : {}),
         },
         ...(q ? { content: { contains: q.replace(/^#/, ""), mode: "insensitive" } } : {}),
