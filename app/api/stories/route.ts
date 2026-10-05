@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { storyInputSchema } from "@/lib/validation";
 import { getBlockedUserIds } from "@/lib/social-access";
 import { getActiveUserRestriction } from "@/lib/user-restrictions";
+import { platformEnabled } from "@/lib/platform-controls";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -77,6 +78,8 @@ export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
+  const storiesEnabled = await platformEnabled("stories", true);
+  if (!storiesEnabled) return NextResponse.json({ error: "Stories are temporarily disabled by the platform administrator." }, { status: 503 });
   const parsed = storyInputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
