@@ -53,7 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-50 border-b border-gray-200/80 bg-white/90 backdrop-blur-xl">
+      <header className="sticky top-0 z-[70] border-b border-gray-200/80 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-3 px-3 sm:px-4 lg:px-6">
           <Link href="/home" className="flex min-w-0 shrink-0 items-center gap-2 rounded-xl p-1" aria-label="Socialhub home">
             <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-[#6d5dfc] to-[#36b8ff] text-white shadow-md">
