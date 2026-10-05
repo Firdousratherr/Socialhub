@@ -591,7 +591,7 @@ test("story viewer exposes grouped position and progress", () => {
   assert.match(story, /viewer/);
   assert.match(story, /activeGroup/);
   assert.match(story, /progress|w-1\/3/);
-  assert.match(story, /aria-label=\"Story from/);
+  assert.match(story, /aria-label=\{"Story from /);
 });
 
 test("profile actions escape the clipped profile card and remain accessible on mobile", () => {
