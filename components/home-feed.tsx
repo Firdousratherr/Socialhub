@@ -1150,7 +1150,13 @@ export default function HomeFeed() {
               <div className="space-y-4">{[1, 2, 3].map((item) => <SkeletonCard key={item} />)}</div>
             ) : feedPosts.length > 0 ? (
               feedPosts.map((post) => (
-                <PostCard key={post.id} post={post} currentUserId={session?.user?.id} onRemove={(postId) => setFeedPosts((current) => current.filter((item) => item.id !== postId))}/>
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  currentUserId={session?.user?.id}
+                  onRemove={(postId) => setFeedPosts((current) => current.filter((item) => item.id !== postId))}
+                  onToast={setToast}
+                />
               ))
             ) : (
               <EmptyState
