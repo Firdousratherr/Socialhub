@@ -245,7 +245,7 @@ function Auth({ signup = false, nextPath = "/home" }: { signup?: boolean; nextPa
         setNotice("We sent a 6-digit verification code to your email.");
         return;
       }
-      router.push("/home"); router.refresh();
+      router.replace(nextPath); router.refresh();
     } catch {
       setError("We could not reach the authentication service. Check your connection and try again.");
     } finally { setLoading(false); }

@@ -59,8 +59,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  await requireUser("/profile/" + encodeURIComponent(username));
-
   const user = await getProfile(username);
 
   if (!user || !user.isActive || user.deletedAt || !user.username) {

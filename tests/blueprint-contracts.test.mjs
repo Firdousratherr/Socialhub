@@ -891,3 +891,14 @@ test("authentication forms preserve the originally requested internal route", ()
   assert.match(page, /router\.replace\(nextPath\)/);
   assert.match(route, /sanitizeNextPath\(nextParam/);
 });
+test("public and private page policy does not expose ordinary social routes anonymously", () => {
+  const access = read("lib/route-access.ts");
+  const proxy = read("proxy.ts");
+  for (const path of ["/", "/login", "/signup", "/admin/login", "/two-factor"]) {
+    assert.match(access, new RegExp(JSON.stringify(path).slice(1, -1).replace(/[.*+?^$()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(proxy, /isPublicPagePath/);
+  assert.match(proxy, /matcher:/);
+  assert.match(proxy, /\/login/);
+  assert.match(proxy, /\/((?!_next/);
+});
