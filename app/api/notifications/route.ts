@@ -3,11 +3,13 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notificationUpdateSchema } from "@/lib/validation";
+import { getMutedUserIds } from "@/lib/social-access";
 
 export async function GET(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
+  const mutedIds = await getMutedUserIds(session.user.id);
   const preferences = await prisma.notificationPreference.upsert({
     where: { userId: session.user.id },
     create: { userId: session.user.id },
@@ -46,6 +48,7 @@ export async function GET(request: Request) {
     where: {
       userId: session.user.id,
       ...(enabledTypes.length ? { type: { in: enabledTypes } } : { id: { in: [] } }),
+      ...(mutedIds.length ? { OR: [{ actorId: null }, { actorId: { notIn: mutedIds } }] } : {}),
       ...(cursor ? { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] } : {}),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
