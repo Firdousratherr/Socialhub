@@ -8,6 +8,7 @@ import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-li
 import { getPostDisplayCountsMap } from "@/lib/post-metrics";
 import { platformEnabled } from "@/lib/platform-controls";
 import { getActiveUserRestriction } from "@/lib/user-restrictions";
+import { createMentionNotifications } from "@/lib/mentions";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
