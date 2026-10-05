@@ -22,7 +22,7 @@ export function BottomNav() {
 
   return (
     <nav
-      className="fixed inset-x-2 bottom-2 z-[60] rounded-[1.4rem] border border-white/80 bg-[#141225]/96 p-1.5 shadow-[0_18px_55px_rgba(20,18,44,.28)] backdrop-blur-2xl md:hidden"
+      className="fixed inset-x-2 bottom-2 z-[60] rounded-[1.4rem] border border-white/80 bg-[#141225]/96 px-1.5 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] shadow-[0_18px_55px_rgba(20,18,44,.28)] backdrop-blur-2xl md:hidden"
       aria-label="Primary navigation"
     >
       <div className="grid grid-cols-5 gap-1">
