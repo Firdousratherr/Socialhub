@@ -116,6 +116,10 @@ function Avatar({
   );
 }
 
+function pluralCount(value: number, singular: string, plural = singular + "s") {
+  return value + " " + (value === 1 ? singular : plural);
+}
+
 function timeLabel(createdAt: string) {
   const seconds = Math.max(1, Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000));
   if (seconds < 60) return "just now";
@@ -471,12 +475,21 @@ function PostCard({
   }, [post]);
 
   async function toggleLike() {
-    const response = await fetch(`/api/posts/${post.id}/like`, { method: liked ? "DELETE" : "POST" });
-    const json = await response.json().catch(() => ({}));
-    if (response.ok) {
+    const previousLiked = liked;
+    const previousCount = likeCount;
+    const nextLiked = !previousLiked;
+    setLiked(nextLiked);
+    setLikeCount(Math.max(0, previousCount + (nextLiked ? 1 : -1)));
+    try {
+      const response = await fetch(`/api/posts/${post.id}/like`, { method: previousLiked ? "DELETE" : "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not update reaction.");
       setLiked(Boolean(json.liked));
-      setLikeCount(Number(json.count ?? likeCount));
+      setLikeCount(Number(json.count ?? previousCount));
       emitLiveSync({ type: "post-updated", postId: post.id });
+    } catch {
+      setLiked(previousLiked);
+      setLikeCount(previousCount);
     }
   }
 
@@ -510,10 +523,14 @@ function PostCard({
   }
 
   async function toggleSave() {
-    const response = await fetch(`/api/posts/${post.id}/save`, { method: saved ? "DELETE" : "POST" });
-    if (response.ok) {
-      setSaved(!saved);
+    const previous = saved;
+    setSaved(!previous);
+    try {
+      const response = await fetch(`/api/posts/${post.id}/save`, { method: previous ? "DELETE" : "POST" });
+      if (!response.ok) throw new Error();
       emitLiveSync({ type: "post-updated", postId: post.id });
+    } catch {
+      setSaved(previous);
     }
   }
 
@@ -689,7 +706,7 @@ function PostCard({
         )}
 
         {post.mediaUrl ? (
-          <img src={post.mediaUrl} alt="" className="mt-4 max-h-[520px] w-full rounded-2xl object-cover" />
+          <img src={post.mediaUrl} alt="" className="mt-4 aspect-[4/3] max-h-[520px] w-full rounded-2xl object-cover" />
         ) : null}
 
         {error ? (
@@ -697,12 +714,12 @@ function PostCard({
         ) : null}
 
         <div className="mt-4 flex items-center justify-between text-xs font-semibold text-gray-400">
-          <span title={fullCount(likeCount) + " reactions"}>{compactCount(likeCount)} reactions</span>
-          <span title={fullCount(commentCount) + " comments"}>{compactCount(commentCount)} comments · <span title={fullCount(shareCount) + " shares"}>{compactCount(shareCount)} shares</span></span>
+          <span title={fullCount(likeCount) + " reactions"}>{likeCount > 0 ? pluralCount(likeCount, "reaction") : ""}</span>
+          <span title={fullCount(commentCount) + " comments"}>{commentCount > 0 ? pluralCount(commentCount, "comment") : ""} · <span title={fullCount(shareCount) + " shares"}>{shareCount > 0 ? pluralCount(shareCount, "share") : ""}</span></span>
         </div>
 
         <div className="mt-4 grid grid-cols-4 border-t border-gray-100 pt-3">
-          <button onClick={() => void toggleLike()} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${liked ? "bg-rose-50 text-rose-500" : "text-gray-500 hover:bg-gray-50"}`} aria-pressed={liked}>
+          <button onClick={() => void toggleLike()} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition duration-150 active:scale-[.98] ${liked ? "bg-rose-50 text-rose-500" : "text-gray-500 hover:bg-gray-50"} ${liked ? "animate-pulse" : ""}`} aria-pressed={liked}>
             <span aria-hidden>{liked ? "♥" : "♡"}</span> Like
           </button>
           <button type="button" onClick={() => setCommentsOpen((value) => !value)} aria-expanded={commentsOpen} aria-controls={"comments-" + post.id} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${commentsOpen ? "bg-sky-50 text-sky-600" : "text-gray-500 hover:bg-gray-50"}`}>
