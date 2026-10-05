@@ -22,6 +22,7 @@ async function getAccessibleStory(storyId: string, userId: string) {
       audience: true,
       expiresAt: true,
       mediaUrl: true,
+      mediaType: true,
       caption: true,
       createdAt: true,
       author: {
