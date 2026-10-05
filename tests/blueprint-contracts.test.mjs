@@ -190,7 +190,8 @@ test("feed mobile navigation uses messages instead of the legacy create-plus slo
   const page = read("components/social-pages.tsx");
   assert.ok(nav.includes('{ href: "/messages", label: "Messages", Icon: MessageCircle }'));
   assert.ok(nav.includes('grid-cols-5'));
-  assert.ok(page.includes('<BottomNav />'));
+  const shell = read("components/app-shell.tsx");
+  assert.ok(shell.includes("<BottomNav />"));
   assert.doesNotMatch(nav, /\bPlus\b/);
 });
 
@@ -307,7 +308,8 @@ test("home feed uses one shared post mapper and one shared mobile navigation", (
   const nav = read("components/bottom-nav.tsx");
   assert.equal((home.match(/function mapApiPostToFeedPost\(/g) ?? []).length, 1);
   assert.equal((home.match(/\.map\(mapApiPostToFeedPost\)/g) ?? []).length, 3);
-  assert.match(home, /<BottomNav \/>/);
+  const shell = read("components/app-shell.tsx");
+  assert.match(shell, /<BottomNav \/>/);
   assert.doesNotMatch(home, /fixed inset-x-2 bottom-2/);
   assert.match(nav, /href: "\/messages"/);
 });
@@ -346,8 +348,9 @@ test("unread summary powers shared navigation badges", () => {
   assert.match(nav, /summary\.messages/);
   assert.match(nav, /summary\.notifications/);
   assert.match(nav, /summary\.friendRequests/);
-  assert.doesNotMatch(home, /unreadSummary\.messages/);
-  assert.match(home, /unreadSummary\.notifications/);
+  const shell = read("components/app-shell.tsx");
+  assert.doesNotMatch(home, /unreadSummary/);
+  assert.match(shell, /summary\.notifications/);
 });
 
 
@@ -410,7 +413,7 @@ test("friend and message read actions refresh global unread state immediately", 
 test("mobile message composer remains visible inside a bounded chat viewport", () => {
   const page = read("components/social-pages.tsx");
   assert.match(page, /messages-shell/);
-  assert.match(page, /h-\[calc\(100dvh-240px\)\]/);
+  assert.match(page, /h-\[calc\(100dvh-150px\)\]/);
   assert.match(page, /message-composer/);
   assert.doesNotMatch(page, /min-h-\[calc\(100dvh-150px\)\]/);
 });
