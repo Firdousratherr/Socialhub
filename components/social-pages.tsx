@@ -7,13 +7,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
-import { MobileMenu } from "@/components/mobile-menu";
 import { emitPostSyncEvent } from "@/lib/post-sync";
 import { compactCount, fullCount } from "@/lib/compact-count";
 import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
 import { emitUnreadSummarySync } from "@/hooks/use-unread-summary";
 import { useLivePoll } from "@/hooks/use-live-poll";
-import { BottomNav } from "@/components/bottom-nav";
+import { AppShell } from "@/components/app-shell";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
@@ -31,7 +30,7 @@ const colors = [
 ];
 
 function Avatar({ initials, color = colors[0], size = "md", image }: { initials: string; color?: string; size?: "sm"|"md"|"lg"|"xl"; image?: string | null }) {
-  const sizes = { sm: "size-8 text-[10px]", md: "size-10 text-xs", lg: "size-14 text-sm", xl: "size-24 text-2xl" };
+  const sizes = { sm: "size-8 text-xs", md: "size-10 text-xs", lg: "size-14 text-sm", xl: "size-24 text-2xl" };
   return image ? (
     <img src={image} alt="" className={`shrink-0 rounded-full object-cover shadow-sm ${sizes[size].split(" ").filter(Boolean)[0]}`} />
   ) : (
@@ -46,6 +45,7 @@ function Page({
   action,
   fallbackHref = "/home",
   children,
+  wide = false,
 }: {
   eyebrow?: string;
   title: string;
@@ -53,6 +53,7 @@ function Page({
   action?: React.ReactNode;
   fallbackHref?: string;
   children: React.ReactNode;
+  wide?: boolean;
 }) {
   const router = useRouter();
 
@@ -66,26 +67,24 @@ function Page({
 
   return (
     <main className="min-h-screen pb-24 md:pb-8">
-      <div className="mx-auto max-w-[1100px] px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-        <div className="mb-6 flex items-start justify-between gap-3">
+      <div className={"mx-auto w-full px-3 py-3 sm:px-4 sm:py-5 lg:px-0 " + (wide ? "max-w-[980px]" : "max-w-[760px]")}>
+        <div className="mb-4 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <button type="button" onClick={goBack} className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50" aria-label="Go back">
               <ArrowLeft size={18} />
             </button>
             <div className="min-w-0">
-              {eyebrow ? <p className="text-xs font-black uppercase tracking-[0.16em] text-[#6d5dfc]">{eyebrow}</p> : null}
-              <h1 className="mt-1 text-3xl font-black tracking-[-0.045em] text-gray-950 sm:text-4xl">{title}</h1>
-              {subtitle ? <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">{subtitle}</p> : null}
+              {eyebrow ? <p className="hidden text-xs font-black uppercase tracking-[0.16em] text-[#6d5dfc] sm:block">{eyebrow}</p> : null}
+              <h1 className="page-heading mt-0">{title}</h1>
+              {subtitle ? <p className="page-description mt-1 hidden max-w-2xl sm:block">{subtitle}</p> : null}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {action}
-            <MobileMenu />
           </div>
         </div>
         {children}
       </div>
-      <BottomNav />
     </main>
   );
 }
@@ -251,7 +250,7 @@ function Auth({ signup = false }: { signup?: boolean }) {
   const formShell = (
     <>
       <div className="mb-7">
-        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#6d5dfc]">
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-[#6d5dfc]">
           {step === "verify-signup" ? "Email verification" : step.startsWith("forgot") ? "Account recovery" : signup ? "Create account" : "Secure sign in"}
         </p>
         <h1 className="mt-2 text-[2rem] font-black leading-tight tracking-[-0.045em] text-gray-950 sm:text-[2.25rem]">{title}</h1>
@@ -272,11 +271,11 @@ function Auth({ signup = false }: { signup?: boolean }) {
           {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">{error}</div> : null}
           {notice ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-semibold leading-5 text-emerald-700">{notice}</div> : null}
           <button type="submit" disabled={loading || otp.length !== 6} className="h-12 w-full rounded-2xl bg-gray-950 text-sm font-black text-white shadow-lg shadow-gray-950/10 transition hover:-translate-y-0.5 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50">{loading ? "Verifying…" : "Verify & continue"}</button>
-          <div className="flex items-center justify-between text-xs font-bold"><button type="button" onClick={()=>void sendSignupOtp()} disabled={loading || cooldown>0} className="text-[#5a4be8] disabled:text-gray-400">{cooldown>0 ? "Resend in " + cooldown + "s" : "Resend code"}</button><button type="button" onClick={resetAuthView} className="text-gray-500">Back</button></div>
+          <div className="flex items-center justify-between text-xs font-bold"><button type="button" onClick={()=>void sendSignupOtp()} disabled={loading || cooldown>0} className="text-[#5a4be8] disabled:text-gray-500">{cooldown>0 ? "Resend in " + cooldown + "s" : "Resend code"}</button><button type="button" onClick={resetAuthView} className="text-gray-500">Back</button></div>
         </form>
       ) : step === "forgot" ? (
         <form onSubmit={requestPasswordReset} className="space-y-4">
-          <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Account email</span><div className="relative"><Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/><input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} autoComplete="email" required className="h-13 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="you@example.com"/></div></label>
+          <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Account email</span><div className="relative"><Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={17}/><input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} autoComplete="email" required className="h-13 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="you@example.com"/></div></label>
           <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-xs leading-5 text-gray-500">We’ll send a 6-digit code that expires in 10 minutes. Never share your code with anyone.</div>
           {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">{error}</div> : null}
           <button type="submit" disabled={loading} className="h-12 w-full rounded-2xl bg-gray-950 text-sm font-black text-white shadow-lg shadow-gray-950/10 disabled:opacity-50">{loading ? "Sending code…" : "Send reset code"}</button>
@@ -289,14 +288,14 @@ function Auth({ signup = false }: { signup?: boolean }) {
           {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">{error}</div> : null}
           {notice ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-semibold leading-5 text-emerald-700">{notice}</div> : null}
           <button type="submit" disabled={loading || otp.length !== 6} className="h-12 w-full rounded-2xl bg-gray-950 text-sm font-black text-white shadow-lg shadow-gray-950/10 disabled:cursor-not-allowed disabled:opacity-50">{loading ? "Updating password…" : "Set new password"}</button>
-          <div className="flex items-center justify-between text-xs font-bold"><button type="button" onClick={()=>void resendPasswordReset()} disabled={loading || cooldown>0} className="text-[#5a4be8] disabled:text-gray-400">{cooldown>0 ? "Resend in " + cooldown + "s" : "Send a new code"}</button><button type="button" onClick={()=>setStep("forgot")} className="text-gray-500">Change email</button></div>
+          <div className="flex items-center justify-between text-xs font-bold"><button type="button" onClick={()=>void resendPasswordReset()} disabled={loading || cooldown>0} className="text-[#5a4be8] disabled:text-gray-500">{cooldown>0 ? "Resend in " + cooldown + "s" : "Send a new code"}</button><button type="button" onClick={()=>setStep("forgot")} className="text-gray-500">Change email</button></div>
         </form>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           {signup && <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Full name</span><input value={name} onChange={(e)=>setName(e.target.value)} autoComplete="name" required className="h-13 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Your name"/></label>}
-          <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Email</span><div className="relative"><Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/><input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} autoComplete="email" required className="h-13 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="you@example.com"/></div></label>
-          {signup && <div className="rounded-2xl border border-[#eeeaff] bg-[#f8f7ff] p-3 text-[11px] leading-5 text-gray-500"><span className="font-black text-gray-700">Username:</span> @{email.split("@")[0] || "yourname"} · You can change it later from your profile.</div>}
-          <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Password</span><div className="relative"><Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/><input type={show ? "text" : "password"} value={password} onChange={(e)=>setPassword(e.target.value)} autoComplete={signup ? "new-password" : "current-password"} minLength={8} required className="h-13 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-20 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="••••••••"/><button type="button" onClick={()=>setShow(v=>!v)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1.5 text-xs font-bold text-gray-500 hover:bg-white">{show ? "Hide" : "Show"}</button></div></label>
+          <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Email</span><div className="relative"><Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={17}/><input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} autoComplete="email" required className="h-13 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="you@example.com"/></div></label>
+          {signup && <div className="rounded-2xl border border-[#eeeaff] bg-[#f8f7ff] p-3 text-xs leading-5 text-gray-500"><span className="font-black text-gray-700">Username:</span> @{email.split("@")[0] || "yourname"} · You can change it later from your profile.</div>}
+          <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Password</span><div className="relative"><Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={17}/><input type={show ? "text" : "password"} value={password} onChange={(e)=>setPassword(e.target.value)} autoComplete={signup ? "new-password" : "current-password"} minLength={8} required className="h-13 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-20 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="••••••••"/><button type="button" onClick={()=>setShow(v=>!v)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1.5 text-xs font-bold text-gray-500 hover:bg-white">{show ? "Hide" : "Show"}</button></div></label>
           {!signup && <div className="flex items-center justify-between text-xs font-semibold text-gray-500"><label className="flex items-center gap-2"><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="size-4 accent-[#6d5dfc]"/>Remember me</label><button type="button" onClick={()=>{setError("");setNotice("");setStep("forgot");}} className="font-black text-[#5a4be8] hover:text-[#4336c9]">Forgot password?</button></div>}
           {error ? <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-600">{error}</div> : null}
           {notice ? <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-semibold leading-5 text-emerald-700">{notice}</div> : null}
@@ -304,7 +303,7 @@ function Auth({ signup = false }: { signup?: boolean }) {
 
           <div className="flex items-center gap-3 py-1" aria-hidden="true">
             <span className="h-px flex-1 bg-gray-200"/>
-            <span className="text-[10px] font-black uppercase tracking-[.16em] text-gray-400">or continue with</span>
+            <span className="text-xs font-black uppercase tracking-[.16em] text-gray-500">or continue with</span>
             <span className="h-px flex-1 bg-gray-200"/>
           </div>
 
@@ -329,7 +328,7 @@ function Auth({ signup = false }: { signup?: boolean }) {
         <header className="flex items-center justify-between rounded-[1.4rem] border border-white/80 bg-white/80 px-4 py-3 shadow-[0_12px_35px_rgba(26,30,60,.07)] backdrop-blur-xl sm:px-5">
           <Link href="/" className="flex items-center gap-3" aria-label="Socialhub home">
             <span className="grid size-10 place-items-center rounded-2xl bg-gradient-to-br from-[#6d5dfc] via-[#816fff] to-[#36b8ff] text-white shadow-lg shadow-[#6d5dfc]/25"><Sparkles size={18}/></span>
-            <span><span className="block text-base font-black tracking-[-.035em] text-gray-950">Socialhub</span><span className="hidden text-[10px] font-bold text-gray-400 sm:block">Connect. Share. Belong.</span></span>
+            <span><span className="block text-base font-black tracking-[-.035em] text-gray-950">Socialhub</span><span className="hidden text-xs font-bold text-gray-500 sm:block">Connect. Share. Belong.</span></span>
           </Link>
           <Link href={signup ? "/login" : "/signup"} className="rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs font-black text-gray-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-gray-50">
             {signup ? "Sign in" : "Create account"}
@@ -339,7 +338,7 @@ function Auth({ signup = false }: { signup?: boolean }) {
         <div className="mt-4 grid overflow-hidden rounded-[2rem] border border-white/85 bg-white shadow-[0_30px_90px_rgba(37,31,84,.14)] lg:grid-cols-[.82fr_1.18fr]">
           <section className="hidden bg-[radial-gradient(circle_at_15%_5%,rgba(130,113,255,.65),transparent_34%),linear-gradient(145deg,#141223,#282149_62%,#19314a)] p-10 text-white lg:flex lg:min-h-[680px] lg:flex-col lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[.16em] text-white/70">Socialhub</div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-black uppercase tracking-[.16em] text-white/70">Socialhub</div>
               <h2 className="mt-10 max-w-md text-5xl font-black leading-[.94] tracking-[-.06em]">Your people.<br/>Your moments.<br/><span className="text-[#9c90ff]">Your space.</span></h2>
               <p className="mt-6 max-w-md text-sm leading-7 text-white/60">A calmer social network for sharing the moments that matter, staying close to your people, and controlling your privacy.</p>
             </div>
@@ -347,7 +346,7 @@ function Auth({ signup = false }: { signup?: boolean }) {
               {[["Private","Audience controls"],["Connected","Messages & friends"],["Personal","Your profile, your way"]].map(([label,copy]) => (
                 <div key={label} className="rounded-2xl border border-white/10 bg-white/7 p-3">
                   <p className="text-xs font-black">{label}</p>
-                  <p className="mt-1 text-[10px] leading-4 text-white/45">{copy}</p>
+                  <p className="mt-1 text-xs leading-4 text-white/45">{copy}</p>
                 </div>
               ))}
             </div>
@@ -360,7 +359,7 @@ function Auth({ signup = false }: { signup?: boolean }) {
           </section>
         </div>
 
-        <footer className="flex flex-col gap-3 px-1 pb-1 pt-5 text-[10px] font-bold text-gray-400 sm:flex-row sm:items-center sm:justify-between">
+        <footer className="flex flex-col gap-3 px-1 pb-1 pt-5 text-xs font-bold text-gray-500 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2"><span className="grid size-7 place-items-center rounded-lg bg-[#eeebff] text-[#5a4be8]"><Sparkles size={13}/></span><span>Socialhub</span></div>
           <div className="flex items-center gap-4"><Link href="/login" className="hover:text-gray-600">Sign in</Link><Link href="/signup" className="hover:text-gray-600">Create account</Link><span>Secure & private</span></div>
         </footer>
@@ -564,23 +563,23 @@ function ProfilePostCard({
           {image ? <img src={image} alt="" className="size-9 rounded-full object-cover"/> : <Avatar initials={displayName.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="sm"/>}
           <div className="min-w-0">
             <p className="flex items-center gap-1 text-xs font-black">{displayName}<AccountBadge verified={verified} owner={owner}/></p>
-            <p className="text-[11px] text-gray-400">{new Date(post.createdAt).toLocaleDateString()}</p>
+            <p className="text-xs text-gray-500">{new Date(post.createdAt).toLocaleDateString()}</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
-          {isOwner ? <button type="button" onClick={() => void togglePin()} disabled={Boolean(busy)} className={"rounded-xl px-2.5 py-1.5 text-[10px] font-black " + (pinned ? "bg-[#6d5dfc] text-white" : "border border-gray-200 bg-white text-gray-500")}>{busy === "pin" ? "…" : pinned ? "Pinned" : "Pin"}</button> : pinned ? <span className="rounded-full bg-[#eeebff] px-2.5 py-1 text-[10px] font-black text-[#5a4be8]">Pinned</span> : null}
+          {isOwner ? <button type="button" onClick={() => void togglePin()} disabled={Boolean(busy)} className={"rounded-xl px-2.5 py-1.5 text-xs font-black " + (pinned ? "bg-[#6d5dfc] text-white" : "border border-gray-200 bg-white text-gray-500")}>{busy === "pin" ? "…" : pinned ? "Pinned" : "Pin"}</button> : pinned ? <span className="rounded-full bg-[#eeebff] px-2.5 py-1 text-xs font-black text-[#5a4be8]">Pinned</span> : null}
           {isOwner ? <button type="button" onClick={() => void deletePost()} disabled={Boolean(busy)} className="grid size-8 place-items-center rounded-xl border border-red-100 bg-white text-red-500" aria-label="Delete post"><Trash2 size={14}/></button> : <button type="button" onClick={() => void reportPost()} disabled={Boolean(busy)} className="grid size-8 place-items-center rounded-xl border border-gray-200 bg-white text-gray-500" aria-label="Report post"><Shield size={14}/></button>}
         </div>
       </div>
       {post.content ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-600">{post.content}</p> : null}
       {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="mt-4 max-h-72 w-full rounded-xl object-cover" /> : null}
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
-        <button type="button" onClick={() => void toggleLike()} disabled={Boolean(busy)} title={fullCount(likeCount) + " likes"} aria-label={(liked ? "Unlike" : "Like") + " · " + fullCount(likeCount) + " likes"} className={"inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[10px] font-black " + (liked ? "bg-rose-50 text-rose-600" : "bg-white text-gray-500")}><Heart size={14} fill={liked ? "currentColor" : "none"}/>{compactCount(likeCount)}</button>
-        <button type="button" onClick={() => router.push("/home#post-" + encodeURIComponent(post.id))} title={fullCount(post.displayCounts?.comments ?? post._count.comments) + " comments"} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[10px] font-black text-gray-500"><MessageCircle size={14}/>{compactCount(post.displayCounts?.comments ?? post._count.comments)}</button>
-        <button type="button" onClick={() => void toggleSave()} disabled={Boolean(busy)} className={"inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[10px] font-black " + (saved ? "bg-[#eeebff] text-[#5a4be8]" : "bg-white text-gray-500")}><Bookmark size={14} fill={saved ? "currentColor" : "none"}/>Save</button>
-        <button type="button" onClick={() => void sharePost()} disabled={Boolean(busy)} title={fullCount(shareCount) + " shares"} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[10px] font-black text-gray-500"><Share2 size={14}/>Share{shareCount ? " · " + compactCount(shareCount) : ""}</button>
+        <button type="button" onClick={() => void toggleLike()} disabled={Boolean(busy)} title={fullCount(likeCount) + " likes"} aria-label={(liked ? "Unlike" : "Like") + " · " + fullCount(likeCount) + " likes"} className={"inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-black " + (liked ? "bg-rose-50 text-rose-600" : "bg-white text-gray-500")}><Heart size={14} fill={liked ? "currentColor" : "none"}/>{compactCount(likeCount)}</button>
+        <button type="button" onClick={() => router.push("/home#post-" + encodeURIComponent(post.id))} title={fullCount(post.displayCounts?.comments ?? post._count.comments) + " comments"} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-xs font-black text-gray-500"><MessageCircle size={14}/>{compactCount(post.displayCounts?.comments ?? post._count.comments)}</button>
+        <button type="button" onClick={() => void toggleSave()} disabled={Boolean(busy)} className={"inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-black " + (saved ? "bg-[#eeebff] text-[#5a4be8]" : "bg-white text-gray-500")}><Bookmark size={14} fill={saved ? "currentColor" : "none"}/>Save</button>
+        <button type="button" onClick={() => void sharePost()} disabled={Boolean(busy)} title={fullCount(shareCount) + " shares"} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-xs font-black text-gray-500"><Share2 size={14}/>Share{shareCount ? " · " + compactCount(shareCount) : ""}</button>
       </div>
-      {message ? <p className="mt-2 text-[10px] font-bold text-[#5a4be8]">{message}</p> : null}
+      {message ? <p className="mt-2 text-xs font-bold text-[#5a4be8]">{message}</p> : null}
     </article>
   );
 }
@@ -602,6 +601,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
   const [error, setError] = useState("");
   const [profileTab, setProfileTab] = useState<"posts" | "photos" | "friends">("posts");
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [friends, setFriends] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; bio: string | null; isVerified?: boolean; isOwner?: boolean }>>([]);
   const [friendsHidden, setFriendsHidden] = useState(false);
   const [relationshipView, setRelationshipView] = useState<"followers" | "following" | "mutual" | null>(null);
@@ -1057,7 +1057,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
 
   if (!profile) {
     return (
-      <Page eyebrow="Profile" title={`@${displayUsername}`}>
+      <Page eyebrow="Profile" title={displayName || "Profile"}>
         {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
         <div className="rounded-[2rem] border border-gray-200/70 bg-white p-8 text-center text-sm font-semibold text-gray-500 shadow-[0_14px_40px_rgba(20,24,40,.06)]">
           {error ? "Profile unavailable." : "Loading profile…"}
@@ -1066,12 +1066,12 @@ function Profile({ username = "firdous" }: { username?: string }) {
     );
   }
 
-  return <Page eyebrow="Profile" title={`@${displayUsername}`}>
+  return <Page eyebrow="Profile" title={displayName || "Profile"}>
     {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
     <div className="overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)]">
       <div
-        className="relative h-48 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,.24),transparent_22%),linear-gradient(135deg,#5a4be8,#2e9fe9_55%,#51d3b4)] bg-cover bg-center"
+        className="relative h-40 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,.24),transparent_22%),linear-gradient(135deg,#5a4be8,#2e9fe9_55%,#51d3b4)] bg-cover bg-center sm:h-[220px]"
         style={profile?.coverImage ? { backgroundImage: `url("${profile.coverImage}")` } : undefined}
       >
         {isOwner ? (
@@ -1095,13 +1095,13 @@ function Profile({ username = "firdous" }: { username?: string }) {
             >
               <Camera size={17}/>
             </label>
-            {uploading === "cover" ? <span className="absolute right-4 bottom-4 rounded-full bg-black/45 px-3 py-1.5 text-[10px] font-black text-white backdrop-blur">Uploading cover…</span> : null}
+            {uploading === "cover" ? <span className="absolute right-4 bottom-4 rounded-full bg-black/45 px-3 py-1.5 text-xs font-black text-white backdrop-blur">Uploading cover…</span> : null}
           </>
         ) : null}
       </div>
 
-      <div className="relative px-5 pb-6 sm:px-8">
-        <div className="-mt-12 flex flex-col gap-4 sm:-mt-14 sm:flex-row sm:items-end">
+      <div className="relative min-w-0 px-4 pb-6 sm:px-8">
+        <div className="-mt-12 flex min-w-0 flex-col gap-3 sm:-mt-14">
           <div className="relative rounded-full border-4 border-white bg-white">
             {isOwner ? (
               <>
@@ -1118,30 +1118,30 @@ function Profile({ username = "firdous" }: { username?: string }) {
                 />
                 <label htmlFor="avatar-upload" className="block cursor-pointer rounded-full" aria-label="Change profile picture">
                   {profile?.image ? (
-                    <img src={profile.image} alt={`${displayName} profile picture`} className="size-24 rounded-full object-cover text-[10px] shadow-sm" />
+                    <img src={profile.image} alt={`${displayName} profile picture`} className="size-24 rounded-full object-cover text-xs shadow-sm" />
                   ) : (
                     <Avatar initials={initials} size="xl"/>
                   )}
                 </label>
               </>
             ) : profile?.image ? (
-              <img src={profile.image} alt={`${displayName} profile picture`} className="size-24 rounded-full object-cover text-[10px] shadow-sm" />
+              <img src={profile.image} alt={`${displayName} profile picture`} className="size-24 rounded-full object-cover text-xs shadow-sm" />
             ) : (
               <Avatar initials={initials} size="xl"/>
             )}
           </div>
-          <div className="flex-1 sm:pb-2"><h2 className="flex items-center gap-2 text-2xl font-black tracking-[-.04em]">{displayName}<AccountBadge verified={profile?.isVerified} owner={profile?.isOwner} showLabel size="md"/></h2><p className="text-sm font-semibold text-gray-400">@{displayUsername}{profile?.location ? ` · ${profile.location}` : ""}</p></div>
+          <div className="min-w-0 flex-1 sm:pb-2"><h2 className="flex min-w-0 items-center gap-2 text-xl font-black tracking-[-.04em] sm:text-2xl"><span className="min-w-0 truncate">{displayName}</span><AccountBadge verified={profile?.isVerified} owner={profile?.isOwner} showLabel size="md"/></h2><p className="mt-0.5 break-all text-xs font-semibold text-gray-500">@{displayUsername}{profile?.location ? ` · ${profile.location}` : ""}</p></div>
         </div>
 
-        {uploading === "avatar" ? <p className="mt-3 text-[11px] font-bold text-[#5a4be8]">Uploading profile picture…</p> : null}
+        {uploading === "avatar" ? <p className="mt-3 text-xs font-bold text-[#5a4be8]">Uploading profile picture…</p> : null}
 
         {!editing ? (
           <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50/80 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[10px] font-black uppercase tracking-[.16em] text-gray-400">Profile actions</span>
-              {friendRequestStatus === "FRIENDS" ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700"><Check size={12}/>Friends</span> : null}
+              <span className="sr-only">Profile actions</span>
+              {friendRequestStatus === "FRIENDS" ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-700"><Check size={12}/>Friends</span> : null}
             </div>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="mt-2 flex min-w-0 items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               {isOwner ? (
                 <button type="button" onClick={() => setEditing(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white shadow-sm"><Pencil size={15}/>Edit profile</button>
               ) : session?.user ? (
@@ -1159,19 +1159,19 @@ function Profile({ username = "firdous" }: { username?: string }) {
                       <button type="button" onClick={() => void cancelFriendRequest()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><X size={15}/>{actionLoading === "cancel-friend" ? "Cancelling…" : "Cancel request"}</button>
                     </>
                   ) : (
-                    <button type="button" onClick={() => void sendFriendRequest()} disabled={!canSendFriendRequest || Boolean(actionLoading)} className={"inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-xs font-black " + (canSendFriendRequest ? "bg-[#6d5dfc] text-white disabled:opacity-50" : "cursor-not-allowed bg-gray-100 text-gray-400")}><UserPlus size={15}/>{actionLoading === "friend" ? "Sending…" : canSendFriendRequest ? "Add friend" : "Friend requests off"}</button>
+                    <button type="button" onClick={() => void sendFriendRequest()} disabled={!canSendFriendRequest || Boolean(actionLoading)} className={"inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-xs font-black " + (canSendFriendRequest ? "bg-[#6d5dfc] text-white disabled:opacity-50" : "cursor-not-allowed bg-gray-100 text-gray-500")}><UserPlus size={15}/>{actionLoading === "friend" ? "Sending…" : canSendFriendRequest ? "Add friend" : "Friend requests off"}</button>
                   )}
                   {friendRequestStatus !== "FRIENDS" && canFollow && (!profile?.isPrivate || friendRequestStatus === "INCOMING_PENDING") ? (
                     <button type="button" onClick={() => void toggleFollow()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><Users size={15}/>{actionLoading === "follow" ? "Updating…" : following ? "Following" : "Follow"}</button>
                   ) : null}
-                  <button type="button" onClick={() => void startMessage()} disabled={!canMessage || Boolean(actionLoading)} className={"inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-xs font-black " + (canMessage ? "border-gray-200 bg-white text-gray-700 disabled:opacity-50" : "cursor-not-allowed border-gray-100 bg-gray-100 text-gray-400")}><MessageCircle size={15}/>{actionLoading === "message" ? "Opening…" : canMessage ? "Message" : "Messages off"}</button>
-                  <button type="button" onClick={() => void reportUser()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><Shield size={15}/>Report</button>
-                  <button type="button" onClick={() => void blockUser()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 text-xs font-black text-red-600 disabled:opacity-50"><ShieldOff size={15}/>Block</button>
+                  <button type="button" onClick={() => void startMessage()} disabled={!canMessage || Boolean(actionLoading)} className={"inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-xs font-black " + (canMessage ? "border-gray-200 bg-white text-gray-700 disabled:opacity-50" : "cursor-not-allowed border-gray-100 bg-gray-100 text-gray-500")}><MessageCircle size={15}/>{actionLoading === "message" ? "Opening…" : canMessage ? "Message" : "Messages off"}</button>
+
+                  <button type="button" onClick={() => void blockUser()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><ShieldOff size={15}/>Block</button>
                 </>
               ) : (
                 <Link href="/login" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white"><LogIn size={15}/>Sign in to interact</Link>
               )}
-              <button type="button" onClick={() => void shareProfile()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700"><Share2 size={15}/>Share</button>
+              <div className="relative shrink-0"><button type="button" onClick={() => setProfileMenuOpen((value) => !value)} className="grid size-11 place-items-center rounded-xl border border-gray-200 bg-white text-gray-700" aria-label="More profile actions" aria-expanded={profileMenuOpen}><MoreHorizontal size={18}/></button>{profileMenuOpen ? <div className="absolute right-0 top-12 z-20 w-44 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl"><button type="button" onClick={() => { setProfileMenuOpen(false); void shareProfile(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50"><Share2 size={15}/>Share profile</button><button type="button" onClick={() => { setProfileMenuOpen(false); void reportUser(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50"><Shield size={15}/>Report</button><button type="button" onClick={() => { setProfileMenuOpen(false); void blockUser(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50"><ShieldOff size={15}/>Block</button></div> : null}</div>
             </div>
           </div>
         ) : null}
@@ -1183,43 +1183,42 @@ function Profile({ username = "firdous" }: { username?: string }) {
             <label className="block sm:col-span-2"><span className="mb-2 block text-xs font-bold text-gray-600">Bio</span><textarea value={form.bio} onChange={(e)=>setForm((value)=>({...value,bio:e.target.value}))} className="min-h-24 w-full resize-none rounded-xl border border-gray-200 bg-white p-3 text-sm"/></label>
             <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Location</span><input value={form.location} onChange={(e)=>setForm((value)=>({...value,location:e.target.value}))} className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
             <label className="block"><span className="mb-2 block text-xs font-bold text-gray-600">Website</span><input type="url" value={form.website} onChange={(e)=>setForm((value)=>({...value,website:e.target.value}))} placeholder="https://example.com" className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm"/></label>
-            <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 sm:col-span-2"><input type="checkbox" checked={form.isPrivate} onChange={(e)=>setForm((value)=>({...value,isPrivate:e.target.checked}))} className="size-4 accent-[#6d5dfc]"/><span><span className="block text-xs font-black text-gray-700">Private account</span><span className="mt-0.5 block text-[11px] text-gray-400">Limit profile posts to you and accepted friends.</span></span></label>
+            <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 sm:col-span-2"><input type="checkbox" checked={form.isPrivate} onChange={(e)=>setForm((value)=>({...value,isPrivate:e.target.checked}))} className="size-4 accent-[#6d5dfc]"/><span><span className="block text-xs font-black text-gray-700">Private account</span><span className="mt-0.5 block text-xs text-gray-500">Limit profile posts to you and accepted friends.</span></span></label>
             <div className="flex items-end justify-end sm:col-span-2"><button disabled={saving} type="submit" className="h-11 rounded-xl bg-[#6d5dfc] px-4 text-xs font-black text-white disabled:opacity-60">{saving ? "Saving…" : "Save changes"}</button></div>
           </form>
         ) : (
           <>
             <p className="mt-5 max-w-2xl text-sm leading-6 text-gray-600">{profile?.bio ?? form.bio}</p>
-            <div className="mt-5 max-w-2xl overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
+            <div className="mt-5 w-full overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
   <div className="grid grid-cols-3 divide-x divide-gray-100">
-    <div className="px-3 py-3 text-center" title={fullCount(postCount) + " posts"}><strong className="block text-base font-black">{compactCount(postCount)}</strong><span className="text-[10px] font-bold uppercase tracking-[.08em] text-gray-400">posts</span></div>
-    <button type="button" onClick={() => void openRelationships("followers")} title={fullCount(followerCount) + " followers"} className="px-3 py-3 text-center hover:bg-white"><strong className="block text-base font-black">{compactCount(followerCount)}</strong><span className="text-[10px] font-bold uppercase tracking-[.08em] text-gray-400">followers</span></button>
-    <button type="button" onClick={() => void openRelationships("following")} title={fullCount(followingCount) + " following"} className="px-3 py-3 text-center hover:bg-white"><strong className="block text-base font-black">{compactCount(followingCount)}</strong><span className="text-[10px] font-bold uppercase tracking-[.08em] text-gray-400">following</span></button>
+    <div className="px-3 py-3 text-center" title={fullCount(postCount) + " posts"}><strong className="block text-xl font-black">{compactCount(postCount)}</strong><span className="text-xs font-medium text-gray-500">posts</span></div>
+    <button type="button" onClick={() => void openRelationships("followers")} title={fullCount(followerCount) + " followers"} className="px-3 py-3 text-center hover:bg-white"><strong className="block text-base font-black">{compactCount(followerCount)}</strong><span className="text-xs font-bold uppercase tracking-[.08em] text-gray-500">followers</span></button>
+    <button type="button" onClick={() => void openRelationships("following")} title={fullCount(followingCount) + " following"} className="px-3 py-3 text-center hover:bg-white"><strong className="block text-base font-black">{compactCount(followingCount)}</strong><span className="text-xs font-bold uppercase tracking-[.08em] text-gray-500">following</span></button>
   </div>
   <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 px-3 py-2.5">
-    <span className="text-[10px] font-black text-gray-500" title={fullCount(likesReceivedCount) + " likes"}><span className="text-[#5a4be8]">{compactCount(likesReceivedCount)}</span> likes</span>
+    <span className="text-xs font-black text-gray-500" title={fullCount(likesReceivedCount) + " likes"}><span className="text-[#5a4be8]">{compactCount(likesReceivedCount)}</span> likes</span>
     <span className="text-gray-200">·</span>
-    <span className="text-[10px] font-black text-gray-500" title={fullCount(commentsReceivedCount) + " comments"}><span className="text-[#5a4be8]">{compactCount(commentsReceivedCount)}</span> comments</span>
+    <span className="text-xs font-black text-gray-500" title={fullCount(commentsReceivedCount) + " comments"}><span className="text-[#5a4be8]">{compactCount(commentsReceivedCount)}</span> comments</span>
     <span className="text-gray-200">·</span>
-    <span className="text-[10px] font-black text-gray-500" title={fullCount(shareCount) + " shares"}><span className="text-[#5a4be8]">{compactCount(shareCount)}</span> shares</span>
+    <span className="text-xs font-black text-gray-500" title={fullCount(shareCount) + " shares"}><span className="text-[#5a4be8]">{compactCount(shareCount)}</span> shares</span>
     <span className="text-gray-200">·</span>
-    <span className="text-[10px] font-black text-gray-500" title={fullCount(profileViewCount) + " views"}><span className="text-[#5a4be8]">{compactCount(profileViewCount)}</span> views</span>
-    {!isOwner && session?.user && relationships?.mutual?.length ? <button type="button" onClick={() => void openRelationships("mutual")} title={fullCount(relationships.mutual.length) + " mutual"} className="ml-auto rounded-full bg-[#eeebff] px-2.5 py-1 text-[10px] font-bold text-[#5a4be8]">{compactCount(relationships.mutual.length)} mutual</button> : null}
+    <span className="text-xs font-black text-gray-500" title={fullCount(profileViewCount) + " views"}><span className="text-[#5a4be8]">{compactCount(profileViewCount)}</span> views</span>
+    {!isOwner && session?.user && relationships?.mutual?.length ? <button type="button" onClick={() => void openRelationships("mutual")} title={fullCount(relationships.mutual.length) + " mutual"} className="ml-auto rounded-full bg-[#eeebff] px-2.5 py-1 text-xs font-bold text-[#5a4be8]">{compactCount(relationships.mutual.length)} mutual</button> : null}
   </div>
 </div>
           </>
         )}
 
-        <div className="mt-5 flex flex-wrap items-center gap-2">
-          {profile?.website ? <a href={profile.website} target="_blank" rel="noreferrer" className="rounded-full bg-gray-50 px-3 py-1.5 text-[11px] font-bold text-[#5a4be8] hover:bg-[#eeebff]">{profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}</a> : null}
-          {profile?.isPrivate ? <span className="rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-700">Private account</span> : null}
-          {profile?.createdAt ? <span className="rounded-full bg-gray-50 px-3 py-1.5 text-[11px] font-bold text-gray-500">Joined {new Date(profile.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span> : null}
-          <button type="button" onClick={() => void shareProfile()} className="rounded-full bg-gray-950 px-3 py-1.5 text-[11px] font-black text-white">Share profile</button>
+        <div className="mt-5 flex min-w-0 flex-wrap items-center gap-2">
+          {profile?.website ? <a href={profile.website} target="_blank" rel="noreferrer" className="rounded-full bg-gray-50 px-3 py-1.5 text-xs font-bold text-[#5a4be8] hover:bg-[#eeebff]">{profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}</a> : null}
+          {profile?.isPrivate ? <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">Private account</span> : null}
+          {profile?.createdAt ? <span className="rounded-full bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-500">Joined {new Date(profile.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span> : null}
         </div>
         {relationshipView ? (
           <div className="fixed inset-0 z-[70] grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label={relationshipView}>
             <div className="max-h-[80vh] w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-              <div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h3 className="text-base font-black">{relationshipView === "followers" ? "Followers" : relationshipView === "following" ? "Following" : "Mutual friends"}</h3><p className="mt-1 text-[11px] text-gray-400">Real account relationships</p></div><button type="button" onClick={() => setRelationshipView(null)} className="grid size-9 place-items-center rounded-xl bg-gray-100" aria-label="Close"><X size={16}/></button></div>
-              {loadingRelationships ? <div className="p-8 text-center text-xs text-gray-400">Loading…</div> : (
+              <div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h3 className="text-base font-black">{relationshipView === "followers" ? "Followers" : relationshipView === "following" ? "Following" : "Mutual friends"}</h3><p className="mt-1 text-xs text-gray-500">Real account relationships</p></div><button type="button" onClick={() => setRelationshipView(null)} className="grid size-9 place-items-center rounded-xl bg-gray-100" aria-label="Close"><X size={16}/></button></div>
+              {loadingRelationships ? <div className="p-8 text-center text-xs text-gray-500">Loading…</div> : (
                 <div className="max-h-[60vh] overflow-y-auto p-3">
                   {(() => {
                     const list = relationships?.[relationshipView] ?? [];
@@ -1229,15 +1228,15 @@ function Profile({ username = "firdous" }: { username?: string }) {
                         ? relationships?.followingHidden
                         : relationships?.mutualHidden;
                     if (hidden) {
-                      return <div className="p-8 text-center"><Lock className="mx-auto text-gray-400" size={20}/><p className="mt-3 text-sm font-black">This list is private</p><p className="mt-1 text-xs text-gray-400">The account owner has chosen not to show this relationship list.</p></div>;
+                      return <div className="p-8 text-center"><Lock className="mx-auto text-gray-500" size={20}/><p className="mt-3 text-sm font-black">This list is private</p><p className="mt-1 text-xs text-gray-500">The account owner has chosen not to show this relationship list.</p></div>;
                     }
                     return list.length ? <>
                       {list.map((person) => <Link key={person.id} href={"/profile/" + encodeURIComponent(person.username ?? person.id)} onClick={() => setRelationshipView(null)} className="flex items-center gap-3 rounded-2xl p-3 hover:bg-gray-50">
                         {person.image ? <img src={person.image} alt="" className="size-11 rounded-full object-cover"/> : <span className="grid size-11 place-items-center rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{person.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()}</span>}
-                        <span className="min-w-0"><span className="flex items-center gap-1 truncate text-sm font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-xs text-gray-400">@{person.username ?? "member"}</span></span>
+                        <span className="min-w-0"><span className="flex items-center gap-1 truncate text-sm font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-xs text-gray-500">@{person.username ?? "member"}</span></span>
                       </Link>)}
-                      {nextRelationshipBefore && relationshipView !== "mutual" ? <button type="button" onClick={() => void loadMoreRelationships(relationshipView)} disabled={loadingMoreRelationships} className="mx-auto my-2 block rounded-xl border border-gray-200 bg-white px-4 py-2 text-[10px] font-black text-gray-600 disabled:opacity-50">{loadingMoreRelationships ? "Loading…" : "Load more"}</button> : null}
-                    </> : <div className="p-8 text-center text-xs text-gray-400">No accounts to show.</div>;
+                      {nextRelationshipBefore && relationshipView !== "mutual" ? <button type="button" onClick={() => void loadMoreRelationships(relationshipView)} disabled={loadingMoreRelationships} className="mx-auto my-2 block rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-black text-gray-600 disabled:opacity-50">{loadingMoreRelationships ? "Loading…" : "Load more"}</button> : null}
+                    </> : <div className="p-8 text-center text-xs text-gray-500">No accounts to show.</div>;
                   })()}
                 </div>
               )}
@@ -1245,20 +1244,27 @@ function Profile({ username = "firdous" }: { username?: string }) {
           </div>
         ) : null}
 
-        <div className="mt-7 flex gap-6 border-b border-gray-100 pb-3 text-xs font-black">
-          {(["posts","photos","friends"] as const).map((tab) => <button key={tab} type="button" onClick={() => setProfileTab(tab)} className={profileTab === tab ? "border-b-2 border-[#6d5dfc] pb-3 text-[#5a4be8]" : "pb-3 text-gray-400"}>{tab[0].toUpperCase() + tab.slice(1)}</button>)}
+        <div className="mt-7 flex gap-2 overflow-x-auto border-b border-gray-100 pb-3 text-xs font-black scrollbar-none">
+          {(["posts","photos","friends"] as const).map((tab) => <button key={tab} type="button" onClick={() => setProfileTab(tab)} className={profileTab === tab ? "border-b-2 border-[#6d5dfc] pb-3 text-[#5a4be8]" : "pb-3 text-gray-500"}>{tab[0].toUpperCase() + tab.slice(1)}</button>)}
         </div>
         {profileTab === "friends" ? (
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {friendsHidden ? <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><Lock className="mx-auto text-gray-400" size={20}/><p className="mt-3 text-sm font-black">Friends are private</p><p className="mt-1 text-xs text-gray-400">Only the account owner and accepted friends can view this list.</p></div> : friends.length ? friends.map((friend) => <Link key={friend.id} href={"/profile/" + encodeURIComponent(friend.username ?? friend.id)} className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white">
-              {friend.image ? <img src={friend.image} alt="" className="size-11 rounded-full object-cover"/> : <Avatar initials={friend.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="md"/>}
-              <span className="min-w-0"><span className="flex items-center gap-1 truncate text-sm font-black">{friend.name}<AccountBadge verified={friend.isVerified} owner={friend.isOwner}/></span><span className="block truncate text-xs text-gray-400">@{friend.username ?? "member"}</span></span>
-            </Link>) : <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><p className="text-sm font-black">No friends to show yet</p><p className="mt-1 text-xs text-gray-400">Accepted connections will appear here.</p></div>}
+            {friendsHidden ? <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><Lock className="mx-auto text-gray-500" size={20}/><p className="mt-3 text-sm font-black">Friends are private</p><p className="mt-1 text-xs text-gray-500">Only the account owner and accepted friends can view this list.</p></div> : friends.length ? friends.map((friend) => <Link key={friend.id} href={"/profile/" + encodeURIComponent(friend.username ?? friend.id)} className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white">
+              {friend.image ? <img src={friend.image} alt={friend.name} className="size-11 rounded-full object-cover"/> : <Avatar initials={friend.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} size="md"/>}
+              <span className="min-w-0"><span className="flex items-center gap-1 truncate text-sm font-black">{friend.name}<AccountBadge verified={friend.isVerified} owner={friend.isOwner}/></span><span className="block truncate text-xs text-gray-500">@{friend.username ?? "member"}</span></span>
+            </Link>) : <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><p className="text-sm font-black">No friends to show yet</p><p className="mt-1 text-xs text-gray-500">Accepted connections will appear here.</p></div>}
+          </div>
+        ) : profileTab === "photos" ? (
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            {visibleProfilePosts.length ? visibleProfilePosts.map((post) => post.mediaUrl ? (
+              <Link key={post.id} href={"/home#post-" + encodeURIComponent(post.id)} className="group relative aspect-square overflow-hidden rounded-2xl bg-gray-100">
+                <img src={post.mediaUrl} alt={post.content ? post.content.slice(0, 80) : "Profile photo"} className="size-full object-cover transition duration-200 group-hover:scale-[1.02]"/>
+              </Link>
+            ) : null) : <div className="col-span-3 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><p className="text-sm font-black">No photos yet</p><p className="mt-1 text-xs text-gray-500">{isOwner ? "Share a post with a photo to build your gallery." : "This profile has not shared any photos."}</p></div>}
           </div>
         ) : (
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          {visibleProfilePosts.length > 0 ? (
-            visibleProfilePosts.map((post) => (
+          <div className="mt-5 space-y-4">
+            {visibleProfilePosts.length > 0 ? visibleProfilePosts.map((post) => (
               <ProfilePostCard
                 key={post.id}
                 post={post}
@@ -1283,20 +1289,20 @@ function Profile({ username = "firdous" }: { username?: string }) {
                   } : current);
                 }}
               />
-            ))          ) : (
-            <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center">
-              <p className="text-sm font-black">{profileTab === "photos" ? "No photos yet" : "No public posts yet"}</p>
-              <p className="mt-1 text-xs text-gray-400">{isOwner ? "Share your first post from the home feed." : "This profile has not shared any public posts."}</p>
-            </div>
-          )}
-          {nextProfilePostsCursor ? (
-            <div className="mt-4 flex justify-center">
-              <button type="button" onClick={() => void loadMoreProfilePosts()} disabled={loadingMoreProfilePosts} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[10px] font-black text-gray-600 disabled:opacity-50">
-                {loadingMoreProfilePosts ? "Loading older posts…" : "Load older posts"}
-              </button>
-            </div>
-          ) : null}
-        </div>
+            )) : (
+              <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center">
+                <p className="text-sm font-black">No public posts yet</p>
+                <p className="mt-1 text-xs text-gray-500">{isOwner ? "Share your first post from the home feed." : "This profile has not shared any public posts."}</p>
+              </div>
+            )}
+            {nextProfilePostsCursor ? (
+              <div className="mt-4 flex justify-center">
+                <button type="button" onClick={() => void loadMoreProfilePosts()} disabled={loadingMoreProfilePosts} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-600 disabled:opacity-50">
+                  {loadingMoreProfilePosts ? "Loading older posts…" : "Load older posts"}
+                </button>
+              </div>
+            ) : null}
+          </div>
         )}
       </div>
     </div>
@@ -1894,7 +1900,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
   }
 
-  return <Page eyebrow="Messages" title="Your conversations" subtitle="Focused one-to-one and group messaging, designed to be easy to pick back up.">
+  return <Page wide eyebrow="Messages" title="Your conversations" subtitle="Focused one-to-one and group messaging, designed to be easy to pick back up.">
     {!session?.user ? (
       <div className="mb-5 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-4 py-3 text-xs font-semibold text-[#5a4be8]">
         Sign in to load your real conversations. The interface stays browsable while you are signed out.
@@ -1902,41 +1908,41 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     ) : null}
     {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
-    {newConversationOpen ? <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4"><div className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h2 className="text-base font-black">New message</h2><p className="mt-1 text-xs text-gray-400">Choose a real Socialhub account to start a chat.</p></div><button type="button" onClick={() => setNewConversationOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={16}/></button></div><div className="p-4"><label className="relative block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15}/><input autoFocus value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Search people…" className="h-10 w-full rounded-xl bg-gray-50 pl-9 pr-3 text-xs font-semibold outline-none"/></label><div className="mt-3 space-y-1">{people.length ? people.map((person)=><button type="button" key={person.id} onClick={() => void startConversation(person.id)} className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-gray-50"><Avatar initials={person.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={person.image}/><span className="min-w-0"><span className="flex items-center gap-1 truncate text-xs font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-[10px] text-gray-400">@{person.username ?? "member"}</span></span></button>) : <p className="p-6 text-center text-xs text-gray-400">{userQuery.trim() ? "No people found." : "Search for someone to message."}</p>}</div></div></div></div> : null}
+    {newConversationOpen ? <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4"><div className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h2 className="text-base font-black">New message</h2><p className="mt-1 text-xs text-gray-500">Choose a real Socialhub account to start a chat.</p></div><button type="button" onClick={() => setNewConversationOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={16}/></button></div><div className="p-4"><label className="relative block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={15}/><input autoFocus value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Search people…" className="h-10 w-full rounded-xl bg-gray-50 pl-9 pr-3 text-xs font-semibold outline-none"/></label><div className="mt-3 space-y-1">{people.length ? people.map((person)=><button type="button" key={person.id} onClick={() => void startConversation(person.id)} className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-gray-50"><Avatar initials={person.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={person.image}/><span className="min-w-0"><span className="flex items-center gap-1 truncate text-xs font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-xs text-gray-500">@{person.username ?? "member"}</span></span></button>) : <p className="p-6 text-center text-xs text-gray-500">{userQuery.trim() ? "No people found." : "Search for someone to message."}</p>}</div></div></div></div> : null}
 
     {showGroupInfo && active?.isGroup ? (
       <div className="fixed inset-0 z-[85] grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label="Group information">
         <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-[2rem] bg-white shadow-2xl">
           <div className="flex items-center justify-between border-b border-gray-100 p-5">
-            <div><h2 className="text-base font-black">Group info</h2><p className="mt-1 text-xs text-gray-400">{active.members.length} members</p></div>
+            <div><h2 className="text-base font-black">Group info</h2><p className="mt-1 text-xs text-gray-500">{active.members.length} members</p></div>
             <button type="button" onClick={() => setShowGroupInfo(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100" aria-label="Close group info"><X size={16}/></button>
           </div>
           <div className="space-y-4 p-5">
             {activeGroupAdmin ? <div className="flex gap-2"><input value={groupTitleDraft} onChange={(event) => setGroupTitleDraft(event.target.value)} maxLength={100} className="h-11 flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-semibold"/><button type="button" onClick={() => void updateGroupTitle()} disabled={groupActionLoading || !groupTitleDraft.trim()} className="rounded-xl bg-gray-950 px-4 text-xs font-black text-white disabled:opacity-40">Rename</button></div> : null}
             <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3">
-              <p className="text-[10px] font-black uppercase tracking-[.12em] text-gray-400">Members</p>
+              <p className="text-xs font-black uppercase tracking-[.12em] text-gray-500">Members</p>
               <div className="mt-2 space-y-2">{active.members.map((member) => (
                 <div key={member.userId} className="flex items-center gap-3 rounded-xl bg-white p-2.5">
                   <Avatar initials={member.user.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} image={member.user.image} size="sm"/>
-                  <div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate text-xs font-black">{member.user.name}<AccountBadge verified={member.user.isVerified} owner={member.user.isOwner}/></p><p className="text-[10px] text-gray-400">{member.role === "ADMIN" ? "Administrator" : "Member"}</p></div>
-                  {activeGroupAdmin && member.userId !== session?.user?.id && member.role !== "ADMIN" ? <button type="button" onClick={() => void removeGroupMember(member.userId)} disabled={groupActionLoading} className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-[10px] font-black text-red-600 disabled:opacity-40">Remove</button> : null}
+                  <div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate text-xs font-black">{member.user.name}<AccountBadge verified={member.user.isVerified} owner={member.user.isOwner}/></p><p className="text-xs text-gray-500">{member.role === "ADMIN" ? "Administrator" : "Member"}</p></div>
+                  {activeGroupAdmin && member.userId !== session?.user?.id && member.role !== "ADMIN" ? <button type="button" onClick={() => void removeGroupMember(member.userId)} disabled={groupActionLoading} className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-xs font-black text-red-600 disabled:opacity-40">Remove</button> : null}
                 </div>
               ))}</div>
             </div>
-            {activeGroupAdmin ? <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-gray-400">Add member</p><input value={groupUserQuery} onChange={(event) => setGroupUserQuery(event.target.value)} placeholder="Search people…" className="mt-2 h-10 w-full rounded-xl bg-gray-50 px-3 text-xs font-semibold outline-none"/><div className="mt-2 space-y-1">{groupPeople.slice(0,5).map((person) => <button type="button" key={person.id} onClick={() => void addGroupMember(person.id)} disabled={groupActionLoading} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-gray-50 disabled:opacity-50"><Avatar initials={person.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="sm"/><span className="flex-1 truncate text-xs font-black">{person.name}</span><Plus size={15}/></button>)}</div></div> : null}
+            {activeGroupAdmin ? <div><p className="text-xs font-black uppercase tracking-[.12em] text-gray-500">Add member</p><input value={groupUserQuery} onChange={(event) => setGroupUserQuery(event.target.value)} placeholder="Search people…" className="mt-2 h-10 w-full rounded-xl bg-gray-50 px-3 text-xs font-semibold outline-none"/><div className="mt-2 space-y-1">{groupPeople.slice(0,5).map((person) => <button type="button" key={person.id} onClick={() => void addGroupMember(person.id)} disabled={groupActionLoading} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-gray-50 disabled:opacity-50"><Avatar initials={person.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="sm"/><span className="flex-1 truncate text-xs font-black">{person.name}</span><Plus size={15}/></button>)}</div></div> : null}
             <button type="button" onClick={() => void leaveGroup()} disabled={groupActionLoading} className="w-full rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-black text-red-600 disabled:opacity-40">Leave group</button>
           </div>
         </div>
       </div>
     ) : null}
 
-    <div className="messages-shell grid h-[calc(100dvh-240px)] min-h-[420px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:h-auto lg:min-h-[620px] lg:grid-cols-[330px_1fr]">
+    <div className="messages-shell grid h-[calc(100dvh-150px)] min-h-[520px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:h-[calc(100dvh-118px)] lg:min-h-[620px] lg:grid-cols-[320px_1fr]">
       <aside className={(activeId ? "hidden lg:block " : "") + "border-b border-gray-100 lg:border-b-0 lg:border-r"}>
         <div className="flex items-center justify-between border-b border-gray-100 p-4">
-          <div className="flex items-center gap-2"><h2 className="text-sm font-black">{showArchivedConversations ? "Archived" : "Inbox"}</h2><button type="button" onClick={() => setShowArchivedConversations((value) => !value)} className="rounded-lg px-2 py-1 text-[10px] font-black text-gray-500 hover:bg-gray-100">{showArchivedConversations ? "Inbox" : "Archived"}</button></div>
+          <div className="flex items-center gap-2"><h2 className="text-sm font-black">{showArchivedConversations ? "Archived" : "Inbox"}</h2><button type="button" onClick={() => setShowArchivedConversations((value) => !value)} className="rounded-lg px-2 py-1 text-xs font-black text-gray-500 hover:bg-gray-100">{showArchivedConversations ? "Inbox" : "Archived"}</button></div>
           <button type="button" onClick={() => setNewConversationOpen(true)} className="social-icon-button" aria-label="Start a new message"><Pencil size={17}/></button>
         </div>
-        <label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages" aria-label="Search messages"/></label>
+        <label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16}/><input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages" aria-label="Search messages"/></label>
 
         <div className="space-y-1 p-2">
           {loading && session?.user ? (
@@ -1947,14 +1953,14 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
             const preview = conversation.messages[0]?.content ?? "No messages yet";
             return <button key={conversation.id} onClick={() => setActiveId(conversation.id)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left ${conversation.id===activeId?"bg-[#f4f2ff]":"hover:bg-gray-50"}`}>
               <Avatar initials={(other?.name ?? name).split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={other?.image} color={colors[i%colors.length]}/>
-              <div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate text-xs font-black">{name}<AccountBadge verified={other?.isVerified} owner={other?.isOwner}/></p><p className="mt-1 truncate text-[11px] text-gray-400">{preview}</p></div>
+              <div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate text-xs font-black">{name}<AccountBadge verified={other?.isVerified} owner={other?.isOwner}/></p><p className="mt-1 truncate text-xs text-gray-500">{preview}</p></div>
               {conversation.unreadCount ? <span className="min-w-5 rounded-full bg-[#6d5dfc] px-1.5 py-1 text-center text-[9px] font-black text-white">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span> : null}
             </button>;
           }) : (
             <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-7 text-center">
               <MessageCircle className="mx-auto text-gray-300" size={22}/>
               <p className="mt-3 text-xs font-black text-gray-700">{messageSearch.trim() ? "No matching conversations" : "No conversations yet"}</p>
-              <p className="mt-1 text-[11px] leading-5 text-gray-400">{messageSearch.trim() ? "Try another name or message." : session?.user ? "Your real conversations will appear here." : "Sign in to see your conversations."}</p>
+              <p className="mt-1 text-xs leading-5 text-gray-500">{messageSearch.trim() ? "Try another name or message." : session?.user ? "Your real conversations will appear here." : "Sign in to see your conversations."}</p>
             </div>
                     )}
         </div>
@@ -1964,7 +1970,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         <div className="flex items-center gap-2 border-b border-gray-100 p-3 sm:gap-3 sm:p-4">
           {active ? <button type="button" onClick={() => setActiveId(null)} className="grid size-9 shrink-0 place-items-center rounded-xl bg-gray-50 text-gray-600 lg:hidden" aria-label="Back to conversations"><ArrowLeft size={17}/></button> : null}
           <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={activeMember?.image} />
-          <div className="flex-1"><p className="flex items-center gap-1.5 text-sm font-black">{activeName}<AccountBadge verified={activeMember?.isVerified} owner={activeMember?.isOwner}/></p><p className="text-[11px] text-gray-400">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
+          <div className="flex-1"><p className="flex items-center gap-1.5 text-sm font-black">{activeName}<AccountBadge verified={activeMember?.isVerified} owner={activeMember?.isOwner}/></p><p className="text-xs text-gray-500">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
           <div className="relative"><button type="button" onClick={() => setShowConversationOptions((value) => !value)} disabled={!active} className="social-icon-button disabled:opacity-40" aria-label="Conversation options"><MoreHorizontal size={18}/></button>
             {showConversationOptions && active ? <div className="absolute right-0 top-11 z-30 w-44 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl">
               <button type="button" onClick={() => void updateConversationAction(active.archivedAt ? "unarchive" : "archive")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.archivedAt ? "Unarchive" : "Archive"}</button>
@@ -1980,18 +1986,19 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
               <button type="button" onClick={() => {
                 setNewMessagesCount(0);
                 if (messageListRef.current) messageListRef.current.scrollTo({ top: messageListRef.current.scrollHeight, behavior: "smooth" });
-              }} className="rounded-full border border-[#d9d4ff] bg-white/95 px-3 py-1.5 text-[10px] font-black text-[#5a4be8] shadow-md backdrop-blur">
+              }} className="rounded-full border border-[#d9d4ff] bg-white/95 px-3 py-1.5 text-xs font-black text-[#5a4be8] shadow-md backdrop-blur">
                 {newMessagesCount === 1 ? "1 new message" : newMessagesCount + " new messages"} · Jump to latest
               </button>
             </div>
           ) : null}
-          {nextMessagesCursor ? <div className="flex justify-center"><button type="button" onClick={() => void loadOlderMessages()} disabled={loadingOlderMessages} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-[10px] font-black text-gray-600 shadow-sm disabled:opacity-50">{loadingOlderMessages ? "Loading older messages…" : "Load older messages"}</button></div> : null}
+          {nextMessagesCursor ? <div className="flex justify-center"><button type="button" onClick={() => void loadOlderMessages()} disabled={loadingOlderMessages} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-black text-gray-600 shadow-sm disabled:opacity-50">{loadingOlderMessages ? "Loading older messages…" : "Load older messages"}</button></div> : null}
+          {!active ? <div className="grid h-full place-items-center p-8 text-center"><div><span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={24}/></span><h2 className="mt-4 text-base font-black">Choose a conversation</h2><p className="mt-1 max-w-xs text-sm text-gray-500">Select a conversation or start a new message.</p><button type="button" onClick={() => setNewConversationOpen(true)} className="mt-4 rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white">New message</button></div></div> : null}
           {active && messages.length > 0 ? messages.map((message) => {
             const mine = message.senderId === session?.user?.id;
             return <div key={message.id} className={mine ? "flex justify-end" : "flex items-end gap-2"}>
               {!mine ? <Avatar initials={message.sender.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={message.sender.image} size="sm"/> : null}
               <div className="max-w-[82%] sm:max-w-[76%]">
-                {!mine ? <p className="mb-1 flex items-center gap-1 pl-1 text-[10px] font-black text-gray-500">{message.sender.name}<AccountBadge verified={message.sender.isVerified} owner={message.sender.isOwner}/></p> : null}
+                {!mine ? <p className="mb-1 flex items-center gap-1 pl-1 text-xs font-black text-gray-500">{message.sender.name}<AccountBadge verified={message.sender.isVerified} owner={message.sender.isOwner}/></p> : null}
                 {editingMessageId === message.id ? (
                   <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2 shadow-sm">
                     <textarea
@@ -2003,8 +2010,8 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
                       autoFocus
                     />
                     <div className="mt-2 flex justify-end gap-2">
-                      <button type="button" onClick={() => { setEditingMessageId(null); setEditingMessageText(""); }} className="rounded-xl px-3 py-2 text-[10px] font-black text-gray-500">Cancel</button>
-                      <button type="button" onClick={() => void editMessage(message.id)} disabled={!editingMessageText.trim() || savingMessage} className="rounded-xl bg-gray-950 px-3 py-2 text-[10px] font-black text-white disabled:opacity-40">{savingMessage ? "Saving…" : "Save"}</button>
+                      <button type="button" onClick={() => { setEditingMessageId(null); setEditingMessageText(""); }} className="rounded-xl px-3 py-2 text-xs font-black text-gray-500">Cancel</button>
+                      <button type="button" onClick={() => void editMessage(message.id)} disabled={!editingMessageText.trim() || savingMessage} className="rounded-xl bg-gray-950 px-3 py-2 text-xs font-black text-white disabled:opacity-40">{savingMessage ? "Saving…" : "Save"}</button>
                     </div>
                   </div>
                 ) : (
@@ -2014,13 +2021,13 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
                   </div>
                 )}
                 <div className={"mt-1 flex flex-wrap items-center gap-2 " + (mine ? "justify-end" : "")}>
-                  <span className="text-[9px] text-gray-400">{new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
+                  <span className="text-[9px] text-gray-500">{new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
                   {mine && !active?.isGroup && active?.members.some((member) => member.userId !== session?.user?.id && member.lastReadAt && new Date(member.lastReadAt) >= new Date(message.createdAt)) ? <span className="text-[9px] font-bold text-[#5a4be8]">Seen</span> : null}
-                  {message.editedAt && !message.deletedAt ? <span className="text-[9px] text-gray-400">edited</span> : null}
-                  {message.reactions?.length ? <span className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px]">{message.reactions.map((reaction)=>reaction.emoji).join("")}</span> : null}
-                  {message.replyTo && !message.deletedAt ? <div className="w-full max-w-xs rounded-xl border border-gray-200 bg-white/80 px-2.5 py-2 text-[10px] text-gray-500"><span className="font-black">Replying to {message.replyTo.sender.name}</span><p className="mt-0.5 truncate">{message.replyTo.content}</p></div> : null}
-                  {!message.deletedAt ? <button type="button" onClick={() => void reactToMessage(message.id)} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px] text-gray-500 hover:bg-gray-50" aria-label="React with heart">❤️</button> : null}
-                  {!message.deletedAt ? <button type="button" onClick={() => { setReplyingToMessage(message); setDraft(""); }} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px] text-gray-500 hover:bg-gray-50" aria-label="Reply to message"><MessageCircle size={11}/></button> : null}
+                  {message.editedAt && !message.deletedAt ? <span className="text-[9px] text-gray-500">edited</span> : null}
+                  {message.reactions?.length ? <span className="rounded-full border border-gray-200 bg-white px-2 py-1 text-xs">{message.reactions.map((reaction)=>reaction.emoji).join("")}</span> : null}
+                  {message.replyTo && !message.deletedAt ? <div className="w-full max-w-xs rounded-xl border border-gray-200 bg-white/80 px-2.5 py-2 text-xs text-gray-500"><span className="font-black">Replying to {message.replyTo.sender.name}</span><p className="mt-0.5 truncate">{message.replyTo.content}</p></div> : null}
+                  {!message.deletedAt ? <button type="button" onClick={() => void reactToMessage(message.id)} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-xs text-gray-500 hover:bg-gray-50" aria-label="React with heart">❤️</button> : null}
+                  {!message.deletedAt ? <button type="button" onClick={() => { setReplyingToMessage(message); setDraft(""); }} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-xs text-gray-500 hover:bg-gray-50" aria-label="Reply to message"><MessageCircle size={11}/></button> : null}
                   {mine && !message.deletedAt ? <>
                     <button type="button" onClick={() => { setEditingMessageId(message.id); setEditingMessageText(message.content); }} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-gray-500 hover:bg-gray-50" aria-label="Edit message"><Pencil size={11}/></button>
                     <button type="button" onClick={() => void deleteMessage(message.id)} className="rounded-full border border-red-100 bg-white px-2 py-1 text-red-500 hover:bg-red-50" aria-label="Delete message"><Trash2 size={11}/></button>
@@ -2029,12 +2036,12 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
               </div>
             </div>;
           }) : (
-            <div className="flex h-full min-h-56 items-center justify-center text-center"><div><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={20}/></span><p className="mt-3 text-sm font-black">{active ? "No messages yet" : "Pick a conversation"}</p><p className="mt-1 text-xs text-gray-400">{active ? "Send the first message below." : "Choose a chat from your inbox to start."}</p></div></div>
+            <div className="flex h-full min-h-56 items-center justify-center text-center"><div><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={20}/></span><p className="mt-3 text-sm font-black">{active ? "No messages yet" : "Pick a conversation"}</p><p className="mt-1 text-xs text-gray-500">{active ? "Send the first message below." : "Choose a chat from your inbox to start."}</p></div></div>
           )}
         </div>
 
         {typingUsers.length ? (
-          <div className="px-5 pb-2 text-[11px] font-semibold text-gray-400" aria-live="polite">
+          <div className="px-5 pb-2 text-xs font-semibold text-gray-500" aria-live="polite">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1.5">
               <span className="flex gap-0.5" aria-hidden="true"><i className="size-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-.3s]"/><i className="size-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-.15s]"/><i className="size-1.5 animate-bounce rounded-full bg-gray-400"/></span>
               {typingUsers.length === 1 ? typingUsers[0].name + " is typing…" : typingUsers.slice(0, 2).map((user) => user.name).join(" and ") + " are typing…"}
@@ -2042,7 +2049,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
           </div>
         ) : null}
         <form onSubmit={sendMessage} className="message-composer shrink-0 border-t border-gray-100 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
-          {replyingToMessage ? <div className="mb-2 flex items-center justify-between rounded-xl bg-[#f4f2ff] px-3 py-2"><div className="min-w-0"><p className="text-[10px] font-black text-[#5a4be8]">Replying to {replyingToMessage.sender.name}</p><p className="truncate text-[10px] text-gray-500">{replyingToMessage.content || "Media message"}</p></div><button type="button" onClick={() => setReplyingToMessage(null)} className="grid size-7 place-items-center rounded-lg bg-white text-gray-400" aria-label="Cancel reply"><X size={13}/></button></div> : null}
+          {replyingToMessage ? <div className="mb-2 flex items-center justify-between rounded-xl bg-[#f4f2ff] px-3 py-2"><div className="min-w-0"><p className="text-xs font-black text-[#5a4be8]">Replying to {replyingToMessage.sender.name}</p><p className="truncate text-xs text-gray-500">{replyingToMessage.content || "Media message"}</p></div><button type="button" onClick={() => setReplyingToMessage(null)} className="grid size-7 place-items-center rounded-lg bg-white text-gray-500" aria-label="Cancel reply"><X size={13}/></button></div> : null}
           <input ref={attachmentRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={(event) => { void uploadAttachments(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = ""; }} />
           {pendingAttachments.length ? <div className="mb-2 flex gap-2 overflow-x-auto">{pendingAttachments.map((url, index)=><div key={url} className="relative shrink-0"><img src={url} alt="Pending attachment" className="size-16 rounded-xl object-cover"/><button type="button" onClick={() => setPendingAttachments((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-gray-950 text-white"><X size={11}/></button></div>)}</div> : null}
           <div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2"><button type="button" onClick={() => attachmentRef.current?.click()} disabled={!active || uploadingAttachment || pendingAttachments.length >= 4} className="grid size-10 place-items-center rounded-xl bg-white text-gray-500 disabled:opacity-40" aria-label="Attach image"><Paperclip size={16}/></button><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={1} disabled={!active || !session?.user || sending} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60" placeholder={active ? "Write a message…" : "Select a conversation first"}/><button type="submit" disabled={!active || (!draft.trim() && !pendingAttachments.length) || !session?.user || sending} className="grid size-10 place-items-center rounded-xl bg-gray-950 text-white disabled:cursor-not-allowed disabled:opacity-50"><Send size={16}/></button></div>
@@ -2180,18 +2187,17 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
     }
   }
 
-  return <Page eyebrow="Discover" title="Find your next connection" subtitle="Search people, browse topics, and explore conversations worth joining.">
+  return <Page wide eyebrow="Discover" title="Find your next connection" subtitle="Search people, browse topics, and explore conversations worth joining.">
     <div className="space-y-5">
       <Card>
         <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18}/>
           <input value={q} onChange={(e)=>setQ(e.target.value)} className="h-12 w-full rounded-2xl bg-gray-50 pl-11 text-sm font-semibold outline-none focus:bg-white" placeholder="Search people and usernames…"/>
         </div>
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <div className="flex gap-2">
-            {([["people","People"],["posts","Posts"],["hashtags","Hashtags"]] as const).map(([value,label]) => <button key={value} type="button" onClick={() => setDiscoverTab(value)} className={"rounded-xl px-3.5 py-2 text-xs font-black " + (discoverTab === value ? "bg-[#eeebff] text-[#5a4be8]" : "bg-gray-50 text-gray-400")}>{label}</button>)}
+        <div className="mt-4 overflow-hidden">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {([["people","People"],["posts","Posts"],["hashtags","Hashtags"]] as const).map(([value,label]) => <button key={value} type="button" onClick={() => setDiscoverTab(value)} className={"rounded-xl px-3.5 py-2 text-xs font-black " + (discoverTab === value ? "bg-[#eeebff] text-[#5a4be8]" : "bg-gray-50 text-gray-500")}>{label}</button>)}
           </div>
-          <span className="text-[11px] font-semibold text-gray-400">Results come from real Socialhub data.</span>
         </div>
       </Card>
 
@@ -2199,33 +2205,33 @@ function Discover({ initialQuery = "" }: { initialQuery?: string }) {
 
       <div className="grid gap-5 md:grid-cols-2">
         {discoverTab === "people" ? <Card>
-          <div className="flex justify-between"><h2 className="text-sm font-black">{q ? "People results" : "Suggested people"}</h2><span className="text-xs font-bold text-gray-400">{results.length} people</span></div>
+          <div className="flex justify-between"><h2 className="text-sm font-black">{q ? "People results" : "Suggested people"}</h2><span className="text-xs font-bold text-gray-500">{results.length} people</span></div>
           <div className="mt-4 space-y-4">{loading ? [1,2,3].map((item)=><div key={item} className="flex items-center gap-3 p-2"><span className="size-10 animate-pulse rounded-full bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 w-2/3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-1/2 animate-pulse rounded bg-gray-100"/></div></div>) :
           results.map((user, i) => {
             const initials = user.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase();
             const isFollowing = following.has(user.id);
             return <div key={user.id} className="flex items-center gap-3">
               <Link href={"/profile/" + (user.username ?? user.id)}><Avatar initials={initials} image={user.image} color={colors[i % colors.length]}/></Link>
-              <div className="min-w-0 flex-1"><Link href={"/profile/" + (user.username ?? user.id)} className="flex items-center gap-1.5 truncate text-xs font-black hover:text-[#5a4be8]">{user.name}<AccountBadge verified={user.isVerified} owner={user.isOwner}/></Link><p className="truncate text-[11px] text-gray-400">@{user.username ?? "member"} · <span title={fullCount(user.displayCounts?.followers ?? user._count.followers) + " followers"}>{compactCount(user.displayCounts?.followers ?? user._count.followers)} followers</span></p></div>
+              <div className="min-w-0 flex-1"><Link href={"/profile/" + (user.username ?? user.id)} className="flex items-center gap-1.5 truncate text-xs font-black hover:text-[#5a4be8]">{user.name}<AccountBadge verified={user.isVerified} owner={user.isOwner}/></Link><p className="truncate text-xs text-gray-500">@{user.username ?? "member"} · <span title={fullCount(user.displayCounts?.followers ?? user._count.followers) + " followers"}>{compactCount(user.displayCounts?.followers ?? user._count.followers)} followers</span></p></div>
               <button onClick={()=>void toggleFollow(user)} disabled={user.friendRequestStatus === "OUTGOING_PENDING" || user.friendRequestStatus === "INCOMING_PENDING"} className={isFollowing ? "grid size-9 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600 disabled:opacity-50" : "grid size-9 place-items-center rounded-xl bg-gray-950 text-white disabled:opacity-50"} aria-label={isFollowing ? "Unfollow" : user.friendRequestStatus === "OUTGOING_PENDING" ? "Friend request sent" : user.isPrivate ? "Add friend" : "Follow"}>{isFollowing ? <Check size={15}/> : user.friendRequestStatus === "OUTGOING_PENDING" ? <Check size={15}/> : user.isPrivate ? <UserPlus size={15}/> : <UserPlus size={15}/>}</button>
             </div>;
           })}</div>
         </Card> : discoverTab === "posts" ? <Card>
-          <div className="flex justify-between"><h2 className="text-sm font-black">Post results</h2><span className="text-xs font-bold text-gray-400">{discoverPosts.length} posts</span></div>
-          <div className="mt-4 space-y-3">{discoverPosts.length ? discoverPosts.map((post) => <Link key={post.id} href={"/home#post-" + encodeURIComponent(post.id)} className="block rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><div className="flex items-center gap-3"><Avatar initials={post.author.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><div><p className="flex items-center gap-1.5 text-xs font-black">{post.author.name}<AccountBadge verified={post.author.isVerified} owner={post.author.isOwner}/></p><p className="text-[10px] text-gray-400">@{post.author.username ?? "member"} · {new Date(post.createdAt).toLocaleString()}</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">{post.content ?? "Media post"}</p><p className="mt-2 text-[10px] text-gray-400"><span title={fullCount(post.displayCounts?.likes ?? post._count.likes) + " likes"}>{compactCount(post.displayCounts?.likes ?? post._count.likes)} likes</span> · <span title={fullCount(post.displayCounts?.comments ?? post._count.comments) + " comments"}>{compactCount(post.displayCounts?.comments ?? post._count.comments)} comments</span></p></Link>) : <p className="py-8 text-center text-xs text-gray-400">No matching posts found.</p>}</div>
+          <div className="flex justify-between"><h2 className="text-sm font-black">Post results</h2><span className="text-xs font-bold text-gray-500">{discoverPosts.length} posts</span></div>
+          <div className="mt-4 space-y-3">{discoverPosts.length ? discoverPosts.map((post) => <Link key={post.id} href={"/home#post-" + encodeURIComponent(post.id)} className="block rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><div className="flex items-center gap-3"><Avatar initials={post.author.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()}/><div><p className="flex items-center gap-1.5 text-xs font-black">{post.author.name}<AccountBadge verified={post.author.isVerified} owner={post.author.isOwner}/></p><p className="text-xs text-gray-500">@{post.author.username ?? "member"} · {new Date(post.createdAt).toLocaleString()}</p></div></div><p className="mt-3 text-sm leading-6 text-gray-600">{post.content ?? "Media post"}</p><p className="mt-2 text-xs text-gray-500"><span title={fullCount(post.displayCounts?.likes ?? post._count.likes) + " likes"}>{compactCount(post.displayCounts?.likes ?? post._count.likes)} likes</span> · <span title={fullCount(post.displayCounts?.comments ?? post._count.comments) + " comments"}>{compactCount(post.displayCounts?.comments ?? post._count.comments)} comments</span></p></Link>) : <p className="py-8 text-center text-xs text-gray-500">No matching posts found.</p>}</div>
         </Card> : <Card>
-          <div className="flex justify-between"><h2 className="text-sm font-black">Hashtags</h2><span className="text-xs font-bold text-gray-400">{discoverHashtags.length} tags</span></div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">{discoverHashtags.length ? discoverHashtags.map((item) => <Link key={item.tag} href={"/discover?q=" + encodeURIComponent(item.tag)} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><span className="block text-sm font-black text-[#5a4be8]">{item.tag}</span><span className="mt-1 block text-[10px] text-gray-400">{item.count} matching posts in the current result set</span></Link>) : <p className="py-8 text-center text-xs text-gray-400">No matching hashtags found.</p>}</div>
+          <div className="flex justify-between"><h2 className="text-sm font-black">Hashtags</h2><span className="text-xs font-bold text-gray-500">{discoverHashtags.length} tags</span></div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">{discoverHashtags.length ? discoverHashtags.map((item) => <Link key={item.tag} href={"/discover?q=" + encodeURIComponent(item.tag)} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white"><span className="block text-sm font-black text-[#5a4be8]">{item.tag}</span><span className="mt-1 block text-xs text-gray-500">{item.count} matching posts in the current result set</span></Link>) : <p className="py-8 text-center text-xs text-gray-500">No matching hashtags found.</p>}</div>
         </Card>}
 
         <Card>
           <h2 className="text-sm font-black">Trending hashtags</h2>
           <div className="mt-4 space-y-2">
             {trends.length ? trends.map((trend, i) => <Link key={trend.tag} href={"/discover?q=" + encodeURIComponent(trend.tag)} className="flex items-center gap-3 rounded-2xl p-3 hover:bg-gray-50">
-              <span className="grid size-9 place-items-center rounded-xl bg-gray-100 text-[10px] font-black text-gray-500">{String(i + 1).padStart(2, "0")}</span>
-              <span className="flex-1"><span className="block text-xs font-black">{trend.tag}</span><span className="text-[11px] text-gray-400">{trend.posts} {trend.posts === 1 ? "post" : "posts"}</span></span>
-              <ChevronRight size={16} className="text-gray-400"/>
-            </Link>) : <p className="py-4 text-xs text-gray-400">No hashtags are trending yet. Start a conversation with a hashtag.</p>}
+              <span className="grid size-9 place-items-center rounded-xl bg-gray-100 text-xs font-black text-gray-500">{String(i + 1).padStart(2, "0")}</span>
+              <span className="flex-1"><span className="block text-xs font-black">{trend.tag}</span><span className="text-xs text-gray-500">{trend.posts} {trend.posts === 1 ? "post" : "posts"}</span></span>
+              <ChevronRight size={16} className="text-gray-500"/>
+            </Link>) : <p className="py-4 text-xs text-gray-500">No hashtags are trending yet. Start a conversation with a hashtag.</p>}
           </div>
         </Card>
       </div>
@@ -2400,8 +2406,8 @@ function Friends() {
           <Link href={"/profile/" + (person.username ?? person.id)}><Avatar initials={initials(person.name)} image={person.image} color={colors[i % colors.length]} size="lg"/></Link>
           <div className="min-w-0 flex-1">
             <Link href={"/profile/" + (person.username ?? person.id)} className="flex items-center gap-1 truncate text-sm font-black hover:text-[#5a4be8]">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></Link>
-            <p className="text-xs text-gray-400">@{person.username ?? "member"}</p>
-            <p className="mt-2 truncate text-[11px] text-gray-400">{person.bio ?? "Socialhub member"}</p>
+            <p className="text-xs text-gray-500">@{person.username ?? "member"}</p>
+            <p className="mt-2 truncate text-xs text-gray-500">{person.bio ?? "Socialhub member"}</p>
           </div>
           {tab === "requests" && request ? (
             <div className="flex shrink-0 gap-2">
@@ -2409,11 +2415,11 @@ function Friends() {
               <button onClick={()=>void respond(request.id, "DECLINED")} className="grid size-9 place-items-center rounded-xl bg-gray-100 text-gray-600" aria-label="Decline request"><X size={15}/></button>
             </div>
           ) : tab === "sent" && request ? (
-            <button onClick={()=>void cancelRequest(request.id)} className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black text-gray-600" aria-label="Cancel friend request">Cancel</button>
+            <button onClick={()=>void cancelRequest(request.id)} className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-600" aria-label="Cancel friend request">Cancel</button>
           ) : tab === "suggestions" ? (
-            <button onClick={()=>void sendRequest(person.id)} className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-gray-950 px-3 text-[10px] font-black text-white" aria-label={"Add " + person.name + " as a friend"}><UserPlus size={14}/> Add friend</button>
+            <button onClick={()=>void sendRequest(person.id)} className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-gray-950 px-3 text-xs font-black text-white" aria-label={"Add " + person.name + " as a friend"}><UserPlus size={14}/> Add friend</button>
           ) : tab === "all" ? (
-            <button onClick={()=>void removeFriend(person.id)} className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black text-red-600 hover:bg-red-50" aria-label={"Remove " + person.name}>Remove</button>
+            <button onClick={()=>void removeFriend(person.id)} className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50" aria-label={"Remove " + person.name}>Remove</button>
           ) : null}
         </Card>;
       })}
@@ -2422,7 +2428,7 @@ function Friends() {
         <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-white p-10 text-center">
           <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Users size={20}/></span>
           <p className="mt-3 text-sm font-black">{tab === "requests" ? "No pending requests" : tab === "sent" ? "No sent requests" : tab === "suggestions" ? "No new suggestions" : "No friends yet"}</p>
-          <p className="mt-1 text-xs text-gray-400">{tab === "suggestions" ? "Everyone shown here is currently available to add." : "Your next connection will appear here."}</p>
+          <p className="mt-1 text-xs text-gray-500">{tab === "suggestions" ? "Everyone shown here is currently available to add." : "Your next connection will appear here."}</p>
         </div>
       ) : null}
     </div>
@@ -2586,7 +2592,7 @@ function Notifications() {
         <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-black">Recent activity</h2><button onClick={markAllRead} disabled={!session?.user} className="text-xs font-bold text-[#5a4be8] disabled:opacity-40">Mark all as read</button></div>
         <div className="mt-3 flex gap-1.5 overflow-x-auto pb-0.5">
           {([["ALL","All"],["UNREAD","Unread"],["SOCIAL","Social"],["MESSAGES","Messages"],["REQUESTS","Requests"]] as Array<[NotificationFilter,string]>).map(([value,label]) => (
-            <button key={value} type="button" onClick={() => setNotificationFilter(value)} className={"shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black " + (notificationFilter === value ? "bg-[#eeebff] text-[#5a4be8]" : "bg-gray-50 text-gray-500 hover:bg-gray-100")}>{label}</button>
+            <button key={value} type="button" onClick={() => setNotificationFilter(value)} className={"shrink-0 rounded-full px-3 py-1.5 text-xs font-black " + (notificationFilter === value ? "bg-[#eeebff] text-[#5a4be8]" : "bg-gray-50 text-gray-500 hover:bg-gray-100")}>{label}</button>
           ))}
         </div>
       </div>
@@ -2596,29 +2602,36 @@ function Notifications() {
         const Icon = iconFor(item.type);
         return <button key={item.id} onClick={() => void openNotification(item)} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
           <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(item.type)}`}><Icon size={17}/></span>
-          <span className="flex-1"><span className="block text-sm font-bold">{item.type === "SYSTEM" ? (item.title ?? "Account update") : <>{item.actor?.name ?? "Socialhub"} <AccountBadge verified={item.actor?.isVerified} owner={item.actor?.isOwner}/>{item.type === "LIKE" ? " liked your post." : item.type === "FOLLOW" ? " started following you." : item.type === "COMMENT" ? " commented on your post." : item.type === "FRIEND_REQUEST" ? " sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? " accepted your friend request." : item.type === "MESSAGE" ? " sent you a message." : item.type === "MENTION" ? " mentioned you." : " interacted with your content."}</>}</span><span className="mt-1 block text-xs text-gray-400">{item.type === "SYSTEM" && item.body ? item.body + " · " : ""}{new Date(item.createdAt).toLocaleString()}</span></span>
+          <span className="flex-1"><span className="block text-sm font-bold">{item.type === "SYSTEM" ? (item.title ?? "Account update") : <>{item.actor?.name ?? "Socialhub"} <AccountBadge verified={item.actor?.isVerified} owner={item.actor?.isOwner}/>{item.type === "LIKE" ? " liked your post." : item.type === "FOLLOW" ? " started following you." : item.type === "COMMENT" ? " commented on your post." : item.type === "FRIEND_REQUEST" ? " sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? " accepted your friend request." : item.type === "MESSAGE" ? " sent you a message." : item.type === "MENTION" ? " mentioned you." : " interacted with your content."}</>}</span><span className="mt-1 block text-xs text-gray-500">{item.type === "SYSTEM" && item.body ? item.body + " · " : ""}{new Date(item.createdAt).toLocaleString()}</span></span>
           {!item.readAt ? <span className="mt-2 size-2 shrink-0 rounded-full bg-[#6d5dfc]"/> : null}
         </button>;
         })}
-        {nextNotificationCursor ? <div className="border-t border-gray-100 p-4 text-center"><button type="button" onClick={() => void loadOlderNotifications()} disabled={loadingOlderNotifications} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-[10px] font-black text-gray-600 disabled:opacity-50">{loadingOlderNotifications ? "Loading older notifications…" : "Load older notifications"}</button></div> : null}
+        {nextNotificationCursor ? <div className="border-t border-gray-100 p-4 text-center"><button type="button" onClick={() => void loadOlderNotifications()} disabled={loadingOlderNotifications} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-black text-gray-600 disabled:opacity-50">{loadingOlderNotifications ? "Loading older notifications…" : "Load older notifications"}</button></div> : null}
       </> : !loading ? (
         session?.user ? (
           <div className="p-10 text-center">
             <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Bell size={20}/></span>
             <p className="mt-3 text-sm font-black">You’re all caught up.</p>
-            <p className="mt-1 text-xs text-gray-400">New likes, follows, comments, and requests will appear here.</p>
+            <p className="mt-1 text-xs text-gray-500">New likes, follows, comments, and requests will appear here.</p>
           </div>
         ) : (
           <div className="p-10 text-center">
             <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gray-100 text-gray-500"><Bell size={20}/></span>
             <p className="mt-3 text-sm font-black">Sign in to see your notifications</p>
-            <p className="mt-1 text-xs text-gray-400">Your real likes, follows, comments, messages, and requests will appear here.</p>
+            <p className="mt-1 text-xs text-gray-500">Your real likes, follows, comments, messages, and requests will appear here.</p>
           </div>
         )
       ) : null}
 
     </Card>
   </Page>;
+}
+
+function formatSessionDevice(userAgent: string | null) {
+  const ua = userAgent ?? "";
+  const browser = ua.includes("Edg/") ? "Edge" : ua.includes("Chrome/") ? "Chrome" : ua.includes("Firefox/") ? "Firefox" : ua.includes("Safari/") && !ua.includes("Chrome/") ? "Safari" : ua.includes("OPR/") ? "Opera" : "Browser";
+  const os = /Windows NT/.test(ua) ? "Windows" : /Android/.test(ua) ? "Android" : /iPhone|iPad|iPod/.test(ua) ? "iOS" : /Mac OS X/.test(ua) ? "macOS" : /Linux/.test(ua) ? "Linux" : "Device";
+  return browser + " on " + os;
 }
 
 function SettingsPage() {
@@ -2655,6 +2668,23 @@ function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [revokeOtherSessions, setRevokeOtherSessions] = useState(true);
   const [passwordBusy, setPasswordBusy] = useState(false);
+  const [activeSettingsSection, setActiveSettingsSection] = useState("general");
+
+  useEffect(() => {
+    const ids = ["general", "privacy", "notifications", "security", "help"];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target.id) setActiveSettingsSection(visible.target.id);
+      },
+      { rootMargin: "-20% 0px -65% 0px", threshold: [0, 0.25, 0.6] },
+    );
+    ids.forEach((id) => {
+      const element = document.getElementById(id);
+      if (element) observer.observe(element);
+    });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -3004,7 +3034,7 @@ function SettingsPage() {
     }
   }
 
-  return <Page eyebrow="Settings" title="Make Socialhub yours" subtitle="Control account, privacy, notifications, and security from one place.">
+  return <Page wide eyebrow="Settings" title="Make Socialhub yours" subtitle="Control account, privacy, notifications, and security from one place.">
     {!session?.user ? (
       <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-4 py-3 text-xs font-semibold text-[#5a4be8]">
         <span>Sign in to save account settings.</span>
@@ -3015,8 +3045,8 @@ function SettingsPage() {
 
     <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
       <Card id="settings-navigation" className="h-fit !p-3 lg:sticky lg:top-24">
-        <p className="px-1 text-[10px] font-black uppercase tracking-[.14em] text-gray-400">Settings areas</p>
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+        <p className="sr-only">Settings areas</p>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-none lg:flex-col lg:overflow-visible lg:pb-0">
           {[
             ["general", "General"],
             ["privacy", "Privacy"],
@@ -3024,20 +3054,20 @@ function SettingsPage() {
             ["security", "Security"],
             ["help", "Help"],
           ].map(([id, label]) => (
-            <button key={id} type="button" onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })} className="flex min-h-10 w-full items-center rounded-xl px-3 text-left text-xs font-black text-gray-500 hover:bg-gray-50 hover:text-gray-900">{label}</button>
+            <button key={id} type="button" onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })} className={"flex min-h-10 w-full items-center rounded-xl px-3 text-left text-xs font-black transition " + (activeSettingsSection === id ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500 hover:bg-gray-50 hover:text-gray-900")}>{label}</button>
           ))}
         </div>
       </Card>
 
       <div className="space-y-5">
-        <Card id="general">
+        <Card id="general" className={activeSettingsSection === "general" ? "block" : "hidden lg:block"}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[#6d5dfc]">General</p><h2 className="mt-1 text-xl font-black">Account</h2><p className="mt-2 text-xs text-gray-400">Edit the personal information shown across Socialhub.</p></div>
+            <div><p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">General</p><h2 className="mt-1 text-xl font-black">Account</h2><p className="mt-2 text-xs text-gray-500">Edit the personal information shown across Socialhub.</p></div>
             <button type="button" onClick={() => setEditingProfile((value) => !value)} disabled={!session?.user || loading} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40"><Pencil size={14} className="mr-1 inline"/>{editingProfile ? "Close editor" : "Edit profile"}</button>
           </div>
           {!editingProfile ? (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {[["Display name",accountForm.name,Users],["Username",accountForm.username ? "@" + accountForm.username : "Not set",AtSign],["Bio",accountForm.bio || "No bio yet",MessageCircle],["Location",accountForm.location || "Not set",Compass],["Website",accountForm.website || "Not set",Globe2],["Email",email,Mail]].map(([title,detail,Icon]) => <div key={String(title)} className="flex items-start gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3"><span className="grid size-9 place-items-center rounded-xl bg-white text-gray-500"><Icon size={15}/></span><span className="min-w-0"><span className="block text-[10px] font-black uppercase tracking-[.08em] text-gray-400">{String(title)}</span><span className="mt-1 block break-words text-xs font-bold text-gray-700">{String(detail)}</span></span></div>)}
+              {[["Display name",accountForm.name,Users],["Username",accountForm.username ? "@" + accountForm.username : "Not set",AtSign],["Bio",accountForm.bio || "No bio yet",MessageCircle],["Location",accountForm.location || "Not set",Compass],["Website",accountForm.website || "Not set",Globe2],["Email",email,Mail]].map(([title,detail,Icon]) => <div key={String(title)} className="flex items-start gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3"><span className="grid size-9 place-items-center rounded-xl bg-white text-gray-500"><Icon size={15}/></span><span className="min-w-0"><span className="block text-xs font-black uppercase tracking-[.08em] text-gray-500">{String(title)}</span><span className="mt-1 block break-words text-xs font-bold text-gray-700">{String(detail)}</span></span></div>)}
             </div>
           ) : (
             <div className="mt-4 grid gap-3 rounded-2xl border border-[#ddd8ff] bg-[#f8f7ff] p-4 sm:grid-cols-2">
@@ -3050,14 +3080,14 @@ function SettingsPage() {
             </div>
           )}
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <button type="button" onClick={() => { setChangingEmail(true); setEmailStep("idle"); }} disabled={!session?.user} className="flex min-h-14 items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3 text-left hover:bg-gray-50 disabled:opacity-40"><span className="grid size-9 place-items-center rounded-xl bg-[#eeebff] text-[#5a4be8]"><Mail size={16}/></span><span className="flex-1"><span className="block text-xs font-black">Change email</span><span className="text-[10px] text-gray-400">Verify current and new address.</span></span><ChevronRight size={16}/></button>
-            <button type="button" onClick={() => setChangingPassword(true)} disabled={!session?.user} className="flex min-h-14 items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3 text-left hover:bg-gray-50 disabled:opacity-40"><span className="grid size-9 place-items-center rounded-xl bg-gray-100 text-gray-600"><KeyRound size={16}/></span><span className="flex-1"><span className="block text-xs font-black">Change password</span><span className="text-[10px] text-gray-400">Update it without leaving settings.</span></span><ChevronRight size={16}/></button>
+            <button type="button" onClick={() => { setChangingEmail(true); setEmailStep("idle"); }} disabled={!session?.user} className="flex min-h-14 items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3 text-left hover:bg-gray-50 disabled:opacity-40"><span className="grid size-9 place-items-center rounded-xl bg-[#eeebff] text-[#5a4be8]"><Mail size={16}/></span><span className="flex-1"><span className="block text-xs font-black">Change email</span><span className="text-xs text-gray-500">Verify current and new address.</span></span><ChevronRight size={16}/></button>
+            <button type="button" onClick={() => setChangingPassword(true)} disabled={!session?.user} className="flex min-h-14 items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3 text-left hover:bg-gray-50 disabled:opacity-40"><span className="grid size-9 place-items-center rounded-xl bg-gray-100 text-gray-600"><KeyRound size={16}/></span><span className="flex-1"><span className="block text-xs font-black">Change password</span><span className="text-xs text-gray-500">Update it without leaving settings.</span></span><ChevronRight size={16}/></button>
           </div>
         </Card>
 
         {changingEmail ? (
           <Card className="border-[#d9d4ff] bg-[#fbfaff]">
-            <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-black">Change email address</h2><p className="mt-1 text-xs text-gray-400">Two verification steps protect this change.</p></div><button type="button" onClick={() => setChangingEmail(false)} className="social-icon-button" aria-label="Close email change"><X size={16}/></button></div>
+            <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-black">Change email address</h2><p className="mt-1 text-xs text-gray-500">Two verification steps protect this change.</p></div><button type="button" onClick={() => setChangingEmail(false)} className="social-icon-button" aria-label="Close email change"><X size={16}/></button></div>
             {emailStep === "idle" ? <div className="mt-4"><p className="text-xs font-black text-gray-700">Current email</p><p className="mt-1 text-sm font-bold">{email}</p><button type="button" onClick={() => void sendCurrentEmailOtp()} disabled={emailBusy || emailCooldown > 0} className="mt-3 w-full rounded-xl bg-gray-950 px-4 py-3 text-xs font-black text-white disabled:opacity-40">{emailBusy ? "Sending…" : emailCooldown ? "Resend in " + emailCooldown + "s" : "Send code to current email"}</button></div> : null}
             {emailStep === "current" ? <div className="mt-4 space-y-3"><label className="block"><span className="mb-1.5 block text-xs font-black">New email</span><input type="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"/></label><label className="block"><span className="mb-1.5 block text-xs font-black">Current-email OTP</span><input inputMode="numeric" maxLength={6} value={currentEmailOtp} onChange={(event) => setCurrentEmailOtp(event.target.value.replace(/\D/g,"").slice(0,6))} className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm text-center tracking-[.4em]"/></label><button type="button" onClick={() => void sendNewEmailOtp()} disabled={emailBusy || currentEmailOtp.length !== 6 || !newEmail.trim()} className="w-full rounded-xl bg-gray-950 px-4 py-3 text-xs font-black text-white disabled:opacity-40">{emailBusy ? "Checking…" : "Verify & send new-email code"}</button></div> : null}
             {emailStep === "new" ? <div className="mt-4 space-y-3"><p className="text-xs text-gray-500">We sent a code to <span className="font-black text-gray-800">{newEmail}</span>.</p><label className="block"><span className="mb-1.5 block text-xs font-black">New-email OTP</span><input inputMode="numeric" maxLength={6} value={newEmailOtp} onChange={(event) => setNewEmailOtp(event.target.value.replace(/\D/g,"").slice(0,6))} className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm text-center tracking-[.4em]"/></label><button type="button" onClick={() => void confirmNewEmail()} disabled={emailBusy || newEmailOtp.length !== 6} className="w-full rounded-xl bg-gray-950 px-4 py-3 text-xs font-black text-white disabled:opacity-40">{emailBusy ? "Updating…" : "Confirm new email"}</button></div> : null}
@@ -3066,44 +3096,44 @@ function SettingsPage() {
 
         {changingPassword ? (
           <Card>
-            <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-black">Change password</h2><p className="mt-1 text-xs text-gray-400">Enter your current password, then choose a new one.</p></div><button type="button" onClick={() => setChangingPassword(false)} className="social-icon-button" aria-label="Close password change"><X size={16}/></button></div>
+            <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-black">Change password</h2><p className="mt-1 text-xs text-gray-500">Enter your current password, then choose a new one.</p></div><button type="button" onClick={() => setChangingPassword(false)} className="social-icon-button" aria-label="Close password change"><X size={16}/></button></div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="block"><span className="mb-1.5 block text-xs font-black">Current password</span><input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"/></label>
               <span className="hidden sm:block"/>
               <label className="block"><span className="mb-1.5 block text-xs font-black">New password</span><input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"/></label>
               <label className="block"><span className="mb-1.5 block text-xs font-black">Confirm new password</span><input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"/></label>
-              <label className="flex items-center gap-3 rounded-xl bg-gray-50 p-3 text-xs sm:col-span-2"><input type="checkbox" checked={revokeOtherSessions} onChange={(event) => setRevokeOtherSessions(event.target.checked)} className="size-4 accent-[#6d5dfc]"/><span><span className="block font-black">Sign out other devices</span><span className="text-[10px] text-gray-400">Revoke other sessions when the password changes.</span></span></label>
+              <label className="flex items-center gap-3 rounded-xl bg-gray-50 p-3 text-xs sm:col-span-2"><input type="checkbox" checked={revokeOtherSessions} onChange={(event) => setRevokeOtherSessions(event.target.checked)} className="size-4 accent-[#6d5dfc]"/><span><span className="block font-black">Sign out other devices</span><span className="text-xs text-gray-500">Revoke other sessions when the password changes.</span></span></label>
               <div className="flex gap-2 sm:col-span-2 sm:justify-end"><button type="button" onClick={() => setChangingPassword(false)} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-600">Cancel</button><button type="button" onClick={() => void changePassword()} disabled={passwordBusy || !currentPassword || !newPassword || !confirmPassword} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40">{passwordBusy ? "Changing…" : "Change password"}</button></div>
             </div>
           </Card>
         ) : null}
 
-        <Card id="privacy">
-          <p className="text-[10px] font-black uppercase tracking-[.14em] text-[#6d5dfc]">Privacy</p>
+        <Card id="privacy" className={activeSettingsSection === "privacy" ? "block" : "hidden lg:block"}>
+          <p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Privacy</p>
           <h2 className="mt-1 text-xl font-black">Privacy & presence</h2>
           <div className="divide-y divide-gray-100">
             <div className="flex items-center gap-4 py-4">
-              <div className="flex-1"><p className="text-sm font-bold">Private account</p><p className="text-xs text-gray-400">Only approved followers can see your posts.</p></div>
+              <div className="flex-1"><p className="text-sm font-bold">Private account</p><p className="text-xs text-gray-500">Only approved followers can see your posts.</p></div>
               <SettingsToggle value={privateAccount} disabled={!session?.user || savingPrivacy} onChange={(value)=>void updatePrivacy(value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
-              <div className="flex-1"><p className="text-sm font-bold">Show Friends / mutual list</p><p className="text-xs text-gray-400">Control whether other people can open your Friends and mutual connections list.</p></div>
+              <div className="flex-1"><p className="text-sm font-bold">Show Friends / mutual list</p><p className="text-xs text-gray-500">Control whether other people can open your Friends and mutual connections list.</p></div>
               <SettingsToggle value={privacySettings.showFriendsList} disabled={!session?.user || savingPrivacySetting === "showFriendsList"} onChange={(value)=>void updatePrivacySetting("showFriendsList", value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
-              <div className="flex-1"><p className="text-sm font-bold">Show followers list</p><p className="text-xs text-gray-400">Control whether other people can open your followers list.</p></div>
+              <div className="flex-1"><p className="text-sm font-bold">Show followers list</p><p className="text-xs text-gray-500">Control whether other people can open your followers list.</p></div>
               <SettingsToggle value={privacySettings.showFollowersList} disabled={!session?.user || savingPrivacySetting === "showFollowersList"} onChange={(value)=>void updatePrivacySetting("showFollowersList", value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
-              <div className="flex-1"><p className="text-sm font-bold">Show following list</p><p className="text-xs text-gray-400">Control whether other people can open your following list.</p></div>
+              <div className="flex-1"><p className="text-sm font-bold">Show following list</p><p className="text-xs text-gray-500">Control whether other people can open your following list.</p></div>
               <SettingsToggle value={privacySettings.showFollowingList} disabled={!session?.user || savingPrivacySetting === "showFollowingList"} onChange={(value)=>void updatePrivacySetting("showFollowingList", value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
-              <div className="flex-1"><p className="text-sm font-bold">Allow messages from everyone</p><p className="text-xs text-gray-400">Turn off to limit new direct conversations to accepted friends.</p></div>
+              <div className="flex-1"><p className="text-sm font-bold">Allow messages from everyone</p><p className="text-xs text-gray-500">Turn off to limit new direct conversations to accepted friends.</p></div>
               <SettingsToggle value={privacySettings.allowMessagesEveryone} disabled={!session?.user || savingPrivacySetting === "allowMessagesEveryone"} onChange={(value)=>void updatePrivacySetting("allowMessagesEveryone", value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
-              <div className="flex-1"><p className="text-sm font-bold">Allow friend requests</p><p className="text-xs text-gray-400">Turn off to stop new people from sending friend requests.</p></div>
+              <div className="flex-1"><p className="text-sm font-bold">Allow friend requests</p><p className="text-xs text-gray-500">Turn off to stop new people from sending friend requests.</p></div>
               <SettingsToggle value={privacySettings.allowFriendRequests} disabled={!session?.user || savingPrivacySetting === "allowFriendRequests"} onChange={(value)=>void updatePrivacySetting("allowFriendRequests", value)}/>
             </div>
           </div>
@@ -3111,46 +3141,46 @@ function SettingsPage() {
 
         <Card>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div><h2 className="text-sm font-black">Account verification</h2><p className="mt-2 text-xs leading-5 text-gray-400">Verified accounts receive a blue badge. The owner badge is separate and cannot be requested.</p></div>
+            <div><h2 className="text-sm font-black">Account verification</h2><p className="mt-2 text-xs leading-5 text-gray-500">Verified accounts receive a blue badge. The owner badge is separate and cannot be requested.</p></div>
             <AccountBadge verified={verification.isVerified} owner={verification.isOwner} showLabel size="md"/>
           </div>
-          {verification.isVerified || verification.isOwner ? <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-xs font-bold text-blue-700">Your account already has platform trust status.</div> : verification.status === "PENDING" ? <div className="mt-4 rounded-2xl bg-amber-50 p-4"><p className="text-xs font-black text-amber-800">Verification request pending</p><p className="mt-1 text-[11px] text-amber-700">Submitted {verification.createdAt ? new Date(verification.createdAt).toLocaleString() : "recently"}.</p></div> : <div className="mt-4 space-y-3"><textarea value={verificationReason} onChange={(e)=>setVerificationReason(e.target.value)} rows={4} maxLength={500} placeholder="Explain why your account should be verified (20–500 characters)." className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs outline-none focus:border-[#a79dff] focus:bg-white"/><div className="flex items-center justify-between gap-3"><p className="text-[10px] text-gray-400">{verificationReason.trim().length}/500 characters</p><button type="button" onClick={()=>void submitVerificationRequest()} disabled={!session?.user || verificationSubmitting || verificationReason.trim().length < 20} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40">{verificationSubmitting?"Submitting…":"Request blue tick"}</button></div>{verification.status==="REJECTED" && verification.adminNote ? <p className="text-[11px] text-red-600">Previous review: {verification.adminNote}</p> : null}</div>}
+          {verification.isVerified || verification.isOwner ? <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-xs font-bold text-blue-700">Your account already has platform trust status.</div> : verification.status === "PENDING" ? <div className="mt-4 rounded-2xl bg-amber-50 p-4"><p className="text-xs font-black text-amber-800">Verification request pending</p><p className="mt-1 text-xs text-amber-700">Submitted {verification.createdAt ? new Date(verification.createdAt).toLocaleString() : "recently"}.</p></div> : <div className="mt-4 space-y-3"><textarea value={verificationReason} onChange={(e)=>setVerificationReason(e.target.value)} rows={4} maxLength={500} placeholder="Explain why your account should be verified (20–500 characters)." className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs outline-none focus:border-[#a79dff] focus:bg-white"/><div className="flex items-center justify-between gap-3"><p className="text-xs text-gray-500">{verificationReason.trim().length}/500 characters</p><button type="button" onClick={()=>void submitVerificationRequest()} disabled={!session?.user || verificationSubmitting || verificationReason.trim().length < 20} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50 disabled:bg-gray-400">{verificationSubmitting?"Submitting…":"Request blue tick"}</button></div>{verification.status==="REJECTED" && verification.adminNote ? <p className="text-xs text-red-600">Previous review: {verification.adminNote}</p> : null}</div>}
         </Card>
-<Card id="notifications">
-          <p className="text-[10px] font-black uppercase tracking-[.14em] text-[#6d5dfc]">Notifications</p>
+<Card id="notifications" className={activeSettingsSection === "notifications" ? "block" : "hidden lg:block"}>
+          <p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Notifications</p>
           <h2 className="mt-1 text-xl font-black">Choose what reaches you</h2>
-          <p className="mt-2 text-xs leading-5 text-gray-400">Choose which activity appears in your notification inbox.</p>
-          <div className="mt-4 divide-y divide-gray-100"><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Likes</p><p className="mt-0.5 text-[11px] text-gray-400">When someone likes your posts.</p></div><SettingsToggle value={Boolean(preferences.likes)} disabled={!session?.user || savingPreference === "likes"} onChange={(value)=>void updatePreference("likes", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Comments</p><p className="mt-0.5 text-[11px] text-gray-400">When someone comments on your posts.</p></div><SettingsToggle value={Boolean(preferences.comments)} disabled={!session?.user || savingPreference === "comments"} onChange={(value)=>void updatePreference("comments", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Follows</p><p className="mt-0.5 text-[11px] text-gray-400">When someone follows you.</p></div><SettingsToggle value={Boolean(preferences.follows)} disabled={!session?.user || savingPreference === "follows"} onChange={(value)=>void updatePreference("follows", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests</p><p className="mt-0.5 text-[11px] text-gray-400">When someone sends you a friend request.</p></div><SettingsToggle value={Boolean(preferences.friendRequests)} disabled={!session?.user || savingPreference === "friendRequests"} onChange={(value)=>void updatePreference("friendRequests", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests accepted</p><p className="mt-0.5 text-[11px] text-gray-400">When a friend request is accepted.</p></div><SettingsToggle value={Boolean(preferences.friendAccepted)} disabled={!session?.user || savingPreference === "friendAccepted"} onChange={(value)=>void updatePreference("friendAccepted", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Messages</p><p className="mt-0.5 text-[11px] text-gray-400">When you receive a new message notification.</p></div><SettingsToggle value={Boolean(preferences.messages)} disabled={!session?.user || savingPreference === "messages"} onChange={(value)=>void updatePreference("messages", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Mentions</p><p className="mt-0.5 text-[11px] text-gray-400">When someone mentions you.</p></div><SettingsToggle value={Boolean(preferences.mentions)} disabled={!session?.user || savingPreference === "mentions"} onChange={(value)=>void updatePreference("mentions", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Shares</p><p className="mt-0.5 text-[11px] text-gray-400">When your content is shared.</p></div><SettingsToggle value={Boolean(preferences.shares)} disabled={!session?.user || savingPreference === "shares"} onChange={(value)=>void updatePreference("shares", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">System</p><p className="mt-0.5 text-[11px] text-gray-400">Important account and platform notices.</p></div><SettingsToggle value={Boolean(preferences.system)} disabled={!session?.user || savingPreference === "system"} onChange={(value)=>void updatePreference("system", value)}/></div></div>
+          <p className="mt-2 text-xs leading-5 text-gray-500">Choose which activity appears in your notification inbox.</p>
+          <div className="mt-4 divide-y divide-gray-100"><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Likes</p><p className="mt-0.5 text-xs text-gray-500">When someone likes your posts.</p></div><SettingsToggle value={Boolean(preferences.likes)} disabled={!session?.user || savingPreference === "likes"} onChange={(value)=>void updatePreference("likes", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Comments</p><p className="mt-0.5 text-xs text-gray-500">When someone comments on your posts.</p></div><SettingsToggle value={Boolean(preferences.comments)} disabled={!session?.user || savingPreference === "comments"} onChange={(value)=>void updatePreference("comments", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Follows</p><p className="mt-0.5 text-xs text-gray-500">When someone follows you.</p></div><SettingsToggle value={Boolean(preferences.follows)} disabled={!session?.user || savingPreference === "follows"} onChange={(value)=>void updatePreference("follows", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests</p><p className="mt-0.5 text-xs text-gray-500">When someone sends you a friend request.</p></div><SettingsToggle value={Boolean(preferences.friendRequests)} disabled={!session?.user || savingPreference === "friendRequests"} onChange={(value)=>void updatePreference("friendRequests", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests accepted</p><p className="mt-0.5 text-xs text-gray-500">When a friend request is accepted.</p></div><SettingsToggle value={Boolean(preferences.friendAccepted)} disabled={!session?.user || savingPreference === "friendAccepted"} onChange={(value)=>void updatePreference("friendAccepted", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Messages</p><p className="mt-0.5 text-xs text-gray-500">When you receive a new message notification.</p></div><SettingsToggle value={Boolean(preferences.messages)} disabled={!session?.user || savingPreference === "messages"} onChange={(value)=>void updatePreference("messages", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Mentions</p><p className="mt-0.5 text-xs text-gray-500">When someone mentions you.</p></div><SettingsToggle value={Boolean(preferences.mentions)} disabled={!session?.user || savingPreference === "mentions"} onChange={(value)=>void updatePreference("mentions", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Shares</p><p className="mt-0.5 text-xs text-gray-500">When your content is shared.</p></div><SettingsToggle value={Boolean(preferences.shares)} disabled={!session?.user || savingPreference === "shares"} onChange={(value)=>void updatePreference("shares", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">System</p><p className="mt-0.5 text-xs text-gray-500">Important account and platform notices.</p></div><SettingsToggle value={Boolean(preferences.system)} disabled={!session?.user || savingPreference === "system"} onChange={(value)=>void updatePreference("system", value)}/></div></div>
         </Card>
 
         {session?.user ? (
-          <Card id="security">
+          <Card id="security" className={activeSettingsSection === "security" ? "block" : "hidden lg:block"}>
             <div className="flex items-center justify-between gap-3">
-              <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[#6d5dfc]">Security</p><h2 className="mt-1 text-xl font-black">Active sessions</h2><p className="mt-1 text-xs text-gray-400">Review devices signed in to your account.</p></div>
-              <button type="button" onClick={() => void revokeSession()} disabled={sessions.length <= 1} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[11px] font-black text-gray-700 disabled:cursor-not-allowed disabled:opacity-40">Sign out other devices</button>
+              <div><p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Security</p><h2 className="mt-1 text-xl font-black">Active sessions</h2><p className="mt-1 text-xs text-gray-500">Review devices signed in to your account.</p></div>
+              <button type="button" onClick={() => void revokeSession()} disabled={sessions.length <= 1} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-700 disabled:cursor-not-allowed disabled:opacity-40">Sign out other devices</button>
             </div>
             <div className="mt-4 space-y-2">
-              {loadingSessions ? <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-400">Loading sessions…</div> :
+              {loadingSessions ? <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">Loading sessions…</div> :
                sessions.length ? sessions.map((item) => (
                 <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-gray-100 p-3">
                   <span className={"grid size-9 place-items-center rounded-xl " + (item.isCurrent ? "bg-[#eeebff] text-[#5a4be8]" : "bg-gray-100 text-gray-500")}><Shield size={16}/></span>
-                  <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{item.isCurrent ? "Current device" : item.userAgent?.slice(0, 70) || "Other session"}</span><span className="block mt-0.5 text-[10px] text-gray-400">{item.ipAddress ? item.ipAddress + " · " : ""}{new Date(item.updatedAt).toLocaleString()}</span></span>
-                  {!item.isCurrent ? <button type="button" onClick={() => void revokeSession(item.id)} className="rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-[10px] font-black text-gray-600 hover:bg-gray-50">Revoke</button> : null}
+                  <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{item.isCurrent ? "Current device" : formatSessionDevice(item.userAgent)}</span><span className="mt-0.5 block truncate text-xs text-gray-500">{item.ipAddress ? item.ipAddress + " · " : ""}{new Date(item.updatedAt).toLocaleString()}</span></span>
+                  {!item.isCurrent ? <button type="button" onClick={() => void revokeSession(item.id)} className="rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-xs font-black text-gray-600 hover:bg-gray-50">Revoke</button> : null}
                 </div>
-              )) : <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-400">No active sessions were found.</div>}
+              )) : <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">No active sessions were found.</div>}
             </div>
             <button onClick={()=>void signOut()} className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-700 hover:bg-gray-50">Sign out current device</button>
           </Card>
         ) : null}
 
-        <Card id="help">
-          <p className="text-[10px] font-black uppercase tracking-[.14em] text-[#6d5dfc]">Help</p>
+        <Card id="help" className={activeSettingsSection === "help" ? "block" : "hidden lg:block"}>
+          <p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Help</p>
           <h2 className="mt-1 text-xl font-black">Find the setting you need</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">General</p><p className="mt-1 text-[11px] text-gray-400">Edit profile details, email, or password.</p></div>
-            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">Privacy</p><p className="mt-1 text-[11px] text-gray-400">Control who can see lists and contact you.</p></div>
-            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">Notifications</p><p className="mt-1 text-[11px] text-gray-400">Choose which activity notifications stay enabled.</p></div>
-            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">Security</p><p className="mt-1 text-[11px] text-gray-400">Manage sessions, verification, and account deletion.</p></div>
+            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">General</p><p className="mt-1 text-xs text-gray-500">Edit profile details, email, or password.</p></div>
+            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">Privacy</p><p className="mt-1 text-xs text-gray-500">Control who can see lists and contact you.</p></div>
+            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">Notifications</p><p className="mt-1 text-xs text-gray-500">Choose which activity notifications stay enabled.</p></div>
+            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">Security</p><p className="mt-1 text-xs text-gray-500">Manage sessions, verification, and account deletion.</p></div>
           </div>
         </Card>
 
@@ -3169,12 +3199,16 @@ function Admin({ section="overview" }: { section?: string }) {
 export function SocialPages({ screen }: { screen: Screen }) {
   if (screen.kind==="login") return <Auth/>;
   if (screen.kind==="signup") return <Auth signup/>;
-  if (screen.kind==="profile") return <Profile username={screen.username}/>;
-  if (screen.kind==="messages") return <Messages initialConversationId={screen.search}/>;
-  if (screen.kind==="discover") return <Discover/>;
-  if (screen.kind==="friends") return <Friends/>;
-  if (screen.kind==="notifications") return <Notifications/>;
-  if (screen.kind==="settings") return <SettingsPage/>;
   if (screen.kind==="admin") return <Admin section={screen.section}/>;
-  return <Page eyebrow="Socialhub" title="You're all caught up." subtitle="Use the main navigation to keep exploring the experience."><Card><div className="flex items-start gap-4"><span className="grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><Sparkles size={20}/></span><div><h2 className="font-black">This route is ready.</h2><p className="mt-2 text-sm text-gray-500">The screen shell is in place so real data can be connected without redesigning the interface.</p></div></div></Card></Page>;
+
+  const content =
+    screen.kind==="profile" ? <Profile username={screen.username}/> :
+    screen.kind==="messages" ? <Messages initialConversationId={screen.search}/> :
+    screen.kind==="discover" ? <Discover/> :
+    screen.kind==="friends" ? <Friends/> :
+    screen.kind==="notifications" ? <Notifications/> :
+    screen.kind==="settings" ? <SettingsPage/> :
+    <Page eyebrow="Socialhub" title="You're all caught up." subtitle="Use the main navigation to keep exploring the experience."><Card><div className="flex items-start gap-4"><span className="grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><Sparkles size={20}/></span><div><h2 className="font-black">This route is ready.</h2><p className="mt-2 text-sm text-gray-500">The screen shell is in place so real data can be connected without redesigning the interface.</p></div></div></Card></Page>;
+
+  return <AppShell>{content}</AppShell>;
 }

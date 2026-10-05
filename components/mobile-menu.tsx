@@ -71,7 +71,7 @@ export function MobileMenu() {
           <button type="button" onClick={() => setOpen(false)} className="absolute inset-0 bg-gray-950/50 backdrop-blur-[2px]" aria-label="Close menu" />
           <aside id="socialhub-mobile-menu" className="absolute right-0 top-0 flex h-dvh w-[min(380px,92vw)] flex-col border-l border-gray-200 bg-white shadow-[-20px_0_70px_rgba(17,24,39,.18)]">
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-              <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#6d5dfc]">Socialhub</p><p className="mt-1 text-lg font-black tracking-[-.03em] text-gray-950">Navigation</p></div>
+              <div><p className="text-xs font-black uppercase tracking-[.18em] text-[#6d5dfc]">Socialhub</p><p className="mt-1 text-lg font-black tracking-[-.03em] text-gray-950">Navigation</p></div>
               <button ref={closeButtonRef} type="button" onClick={() => setOpen(false)} className="social-icon-button min-h-11 min-w-11" aria-label="Close navigation menu"><X size={19}/></button>
             </div>
             <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
@@ -83,7 +83,7 @@ export function MobileMenu() {
                 })}
                 <Link href={profileHref} onClick={() => setOpen(false)} className={"flex min-h-13 items-center gap-3 rounded-2xl px-4 text-sm font-black transition " + (pathname.startsWith("/profile") ? "bg-[#eeebff] text-[#5a4be8] shadow-sm" : "text-gray-600 hover:bg-gray-50")}><Users size={19}/><span className="flex-1">Profile</span>{pathname.startsWith("/profile") ? <span className="size-2 rounded-full bg-[#6d5dfc]" aria-hidden="true"/> : null}</Link>
               </nav>
-              <div className="mt-5 rounded-3xl border border-gray-100 bg-gray-50 p-4"><p className="text-xs font-black text-gray-800">Quick access</p><div className="mt-3 grid grid-cols-2 gap-2"><Link href="/settings#privacy" onClick={() => setOpen(false)} className="rounded-2xl bg-white p-3 text-[11px] font-black text-gray-600 shadow-sm">Privacy</Link><Link href="/settings#security" onClick={() => setOpen(false)} className="rounded-2xl bg-white p-3 text-[11px] font-black text-gray-600 shadow-sm">Security</Link></div></div>
+              <div className="mt-5 rounded-3xl border border-gray-100 bg-gray-50 p-4"><p className="text-xs font-black text-gray-800">Quick access</p><div className="mt-3 grid grid-cols-2 gap-2"><Link href="/settings#privacy" onClick={() => setOpen(false)} className="rounded-2xl bg-white p-3 text-xs font-black text-gray-600 shadow-sm">Privacy</Link><Link href="/settings#security" onClick={() => setOpen(false)} className="rounded-2xl bg-white p-3 text-xs font-black text-gray-600 shadow-sm">Security</Link></div></div>
             </div>
             <div className="border-t border-gray-100 p-4">{session?.user ? <button type="button" onClick={() => void signOut()} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-sm font-black text-red-600 hover:bg-red-50"><LogOut size={18}/>Log out</button> : <Link href="/login" onClick={() => setOpen(false)} className="flex min-h-12 w-full items-center justify-center rounded-2xl bg-[#6d5dfc] px-4 text-sm font-black text-white">Sign in</Link>}</div>
           </aside>

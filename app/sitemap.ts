@@ -6,19 +6,24 @@ const SITE_URL = "https://socialhub-ruby.vercel.app";
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const users = await prisma.user.findMany({
-    where: {
-      username: { not: null },
-      isActive: true,
-      deletedAt: null,
-      isPrivate: false,
-    },
-    select: {
-      username: true,
-      updatedAt: true,
-    },
-    orderBy: { updatedAt: "desc" },
-  });
+  let users: Array<{ username: string | null; updatedAt: Date }> = [];
+  try {
+    users = await prisma.user.findMany({
+      where: {
+        username: { not: null },
+        isActive: true,
+        deletedAt: null,
+        isPrivate: false,
+      },
+      select: {
+        username: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+  } catch {
+    // The sitemap must remain build-safe when CI has no production database.
+  }
 
   return [
     {

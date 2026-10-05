@@ -4,22 +4,14 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
-import { MobileMenu } from "@/components/mobile-menu";
-import { BottomNav } from "@/components/bottom-nav";
-import { useUnreadSummary } from "@/hooks/use-unread-summary";
+import { AppShell } from "@/components/app-shell";
 import { emitPostSyncEvent, subscribePostSync } from "@/lib/post-sync";
 import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
 import { useLivePoll } from "@/hooks/use-live-poll";
 import { compactCount, fullCount } from "@/lib/compact-count";
 import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
-import { useRouter } from "next/navigation";
 import {
-  Bell,
-  Bookmark,
-  ChevronDown,
-  Compass,
-  Home,
   Image as ImageIcon,
   Loader2,
   MessageCircle,
@@ -28,12 +20,12 @@ import {
   Plus,
   Search,
   Send,
-  Settings,
   Share2,
+  Bookmark,
+  Users,
   ShieldAlert,
   Sparkles,
   Trash2,
-  Users,
   X,
 } from "lucide-react";
 
@@ -87,14 +79,6 @@ type SuggestedUser = {
   isFollowing: boolean;
   isFriend: boolean;
 };
-
-const navItems = [
-  { label: "Home", icon: Home, active: true, href: "/home" },
-  { label: "Discover", icon: Compass, href: "/discover" },
-  { label: "Friends", icon: Users, href: "/friends" },
-  { label: "Messages", icon: MessageCircle, href: "/messages" },
-  { label: "Notifications", icon: Bell, href: "/notifications" },
-];
 
 function Avatar({
   name,
@@ -340,24 +324,24 @@ function CommentThread({
       <div className="mb-2 flex items-center justify-between">
         <p className="text-xs font-black text-gray-700">Comments</p>
         {replyTo ? (
-          <button type="button" onClick={() => setReplyTo(null)} className="flex items-center gap-1 text-[11px] font-bold text-gray-400 hover:text-gray-700">
+          <button type="button" onClick={() => setReplyTo(null)} className="flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-gray-700">
             <X size={13} /> Cancel reply
           </button>
         ) : null}
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 py-5 text-xs text-gray-400">
+        <div className="flex items-center gap-2 py-5 text-xs text-gray-500">
           <Loader2 size={14} className="animate-spin" /> Loading comments…
         </div>
       ) : comments.length === 0 ? (
-        <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center text-xs text-gray-400">
+        <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center text-xs text-gray-500">
           No comments yet. Start the conversation.
         </div>
       ) : (
         <div className="space-y-4">
           {nextBefore ? (
-            <button type="button" onClick={() => void loadOlder()} disabled={loadingMore} className="mx-auto block rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black text-gray-600 disabled:opacity-50">
+            <button type="button" onClick={() => void loadOlder()} disabled={loadingMore} className="mx-auto block rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-600 disabled:opacity-50">
               {loadingMore ? "Loading…" : "Load older comments"}
             </button>
           ) : null}
@@ -369,7 +353,7 @@ function CommentThread({
                   {editingCommentId === comment.id ? (
                     <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2">
                       <textarea value={editingCommentText} onChange={(event) => setEditingCommentText(event.target.value)} rows={2} maxLength={2000} className="w-full resize-none rounded-xl bg-gray-50 p-2 text-xs outline-none"/>
-                      <div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentText(""); }} className="text-[10px] font-black text-gray-500">Cancel</button><button type="button" onClick={() => void updateComment(comment.id)} disabled={!editingCommentText.trim() || savingComment} className="rounded-lg bg-gray-950 px-3 py-1.5 text-[10px] font-black text-white disabled:opacity-40">{savingComment ? "Saving…" : "Save"}</button></div>
+                      <div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentText(""); }} className="text-xs font-black text-gray-500">Cancel</button><button type="button" onClick={() => void updateComment(comment.id)} disabled={!editingCommentText.trim() || savingComment} className="rounded-lg bg-gray-950 px-3 py-1.5 text-xs font-black text-white disabled:opacity-40">{savingComment ? "Saving…" : "Save"}</button></div>
                     </div>
                   ) : (
                     <div className="rounded-2xl bg-white px-3 py-2.5">
@@ -377,7 +361,7 @@ function CommentThread({
                       <p className="mt-1 text-xs leading-5 text-gray-600">{comment.content}</p>
                     </div>
                   )}
-                  <div className="mt-1 flex gap-3 px-1 text-[10px] font-bold text-gray-400">
+                  <div className="mt-1 flex gap-3 px-1 text-xs font-bold text-gray-500">
                     <span>{timeLabel(comment.createdAt)}</span>
                     {session?.user ? (
                       <button type="button" onClick={() => setReplyTo(comment.id)} className="hover:text-[#5a4be8]">Reply</button>
@@ -399,7 +383,7 @@ function CommentThread({
                         {editingCommentId === reply.id ? (
                           <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2">
                             <textarea value={editingCommentText} onChange={(event) => setEditingCommentText(event.target.value)} rows={2} maxLength={2000} className="w-full resize-none rounded-xl bg-gray-50 p-2 text-xs outline-none"/>
-                            <div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentText(""); }} className="text-[10px] font-black text-gray-500">Cancel</button><button type="button" onClick={() => void updateComment(reply.id)} disabled={!editingCommentText.trim() || savingComment} className="rounded-lg bg-gray-950 px-3 py-1.5 text-[10px] font-black text-white disabled:opacity-40">{savingComment ? "Saving…" : "Save"}</button></div>
+                            <div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentText(""); }} className="text-xs font-black text-gray-500">Cancel</button><button type="button" onClick={() => void updateComment(reply.id)} disabled={!editingCommentText.trim() || savingComment} className="rounded-lg bg-gray-950 px-3 py-1.5 text-xs font-black text-white disabled:opacity-40">{savingComment ? "Saving…" : "Save"}</button></div>
                           </div>
                         ) : (
                           <div className="rounded-2xl bg-white px-3 py-2.5">
@@ -407,7 +391,7 @@ function CommentThread({
                             <p className="mt-1 text-xs leading-5 text-gray-600">{reply.content}</p>
                           </div>
                         )}
-                        <div className="mt-1 flex gap-3 px-1 text-[10px] font-bold text-gray-400">
+                        <div className="mt-1 flex gap-3 px-1 text-xs font-bold text-gray-500">
                           <span>{timeLabel(reply.createdAt)}</span>
                           {session?.user?.id === reply.author.id ? <>
                             <button type="button" onClick={() => { setEditingCommentId(reply.id); setEditingCommentText(reply.content); }} className="hover:text-[#5a4be8]" aria-label="Edit reply"><Pencil size={11}/></button>
@@ -425,10 +409,10 @@ function CommentThread({
       )}
 
       {error ? (
-        <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600">
+        <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">
           <div className="flex items-center justify-between gap-3">
             <span>{error}</span>
-            <button type="button" onClick={() => { setError(""); setLoading(true); void loadComments().catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Could not load comments.")).finally(() => setLoading(false)); }} className="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-black text-red-700 shadow-sm">Retry</button>
+            <button type="button" onClick={() => { setError(""); setLoading(true); void loadComments().catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Could not load comments.")).finally(() => setLoading(false)); }} className="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-xs font-black text-red-700 shadow-sm">Retry</button>
           </div>
         </div>
       ) : null}
@@ -441,7 +425,7 @@ function CommentThread({
           </button>
         </form>
       ) : (
-        <Link href="/login" className="mt-4 block rounded-xl bg-white px-3 py-2.5 text-center text-[11px] font-black text-[#5a4be8]">Sign in to join the conversation</Link>
+        <Link href="/login" className="mt-4 block rounded-xl bg-white px-3 py-2.5 text-center text-xs font-black text-[#5a4be8]">Sign in to join the conversation</Link>
       )}
     </div>
   );
@@ -489,12 +473,21 @@ function PostCard({
   }, [post]);
 
   async function toggleLike() {
-    const response = await fetch(`/api/posts/${post.id}/like`, { method: liked ? "DELETE" : "POST" });
-    const json = await response.json().catch(() => ({}));
-    if (response.ok) {
+    const previousLiked = liked;
+    const previousCount = likeCount;
+    const nextLiked = !previousLiked;
+    setLiked(nextLiked);
+    setLikeCount(Math.max(0, previousCount + (nextLiked ? 1 : -1)));
+    try {
+      const response = await fetch(`/api/posts/${post.id}/like`, { method: previousLiked ? "DELETE" : "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not update reaction.");
       setLiked(Boolean(json.liked));
-      setLikeCount(Number(json.count ?? likeCount));
+      setLikeCount(Number(json.count ?? previousCount));
       emitLiveSync({ type: "post-updated", postId: post.id });
+    } catch {
+      setLiked(previousLiked);
+      setLikeCount(previousCount);
     }
   }
 
@@ -528,10 +521,14 @@ function PostCard({
   }
 
   async function toggleSave() {
-    const response = await fetch(`/api/posts/${post.id}/save`, { method: saved ? "DELETE" : "POST" });
-    if (response.ok) {
-      setSaved(!saved);
+    const previous = saved;
+    setSaved(!previous);
+    try {
+      const response = await fetch(`/api/posts/${post.id}/save`, { method: previous ? "DELETE" : "POST" });
+      if (!response.ok) throw new Error();
       emitLiveSync({ type: "post-updated", postId: post.id });
+    } catch {
+      setSaved(previous);
     }
   }
 
@@ -636,9 +633,9 @@ function PostCard({
               </Link>
               <AccountBadge verified={post.authorVerified} owner={post.authorOwner} />
               <span className="text-gray-300">·</span>
-              <span className="text-xs font-medium text-gray-400">{post.timestamp}</span>
+              <span className="text-xs font-medium text-gray-500">{post.timestamp}</span>
             </div>
-            <p className="text-xs font-medium text-gray-400">{post.handle}</p>
+            <p className="text-xs font-medium text-gray-500">{post.handle}</p>
           </div>
 
           <div className="relative">
@@ -689,7 +686,7 @@ function PostCard({
               className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 p-3 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10"
             />
             <div className="flex items-center justify-between gap-3">
-              <select value={editVisibility} onChange={(event) => setEditVisibility(event.target.value as Post["visibility"])} className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold outline-none">
+              <select value={editVisibility} onChange={(event) => setEditVisibility(event.target.value as Post["visibility"])} className="h-9 appearance-none rounded-xl border border-gray-200 bg-white px-3 pr-8 text-xs font-bold outline-none focus:border-[#bbb3ff] focus:ring-4 focus:ring-[#5a4be8]/10">
                 <option value="PUBLIC">Public</option>
                 <option value="FRIENDS">Friends</option>
                 <option value="PRIVATE">Only me</option>
@@ -707,20 +704,20 @@ function PostCard({
         )}
 
         {post.mediaUrl ? (
-          <img src={post.mediaUrl} alt="" className="mt-4 max-h-[520px] w-full rounded-2xl object-cover" />
+          <img src={post.mediaUrl} alt="" className="mt-4 aspect-[4/3] max-h-[520px] w-full rounded-2xl object-cover" />
         ) : null}
 
         {error ? (
-          <div className="mt-3 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-3 py-2.5 text-[11px] font-semibold text-[#5a4be8]">{error}</div>
+          <div className="mt-3 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-3 py-2.5 text-xs font-semibold text-[#5a4be8]">{error}</div>
         ) : null}
 
-        <div className="mt-4 flex items-center justify-between text-xs font-semibold text-gray-400">
-          <span title={fullCount(likeCount) + " reactions"}>{compactCount(likeCount)} reactions</span>
-          <span title={fullCount(commentCount) + " comments"}>{compactCount(commentCount)} comments · <span title={fullCount(shareCount) + " shares"}>{compactCount(shareCount)} shares</span></span>
+        <div className="mt-4 flex items-center justify-between text-xs font-semibold text-gray-500">
+          <span title={fullCount(likeCount) + " reactions"}>{likeCount > 0 ? compactCount(likeCount) + " " + (likeCount === 1 ? "reaction" : "reactions") : ""}</span>
+          <span title={fullCount(commentCount) + " comments"}>{commentCount > 0 ? compactCount(commentCount) + " " + (commentCount === 1 ? "comment" : "comments") : ""} · <span title={fullCount(shareCount) + " shares"}>{shareCount > 0 ? compactCount(shareCount) + " " + (shareCount === 1 ? "share" : "shares") : ""}</span></span>
         </div>
 
         <div className="mt-4 grid grid-cols-4 border-t border-gray-100 pt-3">
-          <button onClick={() => void toggleLike()} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${liked ? "bg-rose-50 text-rose-500" : "text-gray-500 hover:bg-gray-50"}`} aria-pressed={liked}>
+          <button onClick={() => void toggleLike()} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition duration-150 active:scale-[.98] ${liked ? "bg-rose-50 text-rose-500" : "text-gray-500 hover:bg-gray-50"} ${liked ? "animate-pulse" : ""}`} aria-pressed={liked}>
             <span aria-hidden>{liked ? "♥" : "♡"}</span> Like
           </button>
           <button type="button" onClick={() => setCommentsOpen((value) => !value)} aria-expanded={commentsOpen} aria-controls={"comments-" + post.id} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${commentsOpen ? "bg-sky-50 text-sky-600" : "text-gray-500 hover:bg-gray-50"}`}>
@@ -747,8 +744,6 @@ function PostCard({
 
 export default function HomeFeed() {
   const { data: session } = authClient.useSession();
-  const router = useRouter();
-  const { summary: unreadSummary } = useUnreadSummary();
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [suggestedUsers, setSuggestedUsers] = useState<SuggestedUser[]>([]);
@@ -761,13 +756,12 @@ export default function HomeFeed() {
   const [feedError, setFeedError] = useState("");
   const [nextBefore, setNextBefore] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const [feedMode, setFeedMode] = useState<"FOR_YOU" | "FOLLOWING" | "FRIENDS" | "LATEST" | "SAVED">("FOR_YOU");
   const [feedModeOpen, setFeedModeOpen] = useState(false);
   const [pendingLivePosts, setPendingLivePosts] = useState<Post[]>([]);
   const [newActivityCount, setNewActivityCount] = useState(0);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const feedPostsRef = useRef<Post[]>([]);
 
   useEffect(() => {
@@ -996,14 +990,6 @@ export default function HomeFeed() {
     }
   }
 
-  const profileHref = session?.user ? "/profile/me" : "/login";
-
-  function submitSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const query = searchTerm.trim();
-    setSearchOpen(false);
-    router.push(query ? `/discover?q=${encodeURIComponent(query)}` : "/discover");
-  }
   const canSubmit = Boolean(session?.user && (newPost.trim() || mediaUrl) && !publishing && !uploading);
   const visibleStories = useMemo(() => stories.filter((story) => new Date(story.expiresAt) > new Date()).slice(0, 6), [stories]);
 
@@ -1071,7 +1057,8 @@ export default function HomeFeed() {
   }, [feedPosts.length]);
 
   return (
-    <main className="min-h-screen bg-transparent pb-24 md:pb-6">
+    <AppShell>
+      <main className="min-h-screen bg-transparent pb-6">
       {newActivityCount > 0 ? (
         <div className="sticky top-[74px] z-20 mx-auto -mb-2 flex max-w-[720px] justify-center px-4 pt-2">
           <button type="button" onClick={showPendingLivePosts} className="rounded-full border border-[#d9d4ff] bg-white/95 px-4 py-2 text-xs font-black text-[#5a4be8] shadow-lg backdrop-blur-xl">
@@ -1079,71 +1066,9 @@ export default function HomeFeed() {
           </button>
         </div>
       ) : null}
-      <header className="sticky top-0 z-30 border-b border-white/70 bg-white/88 shadow-[0_10px_35px_rgba(23,20,45,.06)] backdrop-blur-2xl">
-        <div className="h-0.5 bg-gradient-to-r from-[#6d5dfc] via-[#9c7cff] to-[#36b8ff]" />
-        <div className="mx-auto flex h-[74px] max-w-[1440px] items-center gap-3 px-3 sm:px-6 lg:px-8">
-          <Link href="/home" className="group flex min-w-0 shrink-0 items-center gap-2.5 rounded-2xl px-1 py-1" aria-label="Socialhub home">
-            <span className="grid size-10 place-items-center rounded-[14px] bg-gradient-to-br from-[#6d5dfc] via-[#856fff] to-[#36b8ff] text-white shadow-lg shadow-[#6d5dfc]/25 transition duration-200 group-hover:-translate-y-0.5">
-              <Sparkles size={18} strokeWidth={2.2}/>
-            </span>
-            <span className="hidden min-w-0 sm:block">
-              <span className="block truncate text-[15px] font-black tracking-[-.035em] text-gray-950">Socialhub</span>
-              <span className="block text-[9px] font-bold uppercase tracking-[.18em] text-[#7c72c8]">Connect · Share · Belong</span>
-            </span>
-          </Link>
-
-          <form onSubmit={submitSearch} className="relative mx-auto hidden w-full max-w-lg flex-1 md:block">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/>
-            <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-11 w-full rounded-2xl border border-gray-200/80 bg-gray-50/90 pl-11 pr-4 text-sm font-medium outline-none transition placeholder:text-gray-400 focus:border-[#bbb3ff] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Search people, posts and hashtags…" aria-label="Search Socialhub"/>
-          </form>
-
-          <div className="ml-auto flex items-center gap-1.5">
-            <button type="button" onClick={() => setSearchOpen((value) => !value)} className="social-icon-button rounded-2xl border border-transparent bg-gray-50 md:hidden" aria-label="Search" aria-expanded={searchOpen}><Search size={19}/></button>
-            <Link href="/notifications" className="social-icon-button relative rounded-2xl border border-transparent bg-gray-50 hover:border-[#e3defe] hover:bg-[#f8f6ff]" aria-label="Notifications">
-              <Bell size={19}/>
-              {unreadSummary.notifications > 0 ? <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[8px] font-black leading-4 text-white">{Math.min(99, unreadSummary.notifications)}</span> : null}
-            </Link>
-            <Link href={profileHref} className="ml-0.5 rounded-2xl p-0.5 transition hover:bg-[#eeebff]">
-              <Avatar name={session?.user?.name ?? "You"} image={session?.user?.image}/>
-            </Link>
-            <MobileMenu />
-          </div>
-        </div>
-
-        {searchOpen ? (
-          <form onSubmit={submitSearch} className="border-t border-gray-100 bg-white/95 px-3 py-3 sm:px-6 md:hidden">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17}/>
-              <input autoFocus value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-11 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm font-medium outline-none focus:border-[#bbb3ff] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Search Socialhub…" aria-label="Search Socialhub"/>
-            </div>
-          </form>
-        ) : null}
-      </header>
-
       <div className="mx-auto max-w-[1440px] px-4 pt-4 sm:px-6 lg:hidden"><StoryCenter stories={stories} onStoriesChange={setStories}/></div>
 
-      <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[230px_minmax(0,650px)_300px] lg:px-8">
-        <aside className="hidden lg:block">
-          <div className="sticky top-24">
-            <div className="mb-4 rounded-3xl border border-white/70 bg-white/70 p-2.5 shadow-sm backdrop-blur">
-              <div className="flex items-center gap-3 rounded-2xl bg-[#f5f2ff] p-3">
-                <Link href={profileHref}><Avatar name={session?.user?.name ?? "Your profile"} image={session?.user?.image} large /></Link>
-                <div className="min-w-0"><p className="truncate text-sm font-extrabold">Your profile</p><p className="truncate text-xs font-medium text-gray-400">@{session?.user?.email?.split("@")[0] ?? "member"}</p></div>
-              </div>
-              <nav className="mt-2 space-y-1" aria-label="Primary navigation">
-                {navItems.map(({ label, icon: Icon, active, href }) => (
-                  <Link key={label} href={href} data-active={active} className="social-nav-link">
-                    <Icon size={18} strokeWidth={active ? 2.4 : 2}/><span className="text-sm">{label}</span>
-                  </Link>
-                ))}
-              </nav>
-              <div className="my-3 border-t border-gray-100"/>
-              <Link href="/settings" className="social-nav-link"><Settings size={18}/><span className="text-sm font-semibold">Settings</span></Link>
-            </div>
-            <p className="px-3 text-[11px] font-medium leading-5 text-gray-400">Built for thoughtful sharing, meaningful connections, and everyday moments.</p>
-          </div>
-        </aside>
-
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,640px)_320px]">
         <section className="min-w-0">
           <div className="relative mb-4 flex items-end justify-between">
             <div><p className="text-xs font-black uppercase tracking-[0.16em] text-[#6d5dfc]">Home</p><h1 className="mt-1 text-2xl font-black tracking-[-0.04em] text-gray-950">Your feed</h1></div>
@@ -1165,7 +1090,7 @@ export default function HomeFeed() {
             <div className="flex gap-3">
               <Avatar name={session?.user?.name ?? "You"} image={session?.user?.image} accent="from-gray-800 to-gray-500"/>
               <div className="min-w-0 flex-1">
-                <textarea value={newPost} onChange={(event) => setNewPost(event.target.value)} disabled={!session?.user || publishing || uploading} rows={2} maxLength={5000} className="w-full resize-none rounded-2xl bg-gray-50 px-4 py-3 text-sm font-medium outline-none placeholder:text-gray-400 focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10 disabled:cursor-not-allowed disabled:opacity-70" placeholder={session?.user ? "What’s happening?" : "Sign in to share a post…"} />
+                <textarea ref={composerRef} value={newPost} onChange={(event) => { setNewPost(event.target.value); event.currentTarget.style.height = "auto"; event.currentTarget.style.height = Math.min(event.currentTarget.scrollHeight, 8 * 24) + "px"; }} disabled={!session?.user || publishing || uploading} rows={1} maxLength={5000} className="w-full resize-none rounded-2xl bg-gray-50 px-4 py-3 text-sm font-medium outline-none placeholder:text-gray-500 focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10 disabled:cursor-not-allowed disabled:opacity-70" placeholder={session?.user ? "What’s happening?" : "Sign in to share a post…"} />
                 {mediaPreview ? (
                   <div className="relative mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-white">
                     <img src={mediaPreview} alt="Selected media preview" className="max-h-64 w-full object-cover"/>
@@ -1181,17 +1106,16 @@ export default function HomeFeed() {
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
               <div className="flex flex-wrap gap-1.5">
                 <button type="button" disabled={!session?.user || publishing || uploading} onClick={() => fileRef.current?.click()} className="flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 text-xs font-bold text-gray-500 hover:bg-gray-50 disabled:opacity-40"><ImageIcon size={17} className="text-emerald-500"/>Photo</button>
-                <label className="flex min-h-10 items-center gap-1 rounded-xl bg-gray-50 px-2.5 text-[10px] font-black text-gray-500">
+                <label className="flex min-h-10 items-center gap-1 rounded-xl bg-gray-50 px-2.5 text-xs font-black text-gray-500">
                   <ShieldAlert size={13} />
-                  <select value={visibility} onChange={(event) => setVisibility(event.target.value as Post["visibility"])} disabled={!session?.user} className="bg-transparent outline-none">
+                  <select value={visibility} onChange={(event) => setVisibility(event.target.value as Post["visibility"])} disabled={!session?.user} className="appearance-none bg-transparent pr-1 outline-none">
                     <option value="PUBLIC">Public</option>
                     <option value="FRIENDS">Friends</option>
                     <option value="PRIVATE">Only me</option>
                   </select>
-                  <ChevronDown size={12} />
                 </label>
               </div>
-              {session?.user ? <button type="submit" disabled={!canSubmit} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40">{publishing ? "Posting…" : "Post"}</button> : <Link href="/login" className="rounded-xl bg-[#6d5dfc] px-4 py-2.5 text-xs font-black text-white">Sign in</Link>}
+              {session?.user ? <div className="flex items-center gap-2"><span className={"text-xs font-medium " + (newPost.length > 4500 ? "text-amber-600" : "text-gray-500")}>{newPost.length > 4500 ? newPost.length + "/5000" : ""}</span><button type="submit" disabled={!canSubmit} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white transition active:scale-[.98] disabled:opacity-50">{publishing ? "Posting…" : "Post"}</button></div> : <Link href="/login" className="rounded-xl bg-[#6d5dfc] px-4 py-2.5 text-xs font-black text-white">Sign in</Link>}
             </div>
           </form>
 
@@ -1202,7 +1126,7 @@ export default function HomeFeed() {
               <section className="social-card rounded-3xl p-10 text-center">
                 <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={20}/></span>
                 <h2 className="mt-4 text-sm font-black">{session?.user ? "Your feed is empty" : "Sign in to build your feed"}</h2>
-                <p className="mt-2 text-xs leading-5 text-gray-400">{session?.user ? "Follow people or add your first post to start filling your feed." : "Real posts from the people you connect with will appear here."}</p>
+                <p className="mt-2 text-xs leading-5 text-gray-500">{session?.user ? "Follow people or add your first post to start filling your feed." : "Real posts from the people you connect with will appear here."}</p>
                 {!session?.user ? <Link href="/login" className="mt-4 inline-flex rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white">Sign in</Link> : <Link href="/discover" className="mt-4 inline-flex rounded-xl bg-[#6d5dfc] px-4 py-2.5 text-xs font-black text-white">Discover people</Link>}
               </section>
             )}
@@ -1212,7 +1136,7 @@ export default function HomeFeed() {
                 {loadingMore ? <Loader2 size={15} className="animate-spin"/> : <Plus size={15}/>} {loadingMore ? "Loading…" : "Load more"}
               </button>
             ) : (
-              <div className="py-6 text-center text-[11px] font-semibold text-gray-400">You’re caught up.</div>
+              <div className="py-6 text-center text-xs font-semibold text-gray-500">You’re caught up.</div>
             )}
           </div>
         </section>
@@ -1229,12 +1153,12 @@ export default function HomeFeed() {
                     <Avatar name={user.name} image={user.image} accent={["from-fuchsia-500 to-orange-400","from-sky-500 to-indigo-500","from-amber-400 to-rose-500"][index % 3]} />
                     <div className="min-w-0 flex-1">
                       <Link href={`/profile/${user.username ?? user.id}`} className="block truncate text-xs font-extrabold text-gray-900 hover:text-[#5a4be8]">{user.name}</Link>
-                      <p className="truncate text-[11px] font-medium text-gray-400">@{user.username ?? "member"}</p>
+                      <p className="truncate text-xs font-medium text-gray-500">@{user.username ?? "member"}</p>
                     </div>
                     <Link href={`/discover?q=${encodeURIComponent(user.username ?? user.name)}`} className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white" aria-label={`Find ${user.name} in Discover`}><Plus size={16}/></Link>
                   </div>
                 ))}
-                {!suggestedUsers.length ? <p className="py-3 text-xs text-gray-400">No new people to show right now.</p> : null}
+                {!suggestedUsers.length ? <p className="py-3 text-xs text-gray-500">No new people to show right now.</p> : null}
               </div>
             </section>
 
@@ -1242,7 +1166,7 @@ export default function HomeFeed() {
         </aside>
       </div>
 
-      <BottomNav />
     </main>
+    </AppShell>
   );
 }
