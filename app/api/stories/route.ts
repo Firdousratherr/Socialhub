@@ -96,6 +96,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Stories can expire at most 24 hours after creation." }, { status: 400 });
   }
 
+  const storyRestriction = await getActiveUserRestriction(session.user.id, "postingRestrictedUntil");
+  if (storyRestriction) {
+    return NextResponse.json({ error: "Story creation is temporarily restricted.", restrictedUntil: storyRestriction.toISOString() }, { status: 403 });
+  }
+
   const story = await prisma.story.create({
     data: {
       authorId: session.user.id,
