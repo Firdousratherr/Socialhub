@@ -11,7 +11,7 @@ test("username generation strips plus-addressing and stays within the validator 
   assert.match(auth, /\.slice\(0, 30\)/);
   assert.match(validation, /username:.*\{3,30\}/);
   const home = read("components/home-feed.tsx");
-  assert.doesNotMatch(home, /session\\?\\.user\\?\\.email\\?\\.split\\(["']@["']\\)/);
+  assert.doesNotMatch(home, /email\?\.split\(["']@["']\)/);
   assert.match(home, /user\.username/);
 });
 
