@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import * as z from "zod";
+import { consumeMutationRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const keys = [
   "likes",
@@ -42,20 +44,17 @@ export async function PATCH(request: Request) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
-  const body = await request.json().catch(() => null);
-  if (!body || typeof body !== "object") {
-    return NextResponse.json({ error: "Invalid preferences." }, { status: 400 });
-  }
+  const limit = await consumeMutationRateLimit("notification-preferences", request, session.user.id, 30, 3600);
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
 
-  const data: Partial<Record<PreferenceKey, boolean>> = {};
-  for (const key of keys) {
-    if (key in body) {
-      if (typeof body[key] !== "boolean") {
-        return NextResponse.json({ error: `Preference "${key}" must be a boolean.` }, { status: 400 });
-      }
-      data[key] = body[key];
-    }
-  }
+  const preferenceSchema = z.object(
+    Object.fromEntries(keys.map((key) => [key, z.boolean().optional()])) as Record<PreferenceKey, z.ZodOptional<z.ZodBoolean>>,
+  );
+  const body = await request.json().catch(() => null);
+  const parsed = preferenceSchema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: "Invalid notification preferences." }, { status: 400 });
+
+  const data = parsed.data as Partial<Record<PreferenceKey, boolean>>;
 
   if (!Object.keys(data).length) {
     return NextResponse.json({ error: "No preferences supplied." }, { status: 400 });
