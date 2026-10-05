@@ -182,8 +182,8 @@ export function StoryCenter({
 
   return (
     <>
-      <section className={"social-card rounded-3xl p-4 " + className}>
-        <div className="flex items-center justify-between gap-3">
+      <section className={"social-card rounded-3xl p-3 sm:p-4 " + className}>
+        <div className="hidden items-center justify-between gap-3 sm:flex">
           <div>
             <h2 className="text-sm font-black">Stories</h2>
             <p className="mt-0.5 text-[10px] font-semibold text-gray-400">Real stories expire after 24 hours.</p>
@@ -197,7 +197,13 @@ export function StoryCenter({
 
         {error ? <div role="alert" className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600">{error}</div> : null}
 
-        <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+        <div className="mt-1 flex gap-3 overflow-x-auto pb-1 sm:mt-4 scrollbar-none">
+          {session?.user ? (
+            <button type="button" onClick={() => setComposerOpen(true)} className="min-w-[64px] text-center">
+              <div className="mx-auto grid size-16 place-items-center rounded-full border-2 border-dashed border-[#bdb6ff] bg-[#f8f7ff] text-[#5a4be8]"><Plus size={20}/></div>
+              <span className="mt-2 block truncate text-xs font-bold text-gray-600">Your story</span>
+            </button>
+          ) : null}
           {authors.length ? authors.map(({ author, viewed, storyIndex }) => (
             <button key={author.id} type="button" onClick={() => void openStory(storyIndex)} className="min-w-[64px] text-center">
               <div className={"rounded-[1.15rem] p-[2px] " + (viewed ? "bg-gray-200" : "bg-gradient-to-br from-[#6d5dfc] via-[#d957ff] to-[#ffb347]")}>
