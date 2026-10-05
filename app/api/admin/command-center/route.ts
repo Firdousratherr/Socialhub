@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     failedAdminLogins,
     expiredSessions,
     recentEvents,
+    platformSettings,
   ] = await Promise.all([
     prisma.user.count({ where: { createdAt: { gte: dayAgo } } }),
     prisma.user.count({ where: { createdAt: { gte: weekAgo } } }),
@@ -67,6 +68,11 @@ export async function GET(request: Request) {
         createdAt: true,
       },
     }),
+    prisma.systemSetting.findMany({
+      where: { key: { in: ["platform.posts.enabled", "platform.comments.enabled", "platform.messaging.enabled", "platform.uploads.enabled", "platform.stories.enabled", "platform.social.enabled", "registration.enabled"] } },
+      select: { key: true, value: true, updatedAt: true },
+      orderBy: { key: "asc" },
+    }),
   ]);
 
   await recordAdminEvent({
@@ -83,5 +89,6 @@ export async function GET(request: Request) {
     live: { storiesActive, pendingReports, criticalReports, pendingVerification, openCases, pendingAppeals, activeRestrictions },
     security: { failedAdminLogins, expiredSessions },
     recentEvents,
+    platform: Object.fromEntries(platformSettings.map((setting) => [setting.key, { enabled: setting.value.trim().toLowerCase() === "true", updatedAt: setting.updatedAt }])),
   });
 }
