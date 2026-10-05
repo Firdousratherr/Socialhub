@@ -290,7 +290,7 @@ function CommentThread({
       if (!response.ok) throw new Error(json.error ?? "Could not post comment.");
 
       const created = { ...json.comment, replies: [] } as CommentItem;
-      setToast(replyTo ? "Reply posted." : "Comment posted.");
+      setPostToast(replyTo ? "Reply posted." : "Comment posted.");
       setComments((current) => {
         if (replyTo) {
           return current.map((item) =>
@@ -441,6 +441,7 @@ function PostCard({
   const [myReaction, setMyReaction] = useState<string | null>(post.myReaction ?? null);
   const [reactionMenuOpen, setReactionMenuOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [postToast, setPostToast] = useState("");
   const [editing, setEditing] = useState(false);
   const [displayCopy, setDisplayCopy] = useState(post.copy);
   const [editText, setEditText] = useState(post.copy);
@@ -476,7 +477,7 @@ function PostCard({
       if (!response.ok) throw new Error(json.error ?? "Could not update reaction.");
       setLiked(Boolean(json.liked));
       setLikeCount(Number(json.count ?? previousCount));
-      setToast(Boolean(json.liked) ? "Post liked." : "Like removed.");
+      setPostToast(Boolean(json.liked) ? "Post liked." : "Like removed.");
       emitLiveSync({ type: "post-updated", postId: post.id });
     } catch {
       setLiked(previousLiked);
@@ -519,7 +520,7 @@ function PostCard({
     try {
       const response = await fetch(`/api/posts/${post.id}/save`, { method: previous ? "DELETE" : "POST" });
       if (!response.ok) throw new Error();
-      setToast(previous ? "Removed from saved posts." : "Saved for later.");
+      setPostToast(previous ? "Removed from saved posts." : "Saved for later.");
       emitLiveSync({ type: "post-updated", postId: post.id });
     } catch {
       setSaved(previous);
@@ -540,7 +541,7 @@ function PostCard({
       const json = await response.json().catch(() => ({}));
       if (response.ok) {
         setShareCount(Number(json.shareCount ?? shareCount + 1));
-        setToast("Post shared.");
+        setPostToast("Post shared.");
         emitLiveSync({ type: "post-updated", postId: post.id });
       } else {
         setError(json.error ?? "Could not record the share.");
@@ -1200,6 +1201,7 @@ export default function HomeFeed() {
         </aside>
       </div>
 
+      <Toast message={postToast} onClose={() => setPostToast("")} />
       <Toast message={toast} onClose={() => setToast("")} />
     </main>
     </AppShell>
