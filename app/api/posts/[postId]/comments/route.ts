@@ -90,6 +90,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ pos
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   const rl = await consumeRateLimit(rateLimitKey("comments", request, session.user.id), 20, 60);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
+  const commentingRestriction = await getActiveUserRestriction(session.user.id, "commentingRestrictedUntil");
+  if (commentingRestriction) {
+    return NextResponse.json({ error: "Commenting is temporarily restricted.", restrictedUntil: commentingRestriction.toISOString() }, { status: 403 });
+  }
   const { postId } = await params;
   const access = await canViewPost(postId, session.user.id);
   if (!access.allowed) return NextResponse.json({ error: "Post unavailable." }, { status: 404 });
