@@ -54,6 +54,12 @@ type UserRow = {
   isOwner: boolean;
   verifiedAt?: string | null;
   createdAt: string;
+  postingRestrictedUntil?: string | null;
+  commentingRestrictedUntil?: string | null;
+  messagingRestrictedUntil?: string | null;
+  socialRestrictedUntil?: string | null;
+  suspendedUntil?: string | null;
+  suspensionReason?: string | null;
   _count: { posts: number; followers: number; following: number };
 };
 
@@ -1115,6 +1121,31 @@ function User360({
           </button>
         </Card>
 
+        <Card className="p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-black">Enforcement status</p>
+              <p className="mt-1 text-[10px] text-gray-400">Live restrictions applied by the platform APIs.</p>
+            </div>
+            <Shield size={16} className="text-[#5a4be8]" />
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {[
+              ["Account", user.suspendedUntil ? "Suspended" : isActive ? "Active" : "Disabled", user.suspendedUntil],
+              ["Posting", user.postingRestrictedUntil ? "Restricted" : "Allowed", user.postingRestrictedUntil],
+              ["Commenting", user.commentingRestrictedUntil ? "Restricted" : "Allowed", user.commentingRestrictedUntil],
+              ["Messaging", user.messagingRestrictedUntil ? "Restricted" : "Allowed", user.messagingRestrictedUntil],
+              ["Social", user.socialRestrictedUntil ? "Restricted" : "Allowed", user.socialRestrictedUntil],
+            ].map(([label, value, until]) => (
+              <div key={String(label)} className="rounded-2xl bg-gray-50 p-3">
+                <p className="text-[9px] font-black uppercase tracking-[.11em] text-gray-400">{String(label)}</p>
+                <p className={"mt-1 text-xs font-black " + (value === "Restricted" || value === "Suspended" || value === "Disabled" ? "text-red-600" : "text-emerald-600")}>{String(value)}</p>
+                {until ? <p className="mt-1 text-[9px] text-gray-400">Until {new Date(String(until)).toLocaleString()}</p> : null}
+              </div>
+            ))}
+          </div>
+          {user.suspensionReason ? <p className="mt-3 rounded-xl bg-red-50 p-3 text-[10px] text-red-700">Reason: {user.suspensionReason}</p> : null}
+        </Card>
         <Card className="p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
