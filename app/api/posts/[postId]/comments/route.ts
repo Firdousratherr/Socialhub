@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { commentInputSchema } from "@/lib/validation";
 import { canViewPost } from "@/lib/post-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
-import { createMentionNotifications } from "@/lib/mentions";
+import { platformEnabled } from "@/lib/platform-controls";
 import { getActiveUserRestriction } from "@/lib/user-restrictions";
 
 function decodeCursor(value: string | null) {
@@ -88,6 +88,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ post
 export async function POST(request: Request, { params }: { params: Promise<{ postId: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const commentsEnabled = await platformEnabled("comments", true);
+  if (!commentsEnabled) return NextResponse.json({ error: "Comments are temporarily disabled by the platform administrator." }, { status: 503 });
   const rl = await consumeRateLimit(rateLimitKey("comments", request, session.user.id), 20, 60);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
   const commentingRestriction = await getActiveUserRestriction(session.user.id, "commentingRestrictedUntil");
