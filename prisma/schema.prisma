@@ -415,6 +415,7 @@ model Notification {
 
   @@index([userId, readAt, createdAt])
   @@index([actorId, createdAt])
+  @@index([storyId])
 }
 
 model UserPrivacySetting {
