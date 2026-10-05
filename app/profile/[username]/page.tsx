@@ -69,10 +69,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const title = \`\${user.name} (@\${user.username}) · Socialhub\`;
+  const title = `${user.name} (@${user.username}) · Socialhub`;
   const description =
     user.bio?.trim() ||
-    \`View \${user.name}'s public profile on Socialhub and discover their posts and connections.\`;
+    `View ${user.name}'s public profile on Socialhub and discover their posts and connections.`;
   const url = absoluteProfileUrl(user.username);
 
   return {
@@ -89,7 +89,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description,
       siteName: "Socialhub",
       ...(user.image
-        ? { images: [{ url: user.image, alt: \`\${user.name}'s profile photo\` }] }
+        ? { images: [{ url: user.image, alt: `${user.name}'s profile photo` }] }
         : {}),
     },
     twitter: {
