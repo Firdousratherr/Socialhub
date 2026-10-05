@@ -69,11 +69,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       robots: { index: false, follow: false },
     };
   }
-    return {
-      title: "Profile not found",
-      robots: { index: false, follow: false },
-    };
-  }
 
   const title = `${user.name} (@${user.username}) · Socialhub`;
   const description =
