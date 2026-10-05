@@ -153,9 +153,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const profileHref = username ? "/profile/" + encodeURIComponent(username) : "/profile/me";
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-clip">
       <header className="social-topbar sticky top-0 z-[70]">
-        <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-3 sm:px-5 lg:px-7">
+        <div className="mx-auto flex h-[var(--header-h)] max-w-[1440px] items-center gap-2 px-3 sm:gap-3 sm:px-5 lg:px-7">
           <Link href="/home" className="flex min-w-0 shrink-0 items-center gap-2 rounded-xl p-1" aria-label="Socialhub home">
             <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-[#6d5dfc] to-[#36b8ff] text-white shadow-md">
               <Sparkles size={17} aria-hidden="true" />
@@ -221,7 +221,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             ) : null}
           </form>
 
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
             <button type="button" onClick={() => setSearchOpen((value) => !value)} className="social-icon-button bg-gray-50 md:hidden" aria-label="Open search" aria-expanded={searchOpen}>
               <Search size={19} aria-hidden="true" />
             </button>
@@ -264,7 +264,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         ) : null}
       </header>
 
-      <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-3 py-4 sm:px-5 lg:grid-cols-[220px_minmax(0,1fr)] lg:px-7 lg:py-6">
+      <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-4 px-3 py-3 sm:gap-6 sm:px-5 sm:py-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:px-7 lg:py-6">
         <aside className="hidden lg:block">
           <nav className="social-sidebar rounded-3xl p-2" aria-label="Primary navigation">
             {navItems.map(({ label, href, icon: Icon }) => {
@@ -281,7 +281,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
         </aside>
 
-        <main className="min-w-0 mobile-safe-bottom">{children}</main>
+        <main className="min-w-0 mobile-safe-bottom md:scroll-mt-20">{children}</main>
       </div>
       <div className="lg:hidden"><BottomNav /></div>
     </div>
