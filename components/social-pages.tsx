@@ -2617,6 +2617,13 @@ function Notifications() {
   </Page>;
 }
 
+function formatSessionDevice(userAgent: string | null) {
+  const ua = userAgent ?? "";
+  const browser = /Edg\\//.test(ua) ? "Edge" : /Chrome\\//.test(ua) ? "Chrome" : /Firefox\\//.test(ua) ? "Firefox" : /Safari\\//.test(ua) && !/Chrome\\//.test(ua) ? "Safari" : /OPR\\//.test(ua) ? "Opera" : "Browser";
+  const os = /Windows NT/.test(ua) ? "Windows" : /Android/.test(ua) ? "Android" : /iPhone|iPad|iPod/.test(ua) ? "iOS" : /Mac OS X/.test(ua) ? "macOS" : /Linux/.test(ua) ? "Linux" : "Device";
+  return browser + " on " + os;
+}
+
 function SettingsPage() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
@@ -2651,6 +2658,23 @@ function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [revokeOtherSessions, setRevokeOtherSessions] = useState(true);
   const [passwordBusy, setPasswordBusy] = useState(false);
+  const [activeSettingsSection, setActiveSettingsSection] = useState("general");
+
+  useEffect(() => {
+    const ids = ["general", "privacy", "notifications", "security", "help"];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target.id) setActiveSettingsSection(visible.target.id);
+      },
+      { rootMargin: "-20% 0px -65% 0px", threshold: [0, 0.25, 0.6] },
+    );
+    ids.forEach((id) => {
+      const element = document.getElementById(id);
+      if (element) observer.observe(element);
+    });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -3011,7 +3035,7 @@ function SettingsPage() {
 
     <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
       <Card id="settings-navigation" className="h-fit !p-3 lg:sticky lg:top-24">
-        <p className="px-1 text-[10px] font-black uppercase tracking-[.14em] text-gray-400">Settings areas</p>
+        <p className="sr-only">Settings areas</p>
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
           {[
             ["general", "General"],
@@ -3020,7 +3044,7 @@ function SettingsPage() {
             ["security", "Security"],
             ["help", "Help"],
           ].map(([id, label]) => (
-            <button key={id} type="button" onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })} className="flex min-h-10 w-full items-center rounded-xl px-3 text-left text-xs font-black text-gray-500 hover:bg-gray-50 hover:text-gray-900">{label}</button>
+            <button key={id} type="button" onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })} className={"flex min-h-10 w-full items-center rounded-xl px-3 text-left text-xs font-black transition " + (activeSettingsSection === id ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-500 hover:bg-gray-50 hover:text-gray-900")}>{label}</button>
           ))}
         </div>
       </Card>
@@ -3130,7 +3154,7 @@ function SettingsPage() {
                sessions.length ? sessions.map((item) => (
                 <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-gray-100 p-3">
                   <span className={"grid size-9 place-items-center rounded-xl " + (item.isCurrent ? "bg-[#eeebff] text-[#5a4be8]" : "bg-gray-100 text-gray-500")}><Shield size={16}/></span>
-                  <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{item.isCurrent ? "Current device" : item.userAgent?.slice(0, 70) || "Other session"}</span><span className="block mt-0.5 text-[10px] text-gray-400">{item.ipAddress ? item.ipAddress + " · " : ""}{new Date(item.updatedAt).toLocaleString()}</span></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{item.isCurrent ? "Current device" : formatSessionDevice(item.userAgent)}</span><span className="mt-0.5 block truncate text-xs text-gray-500">{item.ipAddress ? item.ipAddress + " · " : ""}{new Date(item.updatedAt).toLocaleString()}</span></span>
                   {!item.isCurrent ? <button type="button" onClick={() => void revokeSession(item.id)} className="rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-[10px] font-black text-gray-600 hover:bg-gray-50">Revoke</button> : null}
                 </div>
               )) : <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-400">No active sessions were found.</div>}
