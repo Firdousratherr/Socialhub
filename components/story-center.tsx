@@ -327,6 +327,7 @@ export function StoryCenter({
 
   async function reactToStory(emoji: string) {
     if (!active || !session?.user || active.author.id === session.user.id || interactionLoading) return;
+    const previousReaction = myStoryReaction;
     setInteractionLoading(true);
     try {
       const response = await fetch("/api/stories/" + active.id, {
@@ -336,13 +337,21 @@ export function StoryCenter({
       });
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error ?? "Could not react to story.");
+      const nextReactionCount = Number(json.reactionCount ?? storyReactionCount);
+      const nextLikeCount = Number(json.likeCount ?? storyLikeCount);
       setMyStoryReaction(emoji);
-      setStoryReactionCount(Number(json.reactionCount ?? storyReactionCount));
-      setStoryLikeCount(Number(json.likeCount ?? storyLikeCount));
-      updateStory(active.id, {
-        reactionCount: Number(json.reactionCount ?? storyReactionCount),
-      });
-      setReactionCounts((items) => items.map((item) => item.emoji === emoji ? { ...item, count: item.count + 1 } : item));
+      setStoryReactionCount(nextReactionCount);
+      setStoryLikeCount(nextLikeCount);
+      updateStory(active.id, { reactionCount: nextReactionCount });
+      setReactionCounts((items) => items.map((item) => {
+        if (item.emoji === previousReaction && previousReaction !== emoji) {
+          return { ...item, count: Math.max(0, item.count - 1) };
+        }
+        if (item.emoji === emoji && previousReaction !== emoji) {
+          return { ...item, count: item.count + 1 };
+        }
+        return item;
+      }));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not react to story.");
     } finally {
@@ -351,7 +360,8 @@ export function StoryCenter({
   }
 
   async function removeStoryReaction() {
-    if (!active || !session?.user || interactionLoading) return;
+    if (!active || !session?.user || interactionLoading || !myStoryReaction) return;
+    const previousReaction = myStoryReaction;
     setInteractionLoading(true);
     try {
       const response = await fetch("/api/stories/" + active.id, {
@@ -361,11 +371,13 @@ export function StoryCenter({
       });
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error ?? "Could not remove reaction.");
+      const nextReactionCount = Number(json.reactionCount ?? storyReactionCount);
+      const nextLikeCount = Number(json.likeCount ?? storyLikeCount);
       setMyStoryReaction(null);
-      setStoryReactionCount(Number(json.reactionCount ?? storyReactionCount));
-      setStoryLikeCount(Number(json.likeCount ?? storyLikeCount));
-      updateStory(active.id, { reactionCount: Number(json.reactionCount ?? storyReactionCount) });
-      setReactionCounts((items) => items.map((item) => item.emoji === "❤️" && myStoryReaction === "❤️" ? { ...item, count: Math.max(0, item.count - 1) } : item));
+      setStoryReactionCount(nextReactionCount);
+      setStoryLikeCount(nextLikeCount);
+      updateStory(active.id, { reactionCount: nextReactionCount });
+      setReactionCounts((items) => items.map((item) => item.emoji === previousReaction ? { ...item, count: Math.max(0, item.count - 1) } : item));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not remove reaction.");
     } finally {
