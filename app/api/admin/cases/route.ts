@@ -52,8 +52,14 @@ export async function GET(request: Request) {
         ],
       } : {}),
     },
-    orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+    orderBy: { createdAt: "desc" },
     take: 100,
+  });
+
+  const priorityRank = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 } as const;
+  cases.sort((a, b) => {
+    const priorityDelta = (priorityRank[b.priority as keyof typeof priorityRank] ?? 0) - (priorityRank[a.priority as keyof typeof priorityRank] ?? 0);
+    return priorityDelta || b.createdAt.getTime() - a.createdAt.getTime();
   });
 
   const ids = [...new Set(cases.flatMap((item) => [item.subjectUserId, item.assignedToId, item.createdById].filter(Boolean) as string[]))];
