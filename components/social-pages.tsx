@@ -1414,7 +1414,11 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [editingMessageText, setEditingMessageText] = useState("");
   const [savingMessage, setSavingMessage] = useState(false);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
-  const attachmentRef = useRef<HTMLInputElement | null>(null);\n  const composerRef = useRef<HTMLTextAreaElement | null>(null);\n  const conversationsPollRef = useRef(false);\n  const messagesPollRef = useRef(false);\n  const typingPollRef = useRef(false);
+  const attachmentRef = useRef<HTMLInputElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const conversationsPollRef = useRef(false);
+  const messagesPollRef = useRef(false);
+  const typingPollRef = useRef(false);
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   const lastReadAttemptRef = useRef(0);
