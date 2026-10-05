@@ -614,7 +614,8 @@ test("stories expose authoritative views, reactions, replies, and owner viewers"
   assert.match(detail, /reactionCounts/);
   assert.match(detail, /viewers/);
   assert.match(detail, /authorId: session\.user\.id/);
-  assert.match(storyUi, /Story viewers/);
+  assert.match(storyUi, /Story activity/);
+  assert.match(storyUi, /Viewers/);
   assert.match(storyUi, /views/);
   assert.match(storyUi, /likes/);
   assert.match(storyUi, /replies/);
