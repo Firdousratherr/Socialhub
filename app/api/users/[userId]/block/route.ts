@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(
   _request: Request,
@@ -9,6 +10,9 @@ export async function POST(
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
+  const limit = await consumeRateLimit(rateLimitKey("user-block", _request, session.user.id), 30, 3600);
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
 
   const { userId } = await params;
   if (userId === session.user.id) return NextResponse.json({ error: "You cannot block yourself." }, { status: 400 });
