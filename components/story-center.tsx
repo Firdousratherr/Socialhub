@@ -24,6 +24,7 @@ import { compactCount, fullCount } from "@/lib/compact-count";
 import { formatSocialDate, formatSocialDateTime } from "@/lib/social-date";
 
 const REACTION_EMOJIS = ["❤️", "😂", "😮", "😢", "🔥", "👍"] as const;
+const STORY_IMAGE_DURATION_MS = 5000;
 
 type Story = {
   id: string;
@@ -448,6 +449,32 @@ export function StoryCenter({
   const latestReplies = storyReplies.slice(-3);
   const ownReplyExists = Boolean(session?.user && storyReplies.some((reply) => reply.author.id === session.user.id));
 
+  useEffect(() => {
+    if (!viewer || !active?.id || active.mediaType === "VIDEO") return;
+    const timer = window.setTimeout(() => moveStory(1), STORY_IMAGE_DURATION_MS);
+    return () => window.clearTimeout(timer);
+  }, [viewer?.authorId, viewer?.index, active?.id, active?.mediaType]);
+
+  useEffect(() => {
+    if (!viewer) return;
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || (target instanceof HTMLElement && target.isContentEditable)) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setViewer(null);
+      } else if (event.key === "ArrowLeft" && canGoPrevious) {
+        event.preventDefault();
+        moveStory(-1);
+      } else if (event.key === "ArrowRight" && canGoNext) {
+        event.preventDefault();
+        moveStory(1);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [viewer, canGoPrevious, canGoNext]);
+
   return (
     <>
       <section className={"social-card overflow-hidden rounded-3xl " + className} aria-label="Stories">
@@ -624,7 +651,7 @@ export function StoryCenter({
               <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex gap-1.5">
                 {activeGroup?.stories.map((story, index) => (
                   <span key={story.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/25">
-                    <span className={"block h-full rounded-full " + (index < (viewer?.index ?? 0) ? "w-full bg-white" : index === (viewer?.index ?? 0) ? "w-1/3 bg-white" : "w-0")} />
+                    <span className={"block h-full rounded-full " + (index < (viewer?.index ?? 0) ? "w-full bg-white" : index === (viewer?.index ?? 0) ? "w-full bg-white story-progress-fill" : "w-0")} />
                   </span>
                 ))}
               </div>
@@ -651,7 +678,9 @@ export function StoryCenter({
                     muted
                     playsInline
                     controls
+                    controlsList="nodownload"
                     preload="metadata"
+                    onEnded={() => moveStory(1)}
                     aria-label={active.caption ?? "Story video"}
                   />
                 ) : (
