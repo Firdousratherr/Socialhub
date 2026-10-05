@@ -9,6 +9,8 @@ import { emitPostSyncEvent, subscribePostSync } from "@/lib/post-sync";
 import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
 import { useLivePoll } from "@/hooks/use-live-poll";
 import { compactCount, fullCount } from "@/lib/compact-count";
+import { formatSocialDate } from "@/lib/social-date";
+import { PostContent } from "@/components/post-content";
 import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
 import {
@@ -118,17 +120,6 @@ function Avatar({
   );
 }
 
-function timeLabel(createdAt: string) {
-  const seconds = Math.max(1, Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000));
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return minutes + "m";
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return hours + "h";
-  const days = Math.floor(hours / 24);
-  return days + "d";
-}
-
 function mapApiPostToFeedPost(
   item: {
     id: string;
@@ -157,7 +148,7 @@ function mapApiPostToFeedPost(
     authorImage: item.author.image,
     authorVerified: Boolean(item.author.isVerified),
     authorOwner: Boolean(item.author.isOwner),
-    timestamp: timeLabel(item.createdAt),
+    timestamp: formatSocialDate(item.createdAt),
     copy: item.content ?? "Shared a new moment.",
     mediaUrl: item.mediaUrl,
     visibility: item.visibility,
@@ -362,7 +353,7 @@ function CommentThread({
                     </div>
                   )}
                   <div className="mt-1 flex gap-3 px-1 text-xs font-bold text-gray-500">
-                    <span>{timeLabel(comment.createdAt)}</span>
+                    <span>{formatSocialDate(comment.createdAt)}</span>
                     {session?.user ? (
                       <button type="button" onClick={() => setReplyTo(comment.id)} className="hover:text-[#5a4be8]">Reply</button>
                     ) : null}
@@ -392,7 +383,7 @@ function CommentThread({
                           </div>
                         )}
                         <div className="mt-1 flex gap-3 px-1 text-xs font-bold text-gray-500">
-                          <span>{timeLabel(reply.createdAt)}</span>
+                          <span>{formatSocialDate(reply.createdAt)}</span>
                           {session?.user?.id === reply.author.id ? <>
                             <button type="button" onClick={() => { setEditingCommentId(reply.id); setEditingCommentText(reply.content); }} className="hover:text-[#5a4be8]" aria-label="Edit reply"><Pencil size={11}/></button>
                             <button type="button" onClick={() => void deleteComment(reply.id)} className="hover:text-red-500" aria-label="Delete reply"><Trash2 size={11}/></button>
@@ -537,14 +528,18 @@ function PostCard({
     try {
       if (navigator.share) {
         await navigator.share({ title: "Socialhub post", text: post.copy.slice(0, 120), url });
+        setError("Post shared.");
       } else {
         await navigator.clipboard.writeText(url);
+        setError("Link copied.");
       }
       const response = await fetch(`/api/posts/${post.id}/share`, { method: "POST" });
       const json = await response.json().catch(() => ({}));
       if (response.ok) {
         setShareCount(Number(json.shareCount ?? shareCount + 1));
         emitLiveSync({ type: "post-updated", postId: post.id });
+      } else {
+        setError(json.error ?? "Could not record the share.");
       }
     } catch {
       // User cancelled share or the clipboard is unavailable.
@@ -700,7 +695,7 @@ function PostCard({
             </div>
           </form>
         ) : (
-          <p className="mt-4 text-[15px] leading-6 text-gray-700">{displayCopy}</p>
+          <PostContent content={displayCopy} className="mt-4 whitespace-pre-wrap text-[15px] leading-6 text-gray-700"/>
         )}
 
         {post.mediaUrl ? (
@@ -803,7 +798,7 @@ export default function HomeFeed() {
         const [feedResponse, storyResponse, usersResponse] = await Promise.all([
           fetch("/api/posts?take=20&mode=" + encodeURIComponent(feedMode), { cache: "no-store" }),
           fetch("/api/stories", { cache: "no-store" }),
-          fetch("/api/users?take=3", { cache: "no-store" }),
+          fetch("/api/users?suggestions=true&take=3", { cache: "no-store" }),
         ]);
         const feedJson = await feedResponse.json();
         const storyJson = await storyResponse.json();
@@ -866,6 +861,17 @@ export default function HomeFeed() {
     }
   }
 
+  async function refreshSuggestedUsers() {
+    if (!session?.user?.id) return;
+    try {
+      const response = await fetch("/api/users?suggestions=true&take=3", { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (response.ok) setSuggestedUsers((json.users ?? []) as SuggestedUser[]);
+    } catch {
+      // Suggestions are secondary content; keep the existing list on transient failures.
+    }
+  }
+
   useLivePoll(refreshLiveFeed, 7000, Boolean(session?.user && feedPosts.length));
 
   useEffect(() => {
@@ -891,6 +897,11 @@ export default function HomeFeed() {
 
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pageshow", onPageShow);
+    const unsubscribeFollow = subscribeLiveSync((event) => {
+      if (event.type === "follow-updated") {
+        void refreshSuggestedUsers();
+      }
+    });
     const unsubscribeLive = subscribeLiveSync((event) => {
       if (event.type === "comment-created" || event.type === "comment-updated" || event.type === "comment-deleted") {
         if (!event.postId) return;
@@ -898,6 +909,7 @@ export default function HomeFeed() {
       }
     });
     return () => {
+      unsubscribeFollow();
       unsubscribeLive();
       unsubscribe();
       document.removeEventListener("visibilitychange", onVisibilityChange);
@@ -1032,7 +1044,7 @@ export default function HomeFeed() {
           authorImage: item.author.image,
           authorVerified: Boolean(item.author.isVerified),
           authorOwner: Boolean(item.author.isOwner),
-          timestamp: timeLabel(item.createdAt),
+          timestamp: formatSocialDate(item.createdAt),
           copy: item.content ?? "Shared a new moment.",
           mediaUrl: item.mediaUrl,
           visibility: item.visibility,

@@ -69,7 +69,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const title = `${user.name} (@${user.username}) · Socialhub`;
+  const title = `${user.name} (@${user.username})`;
   const description =
     user.bio?.trim() ||
     `View ${user.name}'s public profile on Socialhub and discover their posts and connections.`;

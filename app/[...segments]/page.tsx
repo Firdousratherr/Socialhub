@@ -38,6 +38,8 @@ export default async function CatchAllPage({
   const first = segments[0] ?? "";
 
   if (first === "login" || first === "signup") {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (session?.user) redirect("/home");
     return <SocialPages screen={{ kind: first }} />;
   }
 

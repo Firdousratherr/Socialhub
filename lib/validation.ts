@@ -26,7 +26,10 @@ export const profileInputSchema = z.object({
   bio: z.string().trim().max(500).nullable().optional(),
   image: mediaUrlSchema.optional().nullable(),
   coverImage: mediaUrlSchema.optional().nullable(),
-  website: z.string().url().max(2048).nullable().optional(),
+  website: z.preprocess(
+    (value) => typeof value === "string" && value.trim() === "" ? null : value,
+    z.string().url("Enter a valid URL, such as https://example.com").max(2048).nullable().optional(),
+  ),
   location: z.string().trim().max(120).nullable().optional(),
   isPrivate: z.boolean().optional(),
 });

@@ -1,7 +1,8 @@
 export type LiveSyncEvent =
   | { type: "post-created" | "post-updated" | "post-deleted" | "comment-created" | "comment-updated" | "comment-deleted"; postId?: string; commentId?: string }
   | { type: "message-created" | "message-updated" | "message-deleted"; conversationId: string; messageId?: string }
-  | { type: "notification-created" | "friend-request-changed" | "read-state-changed"; id?: string };
+  | { type: "notification-created" | "friend-request-changed" | "read-state-changed"; id?: string }
+  | { type: "follow-updated"; userId: string; following: boolean };
 
 const CHANNEL_NAME = "socialhub-live-sync";
 type Listener = (event: LiveSyncEvent) => void;
