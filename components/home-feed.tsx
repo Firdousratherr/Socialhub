@@ -4,9 +4,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
-import { MobileMenu } from "@/components/mobile-menu";
 import { BottomNav } from "@/components/bottom-nav";
-import { useUnreadSummary } from "@/hooks/use-unread-summary";
 import { emitPostSyncEvent, subscribePostSync } from "@/lib/post-sync";
 import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
 import { useLivePoll } from "@/hooks/use-live-poll";
@@ -14,27 +12,20 @@ import { compactCount, fullCount } from "@/lib/compact-count";
 import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
 import { SignedInShell } from "@/components/signed-in-shell";
-import { useRouter } from "next/navigation";
 import {
-  Bell,
   Bookmark,
   ChevronDown,
-  Compass,
-  Home,
   Image as ImageIcon,
   Loader2,
   MessageCircle,
   MoreHorizontal,
   Pencil,
   Plus,
-  Search,
   Send,
-  Settings,
   Share2,
   ShieldAlert,
   Sparkles,
   Trash2,
-  Users,
   X,
 } from "lucide-react";
 
@@ -90,13 +81,6 @@ type SuggestedUser = {
   canFollow?: boolean;
 };
 
-const navItems = [
-  { label: "Home", icon: Home, active: true, href: "/home" },
-  { label: "Discover", icon: Compass, href: "/discover" },
-  { label: "Friends", icon: Users, href: "/friends" },
-  { label: "Messages", icon: MessageCircle, href: "/messages" },
-  { label: "Notifications", icon: Bell, href: "/notifications" },
-];
 
 function Avatar({
   name,
@@ -749,8 +733,6 @@ function PostCard({
 
 export default function HomeFeed() {
   const { data: session } = authClient.useSession();
-  const router = useRouter();
-  const { summary: unreadSummary } = useUnreadSummary();
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [suggestedUsers, setSuggestedUsers] = useState<SuggestedUser[]>([]);
@@ -764,8 +746,6 @@ export default function HomeFeed() {
   const [feedError, setFeedError] = useState("");
   const [nextBefore, setNextBefore] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const [feedMode, setFeedMode] = useState<"FOR_YOU" | "FOLLOWING" | "FRIENDS" | "LATEST" | "SAVED">("FOR_YOU");
   const [feedModeOpen, setFeedModeOpen] = useState(false);
   const [pendingLivePosts, setPendingLivePosts] = useState<Post[]>([]);
@@ -999,14 +979,6 @@ export default function HomeFeed() {
     }
   }
 
-  const profileHref = session?.user ? "/profile/me" : "/login";
-
-  function submitSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const query = searchTerm.trim();
-    setSearchOpen(false);
-    router.push(query ? `/discover?q=${encodeURIComponent(query)}` : "/discover");
-  }
   const canSubmit = Boolean(session?.user && (newPost.trim() || mediaUrl) && !publishing && !uploading);
   const visibleStories = useMemo(() => stories.filter((story) => new Date(story.expiresAt) > new Date()).slice(0, 6), [stories]);
 
