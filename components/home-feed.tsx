@@ -87,6 +87,7 @@ type SuggestedUser = {
   isPrivate: boolean;
   isFollowing: boolean;
   isFriend: boolean;
+  canFollow?: boolean;
 };
 
 const navItems = [
@@ -753,6 +754,7 @@ export default function HomeFeed() {
   const [feedPosts, setFeedPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [suggestedUsers, setSuggestedUsers] = useState<SuggestedUser[]>([]);
+  const [suggestedFollowLoading, setSuggestedFollowLoading] = useState<string | null>(null);
   const [newPost, setNewPost] = useState("");
   const [visibility, setVisibility] = useState<Post["visibility"]>("PUBLIC");
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
@@ -1008,6 +1010,26 @@ export default function HomeFeed() {
   const canSubmit = Boolean(session?.user && (newPost.trim() || mediaUrl) && !publishing && !uploading);
   const visibleStories = useMemo(() => stories.filter((story) => new Date(story.expiresAt) > new Date()).slice(0, 6), [stories]);
 
+  async function toggleSuggestedFollow(user: SuggestedUser) {
+    if (!session?.user || suggestedFollowLoading) return;
+
+    setSuggestedFollowLoading(user.id);
+    try {
+      const response = await fetch("/api/users/" + user.id + "/follow", {
+        method: user.isFollowing ? "DELETE" : "POST",
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not update follow.");
+      setSuggestedUsers((current) =>
+        current.map((item) => item.id === user.id ? { ...item, isFollowing: !user.isFollowing } : item),
+      );
+    } catch {
+      // Keep the suggestion unchanged when a follow request fails.
+    } finally {
+      setSuggestedFollowLoading(null);
+    }
+  }
+
   function showPendingLivePosts() {
     if (!pendingLivePosts.length) return;
     setFeedPosts((items) => {
@@ -1171,7 +1193,7 @@ export default function HomeFeed() {
                       <Link href={`/profile/${user.username ?? user.id}`} className="block truncate text-xs font-extrabold text-gray-900 hover:text-[#5a4be8]">{user.name}</Link>
                       <p className="truncate text-[11px] font-medium text-gray-400">@{user.username ?? "member"}</p>
                     </div>
-                    <Link href={`/discover?q=${encodeURIComponent(user.username ?? user.name)}`} className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white" aria-label={`Find ${user.name} in Discover`}><Plus size={16}/></Link>
+                    <button type="button" onClick={() => void toggleSuggestedFollow(user)} disabled={suggestedFollowLoading === user.id || !user.canFollow} className={"grid size-9 place-items-center rounded-xl text-white disabled:cursor-not-allowed disabled:opacity-50 " + (user.isFollowing ? "bg-[#6d5dfc]" : "bg-gray-950")} aria-label={user.isFollowing ? `Unfollow ${user.name}` : `Follow ${user.name}`} title={user.canFollow === false ? "This account cannot be followed directly." : undefined}><Plus size={16} className={user.isFollowing ? "rotate-45 transition-transform" : ""}/></button>
                   </div>
                 ))}
                 {!suggestedUsers.length ? <p className="py-3 text-xs text-gray-400">No new people to show right now.</p> : null}
