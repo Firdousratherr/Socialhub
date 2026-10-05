@@ -645,3 +645,34 @@ test("mobile content reserves space for the persistent bottom navigation", () =>
   assert.match(css, /padding-bottom: calc\(var\(--mobile-nav-h\)/);
 });
 
+
+
+test("Admin 4.0 operational APIs exist with explicit control boundaries", () => {
+  assert.ok(read("app/api/admin/command-center/route.ts").includes('requireAdminPermission("ANALYTICS_VIEW")'));
+  assert.ok(read("app/api/admin/cases/route.ts").includes('requireAdminPermission("CASES_MANAGE")'));
+  assert.ok(read("app/api/admin/enforcement/route.ts").includes('requireAdminPermission("ENFORCEMENT_MANAGE")'));
+  assert.ok(read("app/api/admin/risk/route.ts").includes('requireAdminPermission("RISK_VIEW")'));
+  assert.ok(read("app/api/admin/social-graph/route.ts").includes("REMOVE_FOLLOWER"));
+  assert.ok(read("app/api/admin/rate-limits/route.ts").includes('requireAdminPermission("RATE_LIMITS_VIEW")'));
+  assert.ok(read("app/api/admin/integrity/route.ts").includes('requireAdminPermission("DATA_INTEGRITY")'));
+  assert.ok(read("app/api/admin/approvals/route.ts").includes('requesterId: access.user.id'));
+});
+
+test("Admin enforcement actions are actually enforced by user-facing APIs", () => {
+  assert.match(read("app/api/posts/route.ts"), /postingRestrictedUntil/);
+  assert.match(read("app/api/posts/[postId]/comments/route.ts"), /commentingRestrictedUntil/);
+  assert.match(read("app/api/conversations/[conversationId]/messages/route.ts"), /messagingRestrictedUntil/);
+  assert.match(read("app/api/users/[userId]/follow/route.ts"), /socialRestrictedUntil/);
+  assert.match(read("app/api/friend-requests/route.ts"), /socialRestrictedUntil/);
+  assert.match(read("app/api/stories/route.ts"), /postingRestrictedUntil/);
+});
+
+test("Emergency platform controls are enforced at runtime", () => {
+  assert.match(read("app/api/posts/route.ts"), /platformEnabled\("posts", true\)/);
+  assert.match(read("app/api/posts/[postId]/comments/route.ts"), /platformEnabled\("comments", true\)/);
+  assert.match(read("app/api/conversations/[conversationId]/messages/route.ts"), /platformEnabled\("messaging", true\)/);
+  assert.match(read("app/api/uploads/route.ts"), /platformEnabled\("uploads", true\)/);
+  assert.match(read("app/api/stories/route.ts"), /platformEnabled\("stories", true\)/);
+  assert.match(read("app/api/users/[userId]/follow/route.ts"), /platformEnabled\("social", true\)/);
+  assert.match(read("app/api/friend-requests/route.ts"), /platformEnabled\("social", true\)/);
+});
