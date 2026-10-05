@@ -136,13 +136,70 @@ export function Toast({ message, onClose, actionLabel, onAction }: { message: st
   return <div className="social-toast" role="status" aria-live="polite"><span className="min-w-0 flex-1">{message}</span>{actionLabel && onAction ? <button type="button" onClick={onAction} className="rounded-lg px-2 py-1.5 text-[11px] font-black text-[var(--accent)] hover:bg-[var(--accent-soft)]">{actionLabel}</button> : null}{onClose ? <button type="button" onClick={onClose} className="social-toast-close" aria-label="Dismiss notification"><X size={14} aria-hidden="true" /></button> : null}</div>;
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({ variant = "menu" }: { variant?: "menu" | "setting" }) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
+
   useEffect(() => {
     const stored = window.localStorage.getItem("socialhub:theme");
-    const initial = stored === "dark" || stored === "light" ? stored : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    document.documentElement.dataset.theme = initial; setTheme(initial);
+    const initial =
+      stored === "dark" || stored === "light"
+        ? stored
+        : document.documentElement.dataset.theme === "dark"
+          ? "dark"
+          : "light";
+    document.documentElement.dataset.theme = initial;
+    document.documentElement.style.colorScheme = initial;
+    setTheme(initial);
   }, []);
-  const toggle = () => { const next = theme === "dark" ? "light" : "dark"; document.documentElement.dataset.theme = next; window.localStorage.setItem("socialhub:theme", next); setTheme(next); };
-  return <button type="button" onClick={toggle} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-black text-[var(--foreground)] hover:bg-[var(--surface-muted)]" role="menuitem">{theme === "dark" ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}{theme === "dark" ? "Light mode" : "Dark mode"}</button>;
+
+  function toggle() {
+    const next = theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    document.documentElement.style.colorScheme = next;
+    window.localStorage.setItem("socialhub:theme", next);
+    setTheme(next);
+  }
+
+  if (variant === "setting") {
+    return (
+      <button
+        type="button"
+        onClick={toggle}
+        className="flex min-h-14 w-full items-center gap-3 rounded-2xl px-2 py-1.5 text-left transition hover:bg-[var(--surface-muted)]"
+        aria-pressed={theme === "dark"}
+        aria-label={theme === "dark" ? "Disable dark theme" : "Enable dark theme"}
+      >
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+          {theme === "dark" ? <Moon size={17} aria-hidden="true" /> : <Sun size={17} aria-hidden="true" />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-black">Dark theme</span>
+          <span className="mt-0.5 block text-xs text-gray-500">
+            {theme === "dark" ? "Dark theme is enabled." : "Use the darker Socialhub appearance."}
+          </span>
+        </span>
+        <span
+          aria-hidden="true"
+          className={"relative h-7 w-12 shrink-0 rounded-full p-1 transition " + (theme === "dark" ? "bg-[var(--accent)]" : "bg-gray-200")}
+        >
+          <span
+            className={"block size-5 rounded-full bg-white shadow-sm transition-transform " + (theme === "dark" ? "translate-x-5" : "")}
+          />
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-black text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
+      role="menuitem"
+      aria-pressed={theme === "dark"}
+    >
+      {theme === "dark" ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
+      {theme === "dark" ? "Light mode" : "Dark mode"}
+    </button>
+  );
 }
