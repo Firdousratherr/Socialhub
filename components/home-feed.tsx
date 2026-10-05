@@ -422,6 +422,7 @@ function CommentThread({
   );
 }
 
+  const [toast, setToast] = useState("");
 function PostCard({
   post,
   currentUserId,
@@ -750,7 +751,6 @@ export default function HomeFeed() {
   const [feedMode, setFeedMode] = useState<"FOR_YOU" | "FOLLOWING" | "FRIENDS" | "LATEST" | "SAVED">("FOR_YOU");
   const [feedModeOpen, setFeedModeOpen] = useState(false);
   const [loadingFeed, setLoadingFeed] = useState(true);
-  const [toast, setToast] = useState("");
   const [pendingLivePosts, setPendingLivePosts] = useState<Post[]>([]);
   const [newActivityCount, setNewActivityCount] = useState(0);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -882,7 +882,7 @@ export default function HomeFeed() {
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error ?? "Could not follow this person.");
       setToast("Following @" + (target.username ?? "member") + ".");
-      emitLiveSync({ type: "follow-updated" });
+      emitLiveSync({ type: "follow-updated", userId, following: true });
     } catch (error) {
       setSuggestedUsers((items) => items.map((item) => item.id === userId ? { ...item, isFollowing: false } : item));
       setFeedError(error instanceof Error ? error.message : "Could not follow this person.");
