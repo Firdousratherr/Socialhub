@@ -8,8 +8,10 @@ import { safeDeleteBlob } from "@/lib/blob-cleanup";
 import { platformEnabled } from "@/lib/platform-controls";
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
 const MAX_DAILY_UPLOAD_BYTES = Number(process.env.MAX_DAILY_UPLOAD_BYTES ?? 25 * 1024 * 1024);
-const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/webm"]);
 
 function matches(bytes: Uint8Array, signature: number[], offset = 0) {
   return signature.every((value, index) => bytes[offset + index] === value);
@@ -27,7 +29,14 @@ function detectImageType(bytes: Uint8Array) {
   return null;
 }
 
+function detectVideoType(bytes: Uint8Array) {
+  if (bytes.length >= 12 && matches(bytes, [0x1a, 0x45, 0xdf, 0xa3])) return "video/webm";
+  if (bytes.length >= 12 && matchesAscii(bytes, "ftyp", 4)) return "video/mp4";
+  return null;
+}
+
 function extensionFor(type: string) {
+  if (type === "video/webm") return "webm";
   return type.split("/")[1] === "jpeg" ? "jpg" : type.split("/")[1];
 }
 
@@ -46,15 +55,21 @@ export async function POST(request: Request) {
   const file = formData?.get("file");
 
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: "Choose an image file." }, { status: 400 });
+    return NextResponse.json({ error: "Choose an image or video file." }, { status: 400 });
   }
 
-  if (!ALLOWED_TYPES.has(file.type)) {
-    return NextResponse.json({ error: "Only JPG, PNG, WebP, and GIF images are supported." }, { status: 415 });
+  const isImage = ALLOWED_IMAGE_TYPES.has(file.type);
+  const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
+
+  if (!isImage && !isVideo) {
+    return NextResponse.json({ error: "Only JPG, PNG, WebP, GIF images or MP4/WebM videos are supported." }, { status: 415 });
   }
 
-  if (file.size > MAX_IMAGE_BYTES) {
-    return NextResponse.json({ error: "Image must be 4 MB or smaller." }, { status: 413 });
+  const maxBytes = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+  if (file.size > maxBytes) {
+    return NextResponse.json({
+      error: isVideo ? "Video must be 20 MB or smaller." : "Image must be 4 MB or smaller.",
+    }, { status: 413 });
   }
 
   const dayStart = new Date();
@@ -69,9 +84,9 @@ export async function POST(request: Request) {
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const detectedType = detectImageType(bytes);
+  const detectedType = isImage ? detectImageType(bytes) : detectVideoType(bytes);
   if (!detectedType || detectedType !== file.type) {
-    return NextResponse.json({ error: "The file contents do not match the declared image type." }, { status: 415 });
+    return NextResponse.json({ error: "The file contents do not match the declared media type." }, { status: 415 });
   }
 
   const path = `uploads/${session.user.id}/${crypto.randomUUID()}.${extensionFor(file.type)}`;
@@ -91,5 +106,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Could not finish recording the upload. Please try again." }, { status: 500 });
   }
 
-  return NextResponse.json({ url: blob.url, pathname: blob.pathname }, { status: 201 });
+  return NextResponse.json({ url: blob.url, pathname: blob.pathname, mediaType: isVideo ? "VIDEO" : "IMAGE" }, { status: 201 });
 }
