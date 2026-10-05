@@ -157,6 +157,7 @@ export async function POST(request: Request) {
     data: {
       authorId: session.user.id,
       mediaUrl: parsed.data.mediaUrl,
+      mediaType: parsed.data.mediaType,
       caption: parsed.data.caption ?? null,
       audience: parsed.data.audience,
       expiresAt: parsed.data.expiresAt,
