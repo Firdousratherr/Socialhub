@@ -1,5 +1,6 @@
 "use client";
 
+import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -70,7 +71,7 @@ export function SignedInShell({ children }: { children: React.ReactNode }) {
     };
   }, [session?.user?.id]);
 
-  function submitSearch(event: React.FormEvent<HTMLFormElement>) {
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const query = searchTerm.trim();
     router.push(query ? `/discover?q=${encodeURIComponent(query)}` : "/discover");
