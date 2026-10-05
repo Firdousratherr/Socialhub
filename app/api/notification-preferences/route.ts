@@ -13,6 +13,8 @@ const keys = [
   "mentions",
   "shares",
   "system",
+  "storyReplies",
+  "storyReactions",
 ] as const;
 
 type PreferenceKey = (typeof keys)[number];
