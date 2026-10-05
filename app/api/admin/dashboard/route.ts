@@ -6,7 +6,7 @@ export async function GET() {
   const access = await requireAdminPermission("ANALYTICS_VIEW");
   if (access.response) return access.response;
 
-  const [users, activeUsers, verifiedUsers, ownerUsers, pendingVerificationRequests, posts, likes, comments, follows, messages, stories, pendingReports, recentUsers, recentPosts, recentAudit] =
+  const [users, activeUsers, verifiedUsers, ownerUsers, pendingVerificationRequests, posts, likes, comments, follows, messages, stories, profileViews, pendingReports, recentUsers, recentPosts, recentAudit] =
     await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isActive: true } }),
@@ -19,6 +19,7 @@ export async function GET() {
       prisma.follow.count(),
       prisma.message.count(),
       prisma.story.count(),
+      prisma.profileView.count(),
       prisma.report.count({ where: { status: "PENDING" } }),
       prisma.user.findMany({ orderBy: { createdAt: "desc" }, take: 5, select: { id: true, name: true, username: true, createdAt: true, isActive: true, role: true } }),
       prisma.post.findMany({ orderBy: { createdAt: "desc" }, take: 5, select: { id: true, content: true, createdAt: true, author: { select: { name: true, username: true } }, _count: { select: { likes: true, comments: true } } } }),
@@ -26,7 +27,7 @@ export async function GET() {
     ]);
 
   return NextResponse.json({
-    stats: { users, activeUsers, verifiedUsers, ownerUsers, pendingVerificationRequests, posts, likes, comments, follows, messages, stories, pendingReports },
+    stats: { users, activeUsers, verifiedUsers, ownerUsers, pendingVerificationRequests, posts, likes, comments, follows, messages, stories, profileViews, pendingReports },
     recentUsers,
     recentPosts,
     recentAudit,
