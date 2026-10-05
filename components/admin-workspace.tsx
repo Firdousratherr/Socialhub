@@ -524,6 +524,8 @@ function GlobalSearchResults({
     ["Comments", results.comments ?? []],
     ["Reports", results.reports ?? []],
     ["Messages", results.messages ?? []],
+    ["Cases", results.cases ?? []],
+    ["Appeals", results.appeals ?? []],
   ] as const;
   const count = groups.reduce((sum, [, items]) => sum + items.length, 0);
   return (
