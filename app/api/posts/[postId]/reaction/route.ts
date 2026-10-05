@@ -21,7 +21,7 @@ export async function POST(
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
-  const limit = await consumeMutationRateLimit("reactions", _request, session.user.id, 120, 60);
+  const limit = await consumeMutationRateLimit("reactions", request, session.user.id, 120, 60);
 
   if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
   const { postId } = await params;
