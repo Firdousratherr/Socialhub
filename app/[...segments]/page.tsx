@@ -74,7 +74,7 @@ export default async function CatchAllPage({
       redirect("/home?error=admin");
     }
 
-    return <SocialPages screen={{ kind: "admin", section: segments[1] ?? "control" }} />;
+    return <SocialPages screen={{ kind: "admin", section: segments[1] ?? "overview" }} />;
   }
 
   const map: Record<string, string> = {
