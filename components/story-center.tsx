@@ -206,9 +206,9 @@ export function StoryCenter({
           ) : null}
           {authors.length ? authors.map(({ author, viewed, storyIndex }) => (
             <button key={author.id} type="button" onClick={() => void openStory(storyIndex)} className="min-w-[64px] text-center">
-              <div className={"rounded-[1.15rem] p-[2px] " + (viewed ? "bg-gray-200" : "bg-gradient-to-br from-[#6d5dfc] via-[#d957ff] to-[#ffb347]")}>
-                <div className="rounded-[1rem] bg-white p-[2px]">
-                  {author.image ? <img src={author.image} alt="" className="size-14 rounded-[.9rem] object-cover" /> : <span className="grid size-14 place-items-center rounded-[.9rem] bg-gradient-to-br from-violet-500 to-sky-400 text-sm font-black text-white">{author.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()}</span>}
+              <div className={"mx-auto grid size-16 place-items-center rounded-full p-[2px] " + (viewed ? "bg-gray-200" : "bg-gradient-to-br from-[#6d5dfc] via-[#d957ff] to-[#ffb347]")}>
+                <div className="grid size-full place-items-center rounded-full bg-white p-[2px]">
+                  {author.image ? <img src={author.image} alt="" className="size-full rounded-full object-cover" /> : <span className="grid size-full place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-sm font-black text-white">{author.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()}</span>}
                 </div>
               </div>
               <span className="mt-2 flex items-center justify-center gap-1 truncate text-[10px] font-bold text-gray-500">{author.id === session?.user?.id ? "Your story" : author.name.split(" ")[0]}<AccountBadge verified={author.isVerified} owner={author.isOwner} /></span>
