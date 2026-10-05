@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { publicUserWhere } from "@/lib/user-visibility";
 import { SocialPages } from "@/components/social-pages";
 
 const SITE_URL = "https://socialhub-ruby.vercel.app";
@@ -26,8 +27,8 @@ function safeExternalUrl(value: string | null) {
 }
 
 async function getProfile(username: string) {
-  return prisma.user.findUnique({
-    where: { username },
+  return prisma.user.findFirst({
+    where: { ...publicUserWhere, username },
     select: {
       id: true,
       username: true,
@@ -60,9 +61,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
+  const session = await auth.api.getSession({ headers: await headers() });
   const user = await getProfile(username);
 
-  if (!user || !user.isActive || user.deletedAt || !user.username) {
+  if (!user) {
+    if (session?.user) {
+      const ownUser = await prisma.user.findFirst({
+        where: { id: session.user.id, username },
+        select: { username: true },
+      });
+      if (ownUser) {
+        return <SocialPages screen={{ kind: "profile", username: ownUser.username ?? username }} />;
+      }
+    }
+    notFound();
+  }
+
+  if (!user.isActive || user.deletedAt || !user.username) {
     return {
       title: "Profile not found",
       robots: { index: false, follow: false },
