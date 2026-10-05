@@ -507,7 +507,7 @@ export function StoryCenter({
                   <AccountBadge verified={group.author.isVerified} owner={group.author.isOwner}/>
                 </span>
                 <span className="mt-0.5 block truncate text-[9px] font-semibold text-gray-400">
-                  {total > 1 ? total + " stories · " : ""}{latest ? timeRemaining(latest.expiresAt) : ""}
+                  {latest ? timeRemaining(latest.expiresAt) : ""}
                 </span>
               </button>
             );
