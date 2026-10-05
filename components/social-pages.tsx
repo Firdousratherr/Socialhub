@@ -1135,7 +1135,8 @@ function Profile({ username = "firdous" }: { username?: string }) {
   async function blockUser() {
     if (!profile || isOwner || actionLoading) return;
     if (!window.confirm("Block this user? Their content will no longer appear for you.")) return;
-    setActionLoading("block");    try {
+    setActionLoading("block");
+    try {
       const response = await fetch("/api/users/" + profile.id + "/block", { method: "POST" });
       if (!response.ok) {
         const json = await response.json().catch(() => ({}));
