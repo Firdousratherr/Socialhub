@@ -15,6 +15,7 @@ import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
 import { emitUnreadSummarySync } from "@/hooks/use-unread-summary";
 import { useLivePoll } from "@/hooks/use-live-poll";
 import { AppShell } from "@/components/app-shell";
+import { ThemeToggle } from "@/components/social-ui";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
@@ -3183,6 +3184,9 @@ function SettingsPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div><p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">General</p><h2 className="mt-1 text-xl font-black">Account</h2><p className="mt-2 text-xs text-gray-500">Edit the personal information shown across Socialhub.</p></div>
             <button type="button" onClick={() => setEditingProfile((value) => !value)} disabled={!session?.user || loading} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40"><Pencil size={14} className="mr-1 inline"/>{editingProfile ? "Close editor" : "Edit profile"}</button>
+          </div>
+          <div className="mt-5 rounded-2xl border border-gray-100 bg-gray-50/80 p-3">
+            <ThemeToggle variant="setting" />
           </div>
           {!editingProfile ? (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
