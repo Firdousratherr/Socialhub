@@ -791,6 +791,12 @@ test("root recovery boundaries are present", () => {
 });
 
 
+test("unread notification badges honor muted actors", () => {
+  const summary = read("app/api/unread-summary/route.ts");
+  assert.match(summary, /getMutedUserIds/);
+  assert.match(summary, /actorId: \{ notIn: mutedIds \}/);
+});
+
 test("account mutes have durable schema, management APIs, and feed/notification enforcement", () => {
   const schema = read("prisma/schema.prisma");
   const migration = read("prisma/migrations/20261005200000_account_mutes/migration.sql");
