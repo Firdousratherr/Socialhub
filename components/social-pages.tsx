@@ -2619,7 +2619,7 @@ function Notifications() {
 
 function formatSessionDevice(userAgent: string | null) {
   const ua = userAgent ?? "";
-  const browser = /Edg\\//.test(ua) ? "Edge" : /Chrome\\//.test(ua) ? "Chrome" : /Firefox\\//.test(ua) ? "Firefox" : /Safari\\//.test(ua) && !/Chrome\\//.test(ua) ? "Safari" : /OPR\\//.test(ua) ? "Opera" : "Browser";
+  const browser = ua.includes("Edg/") ? "Edge" : ua.includes("Chrome/") ? "Chrome" : ua.includes("Firefox/") ? "Firefox" : ua.includes("Safari/") && !ua.includes("Chrome/") ? "Safari" : ua.includes("OPR/") ? "Opera" : "Browser";
   const os = /Windows NT/.test(ua) ? "Windows" : /Android/.test(ua) ? "Android" : /iPhone|iPad|iPod/.test(ua) ? "iOS" : /Mac OS X/.test(ua) ? "macOS" : /Linux/.test(ua) ? "Linux" : "Device";
   return browser + " on " + os;
 }
