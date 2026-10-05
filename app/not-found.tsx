@@ -1,5 +1,7 @@
 "use client";
 
+export const metadata = { title: "Page not found" };
+
 import Link from "next/link";
 import { ArrowLeft, Home, Search } from "lucide-react";
 
