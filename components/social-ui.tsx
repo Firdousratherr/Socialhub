@@ -47,18 +47,19 @@ export function SkeletonCard() {
   </section>;
 }
 
-export function PostActions({ liked, saved, likeCount, commentCount, shareCount, commentsOpen, onLike, onComment, onShare, onSave }: {
+export function PostActions({ liked, saved, likeCount, commentCount, shareCount, commentsOpen, onLike, onComment, onShare, onSave, likeCountDisplay, likeCountExact, commentControlId }: {
   liked: boolean; saved: boolean; likeCount: number; commentCount: number; shareCount: number; commentsOpen: boolean;
   onLike: () => void; onComment: () => void; onShare: () => void; onSave: () => void;
+  likeCountDisplay?: string; likeCountExact?: string; commentControlId?: string;
 }) {
   return <div className="mt-4 border-t border-[var(--border)] pt-3">
     <div className="mb-2 flex items-center justify-between px-1 text-[11px] font-semibold text-[var(--muted)]">
-      <span>{formatCompact(likeCount) ? formatCompact(likeCount) + (likeCount === 1 ? " reaction" : " reactions") : ""}</span>
+      <span title={likeCountExact ? likeCountExact + " total reactions" : undefined}>{likeCountDisplay ?? (formatCompact(likeCount) ? formatCompact(likeCount) + (likeCount === 1 ? " reaction" : " reactions") : "")}</span>
       <span>{formatCompact(commentCount) ? formatCompact(commentCount) + (commentCount === 1 ? " comment" : " comments") : ""}{commentCount > 0 && shareCount > 0 ? " · " : ""}{formatCompact(shareCount) ? formatCompact(shareCount) + (shareCount === 1 ? " share" : " shares") : ""}</span>
     </div>
     <div className="grid grid-cols-4 gap-1">
       <button type="button" onClick={onLike} className={"social-action-button " + (liked ? "is-active like" : "")} aria-label={liked ? "Unlike post" : "Like post"} aria-pressed={liked}><Heart size={17} fill={liked ? "currentColor" : "none"} aria-hidden="true" /><span>Like</span></button>
-      <button type="button" onClick={onComment} className={"social-action-button " + (commentsOpen ? "is-active" : "")} aria-expanded={commentsOpen} aria-label={commentsOpen ? "Hide comments" : "Show comments"}><MessageCircle size={17} aria-hidden="true" /><span>Comment</span></button>
+      <button type="button" onClick={onComment} className={"social-action-button " + (commentsOpen ? "is-active" : "")} aria-expanded={commentsOpen} aria-controls={commentControlId} aria-label={commentsOpen ? "Hide comments" : "Show comments"}><MessageCircle size={17} aria-hidden="true" /><span>Comment</span></button>
       <button type="button" onClick={onShare} className="social-action-button" aria-label="Share post"><Share2 size={17} aria-hidden="true" /><span>Share</span></button>
       <button type="button" onClick={onSave} className={"social-action-button " + (saved ? "is-active save" : "")} aria-label={saved ? "Remove post from saved" : "Save post"} aria-pressed={saved}><Bookmark size={17} fill={saved ? "currentColor" : "none"} aria-hidden="true" /><span>Save</span></button>
     </div>
