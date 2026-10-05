@@ -203,6 +203,8 @@ export async function POST(
   if (!session?.user) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
+  const limit = await consumeMutationRateLimit("story-actions", request, session.user.id, 120, 60);
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
 
   const { storyId } = await params;
   const access = await getAccessibleStory(storyId, session.user.id);
@@ -410,6 +412,8 @@ export async function DELETE(
   if (!session?.user) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
+  const limit = await consumeMutationRateLimit("story-actions", request, session.user.id, 120, 60);
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
 
   const { storyId } = await params;
   const body = (await request.json().catch(() => null)) as { action?: string } | null;
