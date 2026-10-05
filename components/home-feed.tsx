@@ -4,7 +4,6 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
-import { BottomNav } from "@/components/bottom-nav";
 import { AppShell } from "@/components/app-shell";
 import { emitPostSyncEvent, subscribePostSync } from "@/lib/post-sync";
 import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
@@ -13,7 +12,6 @@ import { compactCount, fullCount } from "@/lib/compact-count";
 import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
 import {
-  ChevronDown,
   Image as ImageIcon,
   Loader2,
   MessageCircle,
@@ -673,7 +671,7 @@ function PostCard({
               className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 p-3 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10"
             />
             <div className="flex items-center justify-between gap-3">
-              <select value={editVisibility} onChange={(event) => setEditVisibility(event.target.value as Post["visibility"])} className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold outline-none">
+              <select value={editVisibility} onChange={(event) => setEditVisibility(event.target.value as Post["visibility"])} className="h-9 appearance-none rounded-xl border border-gray-200 bg-white px-3 pr-8 text-xs font-bold outline-none focus:border-[#bbb3ff] focus:ring-4 focus:ring-[#5a4be8]/10">
                 <option value="PUBLIC">Public</option>
                 <option value="FRIENDS">Friends</option>
                 <option value="PRIVATE">Only me</option>
@@ -1094,12 +1092,11 @@ export default function HomeFeed() {
                 <button type="button" disabled={!session?.user || publishing || uploading} onClick={() => fileRef.current?.click()} className="flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 text-xs font-bold text-gray-500 hover:bg-gray-50 disabled:opacity-40"><ImageIcon size={17} className="text-emerald-500"/>Photo</button>
                 <label className="flex min-h-10 items-center gap-1 rounded-xl bg-gray-50 px-2.5 text-[10px] font-black text-gray-500">
                   <ShieldAlert size={13} />
-                  <select value={visibility} onChange={(event) => setVisibility(event.target.value as Post["visibility"])} disabled={!session?.user} className="bg-transparent outline-none">
+                  <select value={visibility} onChange={(event) => setVisibility(event.target.value as Post["visibility"])} disabled={!session?.user} className="appearance-none bg-transparent pr-1 outline-none">
                     <option value="PUBLIC">Public</option>
                     <option value="FRIENDS">Friends</option>
                     <option value="PRIVATE">Only me</option>
                   </select>
-                  <ChevronDown size={12} />
                 </label>
               </div>
               {session?.user ? <button type="submit" disabled={!canSubmit} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40">{publishing ? "Posting…" : "Post"}</button> : <Link href="/login" className="rounded-xl bg-[#6d5dfc] px-4 py-2.5 text-xs font-black text-white">Sign in</Link>}
