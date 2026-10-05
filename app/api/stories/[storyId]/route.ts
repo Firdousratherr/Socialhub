@@ -159,6 +159,8 @@ export async function GET(
     story: {
       id: access.story.id,
       author: access.story.author,
+      mediaUrl: access.story.mediaUrl,
+      mediaType: access.story.mediaType,
       caption: access.story.caption,
       expiresAt: access.story.expiresAt,
       createdAt: access.story.createdAt,
