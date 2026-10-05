@@ -1285,8 +1285,10 @@ function ReportsPanel({ onNotice }: { onNotice: (value: string) => void }) {
   const [query, setQuery] = useState("");
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [counts, setCounts] = useState<any>({});
+  const [currentAdminId, setCurrentAdminId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
 
   async function load() {
     setLoading(true);
@@ -1297,6 +1299,8 @@ function ReportsPanel({ onNotice }: { onNotice: (value: string) => void }) {
       if (!response.ok) throw new Error(json.error ?? "Could not load reports.");
       setReports(json.reports ?? []);
       setCounts(json.counts ?? {});
+      setCurrentAdminId(json.currentAdminId ?? "");
+      setNotes(Object.fromEntries((json.reports ?? []).map((report: ReportRow) => [report.id, report.moderatorNote ?? ""])));
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "Could not load reports.");
     } finally {
@@ -1355,12 +1359,7 @@ function ReportsPanel({ onNotice }: { onNotice: (value: string) => void }) {
           ["Resolved", counts.resolved ?? 0, "RESOLVED"],
           ["Dismissed", counts.dismissed ?? 0, "DISMISSED"],
         ].map(([label, value, key]) => (
-          <button
-            key={String(key)}
-            type="button"
-            onClick={() => setStatus(status === key ? "" : String(key))}
-            className={"rounded-2xl border p-4 text-left " + (status === key ? "border-violet-200 bg-violet-50" : "border-gray-100 bg-white")}
-          >
+          <button key={String(key)} type="button" onClick={() => setStatus(status === key ? "" : String(key))} className={"rounded-2xl border p-4 text-left " + (status === key ? "border-violet-200 bg-violet-50" : "border-gray-100 bg-white")}>
             <p className="text-[9px] font-black uppercase tracking-[0.13em] text-gray-400">{label}</p>
             <p className="mt-2 text-2xl font-black">{String(value)}</p>
           </button>
@@ -1371,12 +1370,7 @@ function ReportsPanel({ onNotice }: { onNotice: (value: string) => void }) {
         <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_170px_auto]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search report reason, user or content"
-              className="h-10 w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 text-xs outline-none"
-            />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search report reason, user or content" className="h-10 w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 text-xs outline-none" />
           </div>
           <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 rounded-xl border border-gray-200 bg-gray-50 px-3 text-xs font-black">
             <option value="">All statuses</option>
@@ -1393,46 +1387,73 @@ function ReportsPanel({ onNotice }: { onNotice: (value: string) => void }) {
         <div className="divide-y divide-gray-100">
           {reports.map((report) => (
             <div key={report.id} className="p-4 sm:p-5">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={"rounded-full px-2 py-1 text-[9px] font-black " + priorityClass(report.priority)}>
-                      {report.priority}
-                    </span>
-                    <span className="rounded-full bg-gray-100 px-2 py-1 text-[9px] font-black text-gray-600">
-                      {report.status}
-                    </span>
-                    {report.assignedTo ? (
-                      <span className="rounded-full bg-violet-50 px-2 py-1 text-[9px] font-black text-violet-600">
-                        Assigned: {report.assignedTo.name}
-                      </span>
-                    ) : null}
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={"rounded-full px-2 py-1 text-[9px] font-black " + priorityClass(report.priority)}>{report.priority}</span>
+                      <span className="rounded-full bg-gray-100 px-2 py-1 text-[9px] font-black text-gray-600">{report.status}</span>
+                      {report.assignedTo ? (
+                        <span className="rounded-full bg-violet-50 px-2 py-1 text-[9px] font-black text-violet-600">Assigned: {report.assignedTo.name}</span>
+                      ) : (
+                        <span className="rounded-full bg-gray-50 px-2 py-1 text-[9px] font-black text-gray-400">Unassigned</span>
+                      )}
+                    </div>
+                    <h3 className="mt-2 text-sm font-black">{report.reason}</h3>
+                    <p className="mt-1 text-[10px] text-gray-400">Reporter: {report.reporter.name} · {new Date(report.createdAt).toLocaleString()}</p>
+                    <div className="mt-3 rounded-2xl bg-gray-50 p-3">
+                      <p className="line-clamp-3 text-xs leading-5 text-gray-600">
+                        {report.post?.content ?? report.comment?.content ?? (report.reportedUser ? "Reported account" : "Report without linked content")}
+                      </p>
+                    </div>
                   </div>
-                  <h3 className="mt-2 text-sm font-black">{report.reason}</h3>
-                  <p className="mt-1 text-[10px] text-gray-400">
-                    Reporter: {report.reporter.name} · {new Date(report.createdAt).toLocaleString()}
-                  </p>
-                  <div className="mt-3 rounded-2xl bg-gray-50 p-3">
-                    <p className="line-clamp-3 text-xs leading-5 text-gray-600">
-                      {report.post?.content ?? report.comment?.content ?? (report.reportedUser ? "Reported account" : "Report without linked content")}
-                    </p>
-                  </div>
-                  {report.moderatorNote ? (
-                    <p className="mt-2 rounded-xl border border-amber-100 bg-amber-50 p-3 text-[10px] text-amber-800">
-                      Note: {report.moderatorNote}
-                    </p>
-                  ) : null}
                 </div>
-                <div className="flex flex-wrap gap-2 lg:w-64 lg:justify-end">
-                  <MiniAction label="Review" onClick={() => void updateReport(report.id, { status: "REVIEWED" })} />
-                  <MiniAction label="Resolve" onClick={() => void updateReport(report.id, { status: "RESOLVED" })} />
-                  <MiniAction label="Dismiss" onClick={() => void updateReport(report.id, { status: "DISMISSED" })} />
+
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[150px_auto_1fr] lg:items-end">
+                  <label>
+                    <span className="mb-1 block text-[9px] font-black uppercase tracking-[0.12em] text-gray-400">Priority</span>
+                    <select
+                      value={report.priority}
+                      onChange={(event) => void updateReport(report.id, { priority: event.target.value })}
+                      className="h-9 w-full rounded-xl border border-gray-200 bg-white px-2 text-[9px] font-black"
+                    >
+                      <option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>CRITICAL</option>
+                    </select>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <MiniAction
+                      label={report.assignedTo?.id === currentAdminId ? "Unassign me" : "Assign to me"}
+                      onClick={() => void updateReport(report.id, { assignedToId: report.assignedTo?.id === currentAdminId ? null : currentAdminId })}
+                    />
+                    {report.status !== "REVIEWED" ? <MiniAction label="Mark reviewed" onClick={() => void updateReport(report.id, { status: "REVIEWED" })} /> : null}
+                    {report.status !== "RESOLVED" ? <MiniAction label="Resolve" onClick={() => void updateReport(report.id, { status: "RESOLVED" })} /> : null}
+                    {report.status !== "DISMISSED" ? <MiniAction label="Dismiss" onClick={() => void updateReport(report.id, { status: "DISMISSED" })} /> : null}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={notes[report.id] ?? ""}
+                      onChange={(event) => setNotes((current) => ({ ...current, [report.id]: event.target.value }))}
+                      placeholder="Moderator note"
+                      maxLength={1000}
+                      className="h-9 min-w-0 flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 text-[10px] outline-none"
+                    />
+                    <MiniAction label="Save note" onClick={() => void updateReport(report.id, { note: notes[report.id] ?? "" })} />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 border-t border-gray-100 pt-3">
                   {report.post ? <MiniAction label="Delete post" danger={true} onClick={() => void enforce(report.id, "DELETE_POST")} /> : null}
                   {report.comment ? <MiniAction label="Delete comment" danger={true} onClick={() => void enforce(report.id, "DELETE_COMMENT")} /> : null}
                   {report.reportedUser ? <MiniAction label="Disable user" danger={true} onClick={() => void enforce(report.id, "DISABLE_USER")} /> : null}
+                  {busy === report.id ? <span className="self-center text-[10px] font-black text-violet-600">Saving moderation action…</span> : null}
                 </div>
+
+                {report.moderatorNote ? (
+                  <p className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-[10px] text-amber-800">
+                    Saved note: {report.moderatorNote}
+                  </p>
+                ) : null}
               </div>
-              {busy === report.id ? <p className="mt-3 text-[10px] font-black text-violet-600">Saving moderation action…</p> : null}
             </div>
           ))}
           {loading ? <p className="p-10 text-center text-xs text-gray-400">Loading reports…</p> : null}
