@@ -624,3 +624,24 @@ test("mentions create preference-aware notifications for posts and comments", ()
   assert.match(posts, /createMentionNotifications/);
   assert.match(comments, /createMentionNotifications/);
 });
+
+test("mobile navigation drawer is viewport-anchored and rendered outside the filtered sticky header", () => {
+  const menu = read("components/mobile-menu.tsx");
+  const css = read("app/globals.css");
+  assert.match(menu, /createPortal/);
+  assert.match(menu, /document\.body/);
+  assert.match(menu, /mobile-menu-layer/);
+  assert.match(menu, /aria-modal="true"/);
+  assert.match(css, /\.mobile-menu-panel/);
+  assert.match(css, /inset-block: 0/);
+  assert.match(css, /grid-template-rows: auto minmax\(0, 1fr\) auto/);
+});
+
+test("mobile content reserves space for the persistent bottom navigation", () => {
+  const shell = read("components/app-shell.tsx");
+  const css = read("app/globals.css");
+  assert.match(shell, /mobile-safe-bottom/);
+  assert.match(css, /--mobile-nav-h/);
+  assert.match(css, /padding-bottom: calc\(var\(--mobile-nav-h\)/);
+});
+
