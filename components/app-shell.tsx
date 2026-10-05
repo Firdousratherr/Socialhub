@@ -10,6 +10,7 @@ import { useUnreadSummary } from "@/hooks/use-unread-summary";
 import { MobileMenu } from "@/components/mobile-menu";
 import { BottomNav } from "@/components/bottom-nav";
 import { Avatar } from "@/components/ui/avatar";
+import { ThemeToggle } from "@/components/social-ui";
 
 const navItems = [
   { label: "Home", href: "/home", icon: Home },
@@ -153,8 +154,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-[70] border-b border-gray-200/80 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-3 px-3 sm:px-4 lg:px-6">
+      <header className="social-topbar sticky top-0 z-[70]">
+        <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-3 sm:px-5 lg:px-7">
           <Link href="/home" className="flex min-w-0 shrink-0 items-center gap-2 rounded-xl p-1" aria-label="Socialhub home">
             <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-[#6d5dfc] to-[#36b8ff] text-white shadow-md">
               <Sparkles size={17} aria-hidden="true" />
@@ -233,9 +234,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Avatar id={session?.user?.id} name={session?.user?.name ?? "You"} image={session?.user?.image} size="sm" />
               </button>
               {accountMenuOpen ? (
-                <div className="absolute right-0 top-12 z-[95] w-52 overflow-hidden rounded-2xl border border-gray-200 bg-white p-1.5 shadow-2xl" role="menu">
+                <div className="absolute right-0 top-12 z-[95] w-56 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1.5 shadow-2xl" role="menu">
                   <Link href={profileHref} onClick={() => setAccountMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-black text-gray-700 hover:bg-gray-50" role="menuitem"><User size={16}/>Profile</Link>
                   <Link href="/settings" onClick={() => setAccountMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-black text-gray-700 hover:bg-gray-50" role="menuitem"><Settings size={16}/>Settings</Link>
+                  <ThemeToggle />
                   <div className="my-1 border-t border-gray-100"/>
                   <button type="button" onClick={() => void logout()} disabled={signingOut} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-black text-red-600 hover:bg-red-50 disabled:opacity-50" role="menuitem"><LogOut size={16}/>{signingOut ? "Logging out…" : "Log out"}</button>
                 </div>
@@ -262,9 +264,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         ) : null}
       </header>
 
-      <div className="mx-auto grid max-w-[1200px] grid-cols-1 gap-6 px-3 py-4 sm:px-4 lg:grid-cols-[240px_minmax(0,1fr)] lg:px-6 lg:py-6">
+      <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-3 py-4 sm:px-5 lg:grid-cols-[220px_minmax(0,1fr)] lg:px-7 lg:py-6">
         <aside className="hidden lg:block">
-          <nav className="sticky top-24 rounded-3xl border border-white/80 bg-white/80 p-2 shadow-sm backdrop-blur-xl" aria-label="Primary navigation">
+          <nav className="social-sidebar rounded-3xl p-2" aria-label="Primary navigation">
             {navItems.map(({ label, href, icon: Icon }) => {
               const active = pathname === href || (href !== "/home" && pathname.startsWith(href + "/"));
               const unread = href === "/messages" ? summary.messages : href === "/notifications" ? summary.notifications : 0;

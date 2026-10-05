@@ -186,7 +186,7 @@ export function StoryCenter({
         <div className="hidden items-center justify-between gap-3 sm:flex">
           <div>
             <h2 className="text-sm font-black">Stories</h2>
-            <p className="mt-0.5 text-xs font-semibold text-gray-500">Real stories expire after 24 hours.</p>
+            <p className="mt-0.5 text-xs font-semibold text-gray-500">Share a moment that disappears after 24 hours.</p>
           </div>
           {session?.user ? (
             <button type="button" onClick={() => setComposerOpen(true)} className="flex items-center gap-1.5 rounded-xl bg-gray-950 px-3 py-2 text-xs font-black text-white">
@@ -214,9 +214,10 @@ export function StoryCenter({
               <span className="mt-2 flex items-center justify-center gap-1 truncate text-xs font-bold text-gray-500">{author.id === session?.user?.id ? "Your story" : author.name.split(" ")[0]}<AccountBadge verified={author.isVerified} owner={author.isOwner} /></span>
             </button>
           )) : (
-            <div className="flex items-center gap-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3">
-              <Camera size={18} className="text-gray-500" />
-              <p className="text-xs font-semibold text-gray-500">No active stories yet. Create the first one.</p>
+            <div className="flex min-w-[250px] items-center gap-3 rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--surface)] text-[var(--accent)]"><Camera size={17}/></span>
+              <div className="min-w-0"><p className="text-xs font-black text-[var(--foreground)]">No active stories</p><p className="mt-0.5 text-[10px] leading-4 text-[var(--muted)]">Be the first to share something today.</p></div>
+              {session?.user ? <button type="button" onClick={() => setComposerOpen(true)} className="ml-auto min-h-9 shrink-0 rounded-xl bg-[var(--accent)] px-3 text-[10px] font-black text-white">Create story</button> : null}
             </div>
           )}
         </div>

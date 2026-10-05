@@ -22,7 +22,7 @@ export function BottomNav() {
 
   return (
     <nav
-      className="fixed inset-x-2 bottom-2 z-[60] rounded-[1.4rem] border border-white/80 bg-[#141225]/96 px-1.5 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] shadow-[0_18px_55px_rgba(20,18,44,.28)] backdrop-blur-2xl md:hidden"
+      className="social-bottom-nav fixed inset-x-2 bottom-2 z-[60] rounded-[1.4rem] px-1.5 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] md:hidden"
       aria-label="Primary navigation"
     >
       <div className="grid grid-cols-5 gap-1">
@@ -37,7 +37,7 @@ export function BottomNav() {
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
-              className={"relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-xs font-black transition " + (active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white")}
+              className={"social-bottom-link relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-black transition " + (active ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-muted)]")}
             >
               <Icon size={19} strokeWidth={active ? 2.5 : 2} />
               <span>{label}</span>
