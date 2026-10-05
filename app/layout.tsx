@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://socialhub-ruby.vercel.app"),
   title: {
     default: "Socialhub — Connect. Share. Belong.",
     template: "%s · Socialhub",
