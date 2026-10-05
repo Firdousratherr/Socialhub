@@ -3046,7 +3046,7 @@ function SettingsPage() {
     <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
       <Card id="settings-navigation" className="h-fit !p-3 lg:sticky lg:top-24">
         <p className="sr-only">Settings areas</p>
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-none lg:flex-col lg:overflow-visible lg:pb-0">
           {[
             ["general", "General"],
             ["privacy", "Privacy"],
@@ -3060,7 +3060,7 @@ function SettingsPage() {
       </Card>
 
       <div className="space-y-5">
-        <Card id="general">
+        <Card id="general" className={activeSettingsSection === "general" ? "block" : "hidden lg:block"}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div><p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">General</p><h2 className="mt-1 text-xl font-black">Account</h2><p className="mt-2 text-xs text-gray-500">Edit the personal information shown across Socialhub.</p></div>
             <button type="button" onClick={() => setEditingProfile((value) => !value)} disabled={!session?.user || loading} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40"><Pencil size={14} className="mr-1 inline"/>{editingProfile ? "Close editor" : "Edit profile"}</button>
@@ -3108,7 +3108,7 @@ function SettingsPage() {
           </Card>
         ) : null}
 
-        <Card id="privacy">
+        <Card id="privacy" className={activeSettingsSection === "privacy" ? "block" : "hidden lg:block"}>
           <p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Privacy</p>
           <h2 className="mt-1 text-xl font-black">Privacy & presence</h2>
           <div className="divide-y divide-gray-100">
@@ -3146,7 +3146,7 @@ function SettingsPage() {
           </div>
           {verification.isVerified || verification.isOwner ? <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-xs font-bold text-blue-700">Your account already has platform trust status.</div> : verification.status === "PENDING" ? <div className="mt-4 rounded-2xl bg-amber-50 p-4"><p className="text-xs font-black text-amber-800">Verification request pending</p><p className="mt-1 text-xs text-amber-700">Submitted {verification.createdAt ? new Date(verification.createdAt).toLocaleString() : "recently"}.</p></div> : <div className="mt-4 space-y-3"><textarea value={verificationReason} onChange={(e)=>setVerificationReason(e.target.value)} rows={4} maxLength={500} placeholder="Explain why your account should be verified (20–500 characters)." className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs outline-none focus:border-[#a79dff] focus:bg-white"/><div className="flex items-center justify-between gap-3"><p className="text-xs text-gray-500">{verificationReason.trim().length}/500 characters</p><button type="button" onClick={()=>void submitVerificationRequest()} disabled={!session?.user || verificationSubmitting || verificationReason.trim().length < 20} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40">{verificationSubmitting?"Submitting…":"Request blue tick"}</button></div>{verification.status==="REJECTED" && verification.adminNote ? <p className="text-xs text-red-600">Previous review: {verification.adminNote}</p> : null}</div>}
         </Card>
-<Card id="notifications">
+<Card id="notifications" className={activeSettingsSection === "notifications" ? "block" : "hidden lg:block"}>
           <p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Notifications</p>
           <h2 className="mt-1 text-xl font-black">Choose what reaches you</h2>
           <p className="mt-2 text-xs leading-5 text-gray-500">Choose which activity appears in your notification inbox.</p>
@@ -3154,7 +3154,7 @@ function SettingsPage() {
         </Card>
 
         {session?.user ? (
-          <Card id="security">
+          <Card id="security" className={activeSettingsSection === "security" ? "block" : "hidden lg:block"}>
             <div className="flex items-center justify-between gap-3">
               <div><p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Security</p><h2 className="mt-1 text-xl font-black">Active sessions</h2><p className="mt-1 text-xs text-gray-500">Review devices signed in to your account.</p></div>
               <button type="button" onClick={() => void revokeSession()} disabled={sessions.length <= 1} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-700 disabled:cursor-not-allowed disabled:opacity-40">Sign out other devices</button>
@@ -3173,7 +3173,7 @@ function SettingsPage() {
           </Card>
         ) : null}
 
-        <Card id="help">
+        <Card id="help" className={activeSettingsSection === "help" ? "block" : "hidden lg:block"}>
           <p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Help</p>
           <h2 className="mt-1 text-xl font-black">Find the setting you need</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
