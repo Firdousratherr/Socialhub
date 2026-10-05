@@ -326,24 +326,24 @@ function CommentThread({
       <div className="mb-2 flex items-center justify-between">
         <p className="text-xs font-black text-gray-700">Comments</p>
         {replyTo ? (
-          <button type="button" onClick={() => setReplyTo(null)} className="flex items-center gap-1 text-[11px] font-bold text-gray-400 hover:text-gray-700">
+          <button type="button" onClick={() => setReplyTo(null)} className="flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-gray-700">
             <X size={13} /> Cancel reply
           </button>
         ) : null}
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 py-5 text-xs text-gray-400">
+        <div className="flex items-center gap-2 py-5 text-xs text-gray-500">
           <Loader2 size={14} className="animate-spin" /> Loading comments…
         </div>
       ) : comments.length === 0 ? (
-        <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center text-xs text-gray-400">
+        <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center text-xs text-gray-500">
           No comments yet. Start the conversation.
         </div>
       ) : (
         <div className="space-y-4">
           {nextBefore ? (
-            <button type="button" onClick={() => void loadOlder()} disabled={loadingMore} className="mx-auto block rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black text-gray-600 disabled:opacity-50">
+            <button type="button" onClick={() => void loadOlder()} disabled={loadingMore} className="mx-auto block rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-600 disabled:opacity-50">
               {loadingMore ? "Loading…" : "Load older comments"}
             </button>
           ) : null}
@@ -355,7 +355,7 @@ function CommentThread({
                   {editingCommentId === comment.id ? (
                     <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2">
                       <textarea value={editingCommentText} onChange={(event) => setEditingCommentText(event.target.value)} rows={2} maxLength={2000} className="w-full resize-none rounded-xl bg-gray-50 p-2 text-xs outline-none"/>
-                      <div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentText(""); }} className="text-[10px] font-black text-gray-500">Cancel</button><button type="button" onClick={() => void updateComment(comment.id)} disabled={!editingCommentText.trim() || savingComment} className="rounded-lg bg-gray-950 px-3 py-1.5 text-[10px] font-black text-white disabled:opacity-40">{savingComment ? "Saving…" : "Save"}</button></div>
+                      <div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentText(""); }} className="text-xs font-black text-gray-500">Cancel</button><button type="button" onClick={() => void updateComment(comment.id)} disabled={!editingCommentText.trim() || savingComment} className="rounded-lg bg-gray-950 px-3 py-1.5 text-xs font-black text-white disabled:opacity-40">{savingComment ? "Saving…" : "Save"}</button></div>
                     </div>
                   ) : (
                     <div className="rounded-2xl bg-white px-3 py-2.5">
@@ -363,7 +363,7 @@ function CommentThread({
                       <p className="mt-1 text-xs leading-5 text-gray-600">{comment.content}</p>
                     </div>
                   )}
-                  <div className="mt-1 flex gap-3 px-1 text-[10px] font-bold text-gray-400">
+                  <div className="mt-1 flex gap-3 px-1 text-xs font-bold text-gray-500">
                     <span>{timeLabel(comment.createdAt)}</span>
                     {session?.user ? (
                       <button type="button" onClick={() => setReplyTo(comment.id)} className="hover:text-[#5a4be8]">Reply</button>
@@ -385,7 +385,7 @@ function CommentThread({
                         {editingCommentId === reply.id ? (
                           <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2">
                             <textarea value={editingCommentText} onChange={(event) => setEditingCommentText(event.target.value)} rows={2} maxLength={2000} className="w-full resize-none rounded-xl bg-gray-50 p-2 text-xs outline-none"/>
-                            <div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentText(""); }} className="text-[10px] font-black text-gray-500">Cancel</button><button type="button" onClick={() => void updateComment(reply.id)} disabled={!editingCommentText.trim() || savingComment} className="rounded-lg bg-gray-950 px-3 py-1.5 text-[10px] font-black text-white disabled:opacity-40">{savingComment ? "Saving…" : "Save"}</button></div>
+                            <div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingCommentId(null); setEditingCommentText(""); }} className="text-xs font-black text-gray-500">Cancel</button><button type="button" onClick={() => void updateComment(reply.id)} disabled={!editingCommentText.trim() || savingComment} className="rounded-lg bg-gray-950 px-3 py-1.5 text-xs font-black text-white disabled:opacity-40">{savingComment ? "Saving…" : "Save"}</button></div>
                           </div>
                         ) : (
                           <div className="rounded-2xl bg-white px-3 py-2.5">
@@ -393,7 +393,7 @@ function CommentThread({
                             <p className="mt-1 text-xs leading-5 text-gray-600">{reply.content}</p>
                           </div>
                         )}
-                        <div className="mt-1 flex gap-3 px-1 text-[10px] font-bold text-gray-400">
+                        <div className="mt-1 flex gap-3 px-1 text-xs font-bold text-gray-500">
                           <span>{timeLabel(reply.createdAt)}</span>
                           {session?.user?.id === reply.author.id ? <>
                             <button type="button" onClick={() => { setEditingCommentId(reply.id); setEditingCommentText(reply.content); }} className="hover:text-[#5a4be8]" aria-label="Edit reply"><Pencil size={11}/></button>
@@ -411,10 +411,10 @@ function CommentThread({
       )}
 
       {error ? (
-        <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600">
+        <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">
           <div className="flex items-center justify-between gap-3">
             <span>{error}</span>
-            <button type="button" onClick={() => { setError(""); setLoading(true); void loadComments().catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Could not load comments.")).finally(() => setLoading(false)); }} className="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-black text-red-700 shadow-sm">Retry</button>
+            <button type="button" onClick={() => { setError(""); setLoading(true); void loadComments().catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Could not load comments.")).finally(() => setLoading(false)); }} className="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-xs font-black text-red-700 shadow-sm">Retry</button>
           </div>
         </div>
       ) : null}
@@ -427,7 +427,7 @@ function CommentThread({
           </button>
         </form>
       ) : (
-        <Link href="/login" className="mt-4 block rounded-xl bg-white px-3 py-2.5 text-center text-[11px] font-black text-[#5a4be8]">Sign in to join the conversation</Link>
+        <Link href="/login" className="mt-4 block rounded-xl bg-white px-3 py-2.5 text-center text-xs font-black text-[#5a4be8]">Sign in to join the conversation</Link>
       )}
     </div>
   );
@@ -635,9 +635,9 @@ function PostCard({
               </Link>
               <AccountBadge verified={post.authorVerified} owner={post.authorOwner} />
               <span className="text-gray-300">·</span>
-              <span className="text-xs font-medium text-gray-400">{post.timestamp}</span>
+              <span className="text-xs font-medium text-gray-500">{post.timestamp}</span>
             </div>
-            <p className="text-xs font-medium text-gray-400">{post.handle}</p>
+            <p className="text-xs font-medium text-gray-500">{post.handle}</p>
           </div>
 
           <div className="relative">
@@ -710,10 +710,10 @@ function PostCard({
         ) : null}
 
         {error ? (
-          <div className="mt-3 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-3 py-2.5 text-[11px] font-semibold text-[#5a4be8]">{error}</div>
+          <div className="mt-3 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-3 py-2.5 text-xs font-semibold text-[#5a4be8]">{error}</div>
         ) : null}
 
-        <div className="mt-4 flex items-center justify-between text-xs font-semibold text-gray-400">
+        <div className="mt-4 flex items-center justify-between text-xs font-semibold text-gray-500">
           <span title={fullCount(likeCount) + " reactions"}>{likeCount > 0 ? pluralCount(likeCount, "reaction") : ""}</span>
           <span title={fullCount(commentCount) + " comments"}>{commentCount > 0 ? pluralCount(commentCount, "comment") : ""} · <span title={fullCount(shareCount) + " shares"}>{shareCount > 0 ? pluralCount(shareCount, "share") : ""}</span></span>
         </div>
@@ -1092,7 +1092,7 @@ export default function HomeFeed() {
             <div className="flex gap-3">
               <Avatar name={session?.user?.name ?? "You"} image={session?.user?.image} accent="from-gray-800 to-gray-500"/>
               <div className="min-w-0 flex-1">
-                <textarea ref={composerRef} value={newPost} onChange={(event) => { setNewPost(event.target.value); event.currentTarget.style.height = "auto"; event.currentTarget.style.height = Math.min(event.currentTarget.scrollHeight, 8 * 24) + "px"; }} disabled={!session?.user || publishing || uploading} rows={1} maxLength={5000} className="w-full resize-none rounded-2xl bg-gray-50 px-4 py-3 text-sm font-medium outline-none placeholder:text-gray-400 focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10 disabled:cursor-not-allowed disabled:opacity-70" placeholder={session?.user ? "What’s happening?" : "Sign in to share a post…"} />
+                <textarea ref={composerRef} value={newPost} onChange={(event) => { setNewPost(event.target.value); event.currentTarget.style.height = "auto"; event.currentTarget.style.height = Math.min(event.currentTarget.scrollHeight, 8 * 24) + "px"; }} disabled={!session?.user || publishing || uploading} rows={1} maxLength={5000} className="w-full resize-none rounded-2xl bg-gray-50 px-4 py-3 text-sm font-medium outline-none placeholder:text-gray-500 focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10 disabled:cursor-not-allowed disabled:opacity-70" placeholder={session?.user ? "What’s happening?" : "Sign in to share a post…"} />
                 {mediaPreview ? (
                   <div className="relative mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-white">
                     <img src={mediaPreview} alt="Selected media preview" className="max-h-64 w-full object-cover"/>
@@ -1108,7 +1108,7 @@ export default function HomeFeed() {
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
               <div className="flex flex-wrap gap-1.5">
                 <button type="button" disabled={!session?.user || publishing || uploading} onClick={() => fileRef.current?.click()} className="flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 text-xs font-bold text-gray-500 hover:bg-gray-50 disabled:opacity-40"><ImageIcon size={17} className="text-emerald-500"/>Photo</button>
-                <label className="flex min-h-10 items-center gap-1 rounded-xl bg-gray-50 px-2.5 text-[10px] font-black text-gray-500">
+                <label className="flex min-h-10 items-center gap-1 rounded-xl bg-gray-50 px-2.5 text-xs font-black text-gray-500">
                   <ShieldAlert size={13} />
                   <select value={visibility} onChange={(event) => setVisibility(event.target.value as Post["visibility"])} disabled={!session?.user} className="appearance-none bg-transparent pr-1 outline-none">
                     <option value="PUBLIC">Public</option>
@@ -1117,7 +1117,7 @@ export default function HomeFeed() {
                   </select>
                 </label>
               </div>
-              {session?.user ? <div className="flex items-center gap-2"><span className={"text-xs font-medium " + (newPost.length > 4500 ? "text-amber-600" : "text-gray-400")}>{newPost.length > 4500 ? newPost.length + "/5000" : ""}</span><button type="submit" disabled={!canSubmit} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white transition active:scale-[.98] disabled:opacity-50">{publishing ? "Posting…" : "Post"}</button></div> : <Link href="/login" className="rounded-xl bg-[#6d5dfc] px-4 py-2.5 text-xs font-black text-white">Sign in</Link>}
+              {session?.user ? <div className="flex items-center gap-2"><span className={"text-xs font-medium " + (newPost.length > 4500 ? "text-amber-600" : "text-gray-500")}>{newPost.length > 4500 ? newPost.length + "/5000" : ""}</span><button type="submit" disabled={!canSubmit} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white transition active:scale-[.98] disabled:opacity-50">{publishing ? "Posting…" : "Post"}</button></div> : <Link href="/login" className="rounded-xl bg-[#6d5dfc] px-4 py-2.5 text-xs font-black text-white">Sign in</Link>}
             </div>
           </form>
 
@@ -1128,7 +1128,7 @@ export default function HomeFeed() {
               <section className="social-card rounded-3xl p-10 text-center">
                 <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={20}/></span>
                 <h2 className="mt-4 text-sm font-black">{session?.user ? "Your feed is empty" : "Sign in to build your feed"}</h2>
-                <p className="mt-2 text-xs leading-5 text-gray-400">{session?.user ? "Follow people or add your first post to start filling your feed." : "Real posts from the people you connect with will appear here."}</p>
+                <p className="mt-2 text-xs leading-5 text-gray-500">{session?.user ? "Follow people or add your first post to start filling your feed." : "Real posts from the people you connect with will appear here."}</p>
                 {!session?.user ? <Link href="/login" className="mt-4 inline-flex rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white">Sign in</Link> : <Link href="/discover" className="mt-4 inline-flex rounded-xl bg-[#6d5dfc] px-4 py-2.5 text-xs font-black text-white">Discover people</Link>}
               </section>
             )}
@@ -1138,7 +1138,7 @@ export default function HomeFeed() {
                 {loadingMore ? <Loader2 size={15} className="animate-spin"/> : <Plus size={15}/>} {loadingMore ? "Loading…" : "Load more"}
               </button>
             ) : (
-              <div className="py-6 text-center text-[11px] font-semibold text-gray-400">You’re caught up.</div>
+              <div className="py-6 text-center text-xs font-semibold text-gray-500">You’re caught up.</div>
             )}
           </div>
         </section>
@@ -1155,12 +1155,12 @@ export default function HomeFeed() {
                     <Avatar name={user.name} image={user.image} accent={["from-fuchsia-500 to-orange-400","from-sky-500 to-indigo-500","from-amber-400 to-rose-500"][index % 3]} />
                     <div className="min-w-0 flex-1">
                       <Link href={`/profile/${user.username ?? user.id}`} className="block truncate text-xs font-extrabold text-gray-900 hover:text-[#5a4be8]">{user.name}</Link>
-                      <p className="truncate text-[11px] font-medium text-gray-400">@{user.username ?? "member"}</p>
+                      <p className="truncate text-xs font-medium text-gray-500">@{user.username ?? "member"}</p>
                     </div>
                     <Link href={`/discover?q=${encodeURIComponent(user.username ?? user.name)}`} className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white" aria-label={`Find ${user.name} in Discover`}><Plus size={16}/></Link>
                   </div>
                 ))}
-                {!suggestedUsers.length ? <p className="py-3 text-xs text-gray-400">No new people to show right now.</p> : null}
+                {!suggestedUsers.length ? <p className="py-3 text-xs text-gray-500">No new people to show right now.</p> : null}
               </div>
             </section>
 
