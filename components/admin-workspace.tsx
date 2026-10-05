@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { AdminControlCenter } from "@/components/admin-control-center";
+import { AdminIntelligencePanel } from "@/components/admin-4-0-panel";
 import { AdminPanel as LegacyAdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
 
@@ -441,6 +442,13 @@ export function AdminWorkspace({ section = "overview" }: { section?: string }) {
                   title="Operations"
                   icon={Wrench}
                   description="Runtime controls, announcements, feature flags, storage, system health, and administrator permissions stay available through the existing audited operations center."
+                />
+                <AdminIntelligencePanel />
+                <SectionHeader
+                  eyebrow="Existing controls"
+                  title="Platform controls"
+                  icon={Wrench}
+                  description="Legacy settings, feature flags, announcements, storage, health, and moderator permissions remain available below the new operational workspace."
                 />
                 <AdminControlCenter initialTab="platform" />
               </>
