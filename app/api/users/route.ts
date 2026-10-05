@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getBlockedUserIds } from "@/lib/social-access";
+import { publicUserWhere } from "@/lib/user-visibility";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
 
   const users = await prisma.user.findMany({
     where: {
-      isActive: true,
+      ...publicUserWhere,
       ...(viewerId ? { id: { notIn: [viewerId, ...blockedIds] } } : {}),
       ...(q
         ? {
