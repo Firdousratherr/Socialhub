@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { postInputSchema } from "@/lib/validation";
-import { getBlockedUserIds } from "@/lib/social-access";
+import { getBlockedUserIds, getMutedUserIds } from "@/lib/social-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { getPostDisplayCountsMap } from "@/lib/post-metrics";
 import { platformEnabled } from "@/lib/platform-controls";
@@ -45,9 +45,13 @@ export async function GET(request: Request) {
   let blockedIds: string[] = [];
   let friendIds: string[] = [];
   let followingIds: string[] = [];
+  let mutedIds: string[] = [];
 
   if (session?.user) {
-    blockedIds = await getBlockedUserIds(session.user.id);
+    [blockedIds, mutedIds] = await Promise.all([
+      getBlockedUserIds(session.user.id),
+      getMutedUserIds(session.user.id),
+    ]);
     friendIds = (
       await prisma.friendRequest.findMany({
         where: {
@@ -95,7 +99,9 @@ export async function GET(request: Request) {
       ],
       author: {
         isActive: true,
-        ...(blockedIds.length ? { id: { notIn: blockedIds } } : {}),
+        ...(blockedIds.length || mutedIds.length
+          ? { id: { notIn: [...new Set([...blockedIds, ...mutedIds])] } }
+          : {}),
       },
       ...(feedMode === "FOLLOWING"
         ? { authorId: { in: session?.user ? followingIds : [] } }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { consumeMutationRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const keys = [
   "likes",
@@ -41,6 +42,9 @@ export async function GET() {
 export async function PATCH(request: Request) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
+  const limit = await consumeMutationRateLimit("notification-preferences", request, session.user.id, 30, 3600);
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
 
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== "object") {

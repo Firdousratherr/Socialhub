@@ -21,7 +21,7 @@ import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
   KeyRound, Lock, LogIn, Mail, MessageCircle, MoreHorizontal, Pencil, Plus,
-  Paperclip, Search, Send, Settings, Shield, ShieldOff, Share2, Sparkles, Trash2, UserPlus, Users, X
+  Paperclip, Search, Send, Settings, Shield, ShieldOff, Share2, Sparkles, Trash2, UserPlus, Users, VolumeX, X
 } from "lucide-react";
 
 type Screen = { kind: string; username?: string; section?: string; search?: string };
@@ -444,6 +444,7 @@ type ProfileData = {
   canMessage?: boolean;
   canSendFriendRequest?: boolean;
   canFollow?: boolean;
+  isMuted?: boolean;
   posts?: Array<{
     id: string;
     content: string | null;
@@ -633,12 +634,13 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [editing, setEditing] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [following, setFollowing] = useState(false);
+  const [muted, setMuted] = useState(false);
   const [friendRequestStatus, setFriendRequestStatus] = useState<"SELF" | "NONE" | "FRIENDS" | "OUTGOING_PENDING" | "INCOMING_PENDING">("NONE");
   const [friendRequestId, setFriendRequestId] = useState<string | null>(null);
   const [canMessage, setCanMessage] = useState(true);
   const [canSendFriendRequest, setCanSendFriendRequest] = useState(true);
   const [canFollow, setCanFollow] = useState(true);
-  const [actionLoading, setActionLoading] = useState<"follow" | "friend" | "cancel-friend" | "accept-friend" | "decline-friend" | "unfriend" | "message" | "report" | "block" | null>(null);
+  const [actionLoading, setActionLoading] = useState<"follow" | "friend" | "cancel-friend" | "accept-friend" | "decline-friend" | "unfriend" | "message" | "report" | "block" | "mute" | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
   const [error, setError] = useState("");
@@ -741,6 +743,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
         setProfile(next);
         setIsOwner(owner);
         setFollowing(Boolean(next.isFollowing));
+        setMuted(Boolean(next.isMuted));
         setFriendRequestStatus(next.friendRequestStatus ?? (next.isFriend ? "FRIENDS" : "NONE"));
         setFriendRequestId(next.friendRequestId ?? null);
         setCanMessage(next.canMessage ?? true);
@@ -1146,6 +1149,24 @@ function Profile({ username = "firdous" }: { username?: string }) {
     }
   }
 
+  async function toggleMute() {
+    if (!profile || isOwner || !session?.user || actionLoading) return;
+    setActionLoading("mute");
+    try {
+      const response = await fetch("/api/users/" + profile.id + "/mute", { method: muted ? "DELETE" : "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not update mute status.");
+      const nextMuted = Boolean(json.muted);
+      setMuted(nextMuted);
+      setProfileMenuOpen(false);
+      setError(nextMuted ? "Muted. Their posts and notifications will stay out of your view." : "Account unmuted.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not update mute status.");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   if (!profile) {
     return (
       <Page eyebrow="Profile" title={displayName || "Profile"}>
@@ -1347,6 +1368,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
                 <button type="button" onClick={() => { setProfileMenuOpen(false); void shareProfile(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50" role="menuitem"><Share2 size={15}/>Share profile</button>
                 {!isOwner ? <>
                   <button type="button" onClick={() => { setProfileMenuOpen(false); void reportUser(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50" role="menuitem"><Shield size={15}/>Report</button>
+                  <button type="button" onClick={() => { setProfileMenuOpen(false); void toggleMute(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50" role="menuitem"><VolumeX size={15}/>{muted ? "Unmute" : "Mute"}</button>
                   <button type="button" onClick={() => { setProfileMenuOpen(false); void blockUser(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50" role="menuitem"><ShieldOff size={15}/>Block</button>
                 </> : null}
               </div>,
@@ -2857,6 +2879,9 @@ function SettingsPage() {
   const [blockedUsers, setBlockedUsers] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean; blockedAt: string }>>([]);
   const [loadingBlockedUsers, setLoadingBlockedUsers] = useState(false);
   const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null);
+  const [mutedUsers, setMutedUsers] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean; isActive: boolean; mutedAt: string }>>([]);
+  const [loadingMutedUsers, setLoadingMutedUsers] = useState(false);
+  const [unmutingUserId, setUnmutingUserId] = useState<string | null>(null);
   const [exportingData, setExportingData] = useState(false);
 
   useEffect(() => {
@@ -2925,6 +2950,16 @@ function SettingsPage() {
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : "Could not load blocked users."))
       .finally(() => setLoadingBlockedUsers(false));
+
+    setLoadingMutedUsers(true);
+    void fetch("/api/mutes", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(json.error ?? "Could not load muted users.");
+        setMutedUsers(Array.isArray(json.mutedUsers) ? json.mutedUsers : []);
+      })
+      .catch((error) => setMessage(error instanceof Error ? error.message : "Could not load muted users."))
+      .finally(() => setLoadingMutedUsers(false));
 
     void fetch("/api/notification-preferences", { cache: "no-store" })
       .then(async (response) => {
@@ -3057,6 +3092,26 @@ function SettingsPage() {
       setMessage(allOther ? `Signed out of ${json.revoked ?? 0} other session(s).` : "Session revoked.");
     } catch (requestError) {
       setMessage(requestError instanceof Error ? requestError.message : "Could not revoke session.");
+    }
+  }
+
+  async function unmuteUser(userId: string) {
+    if (unmutingUserId) return;
+    setUnmutingUserId(userId);
+    try {
+      const response = await fetch("/api/mutes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not unmute user.");
+      setMutedUsers((current) => current.filter((user) => user.id !== userId));
+      setMessage("User unmuted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not unmute user.");
+    } finally {
+      setUnmutingUserId(null);
     }
   }
 
@@ -3388,7 +3443,23 @@ function SettingsPage() {
           </div>
         </Card>
 
-                 <Card>
+      <Card>
+          <div className="flex items-center justify-between gap-3">
+            <div><p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Muted people</p><h2 className="mt-1 text-xl font-black">Manage muted accounts</h2><p className="mt-1 text-xs leading-5 text-gray-500">Muted accounts stay out of your feed and notification inbox without blocking the person.</p></div>
+            <VolumeX size={19} className="text-gray-400"/>
+          </div>
+          <div className="mt-4 space-y-2">
+            {loadingMutedUsers ? <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">Loading muted accounts…</div> :
+             mutedUsers.length ? mutedUsers.map((user) => (
+              <div key={user.id} className="flex items-center gap-3 rounded-2xl border border-gray-100 p-3">
+                {user.image ? <img src={user.image} alt="" className="size-10 shrink-0 rounded-full object-cover"/> : <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{user.name.slice(0, 1).toUpperCase()}</div>}
+                <div className="min-w-0 flex-1"><p className="flex items-center gap-1.5 truncate text-xs font-black">{user.name}<AccountBadge verified={user.isVerified} owner={user.isOwner}/></p><p className="truncate text-[11px] text-gray-500">@{user.username ?? "member"} · muted {formatSocialDate(user.mutedAt)}</p></div>
+                <button type="button" onClick={() => void unmuteUser(user.id)} disabled={unmutingUserId === user.id} className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-700 hover:bg-gray-50 disabled:opacity-40">{unmutingUserId === user.id ? "Unmuting…" : "Unmute"}</button>
+              </div>
+             )) : <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">You have not muted anyone.</div>}
+          </div>
+        </Card>
+           <Card>
            <div className="flex items-center justify-between gap-3">
              <div><p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Blocked people</p><h2 className="mt-1 text-xl font-black">Manage blocked accounts</h2><p className="mt-1 text-xs leading-5 text-gray-500">Review people you have blocked and restore access when needed.</p></div>
              <ShieldOff size={19} className="text-gray-400"/>

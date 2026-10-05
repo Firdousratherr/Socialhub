@@ -14,7 +14,8 @@ type Listener = (event: LiveSyncEvent) => void;
 export function emitLiveSync(event: LiveSyncEvent) {
   if (typeof window === "undefined") return;
 
-  window.dispatchEvent(new CustomEvent<LiveSyncEvent>(CHANNEL_NAME, { detail: { ...event, sourceId: CLIENT_ID } as LiveSyncEvent }));
+  const wireEvent: WireEvent = { ...event, sourceId: CLIENT_ID };
+  window.dispatchEvent(new CustomEvent<WireEvent>(CHANNEL_NAME, { detail: wireEvent }));
 
   try {
     const channel = new BroadcastChannel(CHANNEL_NAME);
@@ -29,8 +30,10 @@ export function subscribeLiveSync(listener: Listener) {
   if (typeof window === "undefined") return () => undefined;
 
   const onWindowEvent = (event: Event) => {
-    const detail = (event as CustomEvent<LiveSyncEvent>).detail;
-    if (detail) listener(detail);
+    const detail = (event as CustomEvent<WireEvent>).detail;
+    if (!detail) return;
+    const { sourceId: _sourceId, ...payload } = detail;
+    listener(payload);
   };
 
   let channel: BroadcastChannel | null = null;

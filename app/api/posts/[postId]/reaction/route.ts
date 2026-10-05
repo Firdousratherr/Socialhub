@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { consumeMutationRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -19,6 +20,10 @@ export async function POST(
 ) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
+  const limit = await consumeMutationRateLimit("reactions", request, session.user.id, 120, 60);
+
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
   const { postId } = await params;
   const access = await canViewPost(postId, session.user.id);
   if (!access.allowed) return NextResponse.json({ error: "Post unavailable." }, { status: 404 });
@@ -39,6 +44,10 @@ export async function DELETE(
 ) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
+  const limit = await consumeMutationRateLimit("reactions", _request, session.user.id, 120, 60);
+
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
   const { postId } = await params;
   const access = await canViewPost(postId, session.user.id);
   if (!access.allowed) return NextResponse.json({ error: "Post unavailable." }, { status: 404 });

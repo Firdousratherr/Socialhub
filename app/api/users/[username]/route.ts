@@ -24,6 +24,10 @@ export async function GET(
   if (!user) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
   const isSelf = session?.user?.id === user.id;
+  if (!isSelf && session?.user && await isBlocked(session.user.id, user.id)) {
+    return NextResponse.json({ error: "This profile is unavailable." }, { status: 404 });
+  }
+
   if (!isSelf && session?.user) {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const recentView = await prisma.profileView.findFirst({
@@ -33,9 +37,6 @@ export async function GET(
     if (!recentView) {
       await prisma.profileView.create({ data: { profileId: user.id, viewerId: session.user.id } });
     }
-  }
-  if (!isSelf && session?.user && await isBlocked(session.user.id, user.id)) {
-    return NextResponse.json({ error: "This profile is unavailable." }, { status: 404 });
   }
 
   const [override, actualLikesReceived, actualCommentsReceived, actualShares, actualProfileViews] = await Promise.all([
@@ -89,6 +90,14 @@ export async function GET(
       }),
   );
 
+  const muted = Boolean(
+    session?.user &&
+      await prisma.mute.findUnique({
+        where: { muterId_mutedId: { muterId: session.user.id, mutedId: user.id } },
+        select: { muterId: true },
+      }),
+  );
+
   const canSeeFriendsPosts = isSelf || friends;
   const { privacySetting, ...safeUser } = user;
   const canMessage = !isSelf && (!privacySetting || privacySetting.allowMessagesEveryone || friends);
@@ -97,6 +106,7 @@ export async function GET(
       ...safeUser,
       email: isSelf ? safeUser.email : undefined,
       isFollowing: following,
+      isMuted: muted,
       isFriend: friends,
       friendRequestStatus,
       friendRequestId: pendingFriendRequest?.id ?? null,

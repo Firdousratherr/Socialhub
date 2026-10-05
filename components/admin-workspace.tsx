@@ -711,6 +711,8 @@ function PeopleWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
   const [tab, setTab] = useState<"users" | "360">("users");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [bulkAction, setBulkAction] = useState<"ENABLE" | "DISABLE" | "VERIFY" | "UNVERIFY" | "REVOKE_SESSIONS">("DISABLE");
+  const [bulkPreview, setBulkPreview] = useState<{ action: string; requestedCount: number; count: number; skippedOwnerCount: number; missingCount: number } | null>(null);
 
   async function loadUsers(reset = true) {
     setLoading(true);
@@ -769,6 +771,32 @@ function PeopleWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
       await loadUsers(true);
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "Bulk action failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function previewBulk() {
+    if (!selected.length || busy) return;
+    setBusy(true);
+    try {
+      const response = await fetch("/api/admin/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userIds: selected, action: bulkAction, dryRun: true }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error ?? "Could not preview bulk action.");
+      setBulkPreview({
+        action: json.action ?? bulkAction,
+        requestedCount: Number(json.requestedCount ?? selected.length),
+        count: Number(json.count ?? 0),
+        skippedOwnerCount: Number(json.skippedOwnerCount ?? 0),
+        missingCount: Number(json.missingCount ?? 0),
+      });
+      onNotice("Dry run complete. No accounts were changed.");
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : "Could not preview bulk action.");
     } finally {
       setBusy(false);
     }
@@ -836,11 +864,20 @@ function PeopleWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
             {selected.length ? (
               <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-violet-100 bg-violet-50 p-3">
                 <span className="mr-auto text-[10px] font-black text-violet-700">{selected.length} selected</span>
+                <select value={bulkAction} onChange={(event) => { setBulkAction(event.target.value as typeof bulkAction); setBulkPreview(null); }} className="h-9 rounded-xl border border-violet-200 bg-white px-2 text-[10px] font-black text-violet-700" aria-label="Bulk operation to preview">
+                  <option value="ENABLE">Enable</option>
+                  <option value="DISABLE">Disable</option>
+                  <option value="VERIFY">Verify</option>
+                  <option value="UNVERIFY">Remove verification</option>
+                  <option value="REVOKE_SESSIONS">Revoke sessions</option>
+                </select>
+                <button type="button" onClick={() => void previewBulk()} disabled={busy} className="rounded-xl border border-violet-200 bg-white px-3 py-2 text-[10px] font-black text-violet-700 disabled:opacity-40">Preview</button>
                 <MiniAction label="Enable" onClick={() => void bulk("ENABLE")} />
                 <MiniAction label="Disable" danger onClick={() => void bulk("DISABLE")} />
                 <MiniAction label="Verify" onClick={() => void bulk("VERIFY")} />
                 <MiniAction label="Remove verification" onClick={() => void bulk("UNVERIFY")} />
                 <MiniAction label="Revoke sessions" onClick={() => void bulk("REVOKE_SESSIONS")} />
+                {bulkPreview ? <span className="w-full text-[10px] font-semibold text-violet-700" role="status">{bulkPreview.count}/{bulkPreview.requestedCount} eligible · {bulkPreview.skippedOwnerCount} owner(s) protected · no changes made</span> : null}
               </div>
             ) : null}
           </Card>

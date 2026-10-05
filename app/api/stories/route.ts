@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { consumeMutationRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -108,6 +109,9 @@ export async function POST(request: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
+
+  const limit = await consumeMutationRateLimit("story-create", request, session.user.id, 10, 3600);
+  if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
 
   const storiesEnabled = await platformEnabled("stories", true);
   if (!storiesEnabled) {

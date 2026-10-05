@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getMutedUserIds } from "@/lib/social-access";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -11,6 +12,7 @@ export async function GET() {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
+  const mutedIds = await getMutedUserIds(session.user.id);
   const preferences = await prisma.notificationPreference.upsert({
     where: { userId: session.user.id },
     create: { userId: session.user.id },
@@ -37,6 +39,7 @@ export async function GET() {
         userId: session.user.id,
         readAt: null,
         ...(enabledTypes.length ? { type: { in: enabledTypes, not: "MESSAGE" } } : { id: { in: [] } }),
+        ...(mutedIds.length ? { AND: [{ OR: [{ actorId: null }, { actorId: { notIn: mutedIds } }] }] } : {}),
       },
     }),
     prisma.friendRequest.count({

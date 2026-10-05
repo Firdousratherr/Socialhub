@@ -48,15 +48,20 @@ export async function GET(request: Request) {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, username: true, image: true, isActive: true, isVerified: true, role: true } });
     if (!user) return NextResponse.json({ error: "User not found." }, { status: 404 });
     const risk = await calculate(userId);
-    let signalId: string | null = null;
-    if (risk.score >= 35) {
-      const signal = await prisma.adminRiskSignal.create({
-        data: { userId, kind: "DYNAMIC_ACTIVITY", score: risk.score, details: JSON.stringify(risk) },
-      });
-      signalId = signal.id;
-    }
-    await recordAdminEvent({ access, request, action: "VIEW_USER_RISK", resource: "USER", resourceId: userId, riskLevel: risk.level as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" });
-    return NextResponse.json({ user, risk, signalId });
+    const activeSignal = await prisma.adminRiskSignal.findFirst({
+      where: { userId, kind: "DYNAMIC_ACTIVITY", resolvedAt: null },
+      orderBy: { detectedAt: "desc" },
+      select: { id: true, score: true, detectedAt: true },
+    });
+    await recordAdminEvent({
+      access,
+      request,
+      action: "VIEW_USER_RISK",
+      resource: "USER",
+      resourceId: userId,
+      riskLevel: risk.level as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
+    });
+    return NextResponse.json({ user, risk, signal: activeSignal });
   }
 
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);

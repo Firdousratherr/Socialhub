@@ -23,7 +23,7 @@ export function PlatformAnnouncements() {
       .catch(() => { if (!cancelled) setItems([]); });
     return () => { cancelled = true; };
   }, []);
-  const dismissed = useMemo(readDismissed, []);
+  const dismissed = useMemo(() => readDismissed(), []);
   const visible = items.filter((item) => !dismissed.has(item.id)).slice(0, 2);
   function dismiss(id: string) { const next = new Set(dismissed); next.add(id); writeDismissed(next); setItems((current) => current.filter((item) => item.id !== id)); }
   if (!visible.length) return null;

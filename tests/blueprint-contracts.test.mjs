@@ -126,10 +126,11 @@ test("profile views are persisted and exposed as real metrics", () => {
   assert.match(schema, /model ProfileView/);
 });
 
-test("custom API mutations have same-origin protection", () => {
-  const middleware = read("middleware.ts");
-  assert.match(middleware, /Cross-origin state-changing requests are not allowed/);
-  assert.match(middleware, /sec-fetch-site/);
+test("custom API mutations have same-origin protection at the Next.js 16 proxy boundary", () => {
+  const proxy = read("proxy.ts");
+  assert.match(proxy, /requireSameOrigin/);
+  assert.match(proxy, /X-Request-ID/);
+  assert.doesNotMatch(proxy, /export function middleware/);
 });
 
 test("high-cost social mutations use the shared rate limiter", () => {
@@ -787,4 +788,73 @@ test("blocked-account management and account export endpoints are present", () =
 test("root recovery boundaries are present", () => {
   assert.equal(read("app/error.tsx").includes("reset"), true);
   assert.equal(read("app/loading.tsx").includes("Loading Socialhub"), true);
+});
+
+
+test("unread notification badges honor muted actors", () => {
+  const summary = read("app/api/unread-summary/route.ts");
+  assert.match(summary, /getMutedUserIds/);
+  assert.match(summary, /actorId: \{ notIn: mutedIds \}/);
+});
+
+test("account mutes have durable schema, management APIs, and feed/notification enforcement", () => {
+  const schema = read("prisma/schema.prisma");
+  const migration = read("prisma/migrations/20261005200000_account_mutes/migration.sql");
+  const profile = read("app/api/users/[username]/route.ts");
+  const feed = read("app/api/posts/route.ts");
+  const notifications = read("app/api/notifications/route.ts");
+  const muteRoute = read("app/api/users/[userId]/mute/route.ts");
+  const mutes = read("app/api/mutes/route.ts");
+  assert.match(schema, /model Mute/);
+  assert.match(schema, /mutesGiven/);
+  assert.match(migration, /CREATE TABLE "Mute"/);
+  assert.match(profile, /isMuted/);
+  assert.match(feed, /getMutedUserIds/);
+  assert.match(notifications, /getMutedUserIds/);
+  assert.match(muteRoute, /export async function POST/);
+  assert.match(muteRoute, /export async function DELETE/);
+  assert.match(mutes, /export async function GET/);
+});
+
+test("high-volume social mutations use targeted rate-limit buckets", () => {
+  for (const path of [
+    "app/api/posts/[postId]/like/route.ts",
+    "app/api/posts/[postId]/reaction/route.ts",
+    "app/api/posts/[postId]/save/route.ts",
+    "app/api/posts/[postId]/share/route.ts",
+    "app/api/posts/[postId]/report/route.ts",
+  ]) {
+    assert.match(read(path), /consumeMutationRateLimit/);
+    assert.match(read(path), /rateLimitResponse/);
+  }
+});
+
+test("rate limiting increments buckets atomically", () => {
+  const limiter = read("lib/rate-limit.ts");
+  assert.match(limiter, /ON CONFLICT \("key"\) DO UPDATE/);
+  assert.match(limiter, /"count" \+ 1/);
+  assert.match(limiter, /RETURNING "count", "resetAt"/);
+  assert.doesNotMatch(limiter, /findUnique\(\{ where: \{ key \}\}\)/);
+});
+
+test("admin risk reads do not create duplicate dynamic signals", () => {
+  const route = read("app/api/admin/risk/route.ts");
+  assert.match(route, /findFirst\(\{[\s\S]*kind: "DYNAMIC_ACTIVITY"/);
+  assert.doesNotMatch(route, /adminRiskSignal\.create/);
+});
+
+test("admin case ordering treats priority as severity, not alphabetic text", () => {
+  const route = read("app/api/admin/cases/route.ts");
+  assert.match(route, /priorityRank/);
+  assert.match(route, /CRITICAL: 4/);
+  assert.match(route, /HIGH: 3/);
+});
+
+test("admin bulk operations provide a dry-run safety preview", () => {
+  const route = read("app/api/admin/bulk/route.ts");
+  const ui = read("components/admin-workspace.tsx");
+  assert.match(route, /dryRun: z.boolean/);
+  assert.match(route, /skippedOwnerCount/);
+  assert.match(ui, /previewBulk/);
+  assert.match(ui, /No data was changed|no changes made/);
 });
