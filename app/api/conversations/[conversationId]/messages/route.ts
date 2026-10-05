@@ -80,6 +80,10 @@ export async function POST(
     return NextResponse.json({ error: "Conversation access denied." }, { status: 403 });
   }
 
+  const messagingRestriction = await getActiveUserRestriction(session.user.id, "messagingRestrictedUntil");
+  if (messagingRestriction) {
+    return NextResponse.json({ error: "Messaging is temporarily restricted.", restrictedUntil: messagingRestriction.toISOString() }, { status: 403 });
+  }
   const sendAccess = await canSendMessageInConversation(conversationId, session.user.id);
   if (!sendAccess.allowed) {
     return NextResponse.json({ error: sendAccess.reason ?? "Messaging is unavailable in this conversation." }, { status: 403 });
