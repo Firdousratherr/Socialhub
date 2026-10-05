@@ -85,6 +85,62 @@ function Command({ onNotice }: { onNotice: (s: string) => void }) {
   ];
   return <div className="space-y-4">
     <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-5">{cards.map(([label, value]) => <Card key={String(label)} className="p-4"><p className="text-[9px] font-black uppercase tracking-[.12em] text-gray-400">{label}</p><p className="mt-2 text-2xl font-black">{String(value)}</p></Card>)}</div>
+    <Card>
+      <div className="flex items-center gap-3">
+        <LockKeyhole size={16} className="text-[#5a4be8]" />
+        <div>
+          <h3 className="text-sm font-black">Emergency controls</h3>
+          <p className="mt-1 text-[10px] text-gray-400">Instantly pause high-volume product surfaces. Changes are audited.</p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {[
+          ["Registrations", "registration.enabled"],
+          ["Posting", "platform.posts.enabled"],
+          ["Comments", "platform.comments.enabled"],
+          ["Messaging", "platform.messaging.enabled"],
+          ["Uploads", "platform.uploads.enabled"],
+          ["Stories", "platform.stories.enabled"],
+          ["Social actions", "platform.social.enabled"],
+        ].map(([label, key]) => {
+          const enabled = data?.platform?.[key]?.enabled ?? true;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={async () => {
+                try {
+                  const response = await fetch("/api/admin/control-center", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      kind: "setting",
+                      key,
+                      value: String(!enabled),
+                      description: "Admin 4.0 emergency platform control.",
+                    }),
+                  });
+                  const json = await response.json();
+                  if (!response.ok) throw new Error(json.error ?? "Could not update platform control.");
+                  onNotice((!enabled ? "Enabled " : "Disabled ") + String(label) + ".");
+                  await load();
+                } catch (error) {
+                  onNotice(error instanceof Error ? error.message : "Could not update platform control.");
+                }
+              }}
+              className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 text-left hover:bg-gray-100"
+            >
+              <span className={"size-2.5 rounded-full " + (enabled ? "bg-emerald-500" : "bg-red-500")} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[10px] font-black">{label}</span>
+                <span className="mt-1 block text-[9px] text-gray-400">{enabled ? "Enabled" : "Paused"}</span>
+              </span>
+              <span className={"rounded-lg px-2 py-1 text-[8px] font-black " + (enabled ? "bg-white text-gray-500" : "bg-red-50 text-red-600")}>{enabled ? "ON" : "OFF"}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Card>
     <Card><div className="flex items-center justify-between"><div><h3 className="text-sm font-black">Recent privileged events</h3><p className="mt-1 text-[10px] text-gray-400">The newest high-signal admin operations.</p></div><Btn onClick={() => void load()}>Refresh</Btn></div><div className="mt-4 space-y-2">{(data?.recentEvents ?? []).map((event: any) => <div key={event.id} className="flex items-start gap-3 rounded-2xl bg-gray-50 p-3"><span className="grid size-8 shrink-0 place-items-center rounded-xl bg-white"><History size={14} /></span><div className="min-w-0 flex-1"><p className="text-[11px] font-black">{event.action} <span className="font-bold text-gray-400">· {event.resource}</span></p><p className="mt-1 text-[10px] text-gray-400">{event.resourceId ?? "system"} · {fmt(event.createdAt)}</p></div><span className={"rounded-full px-2 py-1 text-[8px] font-black " + (event.riskLevel === "CRITICAL" ? "bg-red-50 text-red-600" : event.riskLevel === "HIGH" ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500")}>{event.riskLevel}</span></div>)}{!data?.recentEvents?.length ? <p className="text-xs text-gray-400">No privileged events recorded yet.</p> : null}</div></Card>
   </div>;
 }
