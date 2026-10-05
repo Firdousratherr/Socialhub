@@ -24,6 +24,10 @@ export async function GET(
   if (!user) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
   const isSelf = session?.user?.id === user.id;
+  if (!isSelf && session?.user && await isBlocked(session.user.id, user.id)) {
+    return NextResponse.json({ error: "This profile is unavailable." }, { status: 404 });
+  }
+
   if (!isSelf && session?.user) {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const recentView = await prisma.profileView.findFirst({
@@ -33,9 +37,6 @@ export async function GET(
     if (!recentView) {
       await prisma.profileView.create({ data: { profileId: user.id, viewerId: session.user.id } });
     }
-  }
-  if (!isSelf && session?.user && await isBlocked(session.user.id, user.id)) {
-    return NextResponse.json({ error: "This profile is unavailable." }, { status: 404 });
   }
 
   const [override, actualLikesReceived, actualCommentsReceived, actualShares, actualProfileViews] = await Promise.all([
