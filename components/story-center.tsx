@@ -120,6 +120,7 @@ export function StoryCenter({
   const [caption, setCaption] = useState("");
   const [audience, setAudience] = useState<"PUBLIC" | "FRIENDS">("PUBLIC");
   const [preview, setPreview] = useState<string | null>(null);
+  const [previewMediaType, setPreviewMediaType] = useState<"IMAGE" | "VIDEO">("IMAGE");
   const [uploading, setUploading] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
@@ -259,7 +260,7 @@ export function StoryCenter({
     setActivityExpanded(false);
   }, [active?.id]);
 
-  async function pickPhoto(file: File | undefined) {
+  async function pickMedia(file: File | undefined) {
     if (!file || uploading || publishing) return;
     setUploading(true);
     setError("");
@@ -268,10 +269,11 @@ export function StoryCenter({
       form.append("file", file);
       const response = await fetch("/api/uploads", { method: "POST", body: form });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(json.error ?? "Could not upload story image.");
+      if (!response.ok) throw new Error(json.error ?? "Could not upload story media.");
       setPreview(json.url);
+      setPreviewMediaType(json.mediaType === "VIDEO" ? "VIDEO" : "IMAGE");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not upload story image.");
+      setError(requestError instanceof Error ? requestError.message : "Could not upload story media.");
     } finally {
       setUploading(false);
     }
@@ -287,6 +289,7 @@ export function StoryCenter({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mediaUrl: preview,
+          mediaType: previewMediaType,
           caption: caption.trim() || null,
           audience,
           expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -299,6 +302,7 @@ export function StoryCenter({
       setComposerOpen(false);
       setCaption("");
       setPreview(null);
+      setPreviewMediaType("IMAGE");
       setAudience("PUBLIC");
       setError("");
     } catch (requestError) {
@@ -526,18 +530,24 @@ export function StoryCenter({
               <div><h2 className="text-lg font-black">Create a story</h2><p className="mt-1 text-xs text-gray-500">Your story disappears automatically after 24 hours.</p></div>
               <button type="button" onClick={() => setComposerOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={17}/></button>
             </div>
-            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(event) => { void pickPhoto(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" className="hidden" onChange={(event) => { void pickMedia(event.target.files?.[0]); event.currentTarget.value = ""; }} />
             <div className="mt-5 overflow-hidden rounded-3xl bg-gray-50">
               {preview ? (
                 <div className="relative">
-                  <img src={preview} alt="Story preview" className="max-h-[430px] w-full object-cover"/>
-                  <button type="button" onClick={() => setPreview(null)} className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-black/60 text-white"><X size={16}/></button>
+                  <div className="mx-auto aspect-[9/12] max-h-[430px] overflow-hidden bg-black">
+                    {previewMediaType === "VIDEO" ? (
+                      <video src={preview} className="size-full object-contain" controls muted playsInline preload="metadata" />
+                    ) : (
+                      <img src={preview} alt="Story preview" className="size-full object-contain"/>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => { setPreview(null); setPreviewMediaType("IMAGE"); }} className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-black/60 text-white"><X size={16}/></button>
                 </div>
               ) : (
                 <button type="button" onClick={() => fileRef.current?.click()} className="grid min-h-64 w-full place-items-center border-2 border-dashed border-gray-200 p-6 text-center">
                   <span className="grid size-12 place-items-center rounded-2xl bg-white text-[#6d5dfc]">{uploading ? <Loader2 size={21} className="animate-spin"/> : <ImageIcon size={21}/>}</span>
-                  <span className="mt-3 text-sm font-black">{uploading ? "Uploading…" : "Choose a photo"}</span>
-                  <span className="mt-1 text-xs text-gray-500">JPG, PNG, WebP or GIF</span>
+                  <span className="mt-3 text-sm font-black">{uploading ? "Uploading…" : "Choose photo or video"}</span>
+                  <span className="mt-1 text-xs text-gray-500">JPG, PNG, WebP, GIF, MP4 or WebM</span>
                 </button>
               )}
             </div>
