@@ -10,15 +10,17 @@ const announcementSchema = z.object({ title: z.string().trim().min(2).max(120), 
 export async function GET() {
   const access = await requireAdminPermission("SECURITY_MANAGE");
   if (access.response) return access.response;
-  const [settings, flags, announcements, adminSessions, failedAttempts, admins] = await Promise.all([
+  const [settings, flags, announcements, adminSessions, failedAttempts, admins, flagChanges, settingChanges] = await Promise.all([
     prisma.systemSetting.findMany({ orderBy: { key: "asc" } }),
     prisma.featureFlag.findMany({ orderBy: { key: "asc" } }),
     prisma.announcement.findMany({ orderBy: { createdAt: "desc" }, take: 20, select: { id:true,title:true,body:true,audience:true,status:true,startsAt:true,endsAt:true,createdAt:true,updatedAt:true,createdBy:{select:{id:true,name:true,username:true}} } }),
     prisma.session.findMany({ where: { user: { role: { in: ["ADMIN","MODERATOR"] }, isActive: true } }, orderBy: { updatedAt: "desc" }, take: 50, select: { id:true,userId:true,createdAt:true,updatedAt:true,expiresAt:true,ipAddress:true,userAgent:true,user:{select:{id:true,name:true,username:true,role:true}} } }),
     prisma.adminLoginAttempt.findMany({ orderBy: { updatedAt: "desc" }, take: 50 }),
     prisma.user.findMany({ where: { role: { in: ["ADMIN","MODERATOR"] } }, orderBy: { createdAt: "asc" }, select: { id:true,name:true,username:true,email:true,role:true,isActive:true,isOwner:true,twoFactorEnabled:true } }),
+    prisma.adminFlagChange.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
+    prisma.adminSettingChange.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
   ]);
-  return NextResponse.json({ settings, flags, announcements, adminSessions, failedAttempts, admins, currentAdminId: access.user.id });
+  return NextResponse.json({ settings, flags, announcements, adminSessions, failedAttempts, admins, flagChanges, settingChanges, currentAdminId: access.user.id });
 }
 
 export async function PATCH(request: Request) {
@@ -32,6 +34,9 @@ export async function PATCH(request: Request) {
     if (!parsed.success) return NextResponse.json({ error:"Invalid setting." }, { status:400 });
     const before = await prisma.systemSetting.findUnique({ where:{key:parsed.data.key} });
     const setting = await prisma.systemSetting.upsert({ where:{key:parsed.data.key}, create:{...parsed.data,updatedById:access.user.id}, update:{value:parsed.data.value,description:parsed.data.description,updatedById:access.user.id} });
+    await prisma.adminSettingChange.create({
+      data: { settingKey: setting.key, actorId: access.user.id, before: before?.value ?? null, after: setting.value, reason: parsed.data.description ?? null },
+    });
     await prisma.adminAuditLog.create({data:{adminId:access.user.id,action:"UPDATE_SYSTEM_SETTING",targetType:"SETTING",targetId:setting.key,details:JSON.stringify({before,after:setting})}});
     return NextResponse.json({setting});
   }
@@ -40,6 +45,9 @@ export async function PATCH(request: Request) {
     if (!parsed.success) return NextResponse.json({ error:"Invalid feature flag." }, { status:400 });
     const before = await prisma.featureFlag.findUnique({ where:{key:parsed.data.key} });
     const flag = await prisma.featureFlag.upsert({ where:{key:parsed.data.key}, create:{...parsed.data,updatedById:access.user.id}, update:{enabled:parsed.data.enabled,description:parsed.data.description,updatedById:access.user.id} });
+    await prisma.adminFlagChange.create({
+      data: { flagKey: flag.key, actorId: access.user.id, before: before?.enabled ?? false, after: flag.enabled, reason: parsed.data.description ?? null },
+    });
     await prisma.adminAuditLog.create({data:{adminId:access.user.id,action:"UPDATE_FEATURE_FLAG",targetType:"FEATURE_FLAG",targetId:flag.key,details:JSON.stringify({before,after:flag})}});
     return NextResponse.json({flag});
   }
