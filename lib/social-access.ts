@@ -11,6 +11,14 @@ export async function getBlockedUserIds(userId: string) {
   return rows.map((row) => (row.blockerId === userId ? row.blockedId : row.blockerId));
 }
 
+export async function getMutedUserIds(userId: string) {
+  const rows = await prisma.mute.findMany({
+    where: { muterId: userId },
+    select: { mutedId: true },
+  });
+  return rows.map((row) => row.mutedId);
+}
+
 export async function areFriends(userA: string, userB: string) {
   if (userA === userB) return true;
 
