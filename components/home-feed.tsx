@@ -528,14 +528,18 @@ function PostCard({
     try {
       if (navigator.share) {
         await navigator.share({ title: "Socialhub post", text: post.copy.slice(0, 120), url });
+        setError("Post shared.");
       } else {
         await navigator.clipboard.writeText(url);
+        setError("Link copied.");
       }
       const response = await fetch(`/api/posts/${post.id}/share`, { method: "POST" });
       const json = await response.json().catch(() => ({}));
       if (response.ok) {
         setShareCount(Number(json.shareCount ?? shareCount + 1));
         emitLiveSync({ type: "post-updated", postId: post.id });
+      } else {
+        setError(json.error ?? "Could not record the share.");
       }
     } catch {
       // User cancelled share or the clipboard is unavailable.
