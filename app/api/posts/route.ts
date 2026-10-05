@@ -6,7 +6,7 @@ import { postInputSchema } from "@/lib/validation";
 import { getBlockedUserIds } from "@/lib/social-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { getPostDisplayCountsMap } from "@/lib/post-metrics";
-import { createMentionNotifications } from "@/lib/mentions";
+import { platformEnabled } from "@/lib/platform-controls";
 import { getActiveUserRestriction } from "@/lib/user-restrictions";
 
 async function getSession() {
@@ -187,6 +187,8 @@ export async function POST(request: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
+  const postingEnabled = await platformEnabled("posts", true);
+  if (!postingEnabled) return NextResponse.json({ error: "Posting is temporarily disabled by the platform administrator." }, { status: 503 });
   const rl = await consumeRateLimit(rateLimitKey("posts", request, session.user.id), 10, 60);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
   const postingRestriction = await getActiveUserRestriction(session.user.id, "postingRestrictedUntil");
