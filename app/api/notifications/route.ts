@@ -48,8 +48,10 @@ export async function GET(request: Request) {
     where: {
       userId: session.user.id,
       ...(enabledTypes.length ? { type: { in: enabledTypes } } : { id: { in: [] } }),
-      ...(mutedIds.length ? { OR: [{ actorId: null }, { actorId: { notIn: mutedIds } }] } : {}),
-      ...(cursor ? { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] } : {}),
+      AND: [
+        ...(mutedIds.length ? [{ OR: [{ actorId: null }, { actorId: { notIn: mutedIds } }] }] : []),
+        ...(cursor ? [{ OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] }] : []),
+      ],
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: 51,
