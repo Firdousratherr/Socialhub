@@ -24,6 +24,7 @@ import { compactCount, fullCount } from "@/lib/compact-count";
 import { formatSocialDate, formatSocialDateTime } from "@/lib/social-date";
 
 const REACTION_EMOJIS = ["❤️", "😂", "😮", "😢", "🔥", "👍"] as const;
+const STORY_IMAGE_DURATION_MS = 5000;
 
 type Story = {
   id: string;
@@ -448,76 +449,149 @@ export function StoryCenter({
   const latestReplies = storyReplies.slice(-3);
   const ownReplyExists = Boolean(session?.user && storyReplies.some((reply) => reply.author.id === session.user.id));
 
+  useEffect(() => {
+    if (!viewer || !active?.id || active.mediaType === "VIDEO") return;
+    const timer = window.setTimeout(() => moveStory(1), STORY_IMAGE_DURATION_MS);
+    return () => window.clearTimeout(timer);
+  }, [viewer?.authorId, viewer?.index, active?.id, active?.mediaType]);
+
+  useEffect(() => {
+    if (!viewer) return;
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || (target instanceof HTMLElement && target.isContentEditable)) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setViewer(null);
+      } else if (event.key === "ArrowLeft" && canGoPrevious) {
+        event.preventDefault();
+        moveStory(-1);
+      } else if (event.key === "ArrowRight" && canGoNext) {
+        event.preventDefault();
+        moveStory(1);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [viewer, canGoPrevious, canGoNext]);
+
   return (
     <>
-      <section className={"social-card rounded-3xl p-3 sm:p-4 " + className}>
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-sm font-black">Stories</h2>
-            <p className="mt-0.5 text-xs font-semibold text-gray-500">Share a moment that disappears after 24 hours.</p>
+      <section className={"social-card overflow-hidden rounded-3xl " + className} aria-label="Stories">
+        <div className="flex items-center justify-between gap-3 px-4 pt-4 sm:px-5 sm:pt-5">
+          <div className="flex items-center gap-2.5">
+            <span className="grid size-8 place-items-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
+              <Camera size={16} />
+            </span>
+            <div>
+              <h2 className="text-sm font-black tracking-tight text-[var(--foreground)]">Stories</h2>
+              <p className="text-[10px] font-semibold text-[var(--muted)]">Moments from your people</p>
+            </div>
           </div>
           {session?.user ? (
-            <button type="button" onClick={() => setComposerOpen(true)} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-gray-950 px-3 py-2 text-xs font-black text-white">
-              <Plus size={14} /> Add
+            <button
+              type="button"
+              onClick={() => setComposerOpen(true)}
+              className="social-button min-h-9 rounded-xl bg-[var(--surface-muted)] px-3 text-[11px] font-black text-[var(--foreground)] transition hover:bg-[var(--accent-soft)]"
+            >
+              <span className="inline-flex items-center gap-1.5"><Plus size={14} /> Create</span>
             </button>
           ) : null}
         </div>
 
-        {error ? <div role="alert" className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">{error}</div> : null}
+        {error ? <div role="alert" className="mx-4 mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 sm:mx-5">{error}</div> : null}
 
-        <div className="mt-4 flex gap-3 overflow-x-auto pb-1 scrollbar-none">
-          {session?.user && !ownGroup ? (
-            <button type="button" onClick={() => setComposerOpen(true)} className="min-w-[70px] text-center">
-              <div className="mx-auto grid size-16 place-items-center rounded-full border-2 border-dashed border-[#bdb6ff] bg-[#f8f7ff] text-[#5a4be8]">
-                <Plus size={20}/>
-              </div>
-              <span className="mt-2 block truncate text-xs font-bold text-gray-600">Add story</span>
+        <div className="story-rail mt-4 flex gap-4 overflow-x-auto px-4 pb-4 scrollbar-none sm:gap-5 sm:px-5 sm:pb-5">
+          {session?.user ? (
+            <button
+              type="button"
+              onClick={() => ownGroup ? openStoryGroup(ownGroup) : setComposerOpen(true)}
+              className="group story-rail-item w-[70px] shrink-0 text-center sm:w-[76px]"
+              aria-label={ownGroup ? "Open your story" : "Add a story"}
+            >
+              <span
+                className={`story-avatar-ring relative mx-auto grid size-[66px] place-items-center rounded-full p-[3px] sm:size-[72px] ${
+                  ownGroup
+                    ? "bg-gradient-to-tr from-[#f7b733] via-[#e83e8c] to-[#6d5dfc]"
+                    : "border-2 border-dashed border-[color-mix(in_srgb,var(--accent)_35%,var(--border))] bg-[var(--surface-muted)]"
+                }`}
+              >
+                <span className="grid size-full place-items-center overflow-hidden rounded-full bg-[var(--surface)] p-[2px]">
+                  {ownGroup?.author.image ? (
+                    <img src={ownGroup.author.image} alt="" className="size-full rounded-full object-cover" />
+                  ) : (
+                    <span className="grid size-full place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-sm font-black text-white">
+                      {session.user.name ? initials(session.user.name) : "SH"}
+                    </span>
+                  )}
+                </span>
+                <span className="absolute -bottom-0.5 -right-0.5 grid size-6 place-items-center rounded-full border-[3px] border-[var(--surface)] bg-[var(--accent)] text-white shadow-sm sm:size-7">
+                  {ownGroup ? <Plus size={13} strokeWidth={3} /> : <Plus size={14} strokeWidth={3} />}
+                </span>
+              </span>
+              <span className="mt-2 block truncate text-[11px] font-extrabold text-[var(--foreground)]">Your story</span>
+              <span className="mt-0.5 block truncate text-[9px] font-semibold text-[var(--muted)]">{ownGroup ? "Tap to view" : "Add story"}</span>
             </button>
           ) : null}
 
-          {displayGroups.map((group) => {
-            const viewed = group.stories.every((story) => story.hasViewed);
-            const total = group.stories.length;
-            const latest = group.stories[0];
-            return (
-              <button key={group.author.id} type="button" onClick={() => openStoryGroup(group)} className="min-w-[78px] text-center">
-                <div
-                  className={"relative mx-auto grid size-16 place-items-center rounded-full p-[2px] transition-transform active:scale-95 " +
-                    (viewed ? "bg-gray-300" : "bg-gradient-to-br from-[#6d5dfc] via-[#d957ff] to-[#ffb347]")}
-                  aria-label={(total > 1 ? total + " stories from " : "") + (session?.user?.id === group.author.id ? "your story" : group.author.name)}
+          {displayGroups
+            .filter((group) => group.author.id !== currentUserId)
+            .map((group) => {
+              const viewed = group.stories.every((story) => story.hasViewed);
+              const total = group.stories.length;
+              return (
+                <button
+                  key={group.author.id}
+                  type="button"
+                  onClick={() => openStoryGroup(group)}
+                  className="group story-rail-item w-[70px] shrink-0 text-center sm:w-[76px]"
+                  aria-label={group.author.name + (total > 1 ? " has multiple stories" : "")}
                 >
-                  <div className="grid size-full place-items-center rounded-full bg-white p-[2px]">
-                    {group.author.image ? (
-                      <img src={group.author.image} alt="" className="size-full rounded-full object-cover" />
-                    ) : (
-                      <span className="grid size-full place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-sm font-black text-white">{initials(group.author.name)}</span>
-                    )}
-                  </div>
-                  {session?.user?.id === group.author.id ? (
-                    <span className="absolute -right-0.5 -bottom-0.5 grid size-6 place-items-center rounded-full border-2 border-[var(--surface)] bg-[var(--accent)] text-white shadow">
-                      <Plus size={12}/>
+                  <span
+                    className={`story-avatar-ring relative mx-auto grid size-[66px] place-items-center rounded-full p-[3px] transition-transform duration-150 group-active:scale-95 sm:size-[72px] ${
+                      viewed ? "bg-[var(--surface-muted)] ring-1 ring-[var(--border)]" : "bg-gradient-to-tr from-[#f7b733] via-[#e83e8c] to-[#6d5dfc]"
+                    }`}
+                  >
+                    <span className="grid size-full place-items-center overflow-hidden rounded-full bg-[var(--surface)] p-[2px]">
+                      {group.author.image ? (
+                        <img src={group.author.image} alt="" className="size-full rounded-full object-cover" />
+                      ) : (
+                        <span className="grid size-full place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-sm font-black text-white">
+                          {initials(group.author.name)}
+                        </span>
+                      )}
                     </span>
-                  ) : null}
-                  {total > 1 ? (
-                    <span className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-[#d957ff]/20" aria-hidden="true" />
-                  ) : null}
-                </div>
-                <span className="mt-2 flex items-center justify-center gap-1 truncate text-xs font-bold text-gray-500">
-                  {session?.user?.id === group.author.id ? "Your story" : group.author.name.split(" ")[0]}
-                  <AccountBadge verified={group.author.isVerified} owner={group.author.isOwner}/>
-                </span>
-                <span className="mt-0.5 block truncate text-[9px] font-semibold text-gray-400">
-                  {latest ? timeRemaining(latest.expiresAt) : ""}
-                </span>
-              </button>
-            );
-          })}
+                    {total > 1 ? (
+                      <span
+                        className="pointer-events-none absolute inset-[1px] rounded-full border border-white/45 opacity-70"
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                  </span>
+                  <span className="mt-2 flex items-center justify-center gap-1 truncate text-[11px] font-extrabold text-[var(--foreground)]">
+                    <span className="truncate">{group.author.name.split(" ")[0]}</span>
+                    <AccountBadge verified={group.author.isVerified} owner={group.author.isOwner} />
+                  </span>
+                  <span className="mt-0.5 block truncate text-[9px] font-semibold text-[var(--muted)]">
+                    {total > 1 ? "New stories" : viewed ? "Viewed" : "New story"}
+                  </span>
+                </button>
+              );
+            })}
 
-          {!displayGroups.length ? (
+          {!displayGroups.length && !session?.user ? (
             <div className="flex min-w-[250px] items-center gap-3 rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3">
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--surface)] text-[var(--accent)]"><Camera size={17}/></span>
-              <div className="min-w-0"><p className="text-xs font-black text-[var(--foreground)]">No active stories</p><p className="mt-0.5 text-[10px] leading-4 text-[var(--muted)]">Be the first to share something today.</p></div>
-              {session?.user ? <button type="button" onClick={() => setComposerOpen(true)} className="ml-auto min-h-9 shrink-0 rounded-xl bg-[var(--accent)] px-3 text-[10px] font-black text-white">Create</button> : null}
+              <div className="min-w-0">
+                <p className="text-xs font-black text-[var(--foreground)]">No active stories</p>
+                <p className="mt-0.5 text-[10px] leading-4 text-[var(--muted)]">Sign in to start sharing.</p>
+              </div>
+            </div>
+          ) : null}
+
+          {session?.user && !displayGroups.filter((group) => group.author.id !== currentUserId).length ? (
+            <div className="flex min-w-[190px] items-center self-center rounded-2xl bg-[var(--surface-muted)] px-3 py-2.5">
+              <p className="text-[10px] font-bold leading-4 text-[var(--muted)]">No other stories yet. Add yours and share a moment.</p>
             </div>
           ) : null}
         </div>
@@ -577,7 +651,7 @@ export function StoryCenter({
               <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex gap-1.5">
                 {activeGroup?.stories.map((story, index) => (
                   <span key={story.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/25">
-                    <span className={"block h-full rounded-full " + (index < (viewer?.index ?? 0) ? "w-full bg-white" : index === (viewer?.index ?? 0) ? "w-1/3 bg-white" : "w-0")} />
+                    <span className={"block h-full rounded-full " + (index < (viewer?.index ?? 0) ? "w-full bg-white" : index === (viewer?.index ?? 0) ? "w-full bg-white story-progress-fill" : "w-0")} />
                   </span>
                 ))}
               </div>
@@ -604,7 +678,9 @@ export function StoryCenter({
                     muted
                     playsInline
                     controls
+                    controlsList="nodownload"
                     preload="metadata"
+                    onEnded={() => moveStory(1)}
                     aria-label={active.caption ?? "Story video"}
                   />
                 ) : (
