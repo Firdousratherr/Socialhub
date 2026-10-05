@@ -6,7 +6,6 @@ import type { FormEvent } from "react";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
 import { AdminWorkspace } from "@/components/admin-workspace";
-import { AdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
 import { emitPostSyncEvent } from "@/lib/post-sync";
 import { compactCount, fullCount } from "@/lib/compact-count";
