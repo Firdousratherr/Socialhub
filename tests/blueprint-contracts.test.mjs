@@ -831,10 +831,23 @@ test("high-volume social mutations use targeted rate-limit buckets", () => {
 
 test("rate limiting increments buckets atomically", () => {
   const limiter = read("lib/rate-limit.ts");
-  assert.match(limiter, /ON CONFLICT ("key") DO UPDATE/);
+  assert.match(limiter, /ON CONFLICT \("key"\) DO UPDATE/);
   assert.match(limiter, /"count" \+ 1/);
   assert.match(limiter, /RETURNING "count", "resetAt"/);
   assert.doesNotMatch(limiter, /findUnique\(\{ where: \{ key \}\}\)/);
+});
+
+test("admin risk reads do not create duplicate dynamic signals", () => {
+  const route = read("app/api/admin/risk/route.ts");
+  assert.match(route, /findFirst\(\{[\s\S]*kind: "DYNAMIC_ACTIVITY"/);
+  assert.doesNotMatch(route, /adminRiskSignal\.create/);
+});
+
+test("admin case ordering treats priority as severity, not alphabetic text", () => {
+  const route = read("app/api/admin/cases/route.ts");
+  assert.match(route, /priorityRank/);
+  assert.match(route, /CRITICAL: 4/);
+  assert.match(route, /HIGH: 3/);
 });
 
 test("admin bulk operations provide a dry-run safety preview", () => {
