@@ -32,6 +32,42 @@ export async function PATCH(request: Request) {
   const existing = await prisma.adminAppeal.findUnique({ where: { id: parsed.data.id } });
   if (!existing) return NextResponse.json({ error: "Appeal not found." }, { status: 404 });
   const item = await prisma.adminAppeal.update({ where: { id: existing.id }, data: { status: parsed.data.status, reviewerId: access.user.id, reviewerNote: parsed.data.reviewerNote ?? null, reviewedAt: new Date() } });
+
+  if (parsed.data.status === "APPROVED" || parsed.data.status === "PARTIAL") {
+    await prisma.user.update({
+      where: { id: item.userId },
+      data: parsed.data.status === "APPROVED"
+        ? {
+            isActive: true,
+            suspensionReason: null,
+            suspendedUntil: null,
+            postingRestrictedUntil: null,
+            commentingRestrictedUntil: null,
+            messagingRestrictedUntil: null,
+            socialRestrictedUntil: null,
+          }
+        : { isActive: true, suspensionReason: null, suspendedUntil: null },
+    });
+    await prisma.adminEnforcementAction.create({
+      data: {
+        subjectUserId: item.userId,
+        actorId: access.user.id,
+        caseId: item.caseId,
+        action: parsed.data.status === "APPROVED" ? "APPEAL_FULL_RESTORE" : "APPEAL_PARTIAL_RELIEF",
+        reason: item.reviewerNote?.trim() || "Appeal relief granted.",
+      },
+    });
+    await prisma.notification.create({
+      data: {
+        userId: item.userId,
+        actorId: access.user.id,
+        type: "SYSTEM",
+        title: parsed.data.status === "APPROVED" ? "Appeal approved" : "Partial appeal relief granted",
+        body: parsed.data.status === "APPROVED" ? "Your account restrictions were removed after appeal review." : "Your suspension was removed after appeal review; some restrictions may remain.",
+      },
+    });
+  }
+
   if (item.caseId && parsed.data.status !== "REJECTED") {
     await prisma.adminCaseEvent.create({ data: { caseId: item.caseId, actorId: access.user.id, type: "APPEAL_REVIEWED", details: JSON.stringify({ appealId: item.id, status: item.status }) } });
   }
