@@ -456,6 +456,7 @@ model Story {
   id         String         @id @default(cuid())
   authorId   String
   mediaUrl   String
+  mediaType  String         @default("IMAGE")
   caption    String?
   audience   StoryAudience  @default(PUBLIC)
   expiresAt  DateTime
