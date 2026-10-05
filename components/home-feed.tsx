@@ -353,7 +353,7 @@ function CommentThread({
                     </div>
                   )}
                   <div className="mt-1 flex gap-3 px-1 text-xs font-bold text-gray-500">
-                    <span>{timeLabel(comment.createdAt)}</span>
+                    <span>{formatSocialDate(comment.createdAt)}</span>
                     {session?.user ? (
                       <button type="button" onClick={() => setReplyTo(comment.id)} className="hover:text-[#5a4be8]">Reply</button>
                     ) : null}
@@ -383,7 +383,7 @@ function CommentThread({
                           </div>
                         )}
                         <div className="mt-1 flex gap-3 px-1 text-xs font-bold text-gray-500">
-                          <span>{timeLabel(reply.createdAt)}</span>
+                          <span>{formatSocialDate(reply.createdAt)}</span>
                           {session?.user?.id === reply.author.id ? <>
                             <button type="button" onClick={() => { setEditingCommentId(reply.id); setEditingCommentText(reply.content); }} className="hover:text-[#5a4be8]" aria-label="Edit reply"><Pencil size={11}/></button>
                             <button type="button" onClick={() => void deleteComment(reply.id)} className="hover:text-red-500" aria-label="Delete reply"><Trash2 size={11}/></button>
@@ -1044,7 +1044,7 @@ export default function HomeFeed() {
           authorImage: item.author.image,
           authorVerified: Boolean(item.author.isVerified),
           authorOwner: Boolean(item.author.isOwner),
-          timestamp: timeLabel(item.createdAt),
+          timestamp: formatSocialDate(item.createdAt),
           copy: item.content ?? "Shared a new moment.",
           mediaUrl: item.mediaUrl,
           visibility: item.visibility,
