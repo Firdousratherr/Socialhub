@@ -16,7 +16,7 @@ export const MODERATOR_PERMISSION_PRESETS: Array<{
     id: "safety",
     label: "Safety & reports",
     description: "Handle reports, user safety, and verification workflows.",
-    permissions: ["USERS_VIEW", "CONTENT_VIEW", "REPORTS_MANAGE", "VERIFICATION_MANAGE", "USERS_SECURITY"],
+    permissions: ["USERS_VIEW", "CONTENT_VIEW", "REPORTS_MANAGE", "VERIFICATION_MANAGE", "USERS_SECURITY", "CASES_MANAGE", "ENFORCEMENT_MANAGE", "RISK_VIEW"],
   },
   {
     id: "community",
@@ -51,6 +51,9 @@ export const MODERATOR_PERMISSION_PRESETS: Array<{
       "AUDIT_VIEW",
       "STORAGE_VIEW",
       "PRIVACY_OPERATIONS",
+      "CASES_MANAGE",
+      "ENFORCEMENT_MANAGE",
+      "RISK_VIEW",
     ],
   },
 ];
