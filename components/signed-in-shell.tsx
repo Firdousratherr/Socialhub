@@ -49,6 +49,7 @@ export function SignedInShell({ children }: { children: React.ReactNode }) {
   const { data: session } = authClient.useSession();
   const { summary: unreadSummary } = useUnreadSummary();
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
 
   useEffect(() => {
@@ -104,6 +105,9 @@ export function SignedInShell({ children }: { children: React.ReactNode }) {
           </form>
 
           <div className="ml-auto flex items-center gap-1.5">
+            <button type="button" onClick={() => setSearchOpen((value) => !value)} className="social-icon-button rounded-2xl border border-transparent bg-gray-50 md:hidden" aria-label="Search" aria-expanded={searchOpen}>
+              <Search size={19} />
+            </button>
             <Link href="/notifications" className="social-icon-button relative rounded-2xl border border-transparent bg-gray-50 hover:border-[#e3defe] hover:bg-[#f8f6ff]" aria-label="Notifications">
               <Bell size={19} />
               {unreadSummary.notifications > 0 ? (
@@ -120,6 +124,21 @@ export function SignedInShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
+        {searchOpen ? (
+          <form onSubmit={submitSearch} className="border-t border-gray-100 bg-white/95 px-3 py-3 sm:px-6 md:hidden">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17} />
+              <input
+                autoFocus
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="h-11 w-full rounded-2xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm font-medium outline-none focus:border-[#bbb3ff] focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10"
+                placeholder="Search Socialhub…"
+                aria-label="Search Socialhub"
+              />
+            </div>
+          </form>
+        ) : null}
       <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[230px_minmax(0,1fr)] lg:px-8">
         <aside className="hidden lg:block">
           <div className="sticky top-24">
