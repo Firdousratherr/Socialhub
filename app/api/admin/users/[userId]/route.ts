@@ -39,6 +39,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
       id: true, name: true, username: true, email: true, image: true, bio: true, coverImage: true,
       website: true, location: true, role: true, isActive: true, isPrivate: true, isVerified: true, isOwner: true,
       verifiedAt: true, ownerSince: true, emailVerified: true, createdAt: true, updatedAt: true,
+      postingRestrictedUntil: true, commentingRestrictedUntil: true, messagingRestrictedUntil: true, socialRestrictedUntil: true, suspendedUntil: true, suspensionReason: true,
       _count: {
         select: {
           posts: true, likes: true, comments: true, followers: true, following: true,
