@@ -11,7 +11,7 @@ import {
   XCircle,
 } from "lucide-react";
 
-type Tab = "command" | "cases" | "enforcement" | "risk" | "graph" | "integrity" | "limits" | "appeals" | "approvals";
+type Tab = "command" | "cases" | "enforcement" | "risk" | "graph" | "segments" | "integrity" | "limits" | "appeals" | "approvals";
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <section className={"rounded-[26px] border border-gray-100 bg-white p-4 shadow-[0_14px_50px_rgba(31,26,64,0.06)] " + className}>{children}</section>;
@@ -35,7 +35,7 @@ export function AdminIntelligencePanel() {
   const [notice, setNotice] = useState("");
   const nav: Array<[Tab, string]> = [
     ["command", "Command"], ["cases", "Cases"], ["enforcement", "Enforcement"], ["risk", "Risk"],
-    ["graph", "Social graph"], ["integrity", "Integrity"], ["limits", "Rate limits"], ["appeals", "Appeals"], ["approvals", "Approvals"],
+    ["graph", "Social graph"], ["segments", "Segments"], ["integrity", "Integrity"], ["limits", "Rate limits"], ["appeals", "Appeals"], ["approvals", "Approvals"],
   ];
   return (
     <div className="space-y-4">
@@ -58,6 +58,7 @@ export function AdminIntelligencePanel() {
       {tab === "enforcement" ? <Enforcement onNotice={setNotice} /> : null}
       {tab === "risk" ? <Risk onNotice={setNotice} /> : null}
       {tab === "graph" ? <SocialGraph onNotice={setNotice} /> : null}
+      {tab === "segments" ? <Segments onNotice={setNotice} /> : null}
       {tab === "integrity" ? <Integrity onNotice={setNotice} /> : null}
       {tab === "limits" ? <Limits onNotice={setNotice} /> : null}
       {tab === "appeals" ? <Appeals onNotice={setNotice} /> : null}
@@ -184,6 +185,33 @@ function SocialGraph({ onNotice }: { onNotice: (s: string) => void }) {
   async function act(action:string){const r=await fetch("/api/admin/social-graph",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,userId:userId.trim(),targetId:targetId.trim()})});const j=await r.json();if(!r.ok){onNotice(j.error??"Relationship action failed.");return;}onNotice("Social relationship updated and audited.");setTargetId("");void load();}
   const rows=data?.followers??data?.following??data?.friends??data?.blocked??[];
   return <div className="space-y-4"><Card><div className="grid gap-2 md:grid-cols-[1fr_160px_auto]"><Input value={userId} onChange={e=>setUserId(e.target.value)} placeholder="User ID"/><Select value={list} onChange={e=>setList(e.target.value)}><option>summary</option><option>followers</option><option>following</option><option>friends</option><option>blocked</option></Select><Btn onClick={()=>void load()}>Inspect</Btn></div></Card>{data?.counts?<Card><div className="grid grid-cols-2 gap-3 sm:grid-cols-5">{Object.entries(data.counts).map(([key,value])=><div key={key} className="rounded-2xl bg-gray-50 p-3"><p className="text-[9px] font-black uppercase tracking-[.12em] text-gray-400">{key}</p><p className="mt-2 text-xl font-black">{String(value)}</p></div>)}</div></Card>:null}<Card><div className="space-y-2">{rows.map((row:any)=>{const person=row.follower??row.following??row.friend??row.blocked??row;return <div key={person.id} className="flex items-center gap-3 rounded-2xl bg-gray-50 p-3"><div className="grid size-9 place-items-center rounded-full bg-white"><Users size={14}/></div><div className="min-w-0 flex-1"><p className="text-xs font-black">{person.name}</p><p className="text-[10px] text-gray-400">@{person.username??"member"} · {fmt(row.createdAt??row.updatedAt)}</p></div><Input value={targetId} onChange={e=>setTargetId(e.target.value)} placeholder="Target ID" className="hidden w-32 sm:block"/>{list==="following"?<Btn danger onClick={()=>void act("UNFOLLOW")}>Unfollow</Btn>:null}{list==="friends"?<Btn danger onClick={()=>void act("REMOVE_FRIEND")}>Remove</Btn>:null}{list==="followers"?<Btn danger onClick={()=>{setTargetId(person.id);void act("REMOVE_FOLLOWER")}}>Remove follower</Btn>:null}{list==="blocked"?<Btn onClick={()=>void act("REMOVE_BLOCK")}>Unblock</Btn>:null}</div>})}{!rows.length?<p className="p-8 text-center text-xs text-gray-400">Choose a user and relationship list to inspect.</p>:null}</div></Card></div>;
+}
+
+function Segments({ onNotice }: { onNotice: (s: string) => void }) {
+  const [items, setItems] = useState<any[]>([]);
+  const [generatedAt, setGeneratedAt] = useState("");
+  async function load() {
+    try {
+      const r = await fetch("/api/admin/segments", { cache: "no-store" });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? "Could not load segments.");
+      setItems(j.segments ?? []);
+      setGeneratedAt(j.generatedAt ?? "");
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : "Could not load segments.");
+    }
+  }
+  useEffect(() => { void load(); }, []);
+  return <div className="space-y-4">
+    <div className="flex items-center justify-between">
+      <div><h3 className="text-sm font-black">User segments</h3><p className="text-[10px] text-gray-400">Live database segments for growth, trust and support workflows.</p></div>
+      <Btn onClick={() => void load()}>Refresh</Btn>
+    </div>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {items.map((item) => <Card key={item.key} className="p-4"><p className="text-[9px] font-black uppercase tracking-[.11em] text-gray-400">{item.label}</p><p className="mt-2 text-2xl font-black">{item.count}</p><p className="mt-2 text-[10px] leading-5 text-gray-500">{item.description}</p></Card>)}
+    </div>
+    {generatedAt ? <p className="text-[9px] text-gray-400">Generated {fmt(generatedAt)}</p> : null}
+  </div>;
 }
 
 function Integrity({ onNotice }: { onNotice: (s: string) => void }) {
