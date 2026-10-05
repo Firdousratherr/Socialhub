@@ -208,7 +208,6 @@ function CommentThread({
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      setLoadingFeed(true);
       try {
         await loadComments();
       } catch (loadError) {
@@ -712,11 +711,6 @@ function PostCard({
           <div className="mt-3 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-3 py-2.5 text-xs font-semibold text-[#5a4be8]">{error}</div>
         ) : null}
 
-        <div className="mt-4 flex items-center justify-between text-xs font-semibold text-gray-500">
-          <span title={fullCount(likeCount) + " reactions"}>{likeCount > 0 ? compactCount(likeCount) + " " + (likeCount === 1 ? "reaction" : "reactions") : ""}</span>
-          <span title={fullCount(commentCount) + " comments"}>{commentCount > 0 ? compactCount(commentCount) + " " + (commentCount === 1 ? "comment" : "comments") : ""} · <span title={fullCount(shareCount) + " shares"}>{shareCount > 0 ? compactCount(shareCount) + " " + (shareCount === 1 ? "share" : "shares") : ""}</span></span>
-        </div>
-
         <PostActions
           liked={liked}
           saved={saved}
@@ -800,6 +794,7 @@ export default function HomeFeed() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      setLoadingFeed(true);
       try {
         const [feedResponse, storyResponse, usersResponse] = await Promise.all([
           fetch("/api/posts?take=20&mode=" + encodeURIComponent(feedMode), { cache: "no-store" }),
