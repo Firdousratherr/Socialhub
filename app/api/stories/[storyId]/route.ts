@@ -85,9 +85,10 @@ export async function GET(
     );
   }
 
+  const isOwner = access.story.authorId === session.user.id;
   const [replies, reactions, mine] = await Promise.all([
     prisma.storyReply.findMany({
-      where: { storyId },
+      where: { storyId, ...(isOwner ? {} : { authorId: session.user.id }) },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       take: 100,
       include: {
@@ -134,7 +135,7 @@ export async function GET(
     );
   }
 
-  const viewers = access.story.authorId === session.user.id
+  const viewers = isOwner
     ? await prisma.storyView.findMany({
         where: { storyId },
         orderBy: [{ viewedAt: "desc" }, { id: "desc" }],
@@ -162,7 +163,7 @@ export async function GET(
       expiresAt: access.story.expiresAt,
       createdAt: access.story.createdAt,
     },
-    isOwner: access.story.authorId === session.user.id,
+    isOwner,
     viewCount: access.story._count.views,
     replyCount: access.story._count.replies,
     reactionCount: access.story._count.reactions,
@@ -337,7 +338,7 @@ export async function POST(
       return NextResponse.json({
         reaction: existing,
         reactionCount: access.story._count.reactions,
-        likeCount: emoji === "❤️" ? access.story._count.reactions : undefined,
+        likeCount: await prisma.storyReaction.count({ where: { storyId, emoji: "❤️" } }),
       });
     }
 
