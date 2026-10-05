@@ -110,7 +110,7 @@ export async function GET(
       const rows = await prisma.follow.findMany({
         where: {
           followingId: userId,
-          follower: publicUserWhere,
+          follower: { is: publicUserWhere },
           ...(before ? {
             OR: [
               { createdAt: { lt: before.createdAt } },
@@ -137,7 +137,7 @@ export async function GET(
     const rows = await prisma.follow.findMany({
       where: {
         followerId: userId,
-        following: publicUserWhere,
+        following: { is: publicUserWhere },
         ...(before ? {
           OR: [
             { createdAt: { lt: before.createdAt } },
