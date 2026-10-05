@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
@@ -1338,6 +1338,52 @@ type ConversationData = {
   messages: Array<{ id: string; senderId: string; content: string; createdAt: string }>;
 };
 
+class MessagesErrorBoundary extends Component<
+  { children: ReactNode; resetKey?: string | null },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(_error: Error, _info: ErrorInfo) {}
+
+  componentDidUpdate(previousProps: { resetKey?: string | null }) {
+    if (this.state.hasError && previousProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <div className="grid min-h-0 flex-1 place-items-center p-8 text-center">
+        <div>
+          <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-red-50 text-red-600"><MessageCircle size={20}/></span>
+          <p className="mt-3 text-sm font-black">Couldn’t open chat</p>
+          <p className="mt-1 text-xs text-gray-500">Something went wrong while rendering this conversation.</p>
+          <button type="button" onClick={() => this.setState({ hasError: false })} className="mt-4 rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white">Retry</button>
+        </div>
+      </div>
+    );
+  }
+}
+
+function normalizeConversation(value: Partial<ConversationData> & { id: string }): ConversationData {
+  return {
+    id: value.id,
+    title: value.title ?? null,
+    isGroup: Boolean(value.isGroup),
+    unreadCount: value.unreadCount ?? 0,
+    mutedUntil: value.mutedUntil ?? null,
+    archivedAt: value.archivedAt ?? null,
+    members: Array.isArray(value.members) ? value.members : [],
+    messages: Array.isArray(value.messages) ? value.messages : [],
+  };
+}
+
 function Messages({ initialConversationId }: { initialConversationId?: string }) {
   const { data: session } = authClient.useSession();
   const [conversations, setConversations] = useState<ConversationData[]>([]);
@@ -1368,7 +1414,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [editingMessageText, setEditingMessageText] = useState("");
   const [savingMessage, setSavingMessage] = useState(false);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
-  const attachmentRef = useRef<HTMLInputElement | null>(null);
+  const attachmentRef = useRef<HTMLInputElement | null>(null);\n  const composerRef = useRef<HTMLTextAreaElement | null>(null);\n  const conversationsPollRef = useRef(false);\n  const messagesPollRef = useRef(false);\n  const typingPollRef = useRef(false);
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   const lastReadAttemptRef = useRef(0);
@@ -1459,12 +1505,16 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         const json = await response.json();
         if (!response.ok) throw new Error(json.error ?? "Could not load conversations.");
         if (cancelled) return;
-        const next = json.conversations as ConversationData[];
+        const next = Array.isArray(json.conversations)
+          ? (json.conversations as Array<Partial<ConversationData> & { id: string }>).map(normalizeConversation)
+          : [];
         setConversations(next);
         setActiveId((current) => {
-            if (initialConversationId && next.some((conversation) => conversation.id === initialConversationId)) return initialConversationId;
-            return current && next.some((conversation) => conversation.id === current) ? current : next[0]?.id ?? null;
-          });
+          if (initialConversationId && next.some((conversation) => conversation.id === initialConversationId)) return initialConversationId;
+          if (current && next.some((conversation) => conversation.id === current)) return current;
+          if (current === null) return window.matchMedia("(max-width: 1023px)").matches ? null : next[0]?.id ?? null;
+          return next[0]?.id ?? null;
+        });
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Could not load conversations.");
       } finally {
@@ -1473,9 +1523,12 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
 
     void loadConversations();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible" && navigator.onLine !== false) void loadConversations(true);
-    }, 5000);
+    const poll = async () => {
+      if (conversationsPollRef.current || document.visibilityState !== "visible" || navigator.onLine === false) return;
+      conversationsPollRef.current = true;
+      try { await loadConversations(true); } finally { conversationsPollRef.current = false; }
+    };
+    const timer = window.setInterval(() => { void poll(); }, 5000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -1506,8 +1559,14 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       });
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error ?? "Could not start conversation.");
-      const conversation = json.conversation as ConversationData;
-      setConversations((current) => current.some((item) => item.id === conversation.id) ? current : [conversation, ...current]);
+      if (!json.conversation?.id) throw new Error("The conversation was created, but its details were not returned.");
+      const conversation = normalizeConversation(json.conversation as Partial<ConversationData> & { id: string });
+      setConversations((current) => {
+        const existing = current.find((item) => item.id === conversation.id);
+        return existing
+          ? current.map((item) => item.id === conversation.id ? normalizeConversation({ ...item, ...conversation, members: conversation.members.length ? conversation.members : item.members, messages: conversation.messages.length ? conversation.messages : item.messages }) : item)
+          : [conversation, ...current];
+      });
       setActiveId(conversation.id);
       setNewConversationOpen(false);
       setUserQuery("");
@@ -1619,9 +1678,12 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
 
     void loadMessages();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible" && navigator.onLine !== false) void loadMessages();
-    }, 2000);
+    const poll = async () => {
+      if (messagesPollRef.current || document.visibilityState !== "visible" || navigator.onLine === false) return;
+      messagesPollRef.current = true;
+      try { await loadMessages(); } finally { messagesPollRef.current = false; }
+    };
+    const timer = window.setInterval(() => { void poll(); }, 2000);
 
     return () => {
       cancelled = true;
@@ -1647,9 +1709,12 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
 
     void refreshTyping();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible" && navigator.onLine !== false) void refreshTyping();
-    }, 2000);
+    const poll = async () => {
+      if (typingPollRef.current || document.visibilityState !== "visible" || navigator.onLine === false) return;
+      typingPollRef.current = true;
+      try { await refreshTyping(); } finally { typingPollRef.current = false; }
+    };
+    const timer = window.setInterval(() => { void poll(); }, 2000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -1867,6 +1932,16 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     if (action === "archive") setActiveId(null);
   }
 
+  useEffect(() => {
+    const textarea = composerRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    const lineHeight = 24;
+    const maxHeight = lineHeight * 5 + 16;
+    textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + "px";
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [draft]);
+
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!activeId || (!draft.trim() && !pendingAttachments.length) || !session?.user || sending) return;
@@ -1900,163 +1975,130 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
   }
 
-  return <Page wide eyebrow="Messages" title="Your conversations" subtitle="Focused one-to-one and group messaging, designed to be easy to pick back up.">
-    {!session?.user ? (
-      <div className="mb-5 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-4 py-3 text-xs font-semibold text-[#5a4be8]">
-        Sign in to load your real conversations. The interface stays browsable while you are signed out.
-      </div>
-    ) : null}
-    {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
+  return (
+    <div className="messages-page min-w-0">
+      {!session?.user ? (
+        <div className="mb-5 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-4 py-3 text-xs font-semibold text-[#5a4be8]">
+          Sign in to load your real conversations. The interface stays browsable while you are signed out.
+        </div>
+      ) : null}
+      {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
-    {newConversationOpen ? <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4"><div className="w-full max-w-md overflow-hidden rounded-[2rem] bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h2 className="text-base font-black">New message</h2><p className="mt-1 text-xs text-gray-500">Choose a real Socialhub account to start a chat.</p></div><button type="button" onClick={() => setNewConversationOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100"><X size={16}/></button></div><div className="p-4"><label className="relative block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={15}/><input autoFocus value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Search people…" className="h-10 w-full rounded-xl bg-gray-50 pl-9 pr-3 text-xs font-semibold outline-none"/></label><div className="mt-3 space-y-1">{people.length ? people.map((person)=><button type="button" key={person.id} onClick={() => void startConversation(person.id)} className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-gray-50"><Avatar initials={person.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={person.image}/><span className="min-w-0"><span className="flex items-center gap-1 truncate text-xs font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-xs text-gray-500">@{person.username ?? "member"}</span></span></button>) : <p className="p-6 text-center text-xs text-gray-500">{userQuery.trim() ? "No people found." : "Search for someone to message."}</p>}</div></div></div></div> : null}
-
-    {showGroupInfo && active?.isGroup ? (
-      <div className="fixed inset-0 z-[85] grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label="Group information">
-        <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-[2rem] bg-white shadow-2xl">
-          <div className="flex items-center justify-between border-b border-gray-100 p-5">
-            <div><h2 className="text-base font-black">Group info</h2><p className="mt-1 text-xs text-gray-500">{active.members.length} members</p></div>
-            <button type="button" onClick={() => setShowGroupInfo(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100" aria-label="Close group info"><X size={16}/></button>
-          </div>
-          <div className="space-y-4 p-5">
-            {activeGroupAdmin ? <div className="flex gap-2"><input value={groupTitleDraft} onChange={(event) => setGroupTitleDraft(event.target.value)} maxLength={100} className="h-11 flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-semibold"/><button type="button" onClick={() => void updateGroupTitle()} disabled={groupActionLoading || !groupTitleDraft.trim()} className="rounded-xl bg-gray-950 px-4 text-xs font-black text-white disabled:opacity-40">Rename</button></div> : null}
-            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3">
-              <p className="text-xs font-black uppercase tracking-[.12em] text-gray-500">Members</p>
-              <div className="mt-2 space-y-2">{active.members.map((member) => (
-                <div key={member.userId} className="flex items-center gap-3 rounded-xl bg-white p-2.5">
-                  <Avatar initials={member.user.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} image={member.user.image} size="sm"/>
-                  <div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate text-xs font-black">{member.user.name}<AccountBadge verified={member.user.isVerified} owner={member.user.isOwner}/></p><p className="text-xs text-gray-500">{member.role === "ADMIN" ? "Administrator" : "Member"}</p></div>
-                  {activeGroupAdmin && member.userId !== session?.user?.id && member.role !== "ADMIN" ? <button type="button" onClick={() => void removeGroupMember(member.userId)} disabled={groupActionLoading} className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-xs font-black text-red-600 disabled:opacity-40">Remove</button> : null}
-                </div>
-              ))}</div>
-            </div>
-            {activeGroupAdmin ? <div><p className="text-xs font-black uppercase tracking-[.12em] text-gray-500">Add member</p><input value={groupUserQuery} onChange={(event) => setGroupUserQuery(event.target.value)} placeholder="Search people…" className="mt-2 h-10 w-full rounded-xl bg-gray-50 px-3 text-xs font-semibold outline-none"/><div className="mt-2 space-y-1">{groupPeople.slice(0,5).map((person) => <button type="button" key={person.id} onClick={() => void addGroupMember(person.id)} disabled={groupActionLoading} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-gray-50 disabled:opacity-50"><Avatar initials={person.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="sm"/><span className="flex-1 truncate text-xs font-black">{person.name}</span><Plus size={15}/></button>)}</div></div> : null}
-            <button type="button" onClick={() => void leaveGroup()} disabled={groupActionLoading} className="w-full rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-black text-red-600 disabled:opacity-40">Leave group</button>
+      <div className="mb-4 flex items-start justify-between gap-3 lg:mb-5">
+        <div className="flex min-w-0 items-start gap-3">
+          <Link href="/home" className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 lg:hidden" aria-label="Back to home">
+            <ArrowLeft size={18}/>
+          </Link>
+          <div className="min-w-0">
+            <p className="hidden text-xs font-black uppercase tracking-[.16em] text-[#6d5dfc] lg:block">Messages</p>
+            <h1 className="page-heading mt-0 lg:text-[1.875rem]">Your conversations</h1>
+            <p className="page-description mt-1 hidden max-w-2xl sm:block">Focused one-to-one and group messaging, designed to be easy to pick back up.</p>
           </div>
         </div>
       </div>
-    ) : null}
 
-    <div className="messages-shell grid h-[calc(100dvh-150px)] min-h-[520px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:h-[calc(100dvh-118px)] lg:min-h-[620px] lg:grid-cols-[320px_1fr]">
-      <aside className={(activeId ? "hidden lg:block " : "") + "border-b border-gray-100 lg:border-b-0 lg:border-r"}>
-        <div className="flex items-center justify-between border-b border-gray-100 p-4">
-          <div className="flex items-center gap-2"><h2 className="text-sm font-black">{showArchivedConversations ? "Archived" : "Inbox"}</h2><button type="button" onClick={() => setShowArchivedConversations((value) => !value)} className="rounded-lg px-2 py-1 text-xs font-black text-gray-500 hover:bg-gray-100">{showArchivedConversations ? "Inbox" : "Archived"}</button></div>
-          <button type="button" onClick={() => setNewConversationOpen(true)} className="social-icon-button" aria-label="Start a new message"><Pencil size={17}/></button>
-        </div>
-        <label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16}/><input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages" aria-label="Search messages"/></label>
-
-        <div className="space-y-1 p-2">
-          {loading && session?.user ? (
-            [1,2,3].map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl p-3"><span className="size-10 animate-pulse rounded-full bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-2/3 animate-pulse rounded bg-gray-100"/></div></div>)
-          ) : filteredConversations.length > 0 ? filteredConversations.map((conversation, i) => {
-            const other = conversation.members.find((member) => member.userId !== session?.user?.id)?.user;
-            const name = conversation.title ?? other?.name ?? "Conversation";
-            const preview = conversation.messages[0]?.content ?? "No messages yet";
-            return <button key={conversation.id} onClick={() => setActiveId(conversation.id)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left ${conversation.id===activeId?"bg-[#f4f2ff]":"hover:bg-gray-50"}`}>
-              <Avatar initials={(other?.name ?? name).split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={other?.image} color={colors[i%colors.length]}/>
-              <div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate text-xs font-black">{name}<AccountBadge verified={other?.isVerified} owner={other?.isOwner}/></p><p className="mt-1 truncate text-xs text-gray-500">{preview}</p></div>
-              {conversation.unreadCount ? <span className="min-w-5 rounded-full bg-[#6d5dfc] px-1.5 py-1 text-center text-[9px] font-black text-white">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span> : null}
-            </button>;
-          }) : (
-            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-7 text-center">
-              <MessageCircle className="mx-auto text-gray-300" size={22}/>
-              <p className="mt-3 text-xs font-black text-gray-700">{messageSearch.trim() ? "No matching conversations" : "No conversations yet"}</p>
-              <p className="mt-1 text-xs leading-5 text-gray-500">{messageSearch.trim() ? "Try another name or message." : session?.user ? "Your real conversations will appear here." : "Sign in to see your conversations."}</p>
+      {newConversationOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+          <div className="w-full max-w-md overflow-hidden rounded-t-[2rem] bg-white shadow-2xl sm:rounded-[2rem]">
+            <div className="mx-auto mt-2 h-1.5 w-12 rounded-full bg-gray-300 sm:hidden" aria-hidden="true"/>
+            <div className="flex items-center justify-between border-b border-gray-100 p-5">
+              <div><h2 className="text-base font-black">New message</h2><p className="mt-1 text-xs text-gray-500">Choose a real Socialhub account to start a chat.</p></div>
+              <button type="button" onClick={() => setNewConversationOpen(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100" aria-label="Close new message"><X size={16}/></button>
             </div>
-                    )}
-        </div>
-      </aside>
-
-      <section className={(activeId ? "flex" : "hidden lg:flex") + " message-pane min-h-0 flex-col lg:min-h-[620px]"}>
-        <div className="flex items-center gap-2 border-b border-gray-100 p-3 sm:gap-3 sm:p-4">
-          {active ? <button type="button" onClick={() => setActiveId(null)} className="grid size-9 shrink-0 place-items-center rounded-xl bg-gray-50 text-gray-600 lg:hidden" aria-label="Back to conversations"><ArrowLeft size={17}/></button> : null}
-          <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={activeMember?.image} />
-          <div className="flex-1"><p className="flex items-center gap-1.5 text-sm font-black">{activeName}<AccountBadge verified={activeMember?.isVerified} owner={activeMember?.isOwner}/></p><p className="text-xs text-gray-500">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
-          <div className="relative"><button type="button" onClick={() => setShowConversationOptions((value) => !value)} disabled={!active} className="social-icon-button disabled:opacity-40" aria-label="Conversation options"><MoreHorizontal size={18}/></button>
-            {showConversationOptions && active ? <div className="absolute right-0 top-11 z-30 w-44 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl">
-              <button type="button" onClick={() => void updateConversationAction(active.archivedAt ? "unarchive" : "archive")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.archivedAt ? "Unarchive" : "Archive"}</button>
-              <button type="button" onClick={() => void updateConversationAction(active.mutedUntil ? "unmute" : "mute")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.mutedUntil ? "Unmute" : "Mute for 7 days"}</button>
-              {active.isGroup ? <button type="button" onClick={() => { setShowGroupInfo(true); setShowConversationOptions(false); }} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">Group info</button> : null}
-            </div> : null}
-          </div>
-        </div>
-
-        <div ref={messageListRef} className="message-list relative min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-3 sm:p-5" style={{ scrollbarGutter: "stable" }}>
-          {newMessagesCount > 0 ? (
-            <div className="sticky top-1 z-10 flex justify-center">
-              <button type="button" onClick={() => {
-                setNewMessagesCount(0);
-                if (messageListRef.current) messageListRef.current.scrollTo({ top: messageListRef.current.scrollHeight, behavior: "smooth" });
-              }} className="rounded-full border border-[#d9d4ff] bg-white/95 px-3 py-1.5 text-xs font-black text-[#5a4be8] shadow-md backdrop-blur">
-                {newMessagesCount === 1 ? "1 new message" : newMessagesCount + " new messages"} · Jump to latest
-              </button>
-            </div>
-          ) : null}
-          {nextMessagesCursor ? <div className="flex justify-center"><button type="button" onClick={() => void loadOlderMessages()} disabled={loadingOlderMessages} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-black text-gray-600 shadow-sm disabled:opacity-50">{loadingOlderMessages ? "Loading older messages…" : "Load older messages"}</button></div> : null}
-          {!active ? <div className="grid h-full place-items-center p-8 text-center"><div><span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={24}/></span><h2 className="mt-4 text-base font-black">Choose a conversation</h2><p className="mt-1 max-w-xs text-sm text-gray-500">Select a conversation or start a new message.</p><button type="button" onClick={() => setNewConversationOpen(true)} className="mt-4 rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white">New message</button></div></div> : null}
-          {active && messages.length > 0 ? messages.map((message) => {
-            const mine = message.senderId === session?.user?.id;
-            return <div key={message.id} className={mine ? "flex justify-end" : "flex items-end gap-2"}>
-              {!mine ? <Avatar initials={message.sender.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={message.sender.image} size="sm"/> : null}
-              <div className="max-w-[82%] sm:max-w-[76%]">
-                {!mine ? <p className="mb-1 flex items-center gap-1 pl-1 text-xs font-black text-gray-500">{message.sender.name}<AccountBadge verified={message.sender.isVerified} owner={message.sender.isOwner}/></p> : null}
-                {editingMessageId === message.id ? (
-                  <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2 shadow-sm">
-                    <textarea
-                      value={editingMessageText}
-                      onChange={(event) => setEditingMessageText(event.target.value)}
-                      rows={2}
-                      maxLength={5000}
-                      className="w-full resize-none rounded-xl bg-gray-50 p-2 text-sm text-gray-800 outline-none"
-                      autoFocus
-                    />
-                    <div className="mt-2 flex justify-end gap-2">
-                      <button type="button" onClick={() => { setEditingMessageId(null); setEditingMessageText(""); }} className="rounded-xl px-3 py-2 text-xs font-black text-gray-500">Cancel</button>
-                      <button type="button" onClick={() => void editMessage(message.id)} disabled={!editingMessageText.trim() || savingMessage} className="rounded-xl bg-gray-950 px-3 py-2 text-xs font-black text-white disabled:opacity-40">{savingMessage ? "Saving…" : "Save"}</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className={mine ? "rounded-2xl rounded-br-md bg-[#6d5dfc] px-4 py-3 text-sm leading-6 text-white" : "rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700"}>
-                    {message.attachments?.length && !message.deletedAt ? <div className="mb-2 grid gap-2">{message.attachments.map((attachment)=><img key={attachment.id} src={attachment.url} alt="Message attachment" className="max-h-72 w-full rounded-xl object-cover"/>)}</div> : null}
-                    {message.deletedAt ? <span className="italic opacity-70">Message deleted</span> : message.content ? <span>{message.content}</span> : null}
-                  </div>
-                )}
-                <div className={"mt-1 flex flex-wrap items-center gap-2 " + (mine ? "justify-end" : "")}>
-                  <span className="text-[9px] text-gray-500">{new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
-                  {mine && !active?.isGroup && active?.members.some((member) => member.userId !== session?.user?.id && member.lastReadAt && new Date(member.lastReadAt) >= new Date(message.createdAt)) ? <span className="text-[9px] font-bold text-[#5a4be8]">Seen</span> : null}
-                  {message.editedAt && !message.deletedAt ? <span className="text-[9px] text-gray-500">edited</span> : null}
-                  {message.reactions?.length ? <span className="rounded-full border border-gray-200 bg-white px-2 py-1 text-xs">{message.reactions.map((reaction)=>reaction.emoji).join("")}</span> : null}
-                  {message.replyTo && !message.deletedAt ? <div className="w-full max-w-xs rounded-xl border border-gray-200 bg-white/80 px-2.5 py-2 text-xs text-gray-500"><span className="font-black">Replying to {message.replyTo.sender.name}</span><p className="mt-0.5 truncate">{message.replyTo.content}</p></div> : null}
-                  {!message.deletedAt ? <button type="button" onClick={() => void reactToMessage(message.id)} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-xs text-gray-500 hover:bg-gray-50" aria-label="React with heart">❤️</button> : null}
-                  {!message.deletedAt ? <button type="button" onClick={() => { setReplyingToMessage(message); setDraft(""); }} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-xs text-gray-500 hover:bg-gray-50" aria-label="Reply to message"><MessageCircle size={11}/></button> : null}
-                  {mine && !message.deletedAt ? <>
-                    <button type="button" onClick={() => { setEditingMessageId(message.id); setEditingMessageText(message.content); }} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-gray-500 hover:bg-gray-50" aria-label="Edit message"><Pencil size={11}/></button>
-                    <button type="button" onClick={() => void deleteMessage(message.id)} className="rounded-full border border-red-100 bg-white px-2 py-1 text-red-500 hover:bg-red-50" aria-label="Delete message"><Trash2 size={11}/></button>
-                  </> : null}
-                </div>
+            <div className="max-h-[70dvh] overflow-y-auto p-4">
+              <label className="relative block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={15}/><input autoFocus value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Search people…" className="h-10 w-full rounded-xl bg-gray-50 pl-9 pr-3 text-xs font-semibold outline-none"/></label>
+              <div className="mt-3 space-y-1">
+                {people.filter((person) => person.id !== session?.user?.id && (person.isVerified || person.isOwner)).length ? people.filter((person) => person.id !== session?.user?.id && (person.isVerified || person.isOwner)).map((person)=>
+                  <button type="button" key={person.id} onClick={() => void startConversation(person.id)} className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-gray-50">
+                    <Avatar initials={person.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={person.image}/>
+                    <span className="min-w-0"><span className="flex items-center gap-1 truncate text-xs font-black">{person.name}<AccountBadge verified={person.isVerified} owner={person.isOwner}/></span><span className="block truncate text-xs text-gray-500">@{person.username ?? "member"}</span></span>
+                  </button>) :
+                  <p className="p-6 text-center text-xs text-gray-500">{userQuery.trim() ? "No verified people found." : "Search for someone to message."}</p>}
               </div>
-            </div>;
-          }) : (
-            <div className="flex h-full min-h-56 items-center justify-center text-center"><div><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={20}/></span><p className="mt-3 text-sm font-black">{active ? "No messages yet" : "Pick a conversation"}</p><p className="mt-1 text-xs text-gray-500">{active ? "Send the first message below." : "Choose a chat from your inbox to start."}</p></div></div>
-          )}
-        </div>
-
-        {typingUsers.length ? (
-          <div className="px-5 pb-2 text-xs font-semibold text-gray-500" aria-live="polite">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1.5">
-              <span className="flex gap-0.5" aria-hidden="true"><i className="size-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-.3s]"/><i className="size-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-.15s]"/><i className="size-1.5 animate-bounce rounded-full bg-gray-400"/></span>
-              {typingUsers.length === 1 ? typingUsers[0].name + " is typing…" : typingUsers.slice(0, 2).map((user) => user.name).join(" and ") + " are typing…"}
-            </span>
+            </div>
           </div>
-        ) : null}
-        <form onSubmit={sendMessage} className="message-composer shrink-0 border-t border-gray-100 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
-          {replyingToMessage ? <div className="mb-2 flex items-center justify-between rounded-xl bg-[#f4f2ff] px-3 py-2"><div className="min-w-0"><p className="text-xs font-black text-[#5a4be8]">Replying to {replyingToMessage.sender.name}</p><p className="truncate text-xs text-gray-500">{replyingToMessage.content || "Media message"}</p></div><button type="button" onClick={() => setReplyingToMessage(null)} className="grid size-7 place-items-center rounded-lg bg-white text-gray-500" aria-label="Cancel reply"><X size={13}/></button></div> : null}
-          <input ref={attachmentRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={(event) => { void uploadAttachments(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = ""; }} />
-          {pendingAttachments.length ? <div className="mb-2 flex gap-2 overflow-x-auto">{pendingAttachments.map((url, index)=><div key={url} className="relative shrink-0"><img src={url} alt="Pending attachment" className="size-16 rounded-xl object-cover"/><button type="button" onClick={() => setPendingAttachments((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-gray-950 text-white"><X size={11}/></button></div>)}</div> : null}
-          <div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2"><button type="button" onClick={() => attachmentRef.current?.click()} disabled={!active || uploadingAttachment || pendingAttachments.length >= 4} className="grid size-10 place-items-center rounded-xl bg-white text-gray-500 disabled:opacity-40" aria-label="Attach image"><Paperclip size={16}/></button><textarea value={draft} onChange={e=>setDraft(e.target.value)} rows={1} disabled={!active || !session?.user || sending} className="min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60" placeholder={active ? "Write a message…" : "Select a conversation first"}/><button type="submit" disabled={!active || (!draft.trim() && !pendingAttachments.length) || !session?.user || sending} className="grid size-10 place-items-center rounded-xl bg-gray-950 text-white disabled:cursor-not-allowed disabled:opacity-50"><Send size={16}/></button></div>
-        </form>
-      </section>
+        </div>
+      ) : null}
+
+      {showGroupInfo && active?.isGroup ? (
+        <div className="fixed inset-0 z-[85] grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label="Group information">
+          <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-[2rem] bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-100 p-5">
+              <div><h2 className="text-base font-black">Group info</h2><p className="mt-1 text-xs text-gray-500">{active.members.length} members</p></div>
+              <button type="button" onClick={() => setShowGroupInfo(false)} className="grid size-9 place-items-center rounded-xl bg-gray-100" aria-label="Close group info"><X size={16}/></button>
+            </div>
+            <div className="space-y-4 p-5">
+              {activeGroupAdmin ? <div className="flex gap-2"><input value={groupTitleDraft} onChange={(event) => setGroupTitleDraft(event.target.value)} maxLength={100} className="h-11 flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-semibold"/><button type="button" onClick={() => void updateGroupTitle()} disabled={groupActionLoading || !groupTitleDraft.trim()} className="rounded-xl bg-gray-950 px-4 text-xs font-black text-white disabled:opacity-40">Rename</button></div> : null}
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3"><p className="text-xs font-black uppercase tracking-[.12em] text-gray-500">Members</p><div className="mt-2 space-y-2">{active.members.map((member) => <div key={member.userId} className="flex items-center gap-3 rounded-xl bg-white p-2.5"><Avatar initials={member.user.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} image={member.user.image} size="sm"/><div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate text-xs font-black">{member.user.name}<AccountBadge verified={member.user.isVerified} owner={member.user.isOwner}/></p><p className="text-xs text-gray-500">{member.role === "ADMIN" ? "Administrator" : "Member"}</p></div>{activeGroupAdmin && member.userId !== session?.user?.id && member.role !== "ADMIN" ? <button type="button" onClick={() => void removeGroupMember(member.userId)} disabled={groupActionLoading} className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-xs font-black text-red-600 disabled:opacity-40">Remove</button> : null}</div>)}</div></div>
+              {activeGroupAdmin ? <div><p className="text-xs font-black uppercase tracking-[.12em] text-gray-500">Add member</p><input value={groupUserQuery} onChange={(event) => setGroupUserQuery(event.target.value)} placeholder="Search people…" className="mt-2 h-10 w-full rounded-xl bg-gray-50 px-3 text-xs font-semibold outline-none"/><div className="mt-2 space-y-1">{groupPeople.slice(0,5).map((person) => <button type="button" key={person.id} onClick={() => void addGroupMember(person.id)} disabled={groupActionLoading} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-gray-50 disabled:opacity-50"><Avatar initials={person.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="sm"/><span className="flex-1 truncate text-xs font-black">{person.name}</span><Plus size={15}/></button>)}</div></div> : null}
+              <button type="button" onClick={() => void leaveGroup()} disabled={groupActionLoading} className="w-full rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-black text-red-600 disabled:opacity-40">Leave group</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="messages-shell grid h-[calc(100dvh-var(--header-h)-var(--page-pad))] min-h-0 overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:grid-cols-[320px_1fr] lg:min-h-0">
+        <aside className={(activeId ? "hidden lg:block " : "") + "min-h-0 overflow-y-auto border-b border-gray-100 pb-[calc(84px+env(safe-area-inset-bottom))] lg:border-b-0 lg:border-r lg:pb-2"}>
+          <div className="flex items-center justify-between border-b border-gray-100 p-4">
+            <div className="flex items-center gap-2"><h2 className="text-sm font-black">{showArchivedConversations ? "Archived" : "Inbox"}</h2><button type="button" onClick={() => setShowArchivedConversations((value) => !value)} className="rounded-lg px-2 py-1 text-xs font-black text-gray-500 hover:bg-gray-100">{showArchivedConversations ? "Inbox" : "Archived"}</button></div>
+            <button type="button" onClick={() => setNewConversationOpen(true)} className="social-icon-button" aria-label="Start a new message"><Pencil size={17}/></button>
+          </div>
+          <label className="relative m-3 block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16}/><input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} className="h-10 w-full rounded-xl bg-gray-50 pl-10 text-xs font-semibold outline-none focus:bg-white" placeholder="Search messages" aria-label="Search messages"/></label>
+          <div className="space-y-1 p-2">
+            {loading && session?.user ? [1,2,3].map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl p-3"><span className="size-10 animate-pulse rounded-full bg-gray-100"/><div className="flex-1 space-y-2"><span className="block h-3 animate-pulse rounded bg-gray-100"/><span className="block h-2.5 w-2/3 animate-pulse rounded bg-gray-100"/></div></div>) : filteredConversations.length > 0 ? filteredConversations.map((conversation, i) => {
+              const other = conversation.members.find((member) => member.userId !== session?.user?.id)?.user;
+              const name = conversation.title ?? other?.name ?? "Conversation";
+              const preview = conversation.messages[0]?.content ?? "No messages yet";
+              return <button key={conversation.id} onClick={() => setActiveId(conversation.id)} className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left ${conversation.id===activeId?"bg-[#f4f2ff]":"hover:bg-gray-50"}`}>
+                <Avatar initials={(other?.name ?? name).split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={other?.image} color={colors[i%colors.length]}/>
+                <div className="min-w-0 flex-1"><p className="flex items-center gap-1 truncate text-xs font-black">{name}<AccountBadge verified={other?.isVerified} owner={other?.isOwner}/></p><p className="mt-1 truncate text-xs text-gray-500">{preview}</p></div>
+                {conversation.unreadCount ? <span className="min-w-5 rounded-full bg-[#6d5dfc] px-1.5 py-1 text-center text-[9px] font-black text-white">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span> : null}
+              </button>;
+            }) : <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-7 text-center"><MessageCircle className="mx-auto text-gray-300" size={22}/><p className="mt-3 text-xs font-black text-gray-700">{messageSearch.trim() ? "No matching conversations" : "No conversations yet"}</p><p className="mt-1 text-xs leading-5 text-gray-500">{messageSearch.trim() ? "Try another name or message." : session?.user ? "Your real conversations will appear here." : "Sign in to see your conversations."}</p></div>}
+          </div>
+        </aside>
+
+        <MessagesErrorBoundary resetKey={activeId}>
+          <section className={(activeId ? "flex fixed inset-0 z-[70] bg-white lg:static lg:z-auto " : "hidden lg:flex ") + "message-pane min-h-0 flex-col lg:min-h-0 lg:h-full"}>
+            <div className="flex shrink-0 items-center gap-2 border-b border-gray-100 bg-white p-3 sm:gap-3 sm:p-4">
+              {active ? <button type="button" onClick={() => setActiveId(null)} className="grid size-10 shrink-0 place-items-center rounded-xl bg-gray-50 text-gray-600 lg:hidden" aria-label="Back to conversations"><ArrowLeft size={18}/></button> : null}
+              <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={activeMember?.image} />
+              <div className="min-w-0 flex-1"><p className="flex items-center gap-1.5 truncate text-sm font-black">{activeName}<AccountBadge verified={activeMember?.isVerified} owner={activeMember?.isOwner}/></p><p className="text-xs text-gray-500">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
+              <div className="relative"><button type="button" onClick={() => setShowConversationOptions((value) => !value)} disabled={!active} className="social-icon-button disabled:opacity-40" aria-label="Conversation options"><MoreHorizontal size={18}/></button>
+                {showConversationOptions && active ? <div className="absolute right-0 top-11 z-30 w-44 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl"><button type="button" onClick={() => void updateConversationAction(active.archivedAt ? "unarchive" : "archive")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.archivedAt ? "Unarchive" : "Archive"}</button><button type="button" onClick={() => void updateConversationAction(active.mutedUntil ? "unmute" : "mute")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.mutedUntil ? "Unmute" : "Mute for 7 days"}</button>{active.isGroup ? <button type="button" onClick={() => { setShowGroupInfo(true); setShowConversationOptions(false); }} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">Group info</button> : null}</div> : null}
+              </div>
+            </div>
+
+            <div ref={messageListRef} className="message-list relative min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-3 sm:p-5" style={{ scrollbarGutter: "stable" }}>
+              {newMessagesCount > 0 ? <div className="sticky top-1 z-10 flex justify-center"><button type="button" onClick={() => { setNewMessagesCount(0); if (messageListRef.current) messageListRef.current.scrollTo({ top: messageListRef.current.scrollHeight, behavior: "smooth" }); }} className="rounded-full border border-[#d9d4ff] bg-white/95 px-3 py-1.5 text-xs font-black text-[#5a4be8] shadow-md backdrop-blur">{newMessagesCount === 1 ? "1 new message" : newMessagesCount + " new messages"} · Jump to latest</button></div> : null}
+              {nextMessagesCursor ? <div className="flex justify-center"><button type="button" onClick={() => void loadOlderMessages()} disabled={loadingOlderMessages} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-black text-gray-600 shadow-sm disabled:opacity-50">{loadingOlderMessages ? "Loading older messages…" : "Load older messages"}</button></div> : null}
+              {!active ? <div className="grid h-full place-items-center p-8 text-center"><div><span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={24}/></span><h2 className="mt-4 text-base font-black">Choose a conversation</h2><p className="mt-1 max-w-xs text-sm text-gray-500">Select a conversation or start a new message.</p><button type="button" onClick={() => setNewConversationOpen(true)} className="mt-4 rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white">New message</button></div></div> : null}
+              {active && messages.length > 0 ? messages.map((message) => {
+                const mine = message.senderId === session?.user?.id;
+                return <div key={message.id} className={mine ? "flex justify-end" : "flex items-end gap-2"}>{!mine ? <Avatar initials={message.sender.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={message.sender.image} size="sm"/> : null}<div className="max-w-[82%] sm:max-w-[76%]">
+                  {!mine ? <p className="mb-1 flex items-center gap-1 pl-1 text-xs font-black text-gray-500">{message.sender.name}<AccountBadge verified={message.sender.isVerified} owner={message.sender.isOwner}/></p> : null}
+                  {editingMessageId === message.id ? <div className="rounded-2xl border border-[#cfc9ff] bg-white p-2 shadow-sm"><textarea value={editingMessageText} onChange={(event) => setEditingMessageText(event.target.value)} rows={2} maxLength={5000} className="w-full resize-none rounded-xl bg-gray-50 p-2 text-sm text-gray-800 outline-none" autoFocus/><div className="mt-2 flex justify-end gap-2"><button type="button" onClick={() => { setEditingMessageId(null); setEditingMessageText(""); }} className="rounded-xl px-3 py-2 text-xs font-black text-gray-500">Cancel</button><button type="button" onClick={() => void editMessage(message.id)} disabled={!editingMessageText.trim() || savingMessage} className="rounded-xl bg-gray-950 px-3 py-2 text-xs font-black text-white disabled:opacity-40">{savingMessage ? "Saving…" : "Save"}</button></div></div> : <div className={mine ? "rounded-2xl rounded-br-md bg-[#6d5dfc] px-4 py-3 text-sm leading-6 text-white" : "rounded-2xl rounded-bl-md bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-700"}>{message.attachments?.length && !message.deletedAt ? <div className="mb-2 grid gap-2">{message.attachments.map((attachment)=><img key={attachment.id} src={attachment.url} alt="Message attachment" className="max-h-72 w-full rounded-xl object-cover"/>)}</div> : null}{message.deletedAt ? <span className="italic opacity-70">Message deleted</span> : message.content ? <span>{message.content}</span> : null}</div>}
+                  <div className={"mt-1 flex flex-wrap items-center gap-2 " + (mine ? "justify-end" : "")}><span className="text-[9px] text-gray-500">{new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>{mine && !active?.isGroup && active?.members.some((member) => member.userId !== session?.user?.id && member.lastReadAt && new Date(member.lastReadAt) >= new Date(message.createdAt)) ? <span className="text-[9px] font-bold text-[#5a4be8]">Seen</span> : null}{message.editedAt && !message.deletedAt ? <span className="text-[9px] text-gray-500">edited</span> : null}{message.reactions?.length ? <span className="rounded-full border border-gray-200 bg-white px-2 py-1 text-xs">{message.reactions.map((reaction)=>reaction.emoji).join("")}</span> : null}{message.replyTo && !message.deletedAt ? <div className="w-full max-w-xs rounded-xl border border-gray-200 bg-white/80 px-2.5 py-2 text-xs text-gray-500"><span className="font-black">Replying to {message.replyTo.sender.name}</span><p className="mt-0.5 truncate">{message.replyTo.content}</p></div> : null}{!message.deletedAt ? <button type="button" onClick={() => void reactToMessage(message.id)} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-xs text-gray-500 hover:bg-gray-50" aria-label="React with heart">❤️</button> : null}{!message.deletedAt ? <button type="button" onClick={() => { setReplyingToMessage(message); setDraft(""); }} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-xs text-gray-500 hover:bg-gray-50" aria-label="Reply to message"><MessageCircle size={11}/></button> : null}{mine && !message.deletedAt ? <><button type="button" onClick={() => { setEditingMessageId(message.id); setEditingMessageText(message.content); }} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-gray-500 hover:bg-gray-50" aria-label="Edit message"><Pencil size={11}/></button><button type="button" onClick={() => void deleteMessage(message.id)} className="rounded-full border border-red-100 bg-white px-2 py-1 text-red-500 hover:bg-red-50" aria-label="Delete message"><Trash2 size={11}/></button></> : null}</div>
+                </div></div>;
+              }) : <div className="flex h-full min-h-56 items-center justify-center text-center"><div><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={20}/></span><p className="mt-3 text-sm font-black">{active ? "No messages yet" : "Pick a conversation"}</p><p className="mt-1 text-xs text-gray-500">{active ? "Send the first message below." : "Choose a chat from your inbox to start."}</p></div></div>}
+            </div>
+
+            {typingUsers.length ? <div className="shrink-0 px-5 pb-2 text-xs font-semibold text-gray-500" aria-live="polite"><span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1.5"><span className="flex gap-0.5" aria-hidden="true"><i className="size-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-.3s]"/><i className="size-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-.15s]"/><i className="size-1.5 animate-bounce rounded-full bg-gray-400"/></span>{typingUsers.length === 1 ? typingUsers[0].name + " is typing…" : typingUsers.slice(0, 2).map((user) => user.name).join(" and ") + " are typing…"}</span></div> : null}
+            <form onSubmit={sendMessage} className="message-composer shrink-0 border-t border-gray-100 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
+              {replyingToMessage ? <div className="mb-2 flex items-center justify-between rounded-xl bg-[#f4f2ff] px-3 py-2"><div className="min-w-0"><p className="text-xs font-black text-[#5a4be8]">Replying to {replyingToMessage.sender.name}</p><p className="truncate text-xs text-gray-500">{replyingToMessage.content || "Media message"}</p></div><button type="button" onClick={() => setReplyingToMessage(null)} className="grid size-7 place-items-center rounded-lg bg-white text-gray-500" aria-label="Cancel reply"><X size={13}/></button></div> : null}
+              <input ref={attachmentRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={(event) => { void uploadAttachments(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = ""; }} />
+              {pendingAttachments.length ? <div className="mb-2 flex gap-2 overflow-x-auto">{pendingAttachments.map((url, index)=><div key={url} className="relative shrink-0"><img src={url} alt="Pending attachment" className="size-16 rounded-xl object-cover"/><button type="button" onClick={() => setPendingAttachments((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-gray-950 text-white" aria-label="Remove attachment"><X size={11}/></button></div>)}</div> : null}
+              <div className="flex items-end gap-2 rounded-2xl bg-gray-50 p-2">
+                <button type="button" onClick={() => attachmentRef.current?.click()} disabled={!active || uploadingAttachment || pendingAttachments.length >= 4} className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-gray-500 disabled:opacity-40" aria-label="Attach image"><Paperclip size={16}/></button>
+                <textarea ref={composerRef} value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && window.innerWidth >= 768) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} rows={1} disabled={!active || !session?.user || sending} className="min-h-10 max-h-[136px] flex-1 resize-none overflow-hidden bg-transparent px-2 py-2 text-sm leading-6 outline-none disabled:cursor-not-allowed disabled:opacity-60" placeholder={active ? "Write a message…" : "Select a conversation first"} aria-label="Write a message"/>
+                <button type="submit" disabled={!active || (!draft.trim() && !pendingAttachments.length) || !session?.user || sending} className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#6d5dfc] text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40" aria-label="Send message"><Send size={16}/></button>
+              </div>
+            </form>
+          </section>
+        </MessagesErrorBoundary>
+      </div>
     </div>
-  </Page>;
+  );
 }
 type DiscoverUser = {
   id: string;
