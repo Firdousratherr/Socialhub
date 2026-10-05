@@ -18,7 +18,7 @@ export async function GET(request: Request) {
         status: "PENDING",
         AND: [
           { postId: { not: null } },
-          { post: null },
+          { post: { is: null } },
         ],
       },
     }).catch(() => 0),
