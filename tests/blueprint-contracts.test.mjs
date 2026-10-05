@@ -628,7 +628,12 @@ test("stories expose authoritative views, reactions, replies, and owner viewers"
 test("story viewer keeps multi-story icons clean and media compact", () => {
   const storyUi = read("components/story-center.tsx");
   assert.doesNotMatch(storyUi, /bg-gray-950 px-1\.5 py-0\.5 text-\[9px\] font-black text-white.*\{total\}/);
-  assert.match(storyUi, /total > 1 \? total \+ " stories/);
+  assert.doesNotMatch(storyUi, /total > 1 \? total \+ " stories/);
+  assert.match(storyUi, /story-rail/);
+  assert.match(storyUi, /story-avatar-ring/);
+  assert.match(storyUi, /STORY_IMAGE_DURATION_MS/);
+  assert.match(storyUi, /ArrowLeft/);
+  assert.match(storyUi, /ArrowRight/);
   assert.match(storyUi, /h-\[48vh\].*max-h-\[56vh\]/);
   assert.match(storyUi, /mediaType === "VIDEO"/);
   assert.match(storyUi, /cursor-w-resize/);
