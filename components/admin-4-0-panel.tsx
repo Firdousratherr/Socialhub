@@ -4,18 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
-  CheckCircle2,
-  Database,
   Gauge,
-  GitBranch,
   History,
-  LockKeyhole,
-  RotateCcw,
-  Search,
   Shield,
-  UserRound,
   Users,
-  Wrench,
   XCircle,
 } from "lucide-react";
 
@@ -156,8 +148,8 @@ function Appeals({ onNotice }: { onNotice: (s: string) => void }) {
   const [status,setStatus]=useState("PENDING");const [items,setItems]=useState<any[]>([]);
   async function load(){const r=await fetch("/api/admin/appeals?status="+status,{cache:"no-store"});const j=await r.json();if(!r.ok){onNotice(j.error??"Could not load appeals.");return;}setItems(j.appeals??[]);}
   useEffect(()=>{void load();},[status]);
-  async function decide(id:string,next:string){const r=await fetch("/api/admin/appeals",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status:next,reviewerNote:"Reviewed in Admin 4.0."})});const j=await r.json();if(!r.ok){onNotice(j.error??"Could not review appeal.");return;}onNotice("Appeal reviewed and audited.");void load();}
-  return <div className="space-y-4"><div className="flex gap-2 overflow-x-auto">{["PENDING","APPROVED","REJECTED","PARTIAL"].map(x=><button key={x} type="button" onClick={()=>setStatus(x)} className={"shrink-0 rounded-xl px-3 py-2 text-[9px] font-black "+(status===x?"bg-gray-950 text-white":"bg-gray-50 text-gray-500")}>{x}</button>)}</div><Card><div className="space-y-2">{items.map(item=><div key={item.id} className="rounded-2xl bg-gray-50 p-3 sm:p-4"><div className="flex items-start gap-3"><div className="min-w-0 flex-1"><p className="text-xs font-black">{item.user?.name??"User"}</p><p className="text-[9px] text-gray-400">@{item.user?.username??"member"} · {fmt(item.createdAt)}</p><p className="mt-2 text-[11px] text-gray-600">{item.reason}</p>{item.evidence?<p className="mt-2 text-[10px] text-gray-400">Evidence: {item.evidence}</p>:null}</div>{status==="PENDING"?<div className="flex flex-wrap gap-2"><Btn onClick={()=>void decide(item.id,"APPROVED")}>Uphold</Btn><Btn onClick={()=>void decide(item.id,"PARTIAL")}>Partial</Btn><Btn danger onClick={()=>void decide(item.id,"REJECTED")}>Reject</Btn></div>:null}</div></div>)}{!items.length?<p className="p-8 text-center text-xs text-gray-400">No appeals in this state.</p>:null}</div></Card></div>;
+  async function decide(id:string,next:string){const r=await fetch("/api/admin/appeals",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status:next,reviewerNote:next==="APPROVED"?"Full relief granted by administrator.":next==="PARTIAL"?"Suspension removed; remaining restrictions reviewed.":"Appeal rejected after review."})});const j=await r.json();if(!r.ok){onNotice(j.error??"Could not review appeal.");return;}onNotice("Appeal reviewed and audited.");void load();}
+  return <div className="space-y-4"><div className="flex gap-2 overflow-x-auto">{["PENDING","APPROVED","REJECTED","PARTIAL"].map(x=><button key={x} type="button" onClick={()=>setStatus(x)} className={"shrink-0 rounded-xl px-3 py-2 text-[9px] font-black "+(status===x?"bg-gray-950 text-white":"bg-gray-50 text-gray-500")}>{x}</button>)}</div><Card><div className="space-y-2">{items.map(item=><div key={item.id} className="rounded-2xl bg-gray-50 p-3 sm:p-4"><div className="flex items-start gap-3"><div className="min-w-0 flex-1"><p className="text-xs font-black">{item.user?.name??"User"}</p><p className="text-[9px] text-gray-400">@{item.user?.username??"member"} · {fmt(item.createdAt)}</p><p className="mt-2 text-[11px] text-gray-600">{item.reason}</p>{item.evidence?<p className="mt-2 text-[10px] text-gray-400">Evidence: {item.evidence}</p>:null}</div>{status==="PENDING"?<div className="flex flex-wrap gap-2"><Btn onClick={()=>void decide(item.id,"APPROVED")}>Approve appeal</Btn><Btn onClick={()=>void decide(item.id,"PARTIAL")}>Partial relief</Btn><Btn danger onClick={()=>void decide(item.id,"REJECTED")}>Reject appeal</Btn></div>:null}</div></div>)}{!items.length?<p className="p-8 text-center text-xs text-gray-400">No appeals in this state.</p>:null}</div></Card></div>;
 }
 
 function Approvals({ onNotice }: { onNotice: (s: string) => void }) {
