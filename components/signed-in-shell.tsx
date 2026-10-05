@@ -1,6 +1,6 @@
 "use client";
 
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -44,7 +44,7 @@ function Avatar({ name, image }: { name: string; image?: string | null }) {
   );
 }
 
-export function SignedInShell({ children }: { children: React.ReactNode }) {
+export function SignedInShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { data: session } = authClient.useSession();
