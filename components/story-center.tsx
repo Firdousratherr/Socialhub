@@ -232,7 +232,7 @@ export function StoryCenter({
             </div>
             <textarea value={caption} onChange={(event) => setCaption(event.target.value)} maxLength={500} rows={3} className="mt-4 w-full resize-none rounded-2xl bg-gray-50 p-3 text-sm outline-none focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10" placeholder="Add a caption…" />
             <div className="mt-3 flex items-center justify-between gap-3">
-              <select value={audience} onChange={(event) => setAudience(event.target.value as "PUBLIC" | "FRIENDS")} className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold">
+              <select value={audience} onChange={(event) => setAudience(event.target.value as "PUBLIC" | "FRIENDS")} className="h-10 appearance-none rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold focus:border-[#bbb3ff] focus:ring-4 focus:ring-[#5a4be8]/10">
                 <option value="PUBLIC">Everyone</option>
                 <option value="FRIENDS">Friends</option>
               </select>
