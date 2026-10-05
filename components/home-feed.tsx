@@ -763,6 +763,7 @@ export default function HomeFeed() {
   const [pendingLivePosts, setPendingLivePosts] = useState<Post[]>([]);
   const [newActivityCount, setNewActivityCount] = useState(0);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const feedPostsRef = useRef<Post[]>([]);
 
   useEffect(() => {
@@ -1091,7 +1092,7 @@ export default function HomeFeed() {
             <div className="flex gap-3">
               <Avatar name={session?.user?.name ?? "You"} image={session?.user?.image} accent="from-gray-800 to-gray-500"/>
               <div className="min-w-0 flex-1">
-                <textarea value={newPost} onChange={(event) => setNewPost(event.target.value)} disabled={!session?.user || publishing || uploading} rows={2} maxLength={5000} className="w-full resize-none rounded-2xl bg-gray-50 px-4 py-3 text-sm font-medium outline-none placeholder:text-gray-400 focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10 disabled:cursor-not-allowed disabled:opacity-70" placeholder={session?.user ? "What’s happening?" : "Sign in to share a post…"} />
+                <textarea ref={composerRef} value={newPost} onChange={(event) => { setNewPost(event.target.value); event.currentTarget.style.height = "auto"; event.currentTarget.style.height = Math.min(event.currentTarget.scrollHeight, 8 * 24) + "px"; }} disabled={!session?.user || publishing || uploading} rows={1} maxLength={5000} className="w-full resize-none rounded-2xl bg-gray-50 px-4 py-3 text-sm font-medium outline-none placeholder:text-gray-400 focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10 disabled:cursor-not-allowed disabled:opacity-70" placeholder={session?.user ? "What’s happening?" : "Sign in to share a post…"} />
                 {mediaPreview ? (
                   <div className="relative mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-white">
                     <img src={mediaPreview} alt="Selected media preview" className="max-h-64 w-full object-cover"/>
@@ -1116,7 +1117,7 @@ export default function HomeFeed() {
                   </select>
                 </label>
               </div>
-              {session?.user ? <button type="submit" disabled={!canSubmit} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-40">{publishing ? "Posting…" : "Post"}</button> : <Link href="/login" className="rounded-xl bg-[#6d5dfc] px-4 py-2.5 text-xs font-black text-white">Sign in</Link>}
+              {session?.user ? <div className="flex items-center gap-2"><span className={"text-xs font-medium " + (newPost.length > 4500 ? "text-amber-600" : "text-gray-400")}>{newPost.length > 4500 ? newPost.length + "/5000" : ""}</span><button type="submit" disabled={!canSubmit} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white transition active:scale-[.98] disabled:opacity-50">{publishing ? "Posting…" : "Post"}</button></div> : <Link href="/login" className="rounded-xl bg-[#6d5dfc] px-4 py-2.5 text-xs font-black text-white">Sign in</Link>}
             </div>
           </form>
 
