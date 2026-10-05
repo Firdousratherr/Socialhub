@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isBlocked } from "@/lib/social-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { getActiveUserRestriction } from "@/lib/user-restrictions";
 async function getSession(){return auth.api.getSession({headers:await headers()});}
 export async function POST(_request:Request,{params}:{params:Promise<{userId:string}>}){
  const session=await getSession();if(!session?.user)return NextResponse.json({error:"Authentication required."},{status:401});
