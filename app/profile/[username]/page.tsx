@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/route-access";
 import { prisma } from "@/lib/prisma";
 import { SocialPages } from "@/components/social-pages";
 
@@ -105,8 +104,7 @@ export default async function ProfilePage({ params }: Props) {
   const { username } = await params;
 
   if (username === "me") {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) redirect("/login?next=/profile/me");
+    const session = await requireUser("/profile/me");
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },

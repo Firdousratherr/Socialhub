@@ -24,7 +24,7 @@ import {
   Paperclip, Search, Send, Settings, Shield, ShieldOff, Share2, Sparkles, Trash2, UserPlus, Users, VolumeX, X
 } from "lucide-react";
 
-type Screen = { kind: string; username?: string; section?: string; search?: string };
+type Screen = { kind: string; username?: string; section?: string; search?: string; next?: string };
 
 const colors = [
   "from-violet-500 to-sky-400",
@@ -110,7 +110,7 @@ function SettingsToggle({ value, disabled, onChange }: { value: boolean; disable
   );
 }
 
-function Auth({ signup = false }: { signup?: boolean }) {
+function Auth({ signup = false, nextPath = "/home" }: { signup?: boolean; nextPath?: string }) {
   const router = useRouter();
   const [show, setShow] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -177,9 +177,9 @@ function Auth({ signup = false }: { signup?: boolean }) {
     try {
       const result = await authClient.emailOtp.verifyEmail({ email: email.trim(), otp: otp.trim() });
       if (result.error) throw new Error(result.error.message || "That code is invalid or expired.");
-      const signIn = await authClient.signIn.email({ email: email.trim(), password, callbackURL: "/home" });
+      const signIn = await authClient.signIn.email({ email: email.trim(), password, callbackURL: nextPath });
       if (signIn.error) throw new Error(signIn.error.message || "Email verified, but sign-in could not be completed.");
-      router.push("/home"); router.refresh();
+      router.replace(nextPath); router.refresh();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Verification failed. Please try again.");
     } finally { setLoading(false); }
@@ -237,15 +237,15 @@ function Auth({ signup = false }: { signup?: boolean }) {
     event.preventDefault(); setError(""); setNotice(""); setLoading(true);
     try {
       const result = signup
-        ? await authClient.signUp.email({ name: name.trim(), email: email.trim(), password, callbackURL: "/home" })
-        : await authClient.signIn.email({ email: email.trim(), password, rememberMe, callbackURL: "/home" });
+        ? await authClient.signUp.email({ name: name.trim(), email: email.trim(), password, callbackURL: nextPath })
+        : await authClient.signIn.email({ email: email.trim(), password, rememberMe, callbackURL: nextPath });
       if (result.error) { setError(result.error.message || "Authentication failed. Please try again."); return; }
       if (signup) {
         setStep("verify-signup"); setOtp(""); setCooldown(30);
         setNotice("We sent a 6-digit verification code to your email.");
         return;
       }
-      router.push("/home"); router.refresh();
+      router.replace(nextPath); router.refresh();
     } catch {
       setError("We could not reach the authentication service. Check your connection and try again.");
     } finally { setLoading(false); }
@@ -255,7 +255,7 @@ function Auth({ signup = false }: { signup?: boolean }) {
     if (loading) return;
     setError(""); setNotice(""); setLoading(true);
     try {
-      const result = await authClient.signIn.social({ provider: "google", callbackURL: "/home" });
+      const result = await authClient.signIn.social({ provider: "google", callbackURL: nextPath });
       if (result.error) {
         setError(result.error.message || "Google sign-in failed. Check that Google login is configured.");
         setLoading(false);
@@ -3540,8 +3540,8 @@ function Admin({ section="overview" }: { section?: string }) {
   return <AdminWorkspace section={section}/>;
 }
 export function SocialPages({ screen }: { screen: Screen }) {
-  if (screen.kind==="login") return <Auth/>;
-  if (screen.kind==="signup") return <Auth signup/>;
+  if (screen.kind==="login") return <Auth nextPath={screen.next} />;
+  if (screen.kind==="signup") return <Auth signup nextPath={screen.next} />;
   if (screen.kind==="admin") return <Admin section={screen.section}/>;
 
   const content =

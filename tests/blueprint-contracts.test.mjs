@@ -858,3 +858,49 @@ test("admin bulk operations provide a dry-run safety preview", () => {
   assert.match(ui, /previewBulk/);
   assert.match(ui, /No data was changed|no changes made/);
 });
+
+
+test("private page routing has a centralized authentication policy and login return path", () => {
+  const access = read("lib/route-access.ts");
+  const policy = read("lib/route-policy.ts");
+  const proxy = read("proxy.ts");
+  const route = read("app/[...segments]/page.tsx");
+  assert.match(policy, /PUBLIC_PAGE_PATHS/);
+  assert.match(policy, /sanitizeNextPath/);
+  assert.match(policy, /loginRedirectPath/);
+  assert.match(access, /requireUser/);
+  assert.match(proxy, /auth\.api\.getSession/);
+  assert.match(proxy, /NextResponse\.redirect/);
+  assert.match(proxy, /next.*pathname/);
+  assert.match(route, /requireUser/);
+  assert.match(route, /nextParam/);
+});
+
+test("direct private pages enforce server-side authentication", () => {
+  const home = read("app/home/page.tsx");
+  const saved = read("app/saved/page.tsx");
+  const profile = read("app/profile/[username]/page.tsx");
+  assert.match(home, /requireUser\("\/home"\)/);
+  assert.match(saved, /requireUser\("\/saved"\)/);
+  assert.match(profile, /await requireUser\("\/profile\//);
+});
+
+test("authentication forms preserve the originally requested internal route", () => {
+  const page = read("components/social-pages.tsx");
+  const route = read("app/[...segments]/page.tsx");
+  assert.match(page, /nextPath = "\/home"/);
+  assert.match(page, /callbackURL: nextPath/);
+  assert.match(page, /router\.replace\(nextPath\)/);
+  assert.match(route, /sanitizeNextPath\(nextParam/);
+});
+
+test("public and private page policy distinguishes auth entry points from social routes", () => {
+  const policy = read("lib/route-policy.ts");
+  const proxy = read("proxy.ts");
+  for (const path of ["/", "/login", "/signup", "/admin/login", "/two-factor"]) {
+    assert.match(policy, new RegExp(JSON.stringify(path).slice(1, -1).replace(/[.*+?^$()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(proxy, /isPublicPagePath/);
+  assert.match(proxy, /matcher:\s*\[/);
+  assert.match(proxy, /_next/);
+});
