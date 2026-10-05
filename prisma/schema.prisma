@@ -156,6 +156,8 @@ model User {
   assignedReports Report[]         @relation("ReportAssignee")
   blockedUsers  Block[]            @relation("Blocker")
   blockedBy     Block[]            @relation("Blocked")
+  mutesGiven    Mute[]             @relation("MutesGiven")
+  mutedBy       Mute[]             @relation("MutedBy")
   verificationAudits VerificationAudit[] @relation("VerificationTarget")
   performedVerificationAudits VerificationAudit[] @relation("VerificationAdmin")
   verificationRequests VerificationRequest[] @relation("VerificationRequester")
@@ -536,6 +538,20 @@ model Block {
 
   @@id([blockerId, blockedId])
   @@index([blockedId])
+}
+
+
+model Mute {
+  muterId   String
+  mutedId   String
+  createdAt DateTime @default(now())
+
+  muter User @relation("MutesGiven", fields: [muterId], references: [id], onDelete: Cascade)
+  muted User @relation("MutedBy", fields: [mutedId], references: [id], onDelete: Cascade)
+
+  @@id([muterId, mutedId])
+  @@index([muterId, createdAt])
+  @@index([mutedId, createdAt])
 }
 
 
