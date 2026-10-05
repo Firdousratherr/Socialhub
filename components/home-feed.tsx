@@ -428,10 +428,12 @@ function PostCard({
   post,
   currentUserId,
   onRemove,
+  onToast,
 }: {
   post: Post;
   currentUserId?: string;
   onRemove: (postId: string) => void;
+  onToast?: (message: string) => void;
 }) {
   const [liked, setLiked] = useState(post.liked);
   const [saved, setSaved] = useState(post.saved);
@@ -442,7 +444,6 @@ function PostCard({
   const [myReaction, setMyReaction] = useState<string | null>(post.myReaction ?? null);
   const [reactionMenuOpen, setReactionMenuOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [postToast, setPostToast] = useState("");
   const [editing, setEditing] = useState(false);
   const [displayCopy, setDisplayCopy] = useState(post.copy);
   const [editText, setEditText] = useState(post.copy);
@@ -478,7 +479,7 @@ function PostCard({
       if (!response.ok) throw new Error(json.error ?? "Could not update reaction.");
       setLiked(Boolean(json.liked));
       setLikeCount(Number(json.count ?? previousCount));
-      setPostToast(Boolean(json.liked) ? "Post liked." : "Like removed.");
+      onToast?.(Boolean(json.liked) ? "Post liked." : "Like removed.");
       emitLiveSync({ type: "post-updated", postId: post.id });
     } catch {
       setLiked(previousLiked);
@@ -521,7 +522,7 @@ function PostCard({
     try {
       const response = await fetch(`/api/posts/${post.id}/save`, { method: previous ? "DELETE" : "POST" });
       if (!response.ok) throw new Error();
-      setPostToast(previous ? "Removed from saved posts." : "Saved for later.");
+      onToast?.(previous ? "Removed from saved posts." : "Saved for later.");
       emitLiveSync({ type: "post-updated", postId: post.id });
     } catch {
       setSaved(previous);
@@ -542,7 +543,7 @@ function PostCard({
       const json = await response.json().catch(() => ({}));
       if (response.ok) {
         setShareCount(Number(json.shareCount ?? shareCount + 1));
-        setPostToast("Post shared.");
+        onToast?.("Post shared.");
         emitLiveSync({ type: "post-updated", postId: post.id });
       } else {
         setError(json.error ?? "Could not record the share.");
@@ -1204,7 +1205,6 @@ export default function HomeFeed() {
         </aside>
       </div>
 
-      <Toast message={postToast} onClose={() => setPostToast("")} />
       <Toast message={toast} onClose={() => setToast("")} />
     </main>
     </AppShell>
