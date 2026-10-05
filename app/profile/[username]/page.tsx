@@ -35,18 +35,15 @@ async function getProfile(username: string) {
       bio: true,
       image: true,
       website: true,
-      location: true,
       isPrivate: true,
       isActive: true,
       deletedAt: true,
       createdAt: true,
       updatedAt: true,
-      isVerified: true,
       _count: {
         select: {
           posts: true,
           followers: true,
-          following: true,
         },
       },
     },
@@ -72,12 +69,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const title = `${user.name} (@${user.username}) · Socialhub`;
+  const title = \`\${user.name} (@\${user.username}) · Socialhub\`;
   const description =
     user.bio?.trim() ||
-    `View ${user.name}'s public profile on Socialhub and discover their posts and connections.`;
+    \`View \${user.name}'s public profile on Socialhub and discover their posts and connections.\`;
   const url = absoluteProfileUrl(user.username);
-  const externalWebsite = safeExternalUrl(user.website);
 
   return {
     title,
@@ -92,7 +88,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title,
       description,
       siteName: "Socialhub",
-      ...(user.image ? { images: [{ url: user.image, alt: `${user.name}'s profile photo` }] } : {}),
+      ...(user.image
+        ? { images: [{ url: user.image, alt: \`\${user.name}'s profile photo\` }] }
+        : {}),
     },
     twitter: {
       card: user.image ? "summary_large_image" : "summary",
@@ -100,13 +98,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description,
       ...(user.image ? { images: [user.image] } : {}),
     },
-    ...(externalWebsite
-      ? {
-          other: {
-            "profile:username": user.username,
-          },
-        }
-      : {}),
   };
 }
 
@@ -158,16 +149,6 @@ export default async function ProfilePage({ params }: Props) {
                 "@type": "InteractionCounter",
                 interactionType: "https://schema.org/FollowAction",
                 userInteractionCount: user._count.followers,
-              },
-              {
-                "@type": "InteractionCounter",
-                interactionType: "https://schema.org/LikeAction",
-                userInteractionCount: 0,
-              },
-              {
-                "@type": "InteractionCounter",
-                interactionType: "https://schema.org/BefriendAction",
-                userInteractionCount: user._count.following,
               },
             ],
             agentInteractionStatistic: {
