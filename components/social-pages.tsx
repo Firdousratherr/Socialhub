@@ -2618,7 +2618,7 @@ function Friends() {
 }
 type NotificationData = {
   id: string;
-  type: "LIKE" | "COMMENT" | "FOLLOW" | "FRIEND_REQUEST" | "FRIEND_ACCEPTED" | "MESSAGE" | "MENTION" | "SHARE" | "SYSTEM";
+  type: "LIKE" | "COMMENT" | "FOLLOW" | "FRIEND_REQUEST" | "FRIEND_ACCEPTED" | "MESSAGE" | "MENTION" | "SHARE" | "SYSTEM" | "STORY_REPLY" | "STORY_REACTION";
   readAt: string | null;
   createdAt: string;
   title?: string | null;
@@ -2627,6 +2627,7 @@ type NotificationData = {
   post?: { id: string; content: string | null; mediaUrl: string | null } | null;
   comment?: { id: string; content: string } | null;
   message?: { id: string; conversationId: string } | null;
+  story?: { id: string } | null;
 };
 
 function Notifications() {
@@ -2733,6 +2734,8 @@ function Notifications() {
       router.push("/friends");
     } else if (item.type === "MESSAGE" && item.message?.conversationId) {
       router.push("/messages?conversation=" + encodeURIComponent(item.message.conversationId));
+    } else if ((item.type === "STORY_REPLY" || item.type === "STORY_REACTION") && item.story?.id) {
+      router.push("/home?story=" + encodeURIComponent(item.story.id));
     } else if (item.post?.id) {
       router.push("/home#post-" + encodeURIComponent(item.post.id));
     } else {
@@ -2741,8 +2744,8 @@ function Notifications() {
   }
 
   function iconFor(type: NotificationData["type"]) {
-    if (type === "LIKE") return Heart;
-    if (type === "COMMENT" || type === "MESSAGE") return MessageCircle;
+    if (type === "LIKE" || type === "STORY_REACTION") return Heart;
+    if (type === "COMMENT" || type === "MESSAGE" || type === "STORY_REPLY") return MessageCircle;
     if (type === "FOLLOW") return UserPlus;
     if (type === "FRIEND_REQUEST" || type === "FRIEND_ACCEPTED") return Users;
     if (type === "MENTION") return AtSign;
@@ -2751,9 +2754,9 @@ function Notifications() {
   }
 
   function styleFor(type: NotificationData["type"]) {
-    if (type === "LIKE") return "bg-rose-50 text-rose-500";
+    if (type === "LIKE" || type === "STORY_REACTION") return "bg-rose-50 text-rose-500";
     if (type === "FOLLOW" || type === "FRIEND_ACCEPTED") return "bg-violet-50 text-violet-600";
-    if (type === "COMMENT" || type === "MESSAGE" || type === "MENTION") return "bg-sky-50 text-sky-500";
+    if (type === "COMMENT" || type === "MESSAGE" || type === "STORY_REPLY" || type === "MENTION") return "bg-sky-50 text-sky-500";
     if (type === "FRIEND_REQUEST") return "bg-emerald-50 text-emerald-600";
     return "bg-amber-50 text-amber-500";
   }
@@ -2761,7 +2764,7 @@ function Notifications() {
   const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>("ALL");
   const filteredNotifications = notifications.filter((item) => {
     if (notificationFilter === "UNREAD") return !item.readAt;
-    if (notificationFilter === "SOCIAL") return ["LIKE","COMMENT","FOLLOW","MENTION","SHARE"].includes(item.type);
+    if (notificationFilter === "SOCIAL") return ["LIKE","COMMENT","FOLLOW","MENTION","SHARE","STORY_REPLY","STORY_REACTION"].includes(item.type);
     if (notificationFilter === "MESSAGES") return item.type === "MESSAGE";
     if (notificationFilter === "REQUESTS") return item.type === "FRIEND_REQUEST" || item.type === "FRIEND_ACCEPTED";
     return true;
@@ -2784,7 +2787,7 @@ function Notifications() {
         const Icon = iconFor(item.type);
         return <button key={item.id} onClick={() => void openNotification(item)} className={`flex w-full gap-3 border-b border-gray-100 p-5 text-left last:border-0 hover:bg-gray-50 ${item.readAt ? "" : "bg-[#fbfaff]"}`}>
           <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${styleFor(item.type)}`}><Icon size={17}/></span>
-          <span className="flex-1"><span className="block text-sm font-bold">{item.type === "SYSTEM" ? (item.title ?? "Account update") : <>{item.actor?.name ?? "Socialhub"} <AccountBadge verified={item.actor?.isVerified} owner={item.actor?.isOwner}/>{item.type === "LIKE" ? " liked your post." : item.type === "FOLLOW" ? " started following you." : item.type === "COMMENT" ? " commented on your post." : item.type === "FRIEND_REQUEST" ? " sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? " accepted your friend request." : item.type === "MESSAGE" ? " sent you a message." : item.type === "MENTION" ? " mentioned you." : " interacted with your content."}</>}</span><span className="mt-1 block text-xs text-gray-500">{item.type === "SYSTEM" && item.body ? item.body + " · " : ""}{formatSocialDateTime(item.createdAt)}</span></span>
+          <span className="flex-1"><span className="block text-sm font-bold">{item.type === "SYSTEM" ? (item.title ?? "Account update") : <>{item.actor?.name ?? "Socialhub"} <AccountBadge verified={item.actor?.isVerified} owner={item.actor?.isOwner}/>{item.type === "LIKE" ? " liked your post." : item.type === "FOLLOW" ? " started following you." : item.type === "COMMENT" ? " commented on your post." : item.type === "FRIEND_REQUEST" ? " sent you a friend request." : item.type === "FRIEND_ACCEPTED" ? " accepted your friend request." : item.type === "MESSAGE" ? " sent you a message." : item.type === "STORY_REPLY" ? " replied to your story." : item.type === "STORY_REACTION" ? " reacted to your story." : item.type === "MENTION" ? " mentioned you." : " interacted with your content."}</>}</span><span className="mt-1 block text-xs text-gray-500">{item.type === "SYSTEM" && item.body ? item.body + " · " : ""}{formatSocialDateTime(item.createdAt)}</span></span>
           {!item.readAt ? <span className="mt-2 size-2 shrink-0 rounded-full bg-[#6d5dfc]"/> : null}
         </button>;
         })}
