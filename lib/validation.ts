@@ -52,6 +52,7 @@ export const commentInputSchema = z.object({
 
 export const storyInputSchema = z.object({
   mediaUrl: mediaUrlSchema,
+  mediaType: z.enum(["IMAGE", "VIDEO"]).default("IMAGE"),
   caption: z.string().trim().max(300).nullable().optional(),
   audience: z.enum(["PUBLIC", "FRIENDS"]).default("PUBLIC"),
   expiresAt: z.coerce.date(),
