@@ -1927,7 +1927,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       </div>
     ) : null}
 
-    <div className="messages-shell grid h-[calc(100dvh-240px)] min-h-[420px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:h-auto lg:min-h-[620px] lg:grid-cols-[330px_1fr]">
+    <div className="messages-shell grid h-[calc(100dvh-150px)] min-h-[520px] overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)] lg:h-[calc(100dvh-118px)] lg:min-h-[620px] lg:grid-cols-[320px_1fr]">
       <aside className={(activeId ? "hidden lg:block " : "") + "border-b border-gray-100 lg:border-b-0 lg:border-r"}>
         <div className="flex items-center justify-between border-b border-gray-100 p-4">
           <div className="flex items-center gap-2"><h2 className="text-sm font-black">{showArchivedConversations ? "Archived" : "Inbox"}</h2><button type="button" onClick={() => setShowArchivedConversations((value) => !value)} className="rounded-lg px-2 py-1 text-xs font-black text-gray-500 hover:bg-gray-100">{showArchivedConversations ? "Inbox" : "Archived"}</button></div>
@@ -1983,6 +1983,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
             </div>
           ) : null}
           {nextMessagesCursor ? <div className="flex justify-center"><button type="button" onClick={() => void loadOlderMessages()} disabled={loadingOlderMessages} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-black text-gray-600 shadow-sm disabled:opacity-50">{loadingOlderMessages ? "Loading older messages…" : "Load older messages"}</button></div> : null}
+          {!active ? <div className="grid h-full place-items-center p-8 text-center"><div><span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={24}/></span><h2 className="mt-4 text-base font-black">Choose a conversation</h2><p className="mt-1 max-w-xs text-sm text-gray-500">Select a conversation or start a new message.</p><button type="button" onClick={() => setNewConversationOpen(true)} className="mt-4 rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white">New message</button></div></div> : null}
           {active && messages.length > 0 ? messages.map((message) => {
             const mine = message.senderId === session?.user?.id;
             return <div key={message.id} className={mine ? "flex justify-end" : "flex items-end gap-2"}>
