@@ -716,8 +716,8 @@ function PostCard({
         ) : null}
 
         <div className="mt-4 flex items-center justify-between text-xs font-semibold text-gray-500">
-          <span title={fullCount(likeCount) + " reactions"}>{likeCount > 0 ? pluralCount(likeCount, "reaction") : ""}</span>
-          <span title={fullCount(commentCount) + " comments"}>{commentCount > 0 ? pluralCount(commentCount, "comment") : ""} · <span title={fullCount(shareCount) + " shares"}>{shareCount > 0 ? pluralCount(shareCount, "share") : ""}</span></span>
+          <span title={fullCount(likeCount) + " reactions"}>{likeCount > 0 ? compactCount(likeCount) + " " + (likeCount === 1 ? "reaction" : "reactions") : ""}</span>
+          <span title={fullCount(commentCount) + " comments"}>{commentCount > 0 ? compactCount(commentCount) + " " + (commentCount === 1 ? "comment" : "comments") : ""} · <span title={fullCount(shareCount) + " shares"}>{shareCount > 0 ? compactCount(shareCount) + " " + (shareCount === 1 ? "share" : "shares") : ""}</span></span>
         </div>
 
         <div className="mt-4 grid grid-cols-4 border-t border-gray-100 pt-3">
