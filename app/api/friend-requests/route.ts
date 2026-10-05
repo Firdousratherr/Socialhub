@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { friendRequestInputSchema } from "@/lib/validation";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { getActiveUserRestriction } from "@/lib/user-restrictions";
 async function getSession(){return auth.api.getSession({headers:await headers()});}
 export async function GET(){const session=await getSession();if(!session?.user)return NextResponse.json({error:"Authentication required."},{status:401});const [received,sent]=await Promise.all([prisma.friendRequest.findMany({where:{receiverId:session.user.id,status:"PENDING"},orderBy:{createdAt:"desc"},include:{sender:{select:{id:true,name:true,username:true,image:true,isVerified:true,isOwner:true}}}}),prisma.friendRequest.findMany({where:{senderId:session.user.id,status:"PENDING"},orderBy:{createdAt:"desc"},include:{receiver:{select:{id:true,name:true,username:true,image:true,isVerified:true,isOwner:true}}}})]);return NextResponse.json({received,sent});}
 export async function POST(request:Request){
