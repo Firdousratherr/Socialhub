@@ -15,6 +15,8 @@
 }
 
 :root {
+  --header-h: 64px;
+  --page-pad: 3rem;
   --background: #f6f7fb;
   --foreground: #111827;
   --surface: #ffffff;
@@ -134,7 +136,10 @@ button { cursor: pointer; }
 
 .chat-scroll { overscroll-behavior: contain; scrollbar-gutter: stable; }
 .messages-shell, .message-pane, .message-list { min-width: 0; }
+.messages-shell { contain: layout paint; }
+.message-pane { height: 100%; }
 .message-composer { flex-shrink: 0; padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+.messages-page { min-width: 0; }
 
 .mobile-safe-bottom {
   padding-bottom: calc(84px + env(safe-area-inset-bottom));
