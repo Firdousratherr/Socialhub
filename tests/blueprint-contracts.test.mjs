@@ -586,10 +586,12 @@ test("message drafts persist per conversation and clear after send", () => {
   assert.match(pages, /localStorage\.removeItem/);
 });
 
-test("story viewer exposes position and progress", () => {
+test("story viewer exposes grouped position and progress", () => {
   const story = read("components/story-center.tsx");
-  assert.match(story, /Story .* of/);
-  assert.match(story, /viewerIndex/);
+  assert.match(story, /viewer/);
+  assert.match(story, /activeGroup/);
+  assert.match(story, /progress|w-1\/3/);
+  assert.match(story, /aria-label=\"Story from/);
 });
 
 test("profile actions escape the clipped profile card and remain accessible on mobile", () => {
