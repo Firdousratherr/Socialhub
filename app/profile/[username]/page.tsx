@@ -61,23 +61,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const session = await auth.api.getSession({ headers: await headers() });
   const user = await getProfile(username);
 
-  if (!user) {
-    if (session?.user) {
-      const ownUser = await prisma.user.findFirst({
-        where: { id: session.user.id, username },
-        select: { username: true },
-      });
-      if (ownUser) {
-        return <SocialPages screen={{ kind: "profile", username: ownUser.username ?? username }} />;
-      }
-    }
-    notFound();
+  if (!user || !user.isActive || user.deletedAt || !user.username) {
+    return {
+      title: "Profile not found",
+      robots: { index: false, follow: false },
+    };
   }
-
-  if (!user.isActive || user.deletedAt || !user.username) {
     return {
       title: "Profile not found",
       robots: { index: false, follow: false },
