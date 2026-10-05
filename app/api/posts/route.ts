@@ -189,6 +189,10 @@ export async function POST(request: Request) {
   }
   const rl = await consumeRateLimit(rateLimitKey("posts", request, session.user.id), 10, 60);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
+  const postingRestriction = await getActiveUserRestriction(session.user.id, "postingRestrictedUntil");
+  if (postingRestriction) {
+    return NextResponse.json({ error: "Posting is temporarily restricted.", restrictedUntil: postingRestriction.toISOString() }, { status: 403 });
+  }
 
   const parsed = postInputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
