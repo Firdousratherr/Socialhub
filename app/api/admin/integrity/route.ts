@@ -49,7 +49,24 @@ export async function POST(request: Request) {
   if (action === "CLEAN_EXPIRED_SESSIONS") count = (await prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } })).count;
   if (action === "CLEAN_EXPIRED_STORIES") count = (await prisma.story.deleteMany({ where: { expiresAt: { lt: new Date() } } })).count;
   if (action === "CLEAN_INACTIVE_OVERRIDES") count = (await prisma.adminMetricOverride.deleteMany({ where: { user: { isActive: false } } })).count;
-  if (action === "CLEAN_DANGLING_REPORTS") count = (await prisma.report.updateMany({ where: { status: "PENDING", postId: { not: null } }, data: { status: "DISMISSED", moderatorNote: "Automatically dismissed during integrity repair because the target no longer exists." } })).count;
+  if (action === "CLEAN_DANGLING_REPORTS") {
+    const pending = await prisma.report.findMany({
+      where: { status: "PENDING" },
+      select: { id: true, postId: true, commentId: true, reportedUserId: true, post: { select: { id: true } }, comment: { select: { id: true } }, reportedUser: { select: { id: true } } },
+      take: 5000,
+    });
+    const danglingIds = pending.filter((row) =>
+      (row.postId && !row.post) ||
+      (row.commentId && !row.comment) ||
+      (row.reportedUserId && !row.reportedUser)
+    ).map((row) => row.id);
+    if (danglingIds.length) {
+      count = (await prisma.report.updateMany({
+        where: { id: { in: danglingIds } },
+        data: { status: "DISMISSED", moderatorNote: "Automatically dismissed during integrity repair because the reported target no longer exists." },
+      })).count;
+    }
+  }
 
   await recordAdminEvent({ access, request, action: "INTEGRITY_" + action, resource: "INTEGRITY", riskLevel: "HIGH", after: { count } });
   return NextResponse.json({ success: true, count });
