@@ -599,6 +599,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
   const [error, setError] = useState("");
   const [profileTab, setProfileTab] = useState<"posts" | "photos" | "friends">("posts");
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [friends, setFriends] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; bio: string | null; isVerified?: boolean; isOwner?: boolean }>>([]);
   const [friendsHidden, setFriendsHidden] = useState(false);
   const [relationshipView, setRelationshipView] = useState<"followers" | "following" | "mutual" | null>(null);
@@ -1054,7 +1055,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
 
   if (!profile) {
     return (
-      <Page eyebrow="Profile" title={`@${displayUsername}`}>
+      <Page eyebrow="Profile" title={displayName || "Profile"}>
         {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
         <div className="rounded-[2rem] border border-gray-200/70 bg-white p-8 text-center text-sm font-semibold text-gray-500 shadow-[0_14px_40px_rgba(20,24,40,.06)]">
           {error ? "Profile unavailable." : "Loading profile…"}
@@ -1063,7 +1064,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
     );
   }
 
-  return <Page eyebrow="Profile" title={`@${displayUsername}`}>
+  return <Page eyebrow="Profile" title={displayName || "Profile"}>
     {error ? <div role="alert" className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">{error}</div> : null}
 
     <div className="overflow-hidden rounded-[2rem] border border-gray-200/70 bg-white shadow-[0_14px_40px_rgba(20,24,40,.06)]">
@@ -1097,8 +1098,8 @@ function Profile({ username = "firdous" }: { username?: string }) {
         ) : null}
       </div>
 
-      <div className="relative px-5 pb-6 sm:px-8">
-        <div className="-mt-12 flex flex-col gap-4 sm:-mt-14 sm:flex-row sm:items-end">
+      <div className="relative min-w-0 px-4 pb-6 sm:px-8">
+        <div className="-mt-12 flex min-w-0 flex-col gap-4 sm:-mt-14 sm:flex-row sm:items-end">
           <div className="relative rounded-full border-4 border-white bg-white">
             {isOwner ? (
               <>
@@ -1127,7 +1128,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
               <Avatar initials={initials} size="xl"/>
             )}
           </div>
-          <div className="flex-1 sm:pb-2"><h2 className="flex items-center gap-2 text-2xl font-black tracking-[-.04em]">{displayName}<AccountBadge verified={profile?.isVerified} owner={profile?.isOwner} showLabel size="md"/></h2><p className="text-sm font-semibold text-gray-400">@{displayUsername}{profile?.location ? ` · ${profile.location}` : ""}</p></div>
+          <div className="min-w-0 flex-1 sm:pb-2"><h2 className="flex min-w-0 items-center gap-2 text-xl font-black tracking-[-.04em] sm:text-2xl"><span className="min-w-0 truncate">{displayName}</span><AccountBadge verified={profile?.isVerified} owner={profile?.isOwner} showLabel size="md"/></h2><p className="mt-0.5 break-all text-xs font-semibold text-gray-500">@{displayUsername}{profile?.location ? ` · ${profile.location}` : ""}</p></div>
         </div>
 
         {uploading === "avatar" ? <p className="mt-3 text-[11px] font-bold text-[#5a4be8]">Uploading profile picture…</p> : null}
@@ -1135,10 +1136,10 @@ function Profile({ username = "firdous" }: { username?: string }) {
         {!editing ? (
           <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50/80 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[10px] font-black uppercase tracking-[.16em] text-gray-400">Profile actions</span>
+              <span className="sr-only">Profile actions</span>
               {friendRequestStatus === "FRIENDS" ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700"><Check size={12}/>Friends</span> : null}
             </div>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="mt-2 flex min-w-0 items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               {isOwner ? (
                 <button type="button" onClick={() => setEditing(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white shadow-sm"><Pencil size={15}/>Edit profile</button>
               ) : session?.user ? (
@@ -1163,12 +1164,12 @@ function Profile({ username = "firdous" }: { username?: string }) {
                   ) : null}
                   <button type="button" onClick={() => void startMessage()} disabled={!canMessage || Boolean(actionLoading)} className={"inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-xs font-black " + (canMessage ? "border-gray-200 bg-white text-gray-700 disabled:opacity-50" : "cursor-not-allowed border-gray-100 bg-gray-100 text-gray-400")}><MessageCircle size={15}/>{actionLoading === "message" ? "Opening…" : canMessage ? "Message" : "Messages off"}</button>
                   <button type="button" onClick={() => void reportUser()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><Shield size={15}/>Report</button>
-                  <button type="button" onClick={() => void blockUser()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 text-xs font-black text-red-600 disabled:opacity-50"><ShieldOff size={15}/>Block</button>
+                  <button type="button" onClick={() => void blockUser()} disabled={Boolean(actionLoading)} className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 disabled:opacity-50"><ShieldOff size={15}/>Block</button>
                 </>
               ) : (
                 <Link href="/login" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white"><LogIn size={15}/>Sign in to interact</Link>
               )}
-              <button type="button" onClick={() => void shareProfile()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700"><Share2 size={15}/>Share</button>
+              <div className="relative shrink-0"><button type="button" onClick={() => setProfileMenuOpen((value) => !value)} className="grid size-11 place-items-center rounded-xl border border-gray-200 bg-white text-gray-700" aria-label="More profile actions" aria-expanded={profileMenuOpen}><MoreHorizontal size={18}/></button>{profileMenuOpen ? <div className="absolute right-0 top-12 z-20 w-44 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl"><button type="button" onClick={() => { setProfileMenuOpen(false); void shareProfile(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50"><Share2 size={15}/>Share profile</button><button type="button" onClick={() => { setProfileMenuOpen(false); void reportUser(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50"><Shield size={15}/>Report</button><button type="button" onClick={() => { setProfileMenuOpen(false); void blockUser(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50"><ShieldOff size={15}/>Block</button></div> : null}</div>
             </div>
           </div>
         ) : null}
@@ -1186,9 +1187,9 @@ function Profile({ username = "firdous" }: { username?: string }) {
         ) : (
           <>
             <p className="mt-5 max-w-2xl text-sm leading-6 text-gray-600">{profile?.bio ?? form.bio}</p>
-            <div className="mt-5 max-w-2xl overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
+            <div className="mt-5 w-full overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
   <div className="grid grid-cols-3 divide-x divide-gray-100">
-    <div className="px-3 py-3 text-center" title={fullCount(postCount) + " posts"}><strong className="block text-base font-black">{compactCount(postCount)}</strong><span className="text-[10px] font-bold uppercase tracking-[.08em] text-gray-400">posts</span></div>
+    <div className="px-3 py-3 text-center" title={fullCount(postCount) + " posts"}><strong className="block text-xl font-black">{compactCount(postCount)}</strong><span className="text-xs font-medium text-gray-500">posts</span></div>
     <button type="button" onClick={() => void openRelationships("followers")} title={fullCount(followerCount) + " followers"} className="px-3 py-3 text-center hover:bg-white"><strong className="block text-base font-black">{compactCount(followerCount)}</strong><span className="text-[10px] font-bold uppercase tracking-[.08em] text-gray-400">followers</span></button>
     <button type="button" onClick={() => void openRelationships("following")} title={fullCount(followingCount) + " following"} className="px-3 py-3 text-center hover:bg-white"><strong className="block text-base font-black">{compactCount(followingCount)}</strong><span className="text-[10px] font-bold uppercase tracking-[.08em] text-gray-400">following</span></button>
   </div>
@@ -1206,11 +1207,10 @@ function Profile({ username = "firdous" }: { username?: string }) {
           </>
         )}
 
-        <div className="mt-5 flex flex-wrap items-center gap-2">
+        <div className="mt-5 flex min-w-0 flex-wrap items-center gap-2">
           {profile?.website ? <a href={profile.website} target="_blank" rel="noreferrer" className="rounded-full bg-gray-50 px-3 py-1.5 text-[11px] font-bold text-[#5a4be8] hover:bg-[#eeebff]">{profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}</a> : null}
           {profile?.isPrivate ? <span className="rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-700">Private account</span> : null}
           {profile?.createdAt ? <span className="rounded-full bg-gray-50 px-3 py-1.5 text-[11px] font-bold text-gray-500">Joined {new Date(profile.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span> : null}
-          <button type="button" onClick={() => void shareProfile()} className="rounded-full bg-gray-950 px-3 py-1.5 text-[11px] font-black text-white">Share profile</button>
         </div>
         {relationshipView ? (
           <div className="fixed inset-0 z-[70] grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-label={relationshipView}>
@@ -1242,7 +1242,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
           </div>
         ) : null}
 
-        <div className="mt-7 flex gap-6 border-b border-gray-100 pb-3 text-xs font-black">
+        <div className="mt-7 flex gap-2 overflow-x-auto border-b border-gray-100 pb-3 text-xs font-black scrollbar-none">
           {(["posts","photos","friends"] as const).map((tab) => <button key={tab} type="button" onClick={() => setProfileTab(tab)} className={profileTab === tab ? "border-b-2 border-[#6d5dfc] pb-3 text-[#5a4be8]" : "pb-3 text-gray-400"}>{tab[0].toUpperCase() + tab.slice(1)}</button>)}
         </div>
         {profileTab === "friends" ? (
