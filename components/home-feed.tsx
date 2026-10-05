@@ -165,9 +165,11 @@ function mapApiPostToFeedPost(
 function CommentThread({
   postId,
   onCountChange,
+  onToast,
 }: {
   postId: string;
   onCountChange: (count: number) => void;
+  onToast?: (message: string) => void;
 }) {
   const { data: session } = authClient.useSession();
   const [comments, setComments] = useState<CommentItem[]>([]);
@@ -290,7 +292,7 @@ function CommentThread({
       if (!response.ok) throw new Error(json.error ?? "Could not post comment.");
 
       const created = { ...json.comment, replies: [] } as CommentItem;
-      setPostToast(replyTo ? "Reply posted." : "Comment posted.");
+      onToast?.(replyTo ? "Reply posted." : "Comment posted.");
       setComments((current) => {
         if (replyTo) {
           return current.map((item) =>
@@ -422,7 +424,6 @@ function CommentThread({
   );
 }
 
-  const [toast, setToast] = useState("");
 function PostCard({
   post,
   currentUserId,
@@ -728,6 +729,7 @@ function PostCard({
           <CommentThread
             postId={post.id}
             onCountChange={handleCommentCountChange}
+            onToast={setPostToast}
           />
         ) : null}
       </div>
@@ -747,6 +749,7 @@ export default function HomeFeed() {
   const [publishing, setPublishing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [feedError, setFeedError] = useState("");
+  const [toast, setToast] = useState("");
   const [nextBefore, setNextBefore] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [feedMode, setFeedMode] = useState<"FOR_YOU" | "FOLLOWING" | "FRIENDS" | "LATEST" | "SAVED">("FOR_YOU");
