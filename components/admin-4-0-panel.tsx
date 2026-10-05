@@ -128,7 +128,8 @@ function Command({ onNotice }: { onNotice: (s: string) => void }) {
                   onNotice(error instanceof Error ? error.message : "Could not update platform control.");
                 }
               }}
-              className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 text-left hover:bg-gray-100"
+              disabled={!data?.capabilities?.platformControl}
+              className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 text-left hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <span className={"size-2.5 rounded-full " + (enabled ? "bg-emerald-500" : "bg-red-500")} />
               <span className="min-w-0 flex-1">
