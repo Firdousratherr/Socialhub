@@ -730,7 +730,7 @@ function PostCard({
           <CommentThread
             postId={post.id}
             onCountChange={handleCommentCountChange}
-            onToast={setPostToast}
+            onToast={onToast}
           />
         ) : null}
       </div>
