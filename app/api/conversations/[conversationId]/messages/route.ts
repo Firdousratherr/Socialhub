@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { messageInputSchema } from "@/lib/validation";
 import { canSendMessageInConversation } from "@/lib/conversation-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { platformEnabled } from "@/lib/platform-controls";
+import { getActiveUserRestriction } from "@/lib/user-restrictions";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
