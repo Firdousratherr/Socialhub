@@ -1,8 +1,34 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { SocialPages } from "@/components/social-pages";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ segments: string[] }>;
+}): Promise<Metadata> {
+  const { segments } = await params;
+  const first = segments[0] ?? "";
+  const titles: Record<string, string> = {
+    login: "Sign in",
+    signup: "Create account",
+    discover: "Discover",
+    friends: "Friends",
+    messages: "Messages",
+    notifications: "Notifications",
+    settings: "Settings",
+    admin: "Admin",
+  };
+
+  if (first === "profile") {
+    return { title: segments[1] ? "Profile" : "Page not found" };
+  }
+
+  return { title: titles[first] ?? "Page not found" };
+}
 
 export default async function CatchAllPage({
   params,
@@ -34,7 +60,8 @@ export default async function CatchAllPage({
       return <SocialPages screen={{ kind: "profile", username: user.username }} />;
     }
 
-    return <SocialPages screen={{ kind: "profile", username: segments[1] ?? "firdous" }} />;
+    if (!segments[1]) redirect("/login");
+    return <SocialPages screen={{ kind: "profile", username: segments[1] }} />;
   }
 
 
