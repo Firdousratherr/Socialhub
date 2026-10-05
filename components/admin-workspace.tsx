@@ -1458,10 +1458,10 @@ function VerificationPanel({ onNotice }: { onNotice: (value: string) => void }) 
   async function load() {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/verification-requests?status=" + status, { cache: "no-store" });
+      const response = await fetch("/api/admin/verification-requests?status=" + status + "&take=100", { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load verification requests.");
-      setItems(json.requests ?? json.verificationRequests ?? []);
+      setItems(json.requests ?? []);
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "Could not load verification requests.");
     } finally {
@@ -1473,12 +1473,16 @@ function VerificationPanel({ onNotice }: { onNotice: (value: string) => void }) 
     void load();
   }, [status]);
 
-  async function review(id: string, action: "APPROVED" | "REJECTED") {
+  async function review(requestId: string, action: "APPROVED" | "REJECTED", note?: string) {
     try {
       const response = await fetch("/api/admin/verification-requests", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status: action, adminNote: action === "APPROVED" ? "Approved by an administrator." : "Rejected by an administrator." }),
+        body: JSON.stringify({
+          requestId,
+          status: action,
+          note: note?.trim() || undefined,
+        }),
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not review verification request.");
@@ -1504,31 +1508,56 @@ function VerificationPanel({ onNotice }: { onNotice: (value: string) => void }) 
       </div>
       <div className="divide-y divide-gray-100">
         {items.map((item) => (
-          <div key={item.id} className="p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-violet-100 text-violet-600">
-                <ShieldCheck size={16} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-black">{item.user?.name ?? "User"}</p>
-                <p className="text-[10px] text-gray-400">@{item.user?.username ?? "member"} · {item.user?.email ?? ""}</p>
-                <p className="mt-2 text-xs leading-5 text-gray-600">{item.reason ?? "No reason supplied."}</p>
-              </div>
-              {item.status === "PENDING" ? (
-                <div className="flex gap-2">
-                  <MiniAction label="Approve" onClick={() => void review(item.id, "APPROVED")} />
-                  <MiniAction label="Reject" danger={true} onClick={() => void review(item.id, "REJECTED")} />
-                </div>
-              ) : (
-                <span className="rounded-full bg-gray-100 px-2 py-1 text-[9px] font-black">{item.status}</span>
-              )}
-            </div>
-          </div>
+          <VerificationRequestRow key={item.id} item={item} onReview={review} />
         ))}
         {loading ? <p className="p-10 text-center text-xs text-gray-400">Loading verification requests…</p> : null}
         {!loading && !items.length ? <p className="p-10 text-center text-xs text-gray-400">No verification requests in this view.</p> : null}
       </div>
     </Card>
+  );
+}
+
+function VerificationRequestRow({
+  item,
+  onReview,
+}: {
+  item: any;
+  onReview: (requestId: string, action: "APPROVED" | "REJECTED", note?: string) => Promise<void>;
+}) {
+  const [note, setNote] = useState(item.adminNote ?? "");
+
+  return (
+    <div className="p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-violet-100 text-violet-600">
+          <ShieldCheck size={16} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-black">{item.user?.name ?? "User"}</p>
+          <p className="text-[10px] text-gray-400">@{item.user?.username ?? "member"} · {item.user?.email ?? ""}</p>
+          <p className="mt-2 text-xs leading-5 text-gray-600">{item.reason ?? "No reason supplied."}</p>
+          {item.adminNote ? <p className="mt-2 rounded-xl bg-gray-50 p-3 text-[10px] text-gray-500">Previous note: {item.adminNote}</p> : null}
+          {item.status === "PENDING" ? (
+            <textarea
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              rows={2}
+              maxLength={500}
+              placeholder="Optional reviewer note"
+              className="mt-3 w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-[10px] outline-none"
+            />
+          ) : null}
+        </div>
+        {item.status === "PENDING" ? (
+          <div className="flex shrink-0 gap-2">
+            <MiniAction label="Approve" onClick={() => void onReview(item.id, "APPROVED", note)} />
+            <MiniAction label="Reject" danger={true} onClick={() => void onReview(item.id, "REJECTED", note)} />
+          </div>
+        ) : (
+          <span className="rounded-full bg-gray-100 px-2 py-1 text-[9px] font-black">{item.status}</span>
+        )}
+      </div>
+    </div>
   );
 }
 
