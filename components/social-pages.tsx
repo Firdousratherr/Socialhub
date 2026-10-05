@@ -1420,6 +1420,22 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const lastReadAttemptRef = useRef(0);
 
   useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const updateViewportHeight = () => {
+      document.documentElement.style.setProperty("--messages-vh", viewport.height + "px");
+    };
+    updateViewportHeight();
+    viewport.addEventListener("resize", updateViewportHeight);
+    viewport.addEventListener("scroll", updateViewportHeight);
+    return () => {
+      viewport.removeEventListener("resize", updateViewportHeight);
+      viewport.removeEventListener("scroll", updateViewportHeight);
+      document.documentElement.style.removeProperty("--messages-vh");
+    };
+  }, []);
+
+  useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
   useEffect(() => {
@@ -2059,7 +2075,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
         </aside>
 
         <MessagesErrorBoundary resetKey={activeId}>
-          <section className={(activeId ? "flex fixed inset-0 z-[70] bg-white lg:static lg:z-auto " : "hidden lg:flex ") + "message-pane min-h-0 flex-col lg:min-h-0 lg:h-full"}>
+          <section className={(activeId ? "flex fixed inset-0 z-[70] h-[var(--messages-vh,100dvh)] bg-white lg:static lg:z-auto lg:h-full " : "hidden lg:flex ") + "message-pane min-h-0 flex-col lg:min-h-0 lg:h-full"}>
             <div className="flex shrink-0 items-center gap-2 border-b border-gray-100 bg-white p-3 sm:gap-3 sm:p-4">
               {active ? <button type="button" onClick={() => setActiveId(null)} className="grid size-10 shrink-0 place-items-center rounded-xl bg-gray-50 text-gray-600 lg:hidden" aria-label="Back to conversations"><ArrowLeft size={18}/></button> : null}
               <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={activeMember?.image} />
