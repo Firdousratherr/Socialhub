@@ -13,6 +13,7 @@ import { formatSocialDate } from "@/lib/social-date";
 import { PostContent } from "@/components/post-content";
 import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
+import { EmptyState, FollowSuggestion, PostActions, PostComposer, SkeletonCard, Toast } from "@/components/social-ui";
 import {
   Image as ImageIcon,
   Loader2,
@@ -207,6 +208,7 @@ function CommentThread({
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      setLoadingFeed(true);
       try {
         await loadComments();
       } catch (loadError) {
@@ -291,6 +293,7 @@ function CommentThread({
       if (!response.ok) throw new Error(json.error ?? "Could not post comment.");
 
       const created = { ...json.comment, replies: [] } as CommentItem;
+      setToast(replyTo ? "Reply posted." : "Comment posted.");
       setComments((current) => {
         if (replyTo) {
           return current.map((item) =>
@@ -475,6 +478,7 @@ function PostCard({
       if (!response.ok) throw new Error(json.error ?? "Could not update reaction.");
       setLiked(Boolean(json.liked));
       setLikeCount(Number(json.count ?? previousCount));
+      setToast(Boolean(json.liked) ? "Post liked." : "Like removed.");
       emitLiveSync({ type: "post-updated", postId: post.id });
     } catch {
       setLiked(previousLiked);
@@ -517,6 +521,7 @@ function PostCard({
     try {
       const response = await fetch(`/api/posts/${post.id}/save`, { method: previous ? "DELETE" : "POST" });
       if (!response.ok) throw new Error();
+      setToast(previous ? "Removed from saved posts." : "Saved for later.");
       emitLiveSync({ type: "post-updated", postId: post.id });
     } catch {
       setSaved(previous);
@@ -537,6 +542,7 @@ function PostCard({
       const json = await response.json().catch(() => ({}));
       if (response.ok) {
         setShareCount(Number(json.shareCount ?? shareCount + 1));
+        setToast("Post shared.");
         emitLiveSync({ type: "post-updated", postId: post.id });
       } else {
         setError(json.error ?? "Could not record the share.");
@@ -699,7 +705,7 @@ function PostCard({
         )}
 
         {post.mediaUrl ? (
-          <img src={post.mediaUrl} alt="" className="mt-4 aspect-[4/3] max-h-[520px] w-full rounded-2xl object-cover" />
+          <img src={post.mediaUrl} alt={"Photo shared by " + post.name} className="mt-4 aspect-[4/3] max-h-[520px] w-full rounded-2xl object-cover" />
         ) : null}
 
         {error ? (
@@ -711,20 +717,18 @@ function PostCard({
           <span title={fullCount(commentCount) + " comments"}>{commentCount > 0 ? compactCount(commentCount) + " " + (commentCount === 1 ? "comment" : "comments") : ""} · <span title={fullCount(shareCount) + " shares"}>{shareCount > 0 ? compactCount(shareCount) + " " + (shareCount === 1 ? "share" : "shares") : ""}</span></span>
         </div>
 
-        <div className="mt-4 grid grid-cols-4 border-t border-gray-100 pt-3">
-          <button onClick={() => void toggleLike()} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition duration-150 active:scale-[.98] ${liked ? "bg-rose-50 text-rose-500" : "text-gray-500 hover:bg-gray-50"} ${liked ? "animate-pulse" : ""}`} aria-pressed={liked}>
-            <span aria-hidden>{liked ? "♥" : "♡"}</span> Like
-          </button>
-          <button type="button" onClick={() => setCommentsOpen((value) => !value)} aria-expanded={commentsOpen} aria-controls={"comments-" + post.id} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${commentsOpen ? "bg-sky-50 text-sky-600" : "text-gray-500 hover:bg-gray-50"}`}>
-            <MessageCircle size={17} /> Comment
-          </button>
-          <button onClick={() => void sharePost()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold text-gray-500 transition hover:bg-gray-50">
-            <Share2 size={17} /> Share
-          </button>
-          <button onClick={() => void toggleSave()} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${saved ? "bg-violet-50 text-violet-600" : "text-gray-500 hover:bg-gray-50"}`} aria-pressed={saved}>
-            <Bookmark size={17} fill={saved ? "currentColor" : "none"} /> Save
-          </button>
-        </div>
+        <PostActions
+          liked={liked}
+          saved={saved}
+          likeCount={likeCount}
+          commentCount={commentCount}
+          shareCount={shareCount}
+          commentsOpen={commentsOpen}
+          onLike={() => void toggleLike()}
+          onComment={() => setCommentsOpen((value) => !value)}
+          onShare={() => void sharePost()}
+          onSave={() => void toggleSave()}
+        />
 
         {commentsOpen ? (
           <CommentThread
@@ -753,6 +757,8 @@ export default function HomeFeed() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [feedMode, setFeedMode] = useState<"FOR_YOU" | "FOLLOWING" | "FRIENDS" | "LATEST" | "SAVED">("FOR_YOU");
   const [feedModeOpen, setFeedModeOpen] = useState(false);
+  const [loadingFeed, setLoadingFeed] = useState(true);
+  const [toast, setToast] = useState("");
   const [pendingLivePosts, setPendingLivePosts] = useState<Post[]>([]);
   const [newActivityCount, setNewActivityCount] = useState(0);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -815,6 +821,8 @@ export default function HomeFeed() {
         if (usersResponse.ok) setSuggestedUsers((usersJson.users ?? []) as SuggestedUser[]);
       } catch (loadError) {
         if (!cancelled) setFeedError(loadError instanceof Error ? loadError.message : "Could not load your feed.");
+      } finally {
+        if (!cancelled) setLoadingFeed(false);
       }
     }
     void load();
@@ -869,6 +877,22 @@ export default function HomeFeed() {
       if (response.ok) setSuggestedUsers((json.users ?? []) as SuggestedUser[]);
     } catch {
       // Suggestions are secondary content; keep the existing list on transient failures.
+    }
+  }
+
+  async function followSuggestedUser(userId: string) {
+    const target = suggestedUsers.find((user) => user.id === userId);
+    if (!target || target.isFollowing || target.isFriend || target.isPrivate) return;
+    setSuggestedUsers((items) => items.map((item) => item.id === userId ? { ...item, isFollowing: true } : item));
+    try {
+      const response = await fetch("/api/users/" + encodeURIComponent(userId) + "/follow", { method: "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not follow this person.");
+      setToast("Following @" + (target.username ?? "member") + ".");
+      emitLiveSync({ type: "follow-updated" });
+    } catch (error) {
+      setSuggestedUsers((items) => items.map((item) => item.id === userId ? { ...item, isFollowing: false } : item));
+      setFeedError(error instanceof Error ? error.message : "Could not follow this person.");
     }
   }
 
@@ -940,8 +964,7 @@ export default function HomeFeed() {
     }
   }
 
-  async function publishPost(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function publishPost() {
     if (!session?.user || (!newPost.trim() && !mediaUrl) || publishing || uploading) return;
     setPublishing(true);
     setFeedError("");
@@ -1080,8 +1103,8 @@ export default function HomeFeed() {
       ) : null}
       <div className="mx-auto max-w-[1440px] px-4 pt-4 sm:px-6 lg:hidden"><StoryCenter stories={stories} onStoriesChange={setStories}/></div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,640px)_320px]">
-        <section className="min-w-0">
+      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,680px)_300px]">
+        <section className="min-w-0 2xl:max-w-[680px]">
           <div className="relative mb-4 flex items-end justify-between">
             <div><p className="text-xs font-black uppercase tracking-[0.16em] text-[#6d5dfc]">Home</p><h1 className="mt-1 text-2xl font-black tracking-[-0.04em] text-gray-950">Your feed</h1></div>
             <button type="button" onClick={() => setFeedModeOpen((value) => !value)} className="social-icon-button bg-white/70" aria-label="Customize feed" aria-expanded={feedModeOpen}><Sparkles size={17}/></button>
@@ -1098,49 +1121,47 @@ export default function HomeFeed() {
 
           {feedError ? <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600"><span>{feedError}</span><button onClick={() => setFeedError("")} aria-label="Dismiss"><X size={14}/></button></div> : null}
 
-          <form id="create-post" onSubmit={publishPost} className="social-card mb-5 scroll-mt-24 rounded-3xl p-4">
-            <div className="flex gap-3">
-              <Avatar name={session?.user?.name ?? "You"} image={session?.user?.image} accent="from-gray-800 to-gray-500"/>
-              <div className="min-w-0 flex-1">
-                <textarea ref={composerRef} value={newPost} onChange={(event) => { setNewPost(event.target.value); event.currentTarget.style.height = "auto"; event.currentTarget.style.height = Math.min(event.currentTarget.scrollHeight, 8 * 24) + "px"; }} disabled={!session?.user || publishing || uploading} rows={1} maxLength={5000} className="w-full resize-none rounded-2xl bg-gray-50 px-4 py-3 text-sm font-medium outline-none placeholder:text-gray-500 focus:bg-white focus:ring-4 focus:ring-[#6d5dfc]/10 disabled:cursor-not-allowed disabled:opacity-70" placeholder={session?.user ? "What’s happening?" : "Sign in to share a post…"} />
-                {mediaPreview ? (
-                  <div className="relative mt-3 overflow-hidden rounded-2xl border border-gray-200 bg-white">
-                    <img src={mediaPreview} alt="Selected media preview" className="max-h-64 w-full object-cover"/>
-                    {uploading ? <div className="absolute inset-0 grid place-items-center bg-black/25 text-white"><Loader2 size={22} className="animate-spin"/></div> : null}
-                    <button type="button" onClick={() => { setMediaPreview(null); setMediaUrl(null); }} className="absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-black/60 text-white" aria-label="Remove selected photo"><X size={15}/></button>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
-            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(event) => void uploadPhoto(event)} />
-
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
-              <div className="flex flex-wrap gap-1.5">
-                <button type="button" disabled={!session?.user || publishing || uploading} onClick={() => fileRef.current?.click()} className="flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 text-xs font-bold text-gray-500 hover:bg-gray-50 disabled:opacity-40"><ImageIcon size={17} className="text-emerald-500"/>Photo</button>
-                <label className="flex min-h-10 items-center gap-1 rounded-xl bg-gray-50 px-2.5 text-xs font-black text-gray-500">
-                  <ShieldAlert size={13} />
-                  <select value={visibility} onChange={(event) => setVisibility(event.target.value as Post["visibility"])} disabled={!session?.user} className="appearance-none bg-transparent pr-1 outline-none">
-                    <option value="PUBLIC">Public</option>
-                    <option value="FRIENDS">Friends</option>
-                    <option value="PRIVATE">Only me</option>
-                  </select>
-                </label>
-              </div>
-              {session?.user ? <div className="flex items-center gap-2"><span className={"text-xs font-medium " + (newPost.length > 4500 ? "text-amber-600" : "text-gray-500")}>{newPost.length > 4500 ? newPost.length + "/5000" : ""}</span><button type="submit" disabled={!canSubmit} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white transition active:scale-[.98] disabled:opacity-50">{publishing ? "Posting…" : "Post"}</button></div> : <Link href="/login" className="rounded-xl bg-[#6d5dfc] px-4 py-2.5 text-xs font-black text-white">Sign in</Link>}
-            </div>
-          </form>
+          <PostComposer
+            userId={session?.user?.id}
+            name={session?.user?.name ?? "You"}
+            image={session?.user?.image}
+            value={newPost}
+            visibility={visibility}
+            mediaPreview={mediaPreview}
+            uploading={uploading}
+            publishing={publishing}
+            disabled={!session?.user}
+            canSubmit={canSubmit}
+            onChange={(value) => {
+              setNewPost(value);
+              if (composerRef.current) {
+                composerRef.current.style.height = "auto";
+                composerRef.current.style.height = Math.min(composerRef.current.scrollHeight, 8 * 24) + "px";
+              }
+            }}
+            onVisibilityChange={setVisibility}
+            onMediaClick={() => fileRef.current?.click()}
+            onRemoveMedia={() => { setMediaPreview(null); setMediaUrl(null); }}
+            onEmoji={() => setNewPost((value) => value + (value.trim() ? " " : "") + "😊")}
+            onSubmit={() => void publishPost()}
+          />
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(event) => void uploadPhoto(event)} />
 
           <div className="space-y-5">
-            {feedPosts.length > 0 ? feedPosts.map((post) => (
-              <PostCard key={post.id} post={post} currentUserId={session?.user?.id} onRemove={(postId) => setFeedPosts((current) => current.filter((item) => item.id !== postId))}/>
-            )) : (
-              <section className="social-card rounded-3xl p-10 text-center">
-                <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><MessageCircle size={20}/></span>
-                <h2 className="mt-4 text-sm font-black">{session?.user ? "Your feed is empty" : "Sign in to build your feed"}</h2>
-                <p className="mt-2 text-xs leading-5 text-gray-500">{session?.user ? "Follow people or add your first post to start filling your feed." : "Real posts from the people you connect with will appear here."}</p>
-                {!session?.user ? <Link href="/login" className="mt-4 inline-flex rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white">Sign in</Link> : <Link href="/discover" className="mt-4 inline-flex rounded-xl bg-[#6d5dfc] px-4 py-2.5 text-xs font-black text-white">Discover people</Link>}
-              </section>
+            {loadingFeed ? (
+              <div className="space-y-4">{[1, 2, 3].map((item) => <SkeletonCard key={item} />)}</div>
+            ) : feedPosts.length > 0 ? (
+              feedPosts.map((post) => (
+                <PostCard key={post.id} post={post} currentUserId={session?.user?.id} onRemove={(postId) => setFeedPosts((current) => current.filter((item) => item.id !== postId))}/>
+              ))
+            ) : (
+              <EmptyState
+                icon={<MessageCircle size={21} aria-hidden="true" />}
+                title={session?.user ? "Your feed is quiet" : "Sign in to build your feed"}
+                description={session?.user ? "Follow people or publish your first post to bring your home feed to life." : "Sign in to see posts and conversations from the people you connect with."}
+                actionLabel={session?.user ? "Discover people" : "Sign in"}
+                actionHref={session?.user ? "/discover" : "/login"}
+              />
             )}
 
             {nextBefore ? (
@@ -1157,20 +1178,28 @@ export default function HomeFeed() {
           <div className="sticky top-24 space-y-5">
             <StoryCenter stories={visibleStories} onStoriesChange={setStories}/>
 
-            <section className="social-card rounded-3xl p-5">
-              <div className="flex items-center justify-between"><h2 className="text-sm font-black tracking-[-0.02em]">People to follow</h2><Link href="/discover" className="text-xs font-bold text-[#6d5dfc]">View all</Link></div>
-              <div className="mt-4 space-y-4">
-                {suggestedUsers.map((user, index) => (
-                  <div key={user.id} className="flex items-center gap-3">
-                    <Avatar name={user.name} image={user.image} accent={["from-fuchsia-500 to-orange-400","from-sky-500 to-indigo-500","from-amber-400 to-rose-500"][index % 3]} />
-                    <div className="min-w-0 flex-1">
-                      <Link href={`/profile/${user.username ?? user.id}`} className="block truncate text-xs font-extrabold text-gray-900 hover:text-[#5a4be8]">{user.name}</Link>
-                      <p className="truncate text-xs font-medium text-gray-500">@{user.username ?? "member"}</p>
-                    </div>
-                    <Link href={`/discover?q=${encodeURIComponent(user.username ?? user.name)}`} className="grid size-9 place-items-center rounded-xl bg-gray-950 text-white" aria-label={`Find ${user.name} in Discover`}><Plus size={16}/></Link>
-                  </div>
+                        <section className="social-card rounded-3xl p-4">
+              <div className="flex items-center justify-between">
+                <div><h2 className="text-sm font-black">People to follow</h2><p className="mt-1 text-[11px] text-[var(--muted)]">A few people you may know.</p></div>
+                <Link href="/discover" className="text-xs font-black text-[var(--accent)]">View all</Link>
+              </div>
+              <div className="mt-3 space-y-1.5">
+                {suggestedUsers.map((user) => (
+                  <FollowSuggestion key={user.id} {...user} onFollow={(id) => void followSuggestedUser(id)} onDismiss={(id) => setSuggestedUsers((items) => items.filter((item) => item.id !== id))} />
                 ))}
-                {!suggestedUsers.length ? <p className="py-3 text-xs text-gray-500">No new people to show right now.</p> : null}
+                {!suggestedUsers.length ? <p className="px-2 py-4 text-xs text-[var(--muted)]">No new people to show right now.</p> : null}
+              </div>
+            </section>
+
+            <section className="social-card rounded-3xl p-4">
+              <div><h2 className="text-sm font-black">Trending topics</h2><p className="mt-1 text-[11px] text-[var(--muted)]">What people are talking about.</p></div>
+              <div className="mt-3 space-y-1">
+                {[["#Socialhub", "1.2k posts"], ["#Photography", "846 posts"], ["#Weekend", "612 posts"], ["#TechTalk", "488 posts"]].map(([tag, count], index) => (
+                  <Link key={tag} href={"/discover?q=" + encodeURIComponent(tag)} className="flex min-h-11 items-center justify-between rounded-2xl px-3 hover:bg-[var(--surface-muted)]">
+                    <span><span className="block text-xs font-black">{tag}</span><span className="text-[10px] font-medium text-[var(--muted)]">Trending #{index + 1}</span></span>
+                    <span className="text-[10px] font-semibold text-[var(--muted)]">{count}</span>
+                  </Link>
+                ))}
               </div>
             </section>
 
@@ -1178,6 +1207,7 @@ export default function HomeFeed() {
         </aside>
       </div>
 
+      <Toast message={toast} onClose={() => setToast("")} />
     </main>
     </AppShell>
   );
