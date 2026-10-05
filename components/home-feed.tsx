@@ -13,6 +13,7 @@ import { useLivePoll } from "@/hooks/use-live-poll";
 import { compactCount, fullCount } from "@/lib/compact-count";
 import { StoryCenter } from "@/components/story-center";
 import { AccountBadge } from "@/components/account-badge";
+import { SignedInShell } from "@/components/signed-in-shell";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -1071,7 +1072,8 @@ export default function HomeFeed() {
   }, [feedPosts.length]);
 
   return (
-    <main className="min-h-screen bg-transparent pb-24 md:pb-6">
+    <SignedInShell>
+      <main className="min-h-screen bg-transparent pb-24 md:pb-6">
       {newActivityCount > 0 ? (
         <div className="sticky top-[74px] z-20 mx-auto -mb-2 flex max-w-[720px] justify-center px-4 pt-2">
           <button type="button" onClick={showPendingLivePosts} className="rounded-full border border-[#d9d4ff] bg-white/95 px-4 py-2 text-xs font-black text-[#5a4be8] shadow-lg backdrop-blur-xl">
@@ -1181,6 +1183,7 @@ export default function HomeFeed() {
       </div>
 
       <BottomNav />
-    </main>
+      </main>
+    </SignedInShell>
   );
 }
