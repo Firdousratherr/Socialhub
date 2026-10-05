@@ -8,13 +8,17 @@ export type PostSyncEvent =
 const CHANNEL_NAME = "socialhub-post-sync";
 
 type PostSyncListener = (event: PostSyncEvent) => void;
+type WireEvent = PostSyncEvent & { sourceId: string };
+const CLIENT_ID = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+  ? crypto.randomUUID()
+  : "client-" + Date.now() + "-" + Math.random().toString(36).slice(2);
 
 export function emitPostSyncEvent(event: PostSyncEvent) {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent<PostSyncEvent>(CHANNEL_NAME, { detail: event }));
+  window.dispatchEvent(new CustomEvent<PostSyncEvent>(CHANNEL_NAME, { detail: { ...event, sourceId: CLIENT_ID } as PostSyncEvent }));
   try {
     const channel = new BroadcastChannel(CHANNEL_NAME);
-    channel.postMessage(event);
+    channel.postMessage({ ...event, sourceId: CLIENT_ID } as WireEvent);
     channel.close();
   } catch {
     // BroadcastChannel is unavailable in some browsers/webviews.
@@ -30,8 +34,8 @@ export function subscribePostSync(listener: PostSyncListener) {
   };
 
   let channel: BroadcastChannel | null = null;
-  const onChannelMessage = (event: MessageEvent<PostSyncEvent>) => {
-    if (event.data) listener(event.data);
+  const onChannelMessage = (event: MessageEvent<WireEvent>) => {
+    if (event.data && event.data.sourceId !== CLIENT_ID) listener(event.data);
   };
 
   window.addEventListener(CHANNEL_NAME, onWindowEvent);
