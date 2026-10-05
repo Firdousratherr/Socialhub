@@ -5,9 +5,12 @@ import { prisma } from "@/lib/prisma";
 import { isBlocked } from "@/lib/social-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { getActiveUserRestriction } from "@/lib/user-restrictions";
+import { platformEnabled } from "@/lib/platform-controls";
 async function getSession(){return auth.api.getSession({headers:await headers()});}
 export async function POST(_request:Request,{params}:{params:Promise<{userId:string}>}){
  const session=await getSession();if(!session?.user)return NextResponse.json({error:"Authentication required."},{status:401});
+ const socialEnabled=await platformEnabled("social",true);
+ if(!socialEnabled)return NextResponse.json({error:"Following is temporarily disabled by the platform administrator."},{status:503});
  const rl=await consumeRateLimit(rateLimitKey("follow",_request,session.user.id),30,60);if(!rl.allowed)return rateLimitResponse(rl.retryAfter);
  const {userId}=await params;if(userId===session.user.id)return NextResponse.json({error:"You cannot follow yourself."},{status:400});
  const socialRestriction=await getActiveUserRestriction(session.user.id,"socialRestrictedUntil");
