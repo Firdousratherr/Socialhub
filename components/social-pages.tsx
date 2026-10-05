@@ -1250,14 +1250,21 @@ function Profile({ username = "firdous" }: { username?: string }) {
         {profileTab === "friends" ? (
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {friendsHidden ? <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><Lock className="mx-auto text-gray-500" size={20}/><p className="mt-3 text-sm font-black">Friends are private</p><p className="mt-1 text-xs text-gray-500">Only the account owner and accepted friends can view this list.</p></div> : friends.length ? friends.map((friend) => <Link key={friend.id} href={"/profile/" + encodeURIComponent(friend.username ?? friend.id)} className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:bg-white">
-              {friend.image ? <img src={friend.image} alt="" className="size-11 rounded-full object-cover"/> : <Avatar initials={friend.name.split(" ").map((part) => part[0]).join("").slice(0,2).toUpperCase()} size="md"/>}
+              {friend.image ? <img src={friend.image} alt={friend.name} className="size-11 rounded-full object-cover"/> : <Avatar initials={friend.name.split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} size="md"/>}
               <span className="min-w-0"><span className="flex items-center gap-1 truncate text-sm font-black">{friend.name}<AccountBadge verified={friend.isVerified} owner={friend.isOwner}/></span><span className="block truncate text-xs text-gray-500">@{friend.username ?? "member"}</span></span>
             </Link>) : <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><p className="text-sm font-black">No friends to show yet</p><p className="mt-1 text-xs text-gray-500">Accepted connections will appear here.</p></div>}
           </div>
+        ) : profileTab === "photos" ? (
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            {visibleProfilePosts.length ? visibleProfilePosts.map((post) => post.mediaUrl ? (
+              <Link key={post.id} href={"/home#post-" + encodeURIComponent(post.id)} className="group relative aspect-square overflow-hidden rounded-2xl bg-gray-100">
+                <img src={post.mediaUrl} alt={post.content ? post.content.slice(0, 80) : "Profile photo"} className="size-full object-cover transition duration-200 group-hover:scale-[1.02]"/>
+              </Link>
+            ) : null) : <div className="col-span-3 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center"><p className="text-sm font-black">No photos yet</p><p className="mt-1 text-xs text-gray-500">{isOwner ? "Share a post with a photo to build your gallery." : "This profile has not shared any photos."}</p></div>}
+          </div>
         ) : (
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          {visibleProfilePosts.length > 0 ? (
-            visibleProfilePosts.map((post) => (
+          <div className="mt-5 space-y-4">
+            {visibleProfilePosts.length > 0 ? visibleProfilePosts.map((post) => (
               <ProfilePostCard
                 key={post.id}
                 post={post}
@@ -1282,20 +1289,20 @@ function Profile({ username = "firdous" }: { username?: string }) {
                   } : current);
                 }}
               />
-            ))          ) : (
-            <div className="sm:col-span-2 rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center">
-              <p className="text-sm font-black">{profileTab === "photos" ? "No photos yet" : "No public posts yet"}</p>
-              <p className="mt-1 text-xs text-gray-500">{isOwner ? "Share your first post from the home feed." : "This profile has not shared any public posts."}</p>
-            </div>
-          )}
-          {nextProfilePostsCursor ? (
-            <div className="mt-4 flex justify-center">
-              <button type="button" onClick={() => void loadMoreProfilePosts()} disabled={loadingMoreProfilePosts} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-600 disabled:opacity-50">
-                {loadingMoreProfilePosts ? "Loading older posts…" : "Load older posts"}
-              </button>
-            </div>
-          ) : null}
-        </div>
+            )) : (
+              <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center">
+                <p className="text-sm font-black">No public posts yet</p>
+                <p className="mt-1 text-xs text-gray-500">{isOwner ? "Share your first post from the home feed." : "This profile has not shared any public posts."}</p>
+              </div>
+            )}
+            {nextProfilePostsCursor ? (
+              <div className="mt-4 flex justify-center">
+                <button type="button" onClick={() => void loadMoreProfilePosts()} disabled={loadingMoreProfilePosts} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-600 disabled:opacity-50">
+                  {loadingMoreProfilePosts ? "Loading older posts…" : "Load older posts"}
+                </button>
+              </div>
+            ) : null}
+          </div>
         )}
       </div>
     </div>
