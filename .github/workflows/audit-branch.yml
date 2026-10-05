@@ -1,0 +1,22 @@
+name: Socialhub Branch Audit
+on:
+  push:
+    branches: ["audit-improvements-2026-10-05"]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run db:validate
+      - run: npm run typecheck
+      - run: node scripts/repository-smoke.mjs
+      - run: node --test tests/blueprint-contracts.test.mjs
+      - run: npm run lint
+      - run: npm run build:ci
