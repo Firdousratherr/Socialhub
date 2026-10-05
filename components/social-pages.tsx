@@ -7,13 +7,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { AdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
-import { MobileMenu } from "@/components/mobile-menu";
 import { emitPostSyncEvent } from "@/lib/post-sync";
 import { compactCount, fullCount } from "@/lib/compact-count";
 import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
 import { emitUnreadSummarySync } from "@/hooks/use-unread-summary";
 import { useLivePoll } from "@/hooks/use-live-poll";
-import { BottomNav } from "@/components/bottom-nav";
+import { AppShell } from "@/components/app-shell";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
@@ -66,26 +65,24 @@ function Page({
 
   return (
     <main className="min-h-screen pb-24 md:pb-8">
-      <div className="mx-auto max-w-[1100px] px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-        <div className="mb-6 flex items-start justify-between gap-3">
+      <div className="mx-auto w-full max-w-[760px] px-3 py-3 sm:px-4 sm:py-5 lg:px-0">
+        <div className="mb-4 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <button type="button" onClick={goBack} className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50" aria-label="Go back">
               <ArrowLeft size={18} />
             </button>
             <div className="min-w-0">
-              {eyebrow ? <p className="text-xs font-black uppercase tracking-[0.16em] text-[#6d5dfc]">{eyebrow}</p> : null}
-              <h1 className="mt-1 text-3xl font-black tracking-[-0.045em] text-gray-950 sm:text-4xl">{title}</h1>
-              {subtitle ? <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">{subtitle}</p> : null}
+              {eyebrow ? <p className="hidden text-xs font-black uppercase tracking-[0.16em] text-[#6d5dfc] sm:block">{eyebrow}</p> : null}
+              <h1 className="page-heading mt-0">{title}</h1>
+              {subtitle ? <p className="page-description mt-1 hidden max-w-2xl sm:block">{subtitle}</p> : null}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {action}
-            <MobileMenu />
           </div>
         </div>
         {children}
       </div>
-      <BottomNav />
     </main>
   );
 }
@@ -3169,12 +3166,16 @@ function Admin({ section="overview" }: { section?: string }) {
 export function SocialPages({ screen }: { screen: Screen }) {
   if (screen.kind==="login") return <Auth/>;
   if (screen.kind==="signup") return <Auth signup/>;
-  if (screen.kind==="profile") return <Profile username={screen.username}/>;
-  if (screen.kind==="messages") return <Messages initialConversationId={screen.search}/>;
-  if (screen.kind==="discover") return <Discover/>;
-  if (screen.kind==="friends") return <Friends/>;
-  if (screen.kind==="notifications") return <Notifications/>;
-  if (screen.kind==="settings") return <SettingsPage/>;
   if (screen.kind==="admin") return <Admin section={screen.section}/>;
-  return <Page eyebrow="Socialhub" title="You're all caught up." subtitle="Use the main navigation to keep exploring the experience."><Card><div className="flex items-start gap-4"><span className="grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><Sparkles size={20}/></span><div><h2 className="font-black">This route is ready.</h2><p className="mt-2 text-sm text-gray-500">The screen shell is in place so real data can be connected without redesigning the interface.</p></div></div></Card></Page>;
+
+  const content =
+    screen.kind==="profile" ? <Profile username={screen.username}/> :
+    screen.kind==="messages" ? <Messages initialConversationId={screen.search}/> :
+    screen.kind==="discover" ? <Discover/> :
+    screen.kind==="friends" ? <Friends/> :
+    screen.kind==="notifications" ? <Notifications/> :
+    screen.kind==="settings" ? <SettingsPage/> :
+    <Page eyebrow="Socialhub" title="You're all caught up." subtitle="Use the main navigation to keep exploring the experience."><Card><div className="flex items-start gap-4"><span className="grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><Sparkles size={20}/></span><div><h2 className="font-black">This route is ready.</h2><p className="mt-2 text-sm text-gray-500">The screen shell is in place so real data can be connected without redesigning the interface.</p></div></div></Card></Page>;
+
+  return <AppShell>{content}</AppShell>;
 }
