@@ -2254,7 +2254,8 @@ function AuditWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
       const response = await fetch("/api/admin/audit?" + params.toString(), { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load audit logs.");
-      setLogs(nextBefore ? [...logs, ...(json.logs ?? [])] : json.logs ?? []);
+      const combined = [...(json.logs ?? []), ...(json.events ?? [])].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setLogs(nextBefore ? [...logs, ...combined] : combined);
       setBefore(json.nextBefore ?? null);
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "Could not load audit logs.");
