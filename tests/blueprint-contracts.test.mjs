@@ -218,7 +218,7 @@ test("comment mutations expose authoritative counts and the client can recover f
   assert.match(route, /export async function DELETE/);
   assert.match(feed, /typeof json\.commentCount === "number"/);
   assert.match(feed, />Retry<\/button>/);
-  assert.ok(feed.includes('aria-controls={"comments-" + post.id}'));
+  assert.ok(feed.includes('commentControlId={"comments-" + post.id}'));
 });
 
 test("post metric overrides have a dedicated model, migration and permission boundary", () => {
