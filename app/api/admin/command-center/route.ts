@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdminPermission } from "@/lib/admin-permissions";
+import { requireAdminPermission, hasAdminPermission } from "@/lib/admin-permissions";
 import { recordAdminEvent } from "@/lib/admin-operations";
 
 export async function GET(request: Request) {
   const access = await requireAdminPermission("ANALYTICS_VIEW");
   if (access.response) return access.response;
 
+  const canPlatformControl = await hasAdminPermission(access.user.id, access.user.role, "PLATFORM_SETTINGS");
   const now = new Date();
   const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -90,5 +91,6 @@ export async function GET(request: Request) {
     security: { failedAdminLogins, expiredSessions },
     recentEvents,
     platform: Object.fromEntries(platformSettings.map((setting) => [setting.key, { enabled: setting.value.trim().toLowerCase() === "true", updatedAt: setting.updatedAt }])),
+    capabilities: { platformControl: canPlatformControl },
   });
 }
