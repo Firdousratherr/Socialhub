@@ -18,7 +18,7 @@ async function calculate(userId: string) {
     prisma.post.count({ where: { authorId: userId, createdAt: { gte: dayAgo } } }),
     prisma.comment.count({ where: { authorId: userId, createdAt: { gte: dayAgo } } }),
     prisma.message.count({ where: { senderId: userId, createdAt: { gte: dayAgo } } }),
-    prisma.follow.count({ where: { followerId: userId, createdAt: { gte: dayAgo } }),
+    prisma.follow.count({ where: { followerId: userId, createdAt: { gte: dayAgo } } }),
     prisma.friendRequest.count({ where: { senderId: userId, createdAt: { gte: dayAgo } } }),
     prisma.adminRiskSignal.count({ where: { userId, resolvedAt: null } }),
   ]);
