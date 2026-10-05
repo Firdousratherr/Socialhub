@@ -592,6 +592,57 @@ test("story viewer exposes position and progress", () => {
   assert.match(story, /viewerIndex/);
 });
 
+test("profile actions escape the clipped profile card and remain accessible on mobile", () => {
+  const page = read("components/social-pages.tsx");
+  assert.match(page, /createPortal/);
+  assert.match(page, /document\.body/);
+  assert.match(page, /profileMenuButtonRef/);
+  assert.match(page, /profileMenuRef/);
+});
+
+test("stories expose authoritative views, reactions, replies, and owner viewers", () => {
+  const feed = read("app/api/stories/route.ts");
+  const detail = read("app/api/stories/[storyId]/route.ts");
+  const storyUi = read("components/story-center.tsx");
+  const schema = read("prisma/schema.prisma");
+  assert.match(feed, /viewCount/);
+  assert.match(feed, /reactionCount/);
+  assert.match(feed, /replyCount/);
+  assert.match(detail, /storyView\.findMany/);
+  assert.match(detail, /reactionCounts/);
+  assert.match(detail, /viewers/);
+  assert.match(detail, /authorId: session\.user\.id/);
+  assert.match(storyUi, /Story viewers/);
+  assert.match(storyUi, /views/);
+  assert.match(storyUi, /likes/);
+  assert.match(storyUi, /replies/);
+  assert.match(schema, /model StoryView/);
+  assert.match(schema, /model StoryReply/);
+  assert.match(schema, /model StoryReaction/);
+});
+
+test("story replies and reactions have dedicated preference-aware notifications", () => {
+  const route = read("app/api/stories/[storyId]/route.ts");
+  const notifications = read("app/api/notifications/route.ts");
+  const prefs = read("app/api/notification-preferences/route.ts");
+  const pages = read("components/social-pages.tsx");
+  const schema = read("prisma/schema.prisma");
+  const migration = read("prisma/migrations/20261005180000_story_activity_notifications/migration.sql");
+  assert.match(route, /type: "STORY_REPLY"/);
+  assert.match(route, /type: "STORY_REACTION"/);
+  assert.match(notifications, /STORY_REPLY/);
+  assert.match(notifications, /STORY_REACTION/);
+  assert.match(prefs, /storyReplies/);
+  assert.match(prefs, /storyReactions/);
+  assert.match(pages, /Story replies/);
+  assert.match(pages, /Story reactions/);
+  assert.match(schema, /STORY_REPLY/);
+  assert.match(schema, /STORY_REACTION/);
+  assert.match(schema, /storyId/);
+  assert.match(migration, /STORY_REPLY/);
+  assert.match(migration, /STORY_REACTION/);
+});
+
 
 test("mobile navigation has keyboard focus containment", () => {
   const menu = read("components/mobile-menu.tsx");
