@@ -1098,7 +1098,7 @@ export default function HomeFeed() {
       ) : null}
       <div className="mx-auto max-w-[1440px] px-4 pt-4 sm:px-6 lg:hidden"><StoryCenter stories={stories} onStoriesChange={setStories}/></div>
 
-      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,680px)_300px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,680px)_300px]">
         <section className="min-w-0 2xl:max-w-[680px]">
           <div className="relative mb-4 flex items-end justify-between">
             <div><p className="text-xs font-black uppercase tracking-[0.16em] text-[#6d5dfc]">Home</p><h1 className="mt-1 text-2xl font-black tracking-[-0.04em] text-gray-950">Your feed</h1></div>
