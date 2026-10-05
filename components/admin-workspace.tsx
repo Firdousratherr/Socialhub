@@ -1571,6 +1571,8 @@ function PostsPanel({ onNotice }: { onNotice: (value: string) => void }) {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState({ likes: "", comments: "", shares: "" });
 
   async function load() {
     setLoading(true);
@@ -1590,6 +1592,16 @@ function PostsPanel({ onNotice }: { onNotice: (value: string) => void }) {
     void load();
   }, [query]);
 
+  function beginMetrics(post: any) {
+    const override = post.postMetricOverride;
+    setEditingId(post.id);
+    setDraft({
+      likes: override?.likes == null ? "" : String(override.likes),
+      comments: override?.comments == null ? "" : String(override.comments),
+      shares: override?.shares == null ? "" : String(override.shares),
+    });
+  }
+
   async function update(id: string, patch: Record<string, unknown>) {
     setBusy(id);
     try {
@@ -1601,12 +1613,27 @@ function PostsPanel({ onNotice }: { onNotice: (value: string) => void }) {
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not update post.");
       onNotice("Post updated and audited.");
+      setEditingId(null);
       await load();
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "Could not update post.");
     } finally {
       setBusy(null);
     }
+  }
+
+  async function saveMetrics(id: string) {
+    const parse = (value: string) => (value.trim() === "" ? null : Number(value));
+    const metrics = {
+      likes: parse(draft.likes),
+      comments: parse(draft.comments),
+      shares: parse(draft.shares),
+    };
+    if (Object.values(metrics).some((value) => value !== null && (!Number.isInteger(value) || value < 0))) {
+      onNotice("Display metrics must be whole numbers greater than or equal to zero.");
+      return;
+    }
+    await update(id, { metrics });
   }
 
   async function remove(id: string) {
@@ -1640,6 +1667,7 @@ function PostsPanel({ onNotice }: { onNotice: (value: string) => void }) {
         <div className="divide-y divide-gray-100">
           {posts.map((post) => {
             const override = post.postMetricOverride;
+            const editing = editingId === post.id;
             return (
               <div key={post.id} className="p-4 sm:p-5">
                 <div className="flex flex-col gap-3 lg:flex-row">
@@ -1653,10 +1681,32 @@ function PostsPanel({ onNotice }: { onNotice: (value: string) => void }) {
                     <p className="mt-2 text-[10px] text-gray-400">
                       Live: {compact(post._count.likes)} likes · {compact(post._count.comments)} comments · {compact(post.shareCount)} shares
                     </p>
-                    {override ? (
-                      <p className="mt-1 text-[10px] font-bold text-violet-600">
-                        Public display: {compact(override.likes ?? post._count.likes)} likes · {compact(override.comments ?? post._count.comments)} comments · {compact(override.shares ?? post.shareCount)} shares
-                      </p>
+                    <p className="mt-1 text-[10px] font-bold text-violet-600">
+                      Public display: {compact(override?.likes ?? post._count.likes)} likes · {compact(override?.comments ?? post._count.comments)} comments · {compact(override?.shares ?? post.shareCount)} shares
+                    </p>
+                    {editing ? (
+                      <div className="mt-3 grid gap-2 rounded-2xl border border-violet-100 bg-violet-50/70 p-3 sm:grid-cols-3">
+                        {(["likes", "comments", "shares"] as const).map((key) => (
+                          <label key={key} className="block">
+                            <span className="mb-1 block text-[9px] font-black uppercase tracking-[0.12em] text-violet-600">{key}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              inputMode="numeric"
+                              value={draft[key]}
+                              onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))}
+                              placeholder={String(key === "likes" ? post._count.likes : key === "comments" ? post._count.comments : post.shareCount)}
+                              className="h-9 w-full rounded-xl border border-violet-100 bg-white px-3 text-xs outline-none"
+                            />
+                          </label>
+                        ))}
+                        <div className="flex flex-wrap gap-2 sm:col-span-3">
+                          <MiniAction label="Save display metrics" onClick={() => void saveMetrics(post.id)} />
+                          <MiniAction label="Reset to live" onClick={() => void update(post.id, { metrics: { likes: null, comments: null, shares: null } })} />
+                          <MiniAction label="Cancel" onClick={() => setEditingId(null)} />
+                        </div>
+                      </div>
                     ) : null}
                   </div>
                   <div className="flex flex-wrap gap-2 lg:w-64 lg:justify-end">
@@ -1669,7 +1719,7 @@ function PostsPanel({ onNotice }: { onNotice: (value: string) => void }) {
                       <option>FRIENDS</option>
                       <option>PRIVATE</option>
                     </select>
-                    <MiniAction label={override ? "Reset metrics" : "Display metrics"} onClick={() => void update(post.id, { metrics: { likes: null, comments: null, shares: null } })} />
+                    {!editing ? <MiniAction label="Edit display metrics" onClick={() => beginMetrics(post)} /> : null}
                     <MiniAction label="Delete" danger={true} onClick={() => void remove(post.id)} />
                   </div>
                 </div>
