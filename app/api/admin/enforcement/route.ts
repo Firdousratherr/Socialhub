@@ -96,10 +96,21 @@ export async function POST(request: Request) {
   if (action === "UNVERIFY") { data.isVerified = false; }
   
   if (Object.keys(data).length) {
-    await prisma.user.update({ where: { id: target.id }, data });
+    await prisma.user.update({ where: { id: target.id }, data: data as any });
   }
   if (action === "REVOKE_SESSIONS" || action === "DISABLE" || action === "SUSPEND" || action === "RESTORE") {
     await prisma.session.deleteMany({ where: { userId: target.id } });
+  }
+
+  if (action === "VERIFY" || action === "UNVERIFY") {
+    await prisma.verificationAudit.create({
+      data: {
+        userId: target.id,
+        adminId: access.user.id,
+        action: action === "VERIFY" ? "GRANTED" : "REVOKED",
+        reason: parsed.data.reason,
+      },
+    });
   }
 
   if (action === "WARN") {
