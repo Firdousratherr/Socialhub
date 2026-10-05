@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
+import { AdminWorkspace } from "@/components/admin-workspace";
 import { AdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
 import { emitPostSyncEvent } from "@/lib/post-sync";
@@ -3313,7 +3314,7 @@ function SettingsPage() {
   </Page>;
 }
 function Admin({ section="overview" }: { section?: string }) {
-  return <AdminPanel section={section}/>;
+  return <AdminWorkspace section={section}/>;
 }
 export function SocialPages({ screen }: { screen: Screen }) {
   if (screen.kind==="login") return <Auth/>;
