@@ -24,7 +24,9 @@ export async function GET(request: Request) {
     preferences.mentions ? "MENTION" : null,
     preferences.shares ? "SHARE" : null,
     preferences.system ? "SYSTEM" : null,
-  ].filter(Boolean) as Array<"LIKE"|"COMMENT"|"FOLLOW"|"FRIEND_REQUEST"|"FRIEND_ACCEPTED"|"MESSAGE"|"MENTION"|"SHARE"|"SYSTEM">;
+    preferences.storyReplies ? "STORY_REPLY" : null,
+    preferences.storyReactions ? "STORY_REACTION" : null,
+  ].filter(Boolean) as Array<"LIKE"|"COMMENT"|"FOLLOW"|"FRIEND_REQUEST"|"FRIEND_ACCEPTED"|"MESSAGE"|"MENTION"|"SHARE"|"SYSTEM"|"STORY_REPLY"|"STORY_REACTION">;
 
   const before = new URL(request.url).searchParams.get("before");
   let cursor: { createdAt: Date; id: string } | null = null;
@@ -53,6 +55,7 @@ export async function GET(request: Request) {
       post: { select: { id: true, content: true, mediaUrl: true } },
       comment: { select: { id: true, content: true } },
       message: { select: { id: true, conversationId: true } },
+      story: { select: { id: true } },
     },
   });
 
