@@ -859,6 +859,7 @@ test("admin bulk operations provide a dry-run safety preview", () => {
   assert.match(ui, /No data was changed|no changes made/);
 });
 
+
 test("private page routing has a centralized authentication policy and login return path", () => {
   const access = read("lib/route-access.ts");
   const policy = read("lib/route-policy.ts");
@@ -892,21 +893,12 @@ test("authentication forms preserve the originally requested internal route", ()
   assert.match(page, /router\.replace\(nextPath\)/);
   assert.match(route, /sanitizeNextPath\(nextParam/);
 });
-test("public and private page policy does not expose ordinary social routes anonymously", () => {
+
+test("public and private page policy distinguishes auth entry points from social routes", () => {
   const policy = read("lib/route-policy.ts");
   const proxy = read("proxy.ts");
   for (const path of ["/", "/login", "/signup", "/admin/login", "/two-factor"]) {
-    assert.match(policy, new RegExp(JSON.stringify(path).slice(1, -1).replace(/[.*+?^$()|[\]\\]/g, "\\test("public and private page policy does not expose ordinary social routes anonymously", () => {
-  const access = read("lib/route-access.ts");
-  const proxy = read("proxy.ts");
-  for (const path of ["/", "/login", "/signup", "/admin/login", "/two-factor"]) {
-    assert.match(access, new RegExp(JSON.stringify(path).slice(1, -1).replace(/[.*+?^$()|[\]\\]/g, "\\$&")));
-  }
-  assert.match(proxy, /isPublicPagePath/);
-  assert.match(proxy, /matcher:/);
-  assert.match(proxy, /\/login/);
-  assert.match(proxy, /matcher:\s*\[/);\n  assert.match(proxy, /_next/);
-});")));
+    assert.match(policy, new RegExp(JSON.stringify(path).slice(1, -1).replace(/[.*+?^$()|[\]\\]/g, "\\$&")));
   }
   assert.match(proxy, /isPublicPagePath/);
   assert.match(proxy, /matcher:\s*\[/);
