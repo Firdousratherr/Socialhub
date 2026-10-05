@@ -413,7 +413,7 @@ test("friend and message read actions refresh global unread state immediately", 
 test("mobile message composer remains visible inside a bounded chat viewport", () => {
   const page = read("components/social-pages.tsx");
   assert.match(page, /messages-shell/);
-  assert.match(page, /h-\[calc\(100dvh-150px\)\]/);
+  assert.match(page, /h-\[calc\(100dvh-var\(--header-h\)-var\(--page-pad\)\)\]/);
   assert.match(page, /message-composer/);
   assert.doesNotMatch(page, /min-h-\[calc\(100dvh-150px\)\]/);
 });
