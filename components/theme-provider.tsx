@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useLayoutEffect } from "react";
+import { useLayoutEffect, type ReactNode } from "react";
 
 const THEME_KEY = "socialhub:theme";
 
