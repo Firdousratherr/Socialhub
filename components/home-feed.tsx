@@ -21,6 +21,8 @@ import {
   Search,
   Send,
   Share2,
+  Bookmark,
+  Users,
   ShieldAlert,
   Sparkles,
   Trash2,
