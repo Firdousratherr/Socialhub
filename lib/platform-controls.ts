@@ -15,3 +15,7 @@ export async function getBooleanSetting(key: string, defaultValue: boolean) {
   if (value === null) return defaultValue;
   return value.trim().toLowerCase() === "true";
 }
+
+export async function platformEnabled(key: string, defaultValue = true) {
+  return getBooleanSetting("platform." + key + ".enabled", defaultValue);
+}
