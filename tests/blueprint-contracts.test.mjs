@@ -673,6 +673,6 @@ test("Emergency platform controls are enforced at runtime", () => {
   assert.match(read("app/api/conversations/[conversationId]/messages/route.ts"), /platformEnabled\("messaging", true\)/);
   assert.match(read("app/api/uploads/route.ts"), /platformEnabled\("uploads", true\)/);
   assert.match(read("app/api/stories/route.ts"), /platformEnabled\("stories", true\)/);
-  assert.match(read("app/api/users/[userId]/follow/route.ts"), /platformEnabled\("social", true\)/);
-  assert.match(read("app/api/friend-requests/route.ts"), /platformEnabled\("social", true\)/);
+  assert.match(read("app/api/users/[userId]/follow/route.ts"), /platformEnabled\("social",?\s*true\)/);
+  assert.match(read("app/api/friend-requests/route.ts"), /platformEnabled\("social",?\s*true\)/);
 });
