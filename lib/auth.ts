@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
-import { emailOTP, twoFactor } from "better-auth/plugins";\nimport { expo } from "@better-auth/expo";
+import { emailOTP, twoFactor } from "better-auth/plugins";
+import { expo } from "@better-auth/expo";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
 import { sendTransactionalEmail } from "@/lib/email";
@@ -149,7 +150,8 @@ export const auth = betterAuth({
           `Open this link to choose a new password: ${url}`,
           "",
           "This link expires in 1 hour. If you did not request this, you can ignore this email.",
-        ].join("\n"),
+        ].join("
+"),
         html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h2>Reset your Socialhub password</h2><p>Hi ${user.name},</p><p>We received a request to reset your password.</p><p><a href="${url}">Reset your password</a></p><p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p></div>`,
       });
     },
