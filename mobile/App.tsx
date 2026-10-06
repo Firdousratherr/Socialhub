@@ -21,6 +21,8 @@ import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-cont
 import { AppHeader, MenuDrawer, type MobileRoute } from "./components/MobileShell";
 import FriendsScreen from "./screens/FriendsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
+import SavedScreen from "./screens/SavedScreen";
+import { Share } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { authClient } from "./lib/auth-client";
 import { apiFetch, uploadMedia } from "./lib/api";
@@ -409,15 +411,17 @@ function PostCard({
   onChanged: (next: Post) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [comments, setComments] = useState<Array<{ id: string; content: string; createdAt: string; author: User }>>([]);
+  const [commentText, setCommentText] = useState("");
+  const [reactionOpen, setReactionOpen] = useState(false);
 
   const mutatePost = async (action: "like" | "save") => {
     if (busy) return;
     setBusy(true);
     try {
       const liked = action === "like" ? post.liked : post.saved;
-      const endpoint = action === "like"
-        ? `/api/posts/${post.id}/like`
-        : `/api/posts/${post.id}/save`;
+      const endpoint = action === "like" ? `/api/posts/${post.id}/like` : `/api/posts/${post.id}/save`;
       const data = await apiFetch<{ liked?: boolean; count?: number; saved?: boolean }>(endpoint, {
         method: liked ? "DELETE" : "POST",
         body: action === "save" ? JSON.stringify({}) : undefined,
@@ -431,43 +435,121 @@ function PostCard({
           : post.displayCounts,
       });
     } catch (e) {
-      Alert.alert("SocialHub", e instanceof Error ? e.message : "Unable to update post.");
+      Alert.alert("Socialhub", e instanceof Error ? e.message : "Unable to update post.");
     } finally {
       setBusy(false);
     }
   };
 
+  const loadComments = async () => {
+    try {
+      const data = await apiFetch<{ comments: Array<{ id: string; content: string; createdAt: string; author: User }> }>(`/api/posts/${post.id}/comments?take=30`);
+      setComments(data.comments ?? []);
+      setCommentOpen(true);
+    } catch (e) {
+      Alert.alert("Comments", e instanceof Error ? e.message : "Unable to load comments.");
+    }
+  };
+
+  const sendComment = async () => {
+    const content = commentText.trim();
+    if (!content) return;
+    try {
+      const data = await apiFetch<{ comment: { id: string; content: string; createdAt: string; author: User }; commentCount: number }>(`/api/posts/${post.id}/comments`, {
+        method: "POST",
+        body: JSON.stringify({ content }),
+      });
+      setComments((items) => [...items, data.comment]);
+      setCommentText("");
+      onChanged({ ...post, displayCounts: { ...post.displayCounts, comments: data.commentCount } });
+    } catch (e) {
+      Alert.alert("Comments", e instanceof Error ? e.message : "Unable to comment.");
+    }
+  };
+
+  const react = async (emoji: string) => {
+    try {
+      const current = post.myReaction;
+      const data = current === emoji
+        ? await apiFetch<{ reaction: null }>(`/api/posts/${post.id}/reaction`, { method: "DELETE" })
+        : await apiFetch<{ reaction: { emoji: string } }>(`/api/posts/${post.id}/reaction`, {
+            method: "POST",
+            body: JSON.stringify({ emoji }),
+          });
+      const nextEmoji = "reaction" in data && data.reaction ? data.reaction.emoji : null;
+      const nextCounts = post.reactions.map((item) => ({ ...item }));
+      if (current) {
+        const index = nextCounts.findIndex((item) => item.emoji === current);
+        if (index >= 0) nextCounts[index] = { ...nextCounts[index], count: Math.max(0, nextCounts[index].count - 1) };
+      }
+      if (nextEmoji) {
+        const index = nextCounts.findIndex((item) => item.emoji === nextEmoji);
+        if (index >= 0) nextCounts[index] = { ...nextCounts[index], count: nextCounts[index].count + 1 };
+        else nextCounts.push({ emoji: nextEmoji, count: 1 });
+      }
+      onChanged({ ...post, myReaction: nextEmoji, reactions: nextCounts });
+      setReactionOpen(false);
+    } catch (e) {
+      Alert.alert("Reaction", e instanceof Error ? e.message : "Unable to update reaction.");
+    }
+  };
+
+  const sharePost = async () => {
+    try {
+      await Share.share({ message: `${post.content || "Shared a Socialhub post"}\nhttps://socialhub-ruby.vercel.app/home#post-${post.id}` });
+      const data = await apiFetch<{ shareCount: number }>(`/api/posts/${post.id}/share`, { method: "POST" });
+      onChanged({ ...post, displayCounts: { ...post.displayCounts, shares: data.shareCount } });
+    } catch (e) {
+      if (!(e instanceof Error && e.message.includes("cancel"))) Alert.alert("Share", e instanceof Error ? e.message : "Unable to share.");
+    }
+  };
+
   return (
-    <View style={styles.postCard}>
-      <View style={styles.row}>
-        <Avatar user={post.author} />
-        <View style={styles.flex}>
-          <Text style={styles.userName}>{post.author.name}</Text>
-          <Text style={styles.userHandle}>@{post.author.username ?? "socialhub"} · {formatTime(post.createdAt)}</Text>
+    <>
+      <View style={styles.postCard}>
+        <View style={styles.row}>
+          <Avatar user={post.author} />
+          <View style={styles.flex}>
+            <Text style={styles.userName}>{post.author.name}</Text>
+            <Text style={styles.userHandle}>@{post.author.username ?? "socialhub"} · {formatTime(post.createdAt)}</Text>
+          </View>
+          <Pressable onPress={() => setReactionOpen((v) => !v)} style={styles.reactionMenuButton}><Text style={styles.actionText}>☺</Text></Pressable>
         </View>
+        {post.content ? <Text style={styles.postText}>{post.content}</Text> : null}
+        {post.mediaUrl ? <Image source={{ uri: post.mediaUrl }} style={styles.postMedia} resizeMode="cover" /> : null}
+        {post.reactions.length ? <Text style={styles.reactionSummary}>{post.reactions.filter(r => r.count > 0).map(r => `${r.emoji} ${formatCount(r.count)}`).join("  ")}</Text> : null}
+        <View style={styles.metricsRow}>
+          <Text style={styles.muted}>{formatCount(post.displayCounts.likes)} likes</Text>
+          <Text style={styles.muted}>{formatCount(post.displayCounts.comments)} comments</Text>
+          <Text style={styles.muted}>{formatCount(post.displayCounts.shares)} shares</Text>
+        </View>
+        <View style={styles.actionRow}>
+          <Pressable style={styles.actionButton} onPress={() => void mutatePost("like")}><Text style={[styles.actionText, post.liked && styles.activeAction]}>{post.liked ? "♥ Liked" : "♡ Like"}</Text></Pressable>
+          <Pressable style={styles.actionButton} onPress={() => void loadComments()}><Text style={styles.actionText}>💬 Comment</Text></Pressable>
+          <Pressable style={styles.actionButton} onPress={() => void sharePost()}><Text style={styles.actionText}>↗ Share</Text></Pressable>
+          <Pressable style={styles.actionButton} onPress={() => void mutatePost("save")}><Text style={[styles.actionText, post.saved && styles.activeAction]}>🔖 {post.saved ? "Saved" : "Save"}</Text></Pressable>
+        </View>
+        {reactionOpen ? <View style={styles.reactionPicker}>{["❤️","😂","😮","😢","🔥","👍"].map(e => <Pressable key={e} onPress={() => void react(e)} style={styles.reactionPickerItem}><Text style={styles.reactionPickerEmoji}>{e}</Text></Pressable>)}</View> : null}
       </View>
-      {post.content ? <Text style={styles.postText}>{post.content}</Text> : null}
-      {post.mediaUrl ? <Image source={{ uri: post.mediaUrl }} style={styles.postMedia} resizeMode="cover" /> : null}
-      <View style={styles.metricsRow}>
-        <Text style={styles.muted}>{formatCount(post.displayCounts.likes)} likes</Text>
-        <Text style={styles.muted}>{formatCount(post.displayCounts.comments)} comments</Text>
-        <Text style={styles.muted}>{formatCount(post.displayCounts.shares)} shares</Text>
-      </View>
-      <View style={styles.actionRow}>
-        <Pressable style={styles.actionButton} onPress={() => void mutatePost("like")}>
-          <Text style={[styles.actionText, post.liked && styles.activeAction]}>{post.liked ? "♥ Liked" : "♡ Like"}</Text>
-        </Pressable>
-        <Pressable style={styles.actionButton} onPress={() => Alert.alert("Comments", "Comment composer will be added in the next native engagement phase.")}>
-          <Text style={styles.actionText}>💬 Comment</Text>
-        </Pressable>
-        <Pressable style={styles.actionButton} onPress={() => void mutatePost("save")}>
-          <Text style={[styles.actionText, post.saved && styles.activeAction]}>{post.saved ? "🔖 Saved" : "🔖 Save"}</Text>
-        </Pressable>
-      </View>
-    </View>
+      <Modal visible={commentOpen} transparent animationType="slide" onRequestClose={() => setCommentOpen(false)}>
+        <KeyboardAvoidingView style={styles.commentOverlay} behavior={Platform.OS === "ios" ? "padding" : "padding"}>
+          <Pressable style={styles.commentScrim} onPress={() => setCommentOpen(false)} />
+          <View style={styles.commentSheet}>
+            <View style={styles.commentHeader}><Text style={styles.sheetTitle}>Comments</Text><Pressable onPress={() => setCommentOpen(false)}><Text style={styles.closeText}>×</Text></Pressable></View>
+            <FlatList
+              data={comments}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.commentList}
+              renderItem={({ item }) => <View style={styles.commentRow}><Avatar user={item.author} size={36}/><View style={styles.flex}><Text style={styles.commentAuthor}>{item.author.name}</Text><Text style={styles.commentBody}>{item.content}</Text><Text style={styles.userHandle}>{formatTime(item.createdAt)}</Text></View></View>}
+              ListEmptyComponent={<Text style={styles.emptySmall}>No comments yet.</Text>}
+            />
+            <View style={styles.commentComposer}><TextInput value={commentText} onChangeText={setCommentText} placeholder="Write a comment…" placeholderTextColor={colors.muted} style={styles.commentInput} multiline/><Pressable onPress={() => void sendComment()} style={styles.sendButton}><Text style={styles.sendButtonText}>➤</Text></Pressable></View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
   );
 }
-
 function StoryTray({
   stories,
   onOpen,
@@ -1350,6 +1432,7 @@ function RootContent() {
       {tab === "Notifications" ? <NotificationsScreen onMenu={openMenu} /> : null}
       {tab === "Profile" ? <ProfileScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
       {tab === "Settings" ? <SettingsScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
+      {tab === "Saved" ? <SavedScreen onMenu={openMenu} /> : null}
 
       {!hideBottomNav ? (
         <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom + 8, 10) }]}>
@@ -1470,6 +1553,21 @@ const styles = StyleSheet.create({
   reactionsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
   reactionChip: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
   reactionText: { fontSize: 19 },
+  reactionMenuButton: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2 },
+  reactionPicker: { flexDirection: "row", gap: 7, marginTop: 10, padding: 8, borderRadius: 15, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  reactionPickerItem: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel },
+  reactionPickerEmoji: { fontSize: 20 },
+  reactionSummary: { color: colors.muted, fontSize: 12, marginTop: 10 },
+  commentOverlay: { flex: 1, justifyContent: "flex-end" },
+  commentScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.62)" },
+  commentSheet: { height: "72%", backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: colors.border, paddingBottom: 8 },
+  commentHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+  commentList: { padding: 14, gap: 10 },
+  commentRow: { flexDirection: "row", gap: 8, backgroundColor: colors.panel, borderRadius: 15, padding: 10 },
+  commentAuthor: { color: colors.text, fontSize: 12, fontWeight: "900" },
+  commentBody: { color: colors.text, fontSize: 13, lineHeight: 18, marginTop: 3 },
+  commentComposer: { flexDirection: "row", alignItems: "flex-end", gap: 8, padding: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.panel },
+  commentInput: { flex: 1, minHeight: 46, maxHeight: 110, color: colors.text, backgroundColor: colors.panel2, borderRadius: 16, paddingHorizontal: 13, paddingVertical: 11, textAlignVertical: "top" },
   storyReplyInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, color: colors.text, paddingHorizontal: 14, paddingVertical: 12 },
   storyStats: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
   sheet: { flex: 1, backgroundColor: colors.bg, marginTop: 80, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: colors.border },
