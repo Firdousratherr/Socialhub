@@ -170,7 +170,9 @@ export const auth = betterAuth({
     "https://socialhub-firdousratherr.vercel.app",
     "https://*.vercel.app",
     "http://localhost:3000",
-    "http://localhost:3001",\n    "socialhub://",\n    "socialhub://*",
+    "http://localhost:3001",
+    "socialhub://",
+    "socialhub://*",
   ],
   secret: process.env.BETTER_AUTH_SECRET,
 });
