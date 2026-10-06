@@ -62,6 +62,8 @@ jobs:
             -keysize 4096 \
             -validity 10000 \
             -dname "CN=SocialHub, OU=Android, O=SocialHub, L=India, ST=Jammu and Kashmir, C=IN"
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_PASSWORD"
           {
             echo "ANDROID_KEYSTORE_PASSWORD=$STORE_PASSWORD"
             echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
@@ -144,7 +146,9 @@ jobs:
           set -euo pipefail
           APK="app/build/outputs/apk/release/app-release.apk"
           test -f "$APK"
-          apksigner verify --verbose "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose "$APK"
 
       - name: Generate checksum
         working-directory: mobile/android
