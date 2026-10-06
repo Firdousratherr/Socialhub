@@ -1543,6 +1543,7 @@ function ProfileScreen({ onSignedOut, onMenu }: { onSignedOut: () => void; onMen
   const [posts, setPosts] = useState<Post[]>([]);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [mediaBusy, setMediaBusy] = useState<"image" | "coverImage" | null>(null);
   const [form, setForm] = useState({ name: "", username: "", bio: "" });
 
   const load = useCallback(async () => {
@@ -1564,6 +1565,36 @@ function ProfileScreen({ onSignedOut, onMenu }: { onSignedOut: () => void; onMen
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const pickProfileMedia = async (field: "image" | "coverImage") => {
+    setMediaBusy(field);
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Profile", "Allow photo access to update your profile media.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.9,
+        allowsEditing: field === "image",
+        aspect: field === "image" ? [1, 1] : [16, 9],
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const upload = await uploadMedia(asset.uri, asset.mimeType ?? "image/jpeg", asset.fileName ?? field + ".jpg");
+      const data = await apiFetch<{ profile: Profile }>("/api/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ [field]: upload.url }),
+      });
+      setProfile((current) => current ? { ...current, [field]: upload.url } : current);
+      setProfile(data.profile);
+    } catch (e) {
+      Alert.alert("Profile", e instanceof Error ? e.message : "Unable to update profile media.");
+    } finally {
+      setMediaBusy(null);
+    }
+  };
 
   const save = async () => {
     setBusy(true);
@@ -1599,6 +1630,7 @@ function ProfileScreen({ onSignedOut, onMenu }: { onSignedOut: () => void; onMen
       <AppHeader title="Profile" subtitle="Your Socialhub identity." onMenu={onMenu} action={editing ? "Cancel" : "Edit"} onAction={() => setEditing((value) => !value)} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.profileHero}>
+          {profile.coverImage ? <Image source={{ uri: profile.coverImage }} style={styles.profileCover} resizeMode="cover" /> : null}
           <Avatar user={profile} size={86} />
           <Text style={styles.profileName}>{profile.name}</Text>
           <Text style={styles.userHandle}>@{profile.username ?? "socialhub"}</Text>
@@ -1616,7 +1648,15 @@ function ProfileScreen({ onSignedOut, onMenu }: { onSignedOut: () => void; onMen
             <TextInput value={form.name} onChangeText={(name) => setForm((f) => ({ ...f, name }))} placeholder="Name" placeholderTextColor={colors.muted} style={styles.input} />
             <TextInput value={form.username} onChangeText={(username) => setForm((f) => ({ ...f, username }))} placeholder="Username" placeholderTextColor={colors.muted} style={styles.input} autoCapitalize="none" />
             <TextInput value={form.bio} onChangeText={(bio) => setForm((f) => ({ ...f, bio }))} placeholder="Bio" placeholderTextColor={colors.muted} style={[styles.input, styles.bioInput]} multiline />
-            <PrimaryButton label={busy ? "Saving…" : "Save changes"} onPress={() => void save()} disabled={busy} />
+            <View style={styles.mediaEditRow}>
+              <Pressable style={styles.mediaEditButton} disabled={mediaBusy !== null} onPress={() => void pickProfileMedia("image")}>
+                <Text style={styles.mediaEditText}>{mediaBusy === "image" ? "Updating…" : "Change photo"}</Text>
+              </Pressable>
+              <Pressable style={styles.mediaEditButton} disabled={mediaBusy !== null} onPress={() => void pickProfileMedia("coverImage")}>
+                <Text style={styles.mediaEditText}>{mediaBusy === "coverImage" ? "Updating…" : "Change cover"}</Text>
+              </Pressable>
+            </View>
+            <PrimaryButton label={busy ? "Saving…" : "Save changes"} onPress={() => void save()} disabled={busy || mediaBusy !== null} />
           </View>
         ) : null}
 
