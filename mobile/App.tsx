@@ -17,6 +17,10 @@ import {
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppHeader, MenuDrawer, type MobileRoute } from "./components/MobileShell";
+import FriendsScreen from "./screens/FriendsScreen";
+import SettingsScreen from "./screens/SettingsScreen";
 import * as ImagePicker from "expo-image-picker";
 import { authClient } from "./lib/auth-client";
 import { apiFetch, uploadMedia } from "./lib/api";
@@ -31,7 +35,7 @@ import type {
   User,
 } from "./types";
 
-type Tab = "Home" | "Discover" | "Messages" | "Notifications" | "Profile";
+type Tab = MobileRoute;
 
 const colors = {
   bg: "#08080c",
@@ -775,7 +779,7 @@ function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: (
   );
 }
 
-function HomeScreen() {
+function HomeScreen({ onMenu }: { onMenu: () => void }) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
@@ -808,13 +812,7 @@ function HomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>SocialHub</Text>
-          <Text style={styles.subtitle}>Your people, your feed.</Text>
-        </View>
-        <Pressable onPress={() => void load(true)}><Text style={styles.refresh}>↻</Text></Pressable>
-      </View>
+      <AppHeader title="Socialhub" subtitle="Your people, your feed." onMenu={onMenu} action="↻" onAction={() => void load(true)} />
 
       {loading && !posts.length ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
 
@@ -851,7 +849,7 @@ function HomeScreen() {
   );
 }
 
-function DiscoverScreen() {
+function DiscoverScreen({ onMenu }: { onMenu: () => void }) {
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<SearchUser[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -901,9 +899,7 @@ function DiscoverScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <View><Text style={styles.title}>Discover</Text><Text style={styles.subtitle}>Find people and posts.</Text></View>
-      </View>
+      <AppHeader title="Discover" subtitle="Find people and posts." onMenu={onMenu} />
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <TextInput
           value={query}
@@ -947,7 +943,7 @@ function conversationName(conversation: Conversation, currentUserId: string) {
   return conversation.members.find((member) => member.userId !== currentUserId)?.user.name ?? "Conversation";
 }
 
-function MessagingScreen({ currentUserId }: { currentUserId: string }) {
+function MessagingScreen({ currentUserId, onMenu, onChildStateChange }: { currentUserId: string; onMenu: () => void; onChildStateChange: (hidden: boolean) => void }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selected, setSelected] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -965,6 +961,10 @@ function MessagingScreen({ currentUserId }: { currentUserId: string }) {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    onChildStateChange(Boolean(selected));
+    return () => onChildStateChange(false);
+  }, [selected, onChildStateChange]);
 
   if (selected) {
     return (
@@ -978,9 +978,7 @@ function MessagingScreen({ currentUserId }: { currentUserId: string }) {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <View><Text style={styles.title}>Messages</Text><Text style={styles.subtitle}>Private conversations.</Text></View>
-      </View>
+      <AppHeader title="Messages" subtitle="Private conversations." onMenu={onMenu} />
       {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
       <FlatList
         data={conversations}
@@ -1096,7 +1094,7 @@ function ChatScreen({
   );
 }
 
-function NotificationsScreen() {
+function NotificationsScreen({ onMenu }: { onMenu: () => void }) {
   const [items, setItems] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1125,10 +1123,7 @@ function NotificationsScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <View><Text style={styles.title}>Notifications</Text><Text style={styles.subtitle}>Stay up to date.</Text></View>
-        <Pressable onPress={() => void markAll()}><Text style={styles.linkText}>Mark all read</Text></Pressable>
-      </View>
+      <AppHeader title="Notifications" subtitle="Stay up to date." onMenu={onMenu} action="Mark all" onAction={() => void markAll()} />
       {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
       <FlatList
         data={items}
@@ -1165,7 +1160,7 @@ function notificationLabel(type: string) {
   }
 }
 
-function ProfileScreen({ onSignedOut }: { onSignedOut: () => void }) {
+function ProfileScreen({ onSignedOut, onMenu }: { onSignedOut: () => void; onMenu: () => void }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [editing, setEditing] = useState(false);
@@ -1223,10 +1218,7 @@ function ProfileScreen({ onSignedOut }: { onSignedOut: () => void }) {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <View><Text style={styles.title}>Profile</Text><Text style={styles.subtitle}>Your SocialHub identity.</Text></View>
-        <Pressable onPress={() => setEditing((value) => !value)}><Text style={styles.linkText}>{editing ? "Cancel" : "Edit"}</Text></Pressable>
-      </View>
+      <AppHeader title="Profile" subtitle="Your Socialhub identity." onMenu={onMenu} action={editing ? "Cancel" : "Edit"} onAction={() => setEditing((value) => !value)} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.profileHero}>
           <Avatar user={profile} size={86} />
@@ -1269,10 +1261,21 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <RootContent />
+    </SafeAreaProvider>
+  );
+}
+
+function RootContent() {
+  const insets = useSafeAreaInsets();
   const [booting, setBooting] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
   const [sessionUser, setSessionUser] = useState<User | null>(null);
   const [tab, setTab] = useState<Tab>("Home");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [hideBottomNav, setHideBottomNav] = useState(false);
   const [unread, setUnread] = useState({ messages: 0, notifications: 0, friendRequests: 0 });
 
   const refreshSession = useCallback(async () => {
@@ -1294,9 +1297,7 @@ export default function App() {
     try {
       const data = await apiFetch<{ messages: number; notifications: number; friendRequests: number }>("/api/unread-summary");
       setUnread(data);
-    } catch {
-      // Badge refresh is non-critical.
-    }
+    } catch {}
   }, [signedIn]);
 
   useEffect(() => { void refreshSession(); }, [refreshSession]);
@@ -1307,36 +1308,68 @@ export default function App() {
     return () => clearInterval(timer);
   }, [signedIn, refreshUnread]);
 
+  const navigate = useCallback((route: MobileRoute) => {
+    setHideBottomNav(false);
+    setTab(route);
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await authClient.signOut();
+    setDrawerOpen(false);
+    setSignedIn(false);
+    setSessionUser(null);
+    setTab("Home");
+  }, []);
+
   if (booting) {
     return (
-      <SafeAreaView style={styles.root}>
+      <View style={styles.root}>
         <StatusBar style="light" />
         <View style={styles.centered}><ActivityIndicator size="large" color={colors.accent} /></View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!signedIn) return <AuthScreen onSignedIn={() => void refreshSession()} />;
 
-  const badge = (value: number) => value > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>{formatCount(value)}</Text></View> : null;
+  const badge = (value: number) => value > 0 ? (
+    <View style={styles.badge}><Text style={styles.badgeText}>{formatCount(value)}</Text></View>
+  ) : null;
+
+  const openMenu = () => setDrawerOpen(true);
 
   return (
-    <SafeAreaView style={styles.root}>
-      <StatusBar style="light" />
-      {tab === "Home" ? <HomeScreen /> : null}
-      {tab === "Discover" ? <DiscoverScreen /> : null}
-      {tab === "Messages" && sessionUser ? <MessagingScreen currentUserId={sessionUser.id} /> : null}
-      {tab === "Notifications" ? <NotificationsScreen /> : null}
-      {tab === "Profile" ? <ProfileScreen onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
+    <View style={styles.root}>
+      <StatusBar style="light" translucent />
+      {tab === "Home" ? <HomeScreen onMenu={openMenu} /> : null}
+      {tab === "Discover" ? <DiscoverScreen onMenu={openMenu} /> : null}
+      {tab === "Friends" ? <FriendsScreen onMenu={openMenu} /> : null}
+      {tab === "Messages" && sessionUser ? (
+        <MessagingScreen currentUserId={sessionUser.id} onMenu={openMenu} onChildStateChange={setHideBottomNav} />
+      ) : null}
+      {tab === "Notifications" ? <NotificationsScreen onMenu={openMenu} /> : null}
+      {tab === "Profile" ? <ProfileScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
+      {tab === "Settings" ? <SettingsScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
 
-      <View style={styles.bottomNav}>
-        <NavItem icon="⌂" label="Home" active={tab === "Home"} onPress={() => setTab("Home")} />
-        <NavItem icon="⌕" label="Discover" active={tab === "Discover"} onPress={() => setTab("Discover")} />
-        <NavItem icon="✉" label="Messages" active={tab === "Messages"} onPress={() => setTab("Messages")} badge={badge(unread.messages)} />
-        <NavItem icon="♡" label="Alerts" active={tab === "Notifications"} onPress={() => setTab("Notifications")} badge={badge(unread.notifications + unread.friendRequests)} />
-        <NavItem icon="◉" label="Profile" active={tab === "Profile"} onPress={() => setTab("Profile")} />
-      </View>
-    </SafeAreaView>
+      {!hideBottomNav ? (
+        <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom + 8, 10) }]}>
+          <NavItem icon="⌂" label="Home" active={tab === "Home"} onPress={() => navigate("Home")} />
+          <NavItem icon="♧" label="Friends" active={tab === "Friends"} onPress={() => navigate("Friends")} badge={badge(unread.friendRequests)} />
+          <NavItem icon="✉" label="Messages" active={tab === "Messages"} onPress={() => navigate("Messages")} badge={badge(unread.messages)} />
+          <NavItem icon="♡" label="Alerts" active={tab === "Notifications"} onPress={() => navigate("Notifications")} badge={badge(unread.notifications)} />
+          <NavItem icon="◉" label="Profile" active={tab === "Profile"} onPress={() => navigate("Profile")} />
+        </View>
+      ) : null}
+
+      <MenuDrawer
+        visible={drawerOpen}
+        route={tab}
+        userName={sessionUser?.name}
+        onClose={() => setDrawerOpen(false)}
+        onNavigate={navigate}
+        onSignOut={() => void signOut()}
+      />
+    </View>
   );
 }
 
@@ -1390,8 +1423,8 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.muted, marginTop: 3 },
   refresh: { color: colors.text, fontSize: 30 },
   loader: { marginVertical: 18 },
-  feed: { padding: 12, paddingBottom: 110 },
-  scrollContent: { padding: 14, paddingBottom: 110 },
+  feed: { padding: 12, paddingBottom: 155 },
+  scrollContent: { padding: 14, paddingBottom: 155 },
   empty: { color: colors.muted, textAlign: "center", paddingVertical: 60 },
   emptySmall: { color: colors.muted, textAlign: "center", paddingVertical: 20 },
   flex: { flex: 1 },
@@ -1474,12 +1507,12 @@ const styles = StyleSheet.create({
   profileHero: { alignItems: "center", paddingVertical: 18 },
   profileName: { color: colors.text, fontSize: 24, fontWeight: "900", marginTop: 10 },
   profileBio: { color: colors.muted, textAlign: "center", marginTop: 8, maxWidth: 320, lineHeight: 20 },
-  statsGrid: { flexDirection: "row", gap: 8, marginBottom: 10 },
-  statCard: { flex: 1, alignItems: "center", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, paddingVertical: 13, borderRadius: 14 },
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  statCard: { flexGrow: 1, flexBasis: "22%", minWidth: 74, alignItems: "center", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, paddingVertical: 13, borderRadius: 14 },
   statValue: { color: colors.text, fontSize: 18, fontWeight: "900" },
   editPanel: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, marginBottom: 10 },
   bioInput: { minHeight: 100, textAlignVertical: "top" },
-  bottomNav: { position: "absolute", left: 10, right: 10, bottom: 10, height: 70, backgroundColor: "#15151d", borderWidth: 1, borderColor: colors.border, borderRadius: 22, flexDirection: "row", alignItems: "center", justifyContent: "space-around" },
+  bottomNav: { position: "absolute", left: 12, right: 12, height: 72, backgroundColor: "#15151d", borderWidth: 1, borderColor: colors.border, borderRadius: 22, flexDirection: "row", alignItems: "center", justifyContent: "space-around" },
   navItem: { minWidth: 55, alignItems: "center", justifyContent: "center" },
   navIcon: { color: colors.muted, fontSize: 22, marginBottom: 2 },
   navLabel: { color: colors.muted, fontSize: 10 },
