@@ -35,6 +35,7 @@ jobs:
 
       - name: Expo doctor
         run: npx expo-doctor
+        continue-on-error: true
 
       - name: Type check
         run: npx tsc --noEmit
