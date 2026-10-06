@@ -1559,7 +1559,7 @@ const styles = StyleSheet.create({
   reactionPickerEmoji: { fontSize: 20 },
   reactionSummary: { color: colors.muted, fontSize: 12, marginTop: 10 },
   commentOverlay: { flex: 1, justifyContent: "flex-end" },
-  commentScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.62)" },
+  commentScrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.62)" },
   commentSheet: { height: "72%", backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: colors.border, paddingBottom: 8 },
   commentHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
   commentList: { padding: 14, gap: 10 },
