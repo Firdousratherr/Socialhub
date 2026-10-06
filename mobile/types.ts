@@ -7,12 +7,15 @@ export type User = {
   bio?: string | null;
   isVerified?: boolean;
   isOwner?: boolean;
+  role?: string;
+
 };
 
 export type Post = {
   id: string;
   content?: string | null;
   mediaUrl?: string | null;
+  mediaType?: "IMAGE" | "VIDEO" | string | null;
   createdAt: string;
   author: User;
   displayCounts: {
