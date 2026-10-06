@@ -1686,6 +1686,12 @@ export default function App() {
   );
 }
 
+type DeepLinkTarget =
+  | { kind: "post"; id: string }
+  | { kind: "story"; id: string }
+  | { kind: "message"; id: string }
+  | { kind: "profile"; id: string };
+
 function RootContent() {
   const insets = useSafeAreaInsets();
   const [booting, setBooting] = useState(true);
@@ -1695,6 +1701,7 @@ function RootContent() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [hideBottomNav, setHideBottomNav] = useState(false);
   const [unread, setUnread] = useState({ messages: 0, notifications: 0, friendRequests: 0 });
+  const [deepLink, setDeepLink] = useState<DeepLinkTarget | null>(null);
 
   const refreshSession = useCallback(async () => {
     try {
@@ -1717,6 +1724,38 @@ function RootContent() {
       setUnread(data);
     } catch {}
   }, [signedIn]);
+
+  const parseDeepLink = useCallback((url: string) => {
+    try {
+      const parsed = Linking.parse(url);
+      const rawPath = parsed.path ?? "";
+      const parts = [parsed.hostname ?? "", ...rawPath.split("/").filter(Boolean)].filter(Boolean);
+      const kind = (parts[0] ?? "").toLowerCase();
+      const id = parts[1] ?? "";
+      if (!id) return;
+      if (["post", "posts"].includes(kind)) setDeepLink({ kind: "post", id });
+      else if (["story", "stories"].includes(kind)) setDeepLink({ kind: "story", id });
+      else if (["message", "messages", "conversation", "conversations"].includes(kind)) setDeepLink({ kind: "message", id });
+      else if (["profile", "user", "users"].includes(kind)) setDeepLink({ kind: "profile", id });
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const subscription = Linking.addEventListener("url", ({ url }) => parseDeepLink(url));
+    void Linking.getInitialURL().then((url) => {
+      if (url) parseDeepLink(url);
+    });
+    return () => subscription.remove();
+  }, [parseDeepLink]);
+
+  useEffect(() => {
+    if (!signedIn || !deepLink) return;
+    if (deepLink.kind === "message") setTab("Messages");
+    else if (deepLink.kind === "profile") setTab("Discover");
+    else setTab("Home");
+  }, [signedIn, deepLink]);
+
+  const onDeepLinkHandled = useCallback(() => setDeepLink(null), []);
 
   useEffect(() => { void refreshSession(); }, [refreshSession]);
   useEffect(() => {
@@ -1759,16 +1798,37 @@ function RootContent() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      {tab === "Home" ? <HomeScreen onMenu={openMenu} /> : null}
-      {tab === "Discover" ? <DiscoverScreen onMenu={openMenu} /> : null}
+      {tab === "Home" ? (
+        <HomeScreen
+          onMenu={openMenu}
+          initialPostId={deepLink?.kind === "post" ? deepLink.id : undefined}
+          initialStoryId={deepLink?.kind === "story" ? deepLink.id : undefined}
+          onDeepLinkHandled={onDeepLinkHandled}
+        />
+      ) : null}
+      {tab === "Discover" ? (
+        <DiscoverScreen
+          onMenu={openMenu}
+          initialQuery={deepLink?.kind === "profile" ? deepLink.id : undefined}
+          onDeepLinkHandled={onDeepLinkHandled}
+        />
+      ) : null}
       {tab === "Friends" ? <FriendsScreen onMenu={openMenu} /> : null}
       {tab === "Messages" && sessionUser ? (
-        <MessagingScreen currentUserId={sessionUser.id} onMenu={openMenu} onChildStateChange={setHideBottomNav} />
+        <MessagingScreen
+          currentUserId={sessionUser.id}
+          onMenu={openMenu}
+          onChildStateChange={setHideBottomNav}
+          initialConversationId={deepLink?.kind === "message" ? deepLink.id : undefined}
+          onDeepLinkHandled={onDeepLinkHandled}
+        />
       ) : null}
       {tab === "Notifications" ? <NotificationsScreen onMenu={openMenu} /> : null}
       {tab === "Profile" ? <ProfileScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
       {tab === "Settings" ? <SettingsScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
       {tab === "Saved" ? <SavedScreen onMenu={openMenu} /> : null}
+      {tab === "Security" ? <SecurityScreen onMenu={openMenu} /> : null}
+      {tab === "Admin" ? <AdminScreen onMenu={openMenu} /> : null}
 
       {!hideBottomNav ? (
         <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom + 8, 10) }]}>
