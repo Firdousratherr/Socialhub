@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "scheme": "socialhub",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "android": {
       "package": "com.socialhub.app",
       "versionCode": 1,
@@ -16,7 +15,12 @@
     },
     "plugins": [
       "expo-secure-store",
-      ["expo-image-picker", { "microphonePermission": false }]
+      [
+        "expo-image-picker",
+        {
+          "microphonePermission": false
+        }
+      ]
     ],
     "extra": {
       "apiBaseUrl": "https://socialhub-ruby.vercel.app"
