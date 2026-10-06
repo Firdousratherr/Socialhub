@@ -71,6 +71,8 @@ export type Message = {
   editedAt?: string | null;
   sender: User;
   attachments?: { id: string; url: string; kind: string }[];
+  replyTo?: { id: string; content: string; senderId: string; sender?: User } | null;
+  reactions?: { id: string; emoji: string; userId: string; user?: User }[];
 };
 
 export type Notification = {
