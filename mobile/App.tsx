@@ -1085,28 +1085,103 @@ function conversationName(conversation: Conversation, currentUserId: string) {
   return conversation.members.find((member) => member.userId !== currentUserId)?.user.name ?? "Conversation";
 }
 
-function MessagingScreen({ currentUserId, onMenu, onChildStateChange }: { currentUserId: string; onMenu: () => void; onChildStateChange: (hidden: boolean) => void }) {
+function MessagingScreen({
+  currentUserId,
+  onMenu,
+  onChildStateChange,
+  initialConversationId,
+  onDeepLinkHandled,
+}: {
+  currentUserId: string;
+  onMenu: () => void;
+  onChildStateChange: (hidden: boolean) => void;
+  initialConversationId?: string;
+  onDeepLinkHandled: () => void;
+}) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selected, setSelected] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [includeArchived, setIncludeArchived] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch<{ conversations: Conversation[] }>("/api/conversations");
+      const path = includeArchived ? "/api/conversations?includeArchived=true" : "/api/conversations";
+      const data = await apiFetch<{ conversations: Conversation[] }>(path);
       setConversations(data.conversations);
+      if (initialConversationId) {
+        const target = data.conversations.find((item) => item.id === initialConversationId);
+        if (target) {
+          setSelected(target);
+          onDeepLinkHandled();
+        }
+      }
     } catch (e) {
       Alert.alert("Messages", e instanceof Error ? e.message : "Unable to load conversations.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [includeArchived, initialConversationId, onDeepLinkHandled]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     onChildStateChange(Boolean(selected));
     return () => onChildStateChange(false);
   }, [selected, onChildStateChange]);
+
+  const controlConversation = async (item: Conversation) => {
+    const me = item.members.find((member) => member.userId === currentUserId);
+    const archived = Boolean(me?.archivedAt);
+    Alert.alert(
+      conversationName(item, currentUserId),
+      "Choose a conversation action.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: archived ? "Unarchive" : "Archive",
+          onPress: async () => {
+            try {
+              await apiFetch("/api/conversations/" + item.id + "/messages", {
+                method: "PATCH",
+                body: JSON.stringify({ action: archived ? "unarchive" : "archive" }),
+              });
+              await load();
+            } catch (e) {
+              Alert.alert("Messages", e instanceof Error ? e.message : "Unable to update conversation.");
+            }
+          },
+        },
+        {
+          text: "Mute 7 days",
+          onPress: async () => {
+            try {
+              await apiFetch("/api/conversations/" + item.id + "/messages", {
+                method: "PATCH",
+                body: JSON.stringify({ action: "mute" }),
+              });
+              Alert.alert("Messages", "Conversation muted for 7 days.");
+            } catch (e) {
+              Alert.alert("Messages", e instanceof Error ? e.message : "Unable to mute conversation.");
+            }
+          },
+        },
+        {
+          text: "Mark read",
+          onPress: async () => {
+            try {
+              await apiFetch("/api/conversations/" + item.id + "/messages", {
+                method: "PATCH",
+                body: JSON.stringify({ action: "read" }),
+              });
+              await load();
+            } catch (e) {
+              Alert.alert("Messages", e instanceof Error ? e.message : "Unable to mark conversation as read.");
+            }
+          },
+        },
+      ],
+    );
+  };
 
   if (selected) {
     return (
@@ -1120,7 +1195,13 @@ function MessagingScreen({ currentUserId, onMenu, onChildStateChange }: { curren
 
   return (
     <View style={styles.screen}>
-      <AppHeader title="Messages" subtitle="Private conversations." onMenu={onMenu} />
+      <AppHeader
+        title={includeArchived ? "Archived messages" : "Messages"}
+        subtitle="Private conversations."
+        onMenu={onMenu}
+        action={includeArchived ? "Active" : "Archived"}
+        onAction={() => setIncludeArchived((value) => !value)}
+      />
       {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
       <FlatList
         data={conversations}
@@ -1129,12 +1210,18 @@ function MessagingScreen({ currentUserId, onMenu, onChildStateChange }: { curren
         renderItem={({ item }) => {
           const member = item.members.find((m) => m.userId !== currentUserId)?.user;
           const last = item.messages?.[0];
+          const me = item.members.find((m) => m.userId === currentUserId);
           return (
-            <Pressable style={styles.conversationCard} onPress={() => setSelected(item)}>
+            <Pressable
+              style={styles.conversationCard}
+              onPress={() => setSelected(item)}
+              onLongPress={() => void controlConversation(item)}
+            >
               <Avatar user={member} size={50} />
               <View style={styles.flex}>
                 <View style={styles.row}>
                   <Text style={styles.userName}>{conversationName(item, currentUserId)}</Text>
+                  {me?.archivedAt ? <Text style={styles.muted}>ARCHIVED</Text> : null}
                   {item.unreadCount > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>{formatCount(item.unreadCount)}</Text></View> : null}
                 </View>
                 <Text numberOfLines={1} style={styles.userHandle}>{last?.content || "Start the conversation"}</Text>
@@ -1160,13 +1247,16 @@ function ChatScreen({
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editing, setEditing] = useState<Message | null>(null);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
   const other = conversation.members.find((member) => member.userId !== currentUserId)?.user;
 
   const load = useCallback(async () => {
     try {
-      const data = await apiFetch<{ messages: Message[] }>(`/api/conversations/${conversation.id}/messages`);
+      const data = await apiFetch<{ messages: Message[] }>("/api/conversations/" + conversation.id + "/messages");
       setMessages(data.messages);
-      await apiFetch(`/api/conversations/${conversation.id}/messages`, {
+      await apiFetch("/api/conversations/" + conversation.id + "/messages", {
         method: "PATCH",
         body: JSON.stringify({ action: "read" }),
       });
@@ -1179,22 +1269,113 @@ function ChatScreen({
 
   useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), 15_000);
+    const timer = setInterval(() => void load(), 5_000);
     return () => clearInterval(timer);
   }, [load]);
 
   const send = async () => {
+    if (editing) {
+      if (!text.trim()) return;
+      try {
+        const data = await apiFetch<{ message: Message }>("/api/messages/" + editing.id, {
+          method: "PATCH",
+          body: JSON.stringify({ action: "edit", content: text.trim() }),
+        });
+        setMessages((current) => current.map((item) => item.id === editing.id ? data.message : item));
+        setEditing(null);
+        setText("");
+      } catch (e) {
+        Alert.alert("Messages", e instanceof Error ? e.message : "Unable to edit.");
+      }
+      return;
+    }
+
     if (!text.trim()) return;
     try {
-      const data = await apiFetch<{ message: Message }>(`/api/conversations/${conversation.id}/messages`, {
+      const data = await apiFetch<{ message: Message }>("/api/conversations/" + conversation.id + "/messages", {
         method: "POST",
-        body: JSON.stringify({ content: text.trim(), attachments: [] }),
+        body: JSON.stringify({
+          content: text.trim(),
+          attachments: [],
+          replyToId: replyingTo?.id,
+        }),
       });
       setMessages((current) => [...current, data.message]);
       setText("");
+      setReplyingTo(null);
     } catch (e) {
       Alert.alert("Messages", e instanceof Error ? e.message : "Unable to send.");
     }
+  };
+
+  const sendAttachment = async () => {
+    setAttachmentBusy(true);
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Messages", "Allow photo access to attach an image.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.9,
+        allowsEditing: false,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const upload = await uploadMedia(asset.uri, asset.mimeType ?? "image/jpeg", asset.fileName ?? "message.jpg");
+      const data = await apiFetch<{ message: Message }>("/api/conversations/" + conversation.id + "/messages", {
+        method: "POST",
+        body: JSON.stringify({
+          content: text.trim(),
+          attachments: [upload.url],
+          replyToId: replyingTo?.id,
+        }),
+      });
+      setMessages((current) => [...current, data.message]);
+      setText("");
+      setReplyingTo(null);
+    } catch (e) {
+      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to attach image.");
+    } finally {
+      setAttachmentBusy(false);
+    }
+  };
+
+  const removeMessage = async (message: Message) => {
+    try {
+      await apiFetch("/api/messages/" + message.id, { method: "DELETE" });
+      setMessages((current) => current.map((item) => item.id === message.id ? { ...item, deletedAt: new Date().toISOString(), content: "" } : item));
+    } catch (e) {
+      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to delete message.");
+    }
+  };
+
+  const messageActions = (message: Message) => {
+    if (message.deletedAt) {
+      Alert.alert("Message", "This message has been deleted.", [{ text: "Close" }]);
+      return;
+    }
+    const buttons: Array<{ text: string; style?: "default" | "cancel" | "destructive"; onPress?: () => void }> = [
+      { text: "Reply", onPress: () => setReplyingTo(message) },
+    ];
+    if (message.senderId === currentUserId) {
+      buttons.push({
+        text: "Edit",
+        onPress: () => {
+          setEditing(message);
+          setReplyingTo(null);
+          setText(message.content);
+        },
+      });
+      buttons.push({
+        text: "Delete",
+        style: "destructive",
+        onPress: () => void removeMessage(message),
+      });
+    }
+    buttons.push({ text: "Cancel", style: "cancel" });
+    Alert.alert("Message actions", "Reply, edit, or delete this message.", buttons);
   };
 
   return (
@@ -1204,7 +1385,7 @@ function ChatScreen({
         <Avatar user={other} size={40} />
         <View style={styles.flex}>
           <Text style={styles.userName}>{conversationName(conversation, currentUserId)}</Text>
-          <Text style={styles.userHandle}>@{other?.username ?? "socialhub"}</Text>
+          <Text style={styles.userHandle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
         </View>
       </View>
       {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
@@ -1213,18 +1394,44 @@ function ChatScreen({
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.chatList}
         renderItem={({ item }) => (
-          <View style={[styles.messageBubble, item.senderId === currentUserId ? styles.myBubble : styles.theirBubble]}>
+          <Pressable
+            onLongPress={() => messageActions(item)}
+            style={[styles.messageBubble, item.senderId === currentUserId ? styles.myBubble : styles.theirBubble]}
+          >
+            {item.replyTo ? (
+              <View style={styles.replyPreview}>
+                <Text style={styles.replyPreviewTitle}>Reply</Text>
+                <Text numberOfLines={2} style={styles.replyPreviewText}>{item.replyTo.content || "Message"}</Text>
+              </View>
+            ) : null}
+            {item.attachments?.map((attachment) => (
+              <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />
+            ))}
             <Text style={styles.messageText}>{item.deletedAt ? "Message deleted" : item.content}</Text>
-            <Text style={styles.messageTime}>{formatTime(item.createdAt)}</Text>
-          </View>
+            <Text style={styles.messageTime}>{formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}</Text>
+          </Pressable>
         )}
       />
+      {(replyingTo || editing) ? (
+        <View style={styles.composeContext}>
+          <View style={styles.flex}>
+            <Text style={styles.composeContextTitle}>{editing ? "Editing message" : "Replying"}</Text>
+            <Text numberOfLines={1} style={styles.composeContextText}>{(editing || replyingTo)?.content || "Message"}</Text>
+          </View>
+          <Pressable onPress={() => { setReplyingTo(null); setEditing(null); setText(""); }}>
+            <Text style={styles.linkText}>Cancel</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
         <View style={styles.messageComposer}>
+          <Pressable onPress={() => void sendAttachment()} disabled={attachmentBusy} style={styles.attachButton}>
+            <Text style={styles.attachButtonText}>{attachmentBusy ? "…" : "+"}</Text>
+          </Pressable>
           <TextInput
             value={text}
             onChangeText={setText}
-            placeholder="Type a message…"
+            placeholder={editing ? "Edit message…" : "Type a message…"}
             placeholderTextColor={colors.muted}
             style={styles.messageInput}
             multiline
