@@ -12,7 +12,7 @@ const colors = {
   accent: "#725cff",
 };
 
-export type MobileRoute = "Home" | "Discover" | "Friends" | "Messages" | "Notifications" | "Profile" | "Saved" | "Settings";
+export type MobileRoute = "Home" | "Discover" | "Friends" | "Messages" | "Notifications" | "Profile" | "Saved" | "Settings" | "Security" | "Admin";
 
 export function AppHeader({
   title,
@@ -98,7 +98,9 @@ export function MenuDrawer({
     { route: "Notifications", label: "Notifications", icon: "♡", description: "Activity and requests" },
     { route: "Profile", label: "Profile", icon: "◉", description: "Your public identity" },
     { route: "Saved", label: "Saved posts", icon: "▱", description: "Posts you saved for later" },
-    { route: "Settings", label: "Settings", icon: "⚙", description: "Account, privacy and security" },
+    { route: "Settings", label: "Settings", icon: "⚙", description: "Account, privacy and preferences" },
+    { route: "Security", label: "Security", icon: "◈", description: "Sessions and device permissions" },
+    { route: "Admin", label: "Admin control", icon: "◆", description: "Owner and moderator operations" },
   ];
 
   return (
