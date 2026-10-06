@@ -21,6 +21,12 @@
         {
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-video",
+        {
+          "supportsPictureInPicture": true
+        }
       ]
     ],
     "extra": {

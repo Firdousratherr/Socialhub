@@ -7,12 +7,15 @@ export type User = {
   bio?: string | null;
   isVerified?: boolean;
   isOwner?: boolean;
+  role?: string;
+
 };
 
 export type Post = {
   id: string;
   content?: string | null;
   mediaUrl?: string | null;
+  mediaType?: "IMAGE" | "VIDEO" | string | null;
   createdAt: string;
   author: User;
   displayCounts: {
@@ -43,6 +46,9 @@ export type Story = {
 export type ConversationMember = {
   userId: string;
   role?: string;
+  lastReadAt?: string | null;
+  mutedUntil?: string | null;
+  archivedAt?: string | null;
   user: User;
 };
 
@@ -65,6 +71,8 @@ export type Message = {
   editedAt?: string | null;
   sender: User;
   attachments?: { id: string; url: string; kind: string }[];
+  replyTo?: { id: string; content: string; senderId: string; sender?: User } | null;
+  reactions?: { id: string; emoji: string; userId: string; user?: User }[];
 };
 
 export type Notification = {

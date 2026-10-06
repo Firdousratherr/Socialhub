@@ -17,11 +17,15 @@ import {
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import * as Linking from "expo-linking";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppHeader, MenuDrawer, type MobileRoute } from "./components/MobileShell";
 import FriendsScreen from "./screens/FriendsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import SavedScreen from "./screens/SavedScreen";
+import SecurityScreen from "./screens/SecurityScreen";
+import AdminScreen from "./screens/AdminScreen";
+import VideoMedia from "./components/VideoMedia";
 import { Share } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { authClient } from "./lib/auth-client";
@@ -666,11 +670,7 @@ function StoryViewer({
           {current.mediaType === "IMAGE" ? (
             <Image source={{ uri: current.mediaUrl }} style={styles.storyMedia} resizeMode="contain" />
           ) : (
-            <View style={styles.videoPlaceholder}>
-              <Text style={styles.videoIcon}>▶</Text>
-              <Text style={styles.videoText}>Video story</Text>
-              <Text style={styles.muted}>Video playback is part of the next native media phase.</Text>
-            </View>
+            <VideoMedia uri={current.mediaUrl} height={390} autoPlay loop />
           )}
           <Pressable style={styles.storyTapLeft} onPress={() => move(-1)} />
           <Pressable style={styles.storyTapRight} onPress={() => move(1)} />
@@ -736,6 +736,7 @@ function MediaPickerButton({
 function CreatePost({ onCreated }: { onCreated: (post: Post) => void }) {
   const [content, setContent] = useState("");
   const [asset, setAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [visibility, setVisibility] = useState<"PUBLIC" | "FRIENDS" | "PRIVATE">("PUBLIC");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
@@ -754,7 +755,7 @@ function CreatePost({ onCreated }: { onCreated: (post: Post) => void }) {
         body: JSON.stringify({
           content: content.trim() || null,
           mediaUrl: mediaUrl ?? null,
-          visibility: "PUBLIC",
+          visibility,
         }),
       });
       onCreated({
@@ -789,6 +790,21 @@ function CreatePost({ onCreated }: { onCreated: (post: Post) => void }) {
           <Pressable onPress={() => setAsset(null)}><Text style={styles.dangerText}>Remove</Text></Pressable>
         </View>
       ) : null}
+      <View style={styles.visibilityRow}>
+        {[
+          ["PUBLIC", "Public"],
+          ["FRIENDS", "Friends"],
+          ["PRIVATE", "Only me"],
+        ].map(([value, label]) => (
+          <Pressable
+            key={value}
+            onPress={() => setVisibility(value as "PUBLIC" | "FRIENDS" | "PRIVATE")}
+            style={[styles.visibilityChip, visibility === value && styles.visibilityChipActive]}
+          >
+            <Text style={[styles.visibilityText, visibility === value && styles.visibilityTextActive]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
       <View style={styles.composerActions}>
         <MediaPickerButton label="Media" onPicked={setAsset} />
         <PrimaryButton label={busy ? "Posting…" : "Post"} onPress={() => void submit()} disabled={busy || (!content.trim() && !asset)} />
@@ -861,7 +877,17 @@ function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: (
   );
 }
 
-function HomeScreen({ onMenu }: { onMenu: () => void }) {
+function HomeScreen({
+  onMenu,
+  initialPostId,
+  initialStoryId,
+  onDeepLinkHandled,
+}: {
+  onMenu: () => void;
+  initialPostId?: string;
+  initialStoryId?: string;
+  onDeepLinkHandled: () => void;
+}) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
@@ -889,6 +915,25 @@ function HomeScreen({ onMenu }: { onMenu: () => void }) {
 
   const [storyIndex, setStoryIndex] = useState<number | null>(null);
   const [creatingStory, setCreatingStory] = useState(false);
+  const [handledPostId, setHandledPostId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!initialStoryId || !stories.length || storyIndex !== null) return;
+    const index = stories.findIndex((story) => story.id === initialStoryId);
+    if (index >= 0) {
+      setStoryIndex(index);
+      onDeepLinkHandled();
+    }
+  }, [initialStoryId, stories, storyIndex, onDeepLinkHandled]);
+
+  useEffect(() => {
+    if (!initialPostId || !posts.length || handledPostId === initialPostId) return;
+    const target = posts.find((post) => post.id === initialPostId);
+    if (!target) return;
+    setPosts([target, ...posts.filter((post) => post.id !== initialPostId)]);
+    setHandledPostId(initialPostId);
+    onDeepLinkHandled();
+  }, [initialPostId, posts, handledPostId, onDeepLinkHandled]);
 
   const replacePost = (next: Post) => setPosts((current) => current.map((post) => post.id === next.id ? next : post));
 
@@ -931,8 +976,16 @@ function HomeScreen({ onMenu }: { onMenu: () => void }) {
   );
 }
 
-function DiscoverScreen({ onMenu }: { onMenu: () => void }) {
-  const [query, setQuery] = useState("");
+function DiscoverScreen({
+  onMenu,
+  initialQuery,
+  onDeepLinkHandled,
+}: {
+  onMenu: () => void;
+  initialQuery?: string;
+  onDeepLinkHandled: () => void;
+}) {
+  const [query, setQuery] = useState(initialQuery ?? "");
   const [users, setUsers] = useState<SearchUser[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(false);
@@ -949,6 +1002,13 @@ function DiscoverScreen({ onMenu }: { onMenu: () => void }) {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (initialQuery && initialQuery !== query) {
+      setQuery(initialQuery);
+      onDeepLinkHandled();
+    }
+  }, [initialQuery, query, onDeepLinkHandled]);
 
   useEffect(() => {
     const timeout = setTimeout(() => void search(query), query ? 250 : 0);
@@ -1025,28 +1085,103 @@ function conversationName(conversation: Conversation, currentUserId: string) {
   return conversation.members.find((member) => member.userId !== currentUserId)?.user.name ?? "Conversation";
 }
 
-function MessagingScreen({ currentUserId, onMenu, onChildStateChange }: { currentUserId: string; onMenu: () => void; onChildStateChange: (hidden: boolean) => void }) {
+function MessagingScreen({
+  currentUserId,
+  onMenu,
+  onChildStateChange,
+  initialConversationId,
+  onDeepLinkHandled,
+}: {
+  currentUserId: string;
+  onMenu: () => void;
+  onChildStateChange: (hidden: boolean) => void;
+  initialConversationId?: string;
+  onDeepLinkHandled: () => void;
+}) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selected, setSelected] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [includeArchived, setIncludeArchived] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch<{ conversations: Conversation[] }>("/api/conversations");
+      const path = includeArchived ? "/api/conversations?includeArchived=true" : "/api/conversations";
+      const data = await apiFetch<{ conversations: Conversation[] }>(path);
       setConversations(data.conversations);
+      if (initialConversationId) {
+        const target = data.conversations.find((item) => item.id === initialConversationId);
+        if (target) {
+          setSelected(target);
+          onDeepLinkHandled();
+        }
+      }
     } catch (e) {
       Alert.alert("Messages", e instanceof Error ? e.message : "Unable to load conversations.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [includeArchived, initialConversationId, onDeepLinkHandled]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     onChildStateChange(Boolean(selected));
     return () => onChildStateChange(false);
   }, [selected, onChildStateChange]);
+
+  const controlConversation = async (item: Conversation) => {
+    const me = item.members.find((member) => member.userId === currentUserId);
+    const archived = Boolean(me?.archivedAt);
+    Alert.alert(
+      conversationName(item, currentUserId),
+      "Choose a conversation action.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: archived ? "Unarchive" : "Archive",
+          onPress: async () => {
+            try {
+              await apiFetch("/api/conversations/" + item.id + "/messages", {
+                method: "PATCH",
+                body: JSON.stringify({ action: archived ? "unarchive" : "archive" }),
+              });
+              await load();
+            } catch (e) {
+              Alert.alert("Messages", e instanceof Error ? e.message : "Unable to update conversation.");
+            }
+          },
+        },
+        {
+          text: "Mute 7 days",
+          onPress: async () => {
+            try {
+              await apiFetch("/api/conversations/" + item.id + "/messages", {
+                method: "PATCH",
+                body: JSON.stringify({ action: "mute" }),
+              });
+              Alert.alert("Messages", "Conversation muted for 7 days.");
+            } catch (e) {
+              Alert.alert("Messages", e instanceof Error ? e.message : "Unable to mute conversation.");
+            }
+          },
+        },
+        {
+          text: "Mark read",
+          onPress: async () => {
+            try {
+              await apiFetch("/api/conversations/" + item.id + "/messages", {
+                method: "PATCH",
+                body: JSON.stringify({ action: "read" }),
+              });
+              await load();
+            } catch (e) {
+              Alert.alert("Messages", e instanceof Error ? e.message : "Unable to mark conversation as read.");
+            }
+          },
+        },
+      ],
+    );
+  };
 
   if (selected) {
     return (
@@ -1060,7 +1195,13 @@ function MessagingScreen({ currentUserId, onMenu, onChildStateChange }: { curren
 
   return (
     <View style={styles.screen}>
-      <AppHeader title="Messages" subtitle="Private conversations." onMenu={onMenu} />
+      <AppHeader
+        title={includeArchived ? "Archived messages" : "Messages"}
+        subtitle="Private conversations."
+        onMenu={onMenu}
+        action={includeArchived ? "Active" : "Archived"}
+        onAction={() => setIncludeArchived((value) => !value)}
+      />
       {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
       <FlatList
         data={conversations}
@@ -1069,12 +1210,18 @@ function MessagingScreen({ currentUserId, onMenu, onChildStateChange }: { curren
         renderItem={({ item }) => {
           const member = item.members.find((m) => m.userId !== currentUserId)?.user;
           const last = item.messages?.[0];
+          const me = item.members.find((m) => m.userId === currentUserId);
           return (
-            <Pressable style={styles.conversationCard} onPress={() => setSelected(item)}>
+            <Pressable
+              style={styles.conversationCard}
+              onPress={() => setSelected(item)}
+              onLongPress={() => void controlConversation(item)}
+            >
               <Avatar user={member} size={50} />
               <View style={styles.flex}>
                 <View style={styles.row}>
                   <Text style={styles.userName}>{conversationName(item, currentUserId)}</Text>
+                  {me?.archivedAt ? <Text style={styles.muted}>ARCHIVED</Text> : null}
                   {item.unreadCount > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>{formatCount(item.unreadCount)}</Text></View> : null}
                 </View>
                 <Text numberOfLines={1} style={styles.userHandle}>{last?.content || "Start the conversation"}</Text>
@@ -1100,13 +1247,16 @@ function ChatScreen({
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editing, setEditing] = useState<Message | null>(null);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
   const other = conversation.members.find((member) => member.userId !== currentUserId)?.user;
 
   const load = useCallback(async () => {
     try {
-      const data = await apiFetch<{ messages: Message[] }>(`/api/conversations/${conversation.id}/messages`);
+      const data = await apiFetch<{ messages: Message[] }>("/api/conversations/" + conversation.id + "/messages");
       setMessages(data.messages);
-      await apiFetch(`/api/conversations/${conversation.id}/messages`, {
+      await apiFetch("/api/conversations/" + conversation.id + "/messages", {
         method: "PATCH",
         body: JSON.stringify({ action: "read" }),
       });
@@ -1119,22 +1269,113 @@ function ChatScreen({
 
   useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), 15_000);
+    const timer = setInterval(() => void load(), 5_000);
     return () => clearInterval(timer);
   }, [load]);
 
   const send = async () => {
+    if (editing) {
+      if (!text.trim()) return;
+      try {
+        const data = await apiFetch<{ message: Message }>("/api/messages/" + editing.id, {
+          method: "PATCH",
+          body: JSON.stringify({ action: "edit", content: text.trim() }),
+        });
+        setMessages((current) => current.map((item) => item.id === editing.id ? data.message : item));
+        setEditing(null);
+        setText("");
+      } catch (e) {
+        Alert.alert("Messages", e instanceof Error ? e.message : "Unable to edit.");
+      }
+      return;
+    }
+
     if (!text.trim()) return;
     try {
-      const data = await apiFetch<{ message: Message }>(`/api/conversations/${conversation.id}/messages`, {
+      const data = await apiFetch<{ message: Message }>("/api/conversations/" + conversation.id + "/messages", {
         method: "POST",
-        body: JSON.stringify({ content: text.trim(), attachments: [] }),
+        body: JSON.stringify({
+          content: text.trim(),
+          attachments: [],
+          replyToId: replyingTo?.id,
+        }),
       });
       setMessages((current) => [...current, data.message]);
       setText("");
+      setReplyingTo(null);
     } catch (e) {
       Alert.alert("Messages", e instanceof Error ? e.message : "Unable to send.");
     }
+  };
+
+  const sendAttachment = async () => {
+    setAttachmentBusy(true);
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Messages", "Allow photo access to attach an image.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.9,
+        allowsEditing: false,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const upload = await uploadMedia(asset.uri, asset.mimeType ?? "image/jpeg", asset.fileName ?? "message.jpg");
+      const data = await apiFetch<{ message: Message }>("/api/conversations/" + conversation.id + "/messages", {
+        method: "POST",
+        body: JSON.stringify({
+          content: text.trim(),
+          attachments: [upload.url],
+          replyToId: replyingTo?.id,
+        }),
+      });
+      setMessages((current) => [...current, data.message]);
+      setText("");
+      setReplyingTo(null);
+    } catch (e) {
+      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to attach image.");
+    } finally {
+      setAttachmentBusy(false);
+    }
+  };
+
+  const removeMessage = async (message: Message) => {
+    try {
+      await apiFetch("/api/messages/" + message.id, { method: "DELETE" });
+      setMessages((current) => current.map((item) => item.id === message.id ? { ...item, deletedAt: new Date().toISOString(), content: "" } : item));
+    } catch (e) {
+      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to delete message.");
+    }
+  };
+
+  const messageActions = (message: Message) => {
+    if (message.deletedAt) {
+      Alert.alert("Message", "This message has been deleted.", [{ text: "Close" }]);
+      return;
+    }
+    const buttons: Array<{ text: string; style?: "default" | "cancel" | "destructive"; onPress?: () => void }> = [
+      { text: "Reply", onPress: () => setReplyingTo(message) },
+    ];
+    if (message.senderId === currentUserId) {
+      buttons.push({
+        text: "Edit",
+        onPress: () => {
+          setEditing(message);
+          setReplyingTo(null);
+          setText(message.content);
+        },
+      });
+      buttons.push({
+        text: "Delete",
+        style: "destructive",
+        onPress: () => void removeMessage(message),
+      });
+    }
+    buttons.push({ text: "Cancel", style: "cancel" });
+    Alert.alert("Message actions", "Reply, edit, or delete this message.", buttons);
   };
 
   return (
@@ -1144,7 +1385,7 @@ function ChatScreen({
         <Avatar user={other} size={40} />
         <View style={styles.flex}>
           <Text style={styles.userName}>{conversationName(conversation, currentUserId)}</Text>
-          <Text style={styles.userHandle}>@{other?.username ?? "socialhub"}</Text>
+          <Text style={styles.userHandle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
         </View>
       </View>
       {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
@@ -1153,18 +1394,44 @@ function ChatScreen({
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.chatList}
         renderItem={({ item }) => (
-          <View style={[styles.messageBubble, item.senderId === currentUserId ? styles.myBubble : styles.theirBubble]}>
+          <Pressable
+            onLongPress={() => messageActions(item)}
+            style={[styles.messageBubble, item.senderId === currentUserId ? styles.myBubble : styles.theirBubble]}
+          >
+            {item.replyTo ? (
+              <View style={styles.replyPreview}>
+                <Text style={styles.replyPreviewTitle}>Reply</Text>
+                <Text numberOfLines={2} style={styles.replyPreviewText}>{item.replyTo.content || "Message"}</Text>
+              </View>
+            ) : null}
+            {item.attachments?.map((attachment) => (
+              <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />
+            ))}
             <Text style={styles.messageText}>{item.deletedAt ? "Message deleted" : item.content}</Text>
-            <Text style={styles.messageTime}>{formatTime(item.createdAt)}</Text>
-          </View>
+            <Text style={styles.messageTime}>{formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}</Text>
+          </Pressable>
         )}
       />
+      {(replyingTo || editing) ? (
+        <View style={styles.composeContext}>
+          <View style={styles.flex}>
+            <Text style={styles.composeContextTitle}>{editing ? "Editing message" : "Replying"}</Text>
+            <Text numberOfLines={1} style={styles.composeContextText}>{(editing || replyingTo)?.content || "Message"}</Text>
+          </View>
+          <Pressable onPress={() => { setReplyingTo(null); setEditing(null); setText(""); }}>
+            <Text style={styles.linkText}>Cancel</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
         <View style={styles.messageComposer}>
+          <Pressable onPress={() => void sendAttachment()} disabled={attachmentBusy} style={styles.attachButton}>
+            <Text style={styles.attachButtonText}>{attachmentBusy ? "…" : "+"}</Text>
+          </Pressable>
           <TextInput
             value={text}
             onChangeText={setText}
-            placeholder="Type a message…"
+            placeholder={editing ? "Edit message…" : "Type a message…"}
             placeholderTextColor={colors.muted}
             style={styles.messageInput}
             multiline
@@ -1179,6 +1446,7 @@ function ChatScreen({
 function NotificationsScreen({ onMenu }: { onMenu: () => void }) {
   const [items, setItems] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"ALL" | "UNREAD">("ALL");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1203,25 +1471,53 @@ function NotificationsScreen({ onMenu }: { onMenu: () => void }) {
     }
   };
 
+  const markRead = async (item: Notification) => {
+    if (item.readAt) return;
+    try {
+      await apiFetch("/api/notifications", {
+        method: "PATCH",
+        body: JSON.stringify({ notificationId: item.id }),
+      });
+      setItems((current) => current.map((value) => value.id === item.id ? { ...value, readAt: new Date().toISOString() } : value));
+    } catch (e) {
+      Alert.alert("Notifications", e instanceof Error ? e.message : "Unable to mark notification as read.");
+    }
+  };
+
+  const visible = filter === "UNREAD" ? items.filter((item) => !item.readAt) : items;
+
   return (
     <View style={styles.screen}>
       <AppHeader title="Notifications" subtitle="Stay up to date." onMenu={onMenu} action="Mark all" onAction={() => void markAll()} />
+      <View style={styles.notificationFilters}>
+        {["ALL", "UNREAD"].map((value) => (
+          <Pressable
+            key={value}
+            onPress={() => setFilter(value === "UNREAD" ? "UNREAD" : "ALL")}
+            style={[styles.visibilityChip, filter === value && styles.visibilityChipActive]}
+          >
+            <Text style={[styles.visibilityText, filter === value && styles.visibilityTextActive]}>
+              {value === "ALL" ? "All" : "Unread"}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
       {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
       <FlatList
-        data={items}
+        data={visible}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.feed}
         renderItem={({ item }) => (
-          <View style={[styles.notificationCard, !item.readAt && styles.unreadCard]}>
+          <Pressable onPress={() => void markRead(item)} style={[styles.notificationCard, !item.readAt && styles.unreadCard]}>
             <Avatar user={item.actor} size={42} />
             <View style={styles.flex}>
               <Text style={styles.notificationTitle}>{item.title || notificationLabel(item.type)}</Text>
               <Text style={styles.notificationBody}>{item.body || "You have a new SocialHub activity."}</Text>
               <Text style={styles.userHandle}>{formatTime(item.createdAt)}</Text>
             </View>
-          </View>
+          </Pressable>
         )}
-        ListEmptyComponent={!loading ? <Text style={styles.empty}>No notifications yet.</Text> : null}
+        ListEmptyComponent={!loading ? <Text style={styles.empty}>{filter === "UNREAD" ? "No unread notifications." : "No notifications yet."}</Text> : null}
       />
     </View>
   );
@@ -1247,6 +1543,7 @@ function ProfileScreen({ onSignedOut, onMenu }: { onSignedOut: () => void; onMen
   const [posts, setPosts] = useState<Post[]>([]);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [mediaBusy, setMediaBusy] = useState<"image" | "coverImage" | null>(null);
   const [form, setForm] = useState({ name: "", username: "", bio: "" });
 
   const load = useCallback(async () => {
@@ -1268,6 +1565,35 @@ function ProfileScreen({ onSignedOut, onMenu }: { onSignedOut: () => void; onMen
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const pickProfileMedia = async (field: "image" | "coverImage") => {
+    setMediaBusy(field);
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Profile", "Allow photo access to update your profile media.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.9,
+        allowsEditing: field === "image",
+        aspect: field === "image" ? [1, 1] : [16, 9],
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const upload = await uploadMedia(asset.uri, asset.mimeType ?? "image/jpeg", asset.fileName ?? field + ".jpg");
+      const data = await apiFetch<{ profile: Profile }>("/api/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ [field]: upload.url }),
+      });
+      setProfile(data.profile);
+    } catch (e) {
+      Alert.alert("Profile", e instanceof Error ? e.message : "Unable to update profile media.");
+    } finally {
+      setMediaBusy(null);
+    }
+  };
 
   const save = async () => {
     setBusy(true);
@@ -1303,6 +1629,7 @@ function ProfileScreen({ onSignedOut, onMenu }: { onSignedOut: () => void; onMen
       <AppHeader title="Profile" subtitle="Your Socialhub identity." onMenu={onMenu} action={editing ? "Cancel" : "Edit"} onAction={() => setEditing((value) => !value)} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.profileHero}>
+          {profile.coverImage ? <Image source={{ uri: profile.coverImage }} style={styles.profileCover} resizeMode="cover" /> : null}
           <Avatar user={profile} size={86} />
           <Text style={styles.profileName}>{profile.name}</Text>
           <Text style={styles.userHandle}>@{profile.username ?? "socialhub"}</Text>
@@ -1320,7 +1647,15 @@ function ProfileScreen({ onSignedOut, onMenu }: { onSignedOut: () => void; onMen
             <TextInput value={form.name} onChangeText={(name) => setForm((f) => ({ ...f, name }))} placeholder="Name" placeholderTextColor={colors.muted} style={styles.input} />
             <TextInput value={form.username} onChangeText={(username) => setForm((f) => ({ ...f, username }))} placeholder="Username" placeholderTextColor={colors.muted} style={styles.input} autoCapitalize="none" />
             <TextInput value={form.bio} onChangeText={(bio) => setForm((f) => ({ ...f, bio }))} placeholder="Bio" placeholderTextColor={colors.muted} style={[styles.input, styles.bioInput]} multiline />
-            <PrimaryButton label={busy ? "Saving…" : "Save changes"} onPress={() => void save()} disabled={busy} />
+            <View style={styles.mediaEditRow}>
+              <Pressable style={styles.mediaEditButton} disabled={mediaBusy !== null} onPress={() => void pickProfileMedia("image")}>
+                <Text style={styles.mediaEditText}>{mediaBusy === "image" ? "Updating…" : "Change photo"}</Text>
+              </Pressable>
+              <Pressable style={styles.mediaEditButton} disabled={mediaBusy !== null} onPress={() => void pickProfileMedia("coverImage")}>
+                <Text style={styles.mediaEditText}>{mediaBusy === "coverImage" ? "Updating…" : "Change cover"}</Text>
+              </Pressable>
+            </View>
+            <PrimaryButton label={busy ? "Saving…" : "Save changes"} onPress={() => void save()} disabled={busy || mediaBusy !== null} />
           </View>
         ) : null}
 
@@ -1350,6 +1685,12 @@ export default function App() {
   );
 }
 
+type DeepLinkTarget =
+  | { kind: "post"; id: string }
+  | { kind: "story"; id: string }
+  | { kind: "message"; id: string }
+  | { kind: "profile"; id: string };
+
 function RootContent() {
   const insets = useSafeAreaInsets();
   const [booting, setBooting] = useState(true);
@@ -1359,6 +1700,7 @@ function RootContent() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [hideBottomNav, setHideBottomNav] = useState(false);
   const [unread, setUnread] = useState({ messages: 0, notifications: 0, friendRequests: 0 });
+  const [deepLink, setDeepLink] = useState<DeepLinkTarget | null>(null);
 
   const refreshSession = useCallback(async () => {
     try {
@@ -1381,6 +1723,38 @@ function RootContent() {
       setUnread(data);
     } catch {}
   }, [signedIn]);
+
+  const parseDeepLink = useCallback((url: string) => {
+    try {
+      const parsed = Linking.parse(url);
+      const rawPath = parsed.path ?? "";
+      const parts = [parsed.hostname ?? "", ...rawPath.split("/").filter(Boolean)].filter(Boolean);
+      const kind = (parts[0] ?? "").toLowerCase();
+      const id = parts[1] ?? "";
+      if (!id) return;
+      if (["post", "posts"].includes(kind)) setDeepLink({ kind: "post", id });
+      else if (["story", "stories"].includes(kind)) setDeepLink({ kind: "story", id });
+      else if (["message", "messages", "conversation", "conversations"].includes(kind)) setDeepLink({ kind: "message", id });
+      else if (["profile", "user", "users"].includes(kind)) setDeepLink({ kind: "profile", id });
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const subscription = Linking.addEventListener("url", ({ url }) => parseDeepLink(url));
+    void Linking.getInitialURL().then((url) => {
+      if (url) parseDeepLink(url);
+    });
+    return () => subscription.remove();
+  }, [parseDeepLink]);
+
+  useEffect(() => {
+    if (!signedIn || !deepLink) return;
+    if (deepLink.kind === "message") setTab("Messages");
+    else if (deepLink.kind === "profile") setTab("Discover");
+    else setTab("Home");
+  }, [signedIn, deepLink]);
+
+  const onDeepLinkHandled = useCallback(() => setDeepLink(null), []);
 
   useEffect(() => { void refreshSession(); }, [refreshSession]);
   useEffect(() => {
@@ -1423,16 +1797,37 @@ function RootContent() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      {tab === "Home" ? <HomeScreen onMenu={openMenu} /> : null}
-      {tab === "Discover" ? <DiscoverScreen onMenu={openMenu} /> : null}
+      {tab === "Home" ? (
+        <HomeScreen
+          onMenu={openMenu}
+          initialPostId={deepLink?.kind === "post" ? deepLink.id : undefined}
+          initialStoryId={deepLink?.kind === "story" ? deepLink.id : undefined}
+          onDeepLinkHandled={onDeepLinkHandled}
+        />
+      ) : null}
+      {tab === "Discover" ? (
+        <DiscoverScreen
+          onMenu={openMenu}
+          initialQuery={deepLink?.kind === "profile" ? deepLink.id : undefined}
+          onDeepLinkHandled={onDeepLinkHandled}
+        />
+      ) : null}
       {tab === "Friends" ? <FriendsScreen onMenu={openMenu} /> : null}
       {tab === "Messages" && sessionUser ? (
-        <MessagingScreen currentUserId={sessionUser.id} onMenu={openMenu} onChildStateChange={setHideBottomNav} />
+        <MessagingScreen
+          currentUserId={sessionUser.id}
+          onMenu={openMenu}
+          onChildStateChange={setHideBottomNav}
+          initialConversationId={deepLink?.kind === "message" ? deepLink.id : undefined}
+          onDeepLinkHandled={onDeepLinkHandled}
+        />
       ) : null}
       {tab === "Notifications" ? <NotificationsScreen onMenu={openMenu} /> : null}
       {tab === "Profile" ? <ProfileScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
       {tab === "Settings" ? <SettingsScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
       {tab === "Saved" ? <SavedScreen onMenu={openMenu} /> : null}
+      {tab === "Security" ? <SecurityScreen onMenu={openMenu} /> : null}
+      {tab === "Admin" ? <AdminScreen onMenu={openMenu} /> : null}
 
       {!hideBottomNav ? (
         <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom + 8, 10) }]}>
@@ -1528,6 +1923,11 @@ const styles = StyleSheet.create({
   composer: { backgroundColor: colors.panel, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 12 },
   composerInput: { minHeight: 80, color: colors.text, textAlignVertical: "top", padding: 4 },
   composerActions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
+  visibilityRow: { flexDirection: "row", gap: 8, marginTop: 8 },
+  visibilityChip: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  visibilityChipActive: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
+  visibilityText: { color: colors.muted, fontSize: 11, fontWeight: "800" },
+  visibilityTextActive: { color: colors.text },
   mediaPickerButton: { paddingHorizontal: 12, paddingVertical: 11, borderRadius: 12, backgroundColor: colors.panel2 },
   selectedMedia: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: colors.panel2 },
   storyTray: { flexDirection: "row", paddingVertical: 10, marginBottom: 2 },
@@ -1594,21 +1994,35 @@ const styles = StyleSheet.create({
   theirBubble: { alignSelf: "flex-start", backgroundColor: colors.panel2 },
   messageText: { color: "#fff", lineHeight: 20 },
   messageTime: { color: "rgba(255,255,255,0.58)", fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
+  messageAttachment: { width: 190, height: 150, borderRadius: 13, marginBottom: 7, backgroundColor: colors.panel },
+  replyPreview: { borderLeftWidth: 3, borderLeftColor: colors.accent, paddingLeft: 8, marginBottom: 7 },
+  replyPreviewTitle: { color: "#c5bcff", fontSize: 10, fontWeight: "900" },
+  replyPreviewText: { color: "rgba(255,255,255,0.7)", fontSize: 11, marginTop: 2 },
+  composeContext: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.panel2, borderTopWidth: 1, borderTopColor: colors.border },
+  composeContextTitle: { color: colors.accent, fontSize: 11, fontWeight: "900" },
+  composeContextText: { color: colors.text, fontSize: 12, marginTop: 2 },
+  attachButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
+  attachButtonText: { color: colors.text, fontSize: 24, fontWeight: "700" },
   messageComposer: { flexDirection: "row", alignItems: "flex-end", gap: 8, padding: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.panel },
   messageInput: { flex: 1, minHeight: 46, maxHeight: 120, color: colors.text, backgroundColor: colors.panel2, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 11, textAlignVertical: "top" },
   sendButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
   sendButtonText: { color: "#fff", fontSize: 20, fontWeight: "900" },
+  notificationFilters: { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingTop: 10 },
   notificationCard: { flexDirection: "row", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, marginBottom: 10 },
   unreadCard: { borderColor: colors.accent, backgroundColor: "#151122" },
   notificationTitle: { color: colors.text, fontWeight: "800" },
   notificationBody: { color: colors.muted, marginTop: 4, lineHeight: 18 },
   profileHero: { alignItems: "center", paddingVertical: 18 },
+  profileCover: { width: "100%", height: 150, borderRadius: 18, marginBottom: -26, backgroundColor: colors.panel2 },
   profileName: { color: colors.text, fontSize: 24, fontWeight: "900", marginTop: 10 },
   profileBio: { color: colors.muted, textAlign: "center", marginTop: 8, maxWidth: 320, lineHeight: 20 },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
   statCard: { flexGrow: 1, flexBasis: "22%", minWidth: 74, alignItems: "center", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, paddingVertical: 13, borderRadius: 14 },
   statValue: { color: colors.text, fontSize: 18, fontWeight: "900" },
   editPanel: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, marginBottom: 10 },
+  mediaEditRow: { flexDirection: "row", gap: 8, marginBottom: 6 },
+  mediaEditButton: { flex: 1, minHeight: 42, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  mediaEditText: { color: colors.text, fontSize: 12, fontWeight: "800" },
   bioInput: { minHeight: 100, textAlignVertical: "top" },
   bottomNav: { position: "absolute", left: 12, right: 12, height: 72, backgroundColor: "#15151d", borderWidth: 1, borderColor: colors.border, borderRadius: 22, flexDirection: "row", alignItems: "center", justifyContent: "space-around" },
   navItem: { minWidth: 55, alignItems: "center", justifyContent: "center" },
