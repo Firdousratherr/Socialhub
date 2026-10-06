@@ -1,6 +1,8 @@
 name: Android APK
 
 on:
+  push:
+    branches: ["android-native-socialhub"]
   workflow_dispatch:
 
 jobs:
@@ -21,7 +23,10 @@ jobs:
           cache-dependency-path: mobile/package.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
+
+      - name: Validate mobile TypeScript
+        run: npx tsc --noEmit
 
       - name: Validate Expo project
         run: npx expo-doctor
