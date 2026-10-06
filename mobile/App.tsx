@@ -1340,7 +1340,7 @@ function RootContent() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" translucent />
+      <StatusBar style="light" />
       {tab === "Home" ? <HomeScreen onMenu={openMenu} /> : null}
       {tab === "Discover" ? <DiscoverScreen onMenu={openMenu} /> : null}
       {tab === "Friends" ? <FriendsScreen onMenu={openMenu} /> : null}
