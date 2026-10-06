@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -17,6 +18,7 @@ import {
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import * as SplashScreen from "expo-splash-screen";
 import * as Linking from "expo-linking";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppHeader, MenuDrawer, type MobileRoute } from "./components/MobileShell";
@@ -43,6 +45,8 @@ import type {
 
 type Tab = MobileRoute;
 
+const BRAND_ICON = require("./assets/icon.png");
+
 const colors = {
   bg: "#08080c",
   panel: "#111118",
@@ -55,6 +59,9 @@ const colors = {
   success: "#69d79b",
   danger: "#ff7474",
 };
+
+SplashScreen.setOptions({ duration: 650 });
+void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function formatCount(value: number) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
@@ -294,7 +301,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.authContent} keyboardShouldPersistTaps="handled">
         <View style={styles.logo}>
-          <Text style={styles.logoLetter}>S</Text>
+          <Image source={BRAND_ICON} style={styles.logoImage} resizeMode="contain" />
         </View>
         <Text style={styles.authBrand}>SocialHub</Text>
         <Text style={styles.authSubtitle}>{title}</Text>
@@ -600,6 +607,7 @@ function StoryViewer({
   }>>({});
   const [reply, setReply] = useState("");
   const current = stories[index];
+  const insets = useSafeAreaInsets();
 
   const loadDetail = useCallback(async () => {
     if (!current) return;
@@ -657,7 +665,7 @@ function StoryViewer({
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.storyModal}>
-        <View style={styles.storyTop}>
+        <View style={[styles.storyTop, { paddingTop: insets.top + 10 }]}>
           <Pressable onPress={onClose}><Text style={styles.closeText}>✕</Text></Pressable>
           <View style={styles.flex}>
             <Text style={styles.storyViewerName}>{current.author.name}</Text>
@@ -676,7 +684,7 @@ function StoryViewer({
           <Pressable style={styles.storyTapRight} onPress={() => move(1)} />
         </View>
 
-        <View style={styles.storyBottom}>
+        <View style={[styles.storyBottom, { paddingBottom: Math.max(insets.bottom, 14) }]}>
           {current.caption ? <Text style={styles.storyCaption}>{current.caption}</Text> : null}
           <View style={styles.reactionsRow}>
             {["❤️", "😂", "😮", "😢", "🔥", "👍"].map((emoji) => (
@@ -1251,6 +1259,8 @@ function ChatScreen({
   const [editing, setEditing] = useState<Message | null>(null);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const other = conversation.members.find((member) => member.userId !== currentUserId)?.user;
+  const insets = useSafeAreaInsets();
+  const listRef = useRef<FlatList<Message>>(null);
 
   const load = useCallback(async () => {
     try {
@@ -1270,161 +1280,55 @@ function ChatScreen({
   useEffect(() => {
     void load();
     const timer = setInterval(() => void load(), 5_000);
-    return () => clearInterval(timer);
-  }, [load]);
-
-  const send = async () => {
-    if (editing) {
-      if (!text.trim()) return;
-      try {
-        const data = await apiFetch<{ message: Message }>("/api/messages/" + editing.id, {
-          method: "PATCH",
-          body: JSON.stringify({ action: "edit", content: text.trim() }),
-        });
-        setMessages((current) => current.map((item) => item.id === editing.id ? data.message : item));
-        setEditing(null);
-        setText("");
-      } catch (e) {
-        Alert.alert("Messages", e instanceof Error ? e.message : "Unable to edit.");
-      }
-      return;
-    }
-
-    if (!text.trim()) return;
-    try {
-      const data = await apiFetch<{ message: Message }>("/api/conversations/" + conversation.id + "/messages", {
-        method: "POST",
-        body: JSON.stringify({
-          content: text.trim(),
-          attachments: [],
-          replyToId: replyingTo?.id,
-        }),
-      });
-      setMessages((current) => [...current, data.message]);
-      setText("");
-      setReplyingTo(null);
-    } catch (e) {
-      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to send.");
-    }
-  };
-
-  const sendAttachment = async () => {
-    setAttachmentBusy(true);
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert("Messages", "Allow photo access to attach an image.");
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        quality: 0.9,
-        allowsEditing: false,
-      });
-      if (result.canceled || !result.assets[0]) return;
-      const asset = result.assets[0];
-      const upload = await uploadMedia(asset.uri, asset.mimeType ?? "image/jpeg", asset.fileName ?? "message.jpg");
-      const data = await apiFetch<{ message: Message }>("/api/conversations/" + conversation.id + "/messages", {
-        method: "POST",
-        body: JSON.stringify({
-          content: text.trim(),
-          attachments: [upload.url],
-          replyToId: replyingTo?.id,
-        }),
-      });
-      setMessages((current) => [...current, data.message]);
-      setText("");
-      setReplyingTo(null);
-    } catch (e) {
-      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to attach image.");
-    } finally {
-      setAttachmentBusy(false);
-    }
-  };
-
-  const removeMessage = async (message: Message) => {
-    try {
-      await apiFetch("/api/messages/" + message.id, { method: "DELETE" });
-      setMessages((current) => current.map((item) => item.id === message.id ? { ...item, deletedAt: new Date().toISOString(), content: "" } : item));
-    } catch (e) {
-      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to delete message.");
-    }
-  };
-
-  const messageActions = (message: Message) => {
-    if (message.deletedAt) {
-      Alert.alert("Message", "This message has been deleted.", [{ text: "Close" }]);
-      return;
-    }
-    const buttons: Array<{ text: string; style?: "default" | "cancel" | "destructive"; onPress?: () => void }> = [
-      { text: "Reply", onPress: () => setReplyingTo(message) },
-    ];
-    if (message.senderId === currentUserId) {
-      buttons.push({
-        text: "Edit",
-        onPress: () => {
-          setEditing(message);
-          setReplyingTo(null);
-          setText(message.content);
-        },
-      });
-      buttons.push({
-        text: "Delete",
-        style: "destructive",
-        onPress: () => void removeMessage(message),
-      });
-    }
-    buttons.push({ text: "Cancel", style: "cancel" });
-    Alert.alert("Message actions", "Reply, edit, or delete this message.", buttons);
-  };
-
-  return (
-    <SafeAreaView style={styles.chatScreen}>
-      <View style={styles.chatHeader}>
-        <Pressable onPress={onBack}><Text style={styles.backText}>‹</Text></Pressable>
+    return (
+    <View style={styles.chatScreen}>
+      <View style={[styles.chatHeader, { paddingTop: insets.top + 8 }]}>
+        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Go back">
+          <Text style={styles.backText}>‹</Text>
+        </Pressable>
         <Avatar user={other} size={40} />
         <View style={styles.flex}>
           <Text style={styles.userName}>{conversationName(conversation, currentUserId)}</Text>
           <Text style={styles.userHandle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
         </View>
       </View>
-      {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
-      <FlatList
-        data={messages}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.chatList}
-        renderItem={({ item }) => (
-          <Pressable
-            onLongPress={() => messageActions(item)}
-            style={[styles.messageBubble, item.senderId === currentUserId ? styles.myBubble : styles.theirBubble]}
-          >
-            {item.replyTo ? (
-              <View style={styles.replyPreview}>
+      <KeyboardAvoidingView style={styles.chatKeyboard} behavior={Platform.OS === "android" ? "height" : "padding"} keyboardVerticalOffset={0}>
+        {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
+        <FlatList
+          ref={listRef}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          style={styles.chatListFlex}
+          contentContainerStyle={styles.chatList}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          renderItem={({ item }) => (
+            <Pressable onLongPress={() => messageActions(item)} style={[styles.messageBubble, item.senderId === currentUserId ? styles.myBubble : styles.theirBubble]}>
+              {item.replyTo ? <View style={styles.replyPreview}>
                 <Text style={styles.replyPreviewTitle}>Reply</Text>
                 <Text numberOfLines={2} style={styles.replyPreviewText}>{item.replyTo.content || "Message"}</Text>
-              </View>
-            ) : null}
-            {item.attachments?.map((attachment) => (
-              <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />
-            ))}
-            <Text style={styles.messageText}>{item.deletedAt ? "Message deleted" : item.content}</Text>
-            <Text style={styles.messageTime}>{formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}</Text>
-          </Pressable>
-        )}
-      />
-      {(replyingTo || editing) ? (
-        <View style={styles.composeContext}>
-          <View style={styles.flex}>
-            <Text style={styles.composeContextTitle}>{editing ? "Editing message" : "Replying"}</Text>
-            <Text numberOfLines={1} style={styles.composeContextText}>{(editing || replyingTo)?.content || "Message"}</Text>
+              </View> : null}
+              {item.attachments?.map((attachment) => (
+                <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />
+              ))}
+              <Text style={styles.messageText}>{item.deletedAt ? "Message deleted" : item.content}</Text>
+              <Text style={styles.messageTime}>{formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}</Text>
+            </Pressable>
+          )}
+          ListEmptyComponent={!loading ? <Text style={styles.emptySmall}>No messages yet. Start the conversation.</Text> : null}
+        />
+        {(replyingTo || editing) ? (
+          <View style={styles.composeContext}>
+            <View style={styles.flex}>
+              <Text style={styles.composeContextTitle}>{editing ? "Editing message" : "Replying"}</Text>
+              <Text numberOfLines={1} style={styles.composeContextText}>{(editing || replyingTo)?.content || "Message"}</Text>
+            </View>
+            <Pressable onPress={() => { setReplyingTo(null); setEditing(null); setText(""); }}>
+              <Text style={styles.linkText}>Cancel</Text>
+            </Pressable>
           </View>
-          <Pressable onPress={() => { setReplyingTo(null); setEditing(null); setText(""); }}>
-            <Text style={styles.linkText}>Cancel</Text>
-          </Pressable>
-        </View>
-      ) : null}
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
-        <View style={styles.messageComposer}>
+        ) : null}
+        <View style={[styles.messageComposer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
           <Pressable onPress={() => void sendAttachment()} disabled={attachmentBusy} style={styles.attachButton}>
             <Text style={styles.attachButtonText}>{attachmentBusy ? "…" : "+"}</Text>
           </Pressable>
@@ -1435,11 +1339,14 @@ function ChatScreen({
             placeholderTextColor={colors.muted}
             style={styles.messageInput}
             multiline
+            blurOnSubmit={false}
           />
-          <Pressable onPress={() => void send()} style={styles.sendButton}><Text style={styles.sendButtonText}>➤</Text></Pressable>
+          <Pressable onPress={() => void send()} style={styles.sendButton}>
+            <Text style={styles.sendButtonText}>➤</Text>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1706,8 +1613,20 @@ function RootContent() {
     try {
       const session = await authClient.getSession();
       const user = session.data?.user as User | undefined;
-      setSessionUser(user ?? null);
-      setSignedIn(Boolean(user));
+      if (!user) {
+        setSessionUser(null);
+        setSignedIn(false);
+        return;
+      }
+      let enrichedUser: User = user;
+      try {
+        const profile = await apiFetch<{ profile: User }>("/api/profile");
+        enrichedUser = { ...user, ...profile.profile };
+      } catch {
+        // Preserve the authenticated Better Auth identity when profile enrichment is unavailable.
+      }
+      setSessionUser(enrichedUser);
+      setSignedIn(true);
     } catch {
       setSessionUser(null);
       setSignedIn(false);
@@ -1757,6 +1676,19 @@ function RootContent() {
   const onDeepLinkHandled = useCallback(() => setDeepLink(null), []);
 
   useEffect(() => { void refreshSession(); }, [refreshSession]);
+
+  useEffect(() => {
+    if (!booting) void SplashScreen.hideAsync().catch(() => {});
+  }, [booting]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (drawerOpen) { setDrawerOpen(false); return true; }
+      if (!hideBottomNav && tab !== "Home") { setTab("Home"); return true; }
+      return false;
+    });
+    return () => subscription.remove();
+  }, [booting, drawerOpen, hideBottomNav, tab]);
   useEffect(() => {
     if (!signedIn) return;
     void refreshUnread();
@@ -1765,9 +1697,10 @@ function RootContent() {
   }, [signedIn, refreshUnread]);
 
   const navigate = useCallback((route: MobileRoute) => {
+    if (route === "Admin" && !sessionUser?.isOwner) return;
     setHideBottomNav(false);
     setTab(route);
-  }, []);
+  }, [sessionUser?.isOwner]);
 
   const signOut = useCallback(async () => {
     await authClient.signOut();
@@ -1824,10 +1757,10 @@ function RootContent() {
       ) : null}
       {tab === "Notifications" ? <NotificationsScreen onMenu={openMenu} /> : null}
       {tab === "Profile" ? <ProfileScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
-      {tab === "Settings" ? <SettingsScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
+      {tab === "Settings" ? <SettingsScreen onMenu={openMenu} isOwner={Boolean(sessionUser?.isOwner)} onOpenAdmin={() => navigate("Admin")} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
       {tab === "Saved" ? <SavedScreen onMenu={openMenu} /> : null}
       {tab === "Security" ? <SecurityScreen onMenu={openMenu} /> : null}
-      {tab === "Admin" ? <AdminScreen onMenu={openMenu} /> : null}
+      {tab === "Admin" && sessionUser?.isOwner ? <AdminScreen onMenu={openMenu} /> : null>
 
       {!hideBottomNav ? (
         <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom + 8, 10) }]}>
@@ -1881,7 +1814,8 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
   authScreen: { flex: 1, backgroundColor: colors.bg },
   authContent: { flexGrow: 1, justifyContent: "center", padding: 24, paddingBottom: 40 },
-  logo: { width: 78, height: 78, borderRadius: 26, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", alignSelf: "center" },
+  logo: { width: 86, height: 86, borderRadius: 28, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", alignSelf: "center", overflow: "hidden" },
+  logoImage: { width: 86, height: 86 },
   logoLetter: { color: "#fff", fontSize: 42, fontWeight: "900" },
   authBrand: { color: colors.text, fontSize: 34, fontWeight: "900", textAlign: "center", marginTop: 16 },
   authSubtitle: { color: colors.muted, textAlign: "center", marginTop: 6, marginBottom: 24, fontSize: 15 },
@@ -1942,7 +1876,7 @@ const styles = StyleSheet.create({
   closeText: { color: colors.text, fontSize: 22, fontWeight: "700", padding: 6 },
   storyViewerName: { color: colors.text, fontWeight: "800", fontSize: 15 },
   storyMediaArea: { flex: 1, position: "relative", alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
-  storyMedia: { width: "100%", height: "78%" },
+  storyMedia: { width: "100%", height: "68%" },
   storyTapLeft: { position: "absolute", top: 0, bottom: 0, left: 0, width: "35%" },
   storyTapRight: { position: "absolute", top: 0, bottom: 0, right: 0, width: "35%" },
   videoPlaceholder: { alignItems: "center", justifyContent: "center", gap: 8, padding: 30 },
@@ -1986,7 +1920,9 @@ const styles = StyleSheet.create({
   badge: { minWidth: 22, height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", marginLeft: 8 },
   badgeText: { color: "#fff", fontSize: 10, fontWeight: "900" },
   chatScreen: { flex: 1, backgroundColor: colors.bg },
-  chatHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  chatKeyboard: { flex: 1, backgroundColor: colors.bg },
+  chatListFlex: { flex: 1 },
+  chatHeader: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
   backText: { color: colors.text, fontSize: 38, lineHeight: 38, paddingHorizontal: 6 },
   chatList: { padding: 12, gap: 8, paddingBottom: 14 },
   messageBubble: { maxWidth: "82%", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
@@ -2001,11 +1937,11 @@ const styles = StyleSheet.create({
   composeContext: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.panel2, borderTopWidth: 1, borderTopColor: colors.border },
   composeContextTitle: { color: colors.accent, fontSize: 11, fontWeight: "900" },
   composeContextText: { color: colors.text, fontSize: 12, marginTop: 2 },
-  attachButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
+  attachButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
   attachButtonText: { color: colors.text, fontSize: 24, fontWeight: "700" },
-  messageComposer: { flexDirection: "row", alignItems: "flex-end", gap: 8, padding: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.panel },
-  messageInput: { flex: 1, minHeight: 46, maxHeight: 120, color: colors.text, backgroundColor: colors.panel2, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 11, textAlignVertical: "top" },
-  sendButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+  messageComposer: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.panel, minHeight: 70 },
+  messageInput: { flex: 1, minHeight: 52, maxHeight: 140, color: colors.text, backgroundColor: colors.panel2, borderRadius: 18, paddingHorizontal: 15, paddingVertical: 12, textAlignVertical: "top" },
+  sendButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
   sendButtonText: { color: "#fff", fontSize: 20, fontWeight: "900" },
   notificationFilters: { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingTop: 10 },
   notificationCard: { flexDirection: "row", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, marginBottom: 10 },

@@ -100,7 +100,6 @@ export function MenuDrawer({
     { route: "Saved", label: "Saved posts", icon: "▱", description: "Posts you saved for later" },
     { route: "Settings", label: "Settings", icon: "⚙", description: "Account, privacy and preferences" },
     { route: "Security", label: "Security", icon: "◈", description: "Sessions and device permissions" },
-    { route: "Admin", label: "Admin control", icon: "◆", description: "Owner and moderator operations" },
   ];
 
   return (
@@ -152,7 +151,7 @@ export function MenuDrawer({
 
 const styles = StyleSheet.create({
   header: {
-    minHeight: 76,
+    minHeight: 92,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
@@ -162,12 +161,12 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     zIndex: 5,
   },
-  menuButton: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  menuButton: { width: 50, height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   menuIcon: { color: colors.text, fontSize: 25, fontWeight: "800", lineHeight: 28 },
-  backButton: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  backButton: { width: 50, height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   backIcon: { color: colors.text, fontSize: 38, lineHeight: 38, marginTop: -4 },
   headerCopy: { flex: 1, minWidth: 0, paddingHorizontal: 12 },
-  title: { color: colors.text, fontSize: 23, fontWeight: "900" },
+  title: { color: colors.text, fontSize: 25, fontWeight: "900", letterSpacing: -0.3 },
   subtitle: { color: colors.muted, marginTop: 3, fontSize: 12 },
   headerAction: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
   actionText: { color: "#a99cff", fontWeight: "800", fontSize: 13 },

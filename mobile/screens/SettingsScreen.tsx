@@ -7,7 +7,7 @@ import type { Profile } from "../types";
 
 const colors={bg:"#08080c",panel:"#111118",panel2:"#171720",border:"#252531",text:"#f8f8ff",muted:"#8d8d9b",accent:"#725cff",success:"#69d79b",danger:"#ff7474"};
 
-export default function SettingsScreen({ onMenu, onSignedOut }:{onMenu:()=>void;onSignedOut:()=>void}) {
+export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdmin }:{onMenu:()=>void;onSignedOut:()=>void;isOwner:boolean;onOpenAdmin:()=>void}) {
  const [profile,setProfile]=useState<Profile|null>(null);
  const [form,setForm]=useState({name:"",username:"",bio:""});
  const [privateAccount,setPrivateAccount]=useState(false);
@@ -62,6 +62,10 @@ export default function SettingsScreen({ onMenu, onSignedOut }:{onMenu:()=>void;
    <SettingCard title="Notifications" subtitle="Choose which activity reaches your account.">
     {["likes","comments","follows","friendRequests","friendAccepted","messages","mentions","shares","storyReplies","storyReactions","system"].map(k=><Row key={k} label={k.replace(/[A-Z]/g,m=>" "+m).replace(/^./,m=>m.toUpperCase())} value={Boolean(preferences[k])} onChange={v=>void setPreference(k,v)}/>)}
    </SettingCard>
+   {isOwner?<SettingCard title="Owner console" subtitle="This entry is visible only to the Socialhub owner account.">
+    <View style={styles.notice}><Text style={styles.noticeTitle}>Private administration</Text><Text style={styles.muted}>The admin control center is removed from normal navigation and guarded by the server for the owner account.</Text></View>
+    <Pressable onPress={onOpenAdmin} style={styles.primary}><Text style={styles.primaryText}>Open Owner Console</Text></Pressable>
+   </SettingCard>:null}
    <SettingCard title="Security & privacy" subtitle="The Android app only requests device permissions when a feature needs them.">
     <View style={styles.notice}><Text style={styles.noticeTitle}>Consent-first device access</Text><Text style={styles.muted}>Camera, photos, microphone, location and screen sharing are never accessed silently. Android's permission UI and an explicit Socialhub consent flow are required before a supported feature can use them.</Text></View>
     <Text style={styles.sectionLabel}>DATA</Text><Text style={styles.muted}>Account export, active sessions, blocked/muted accounts and verification controls will stay aligned with the website security center.</Text>

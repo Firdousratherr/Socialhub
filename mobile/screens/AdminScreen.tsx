@@ -23,6 +23,7 @@ export default function AdminScreen({ onMenu }: { onMenu: () => void }) {
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     try {
+      await apiFetch<{ allowed: boolean }>("/api/admin/mobile-owner");
       const [dash, controls] = await Promise.all([
         apiFetch<Dashboard>("/api/admin/dashboard"),
         apiFetch<{ flags: Flag[]; adminSessions?: unknown[] }>("/api/admin/control-center"),
@@ -70,7 +71,7 @@ export default function AdminScreen({ onMenu }: { onMenu: () => void }) {
 
   return (
     <View style={styles.screen}>
-      <AppHeader title="Admin control" subtitle="Audited platform operations." onMenu={onMenu} action="↻" onAction={() => void load(true)} />
+      <AppHeader title="Owner console" subtitle="Owner-only audited platform operations." onMenu={onMenu} action="↻" onAction={() => void load(true)} />
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor="#725cff" />}

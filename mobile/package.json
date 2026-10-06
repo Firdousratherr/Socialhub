@@ -1,6 +1,6 @@
 {
   "name": "socialhub-mobile",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "private": true,
   "main": "expo/AppEntry.js",
   "scripts": {
@@ -22,7 +22,8 @@
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-safe-area-context": "~5.7.0",
-    "expo-video": "~57.0.5"
+    "expo-video": "~57.0.5",
+    "expo-splash-screen": "~57.0.9"
   },
   "devDependencies": {
     "@types/react": "~19.2.0",

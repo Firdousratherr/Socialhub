@@ -2,17 +2,19 @@
   "expo": {
     "name": "SocialHub",
     "slug": "socialhub",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "scheme": "socialhub",
     "userInterfaceStyle": "automatic",
     "android": {
       "package": "com.socialhub.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#0b0b0f"
       },
-      "backgroundColor": "#08080c"
+      "backgroundColor": "#08080c",
+      "icon": "./assets/icon.png",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
       "expo-secure-store",
@@ -27,6 +29,15 @@
         {
           "supportsPictureInPicture": true
         }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#08080c",
+          "image": "./assets/icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain"
+        }
       ]
     ],
     "extra": {
@@ -37,6 +48,7 @@
       "barStyle": "light-content",
       "backgroundColor": "#08080c",
       "translucent": true
-    }
+    },
+    "icon": "./assets/icon.png"
   }
 }
