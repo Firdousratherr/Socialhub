@@ -1,0 +1,156 @@
+name: Android Release APK
+
+on:
+  push:
+    branches: ["release/android-v1"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-release-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Deduplicate native dependencies
+        run: npm dedupe --no-audit --no-fund
+
+      - name: Validate mobile TypeScript
+        run: npx tsc --noEmit
+
+      - name: Validate Expo project
+        run: npx expo-doctor
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --non-interactive
+
+      - name: Create release signing key
+        working-directory: mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          STORE_PASSWORD="$(openssl rand -hex 32)"
+          KEY_PASSWORD="$(openssl rand -hex 32)"
+          keytool -genkeypair -v \
+            -storetype PKCS12 \
+            -keystore "android/app/socialhub-release.keystore" \
+            -alias "socialhub" \
+            -storepass "$STORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
+            -keyalg RSA \
+            -keysize 4096 \
+            -validity 10000 \
+            -dname "CN=SocialHub, OU=Android, O=SocialHub, L=India, ST=Jammu and Kashmir, C=IN"
+          {
+            echo "ANDROID_KEYSTORE_PASSWORD=$STORE_PASSWORD"
+            echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
+            echo "ANDROID_KEY_ALIAS=socialhub"
+          } >> "$GITHUB_ENV"
+
+      - name: Configure release signing
+        working-directory: mobile
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("android/app/build.gradle")
+          text = path.read_text()
+
+          def block_bounds(source, token):
+              start = source.find(token)
+              if start < 0:
+                  raise SystemExit(f"Could not find {token!r}")
+              open_brace = source.find("{", start)
+              if open_brace < 0:
+                  raise SystemExit(f"Could not find opening brace for {token!r}")
+              depth = 0
+              for i in range(open_brace, len(source)):
+                  if source[i] == "{":
+                      depth += 1
+                  elif source[i] == "}":
+                      depth -= 1
+                      if depth == 0:
+                          return start, open_brace, i
+              raise SystemExit(f"Unbalanced braces around {token!r}")
+
+          _, signing_open, signing_close = block_bounds(text, "signingConfigs")
+          signing_block = text[signing_open + 1:signing_close]
+
+          if "release {" not in signing_block:
+              release_config = '''
+              release {
+                  storeFile file("socialhub-release.keystore")
+                  storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                  keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                  keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+              }
+          '''
+              text = text[:signing_open + 1] + release_config + text[signing_open + 1:]
+
+          _, build_open, _ = block_bounds(text, "buildTypes")
+          release_start = text.find("release", build_open)
+          if release_start < 0:
+              raise SystemExit("Could not find release build type")
+          release_open = text.find("{", release_start)
+          depth = 0
+          release_close = None
+          for i in range(release_open, len(text)):
+              if text[i] == "{":
+                  depth += 1
+              elif text[i] == "}":
+                  depth -= 1
+                  if depth == 0:
+                      release_close = i
+                      break
+          if release_close is None:
+              raise SystemExit("Could not find end of release build type")
+
+          release_block = text[release_open + 1:release_close]
+          if "signingConfig signingConfigs.release" not in release_block:
+              release_block = "        signingConfig signingConfigs.release\n" + release_block
+              text = text[:release_open + 1] + release_block + text[release_close:]
+
+          path.write_text(text)
+
+      - name: Build signed release APK
+        working-directory: mobile/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Verify APK signature
+        working-directory: mobile/android
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -f "$APK"
+          apksigner verify --verbose "$APK"
+
+      - name: Generate checksum
+        working-directory: mobile/android
+        run: sha256sum app/build/outputs/apk/release/app-release.apk > app/build/outputs/apk/release/app-release.apk.sha256
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: socialhub-android-release-apk
+          path: |
+            mobile/android/app/build/outputs/apk/release/app-release.apk
+            mobile/android/app/build/outputs/apk/release/app-release.apk.sha256
+          if-no-files-found: error
