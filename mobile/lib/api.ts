@@ -4,12 +4,19 @@ export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
   "https://socialhub-ruby.vercel.app";
 
+const NATIVE_CLIENT_HEADER = "X-Socialhub-Client";
+const NATIVE_CLIENT_VALUE = "android";
+
 function errorMessage(data: unknown, fallback: string) {
   if (typeof data === "object" && data !== null && "error" in data) {
     const error = (data as { error?: unknown }).error;
     if (typeof error === "string") return error;
   }
   return fallback;
+}
+
+function addNativeHeaders(headers: Headers) {
+  headers.set(NATIVE_CLIENT_HEADER, NATIVE_CLIENT_VALUE);
 }
 
 export async function apiFetch<T>(
@@ -19,6 +26,7 @@ export async function apiFetch<T>(
   const cookie = await authClient.getCookie();
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
+  addNativeHeaders(headers);
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
@@ -60,6 +68,7 @@ export async function uploadMedia(
   );
 
   const headers = new Headers({ Accept: "application/json" });
+  addNativeHeaders(headers);
   if (cookie) headers.set("Cookie", cookie);
 
   const response = await fetch(`${API_BASE_URL}/api/uploads`, {
