@@ -154,6 +154,24 @@ jobs:
         working-directory: mobile/android
         run: sha256sum app/build/outputs/apk/release/app-release.apk > app/build/outputs/apk/release/app-release.apk.sha256
 
+
+      - name: Publish GitHub Release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: Socialhub v1.0.0
+          body: |
+            Socialhub native Android application v1.0.0.
+
+            - Native Android/Expo build
+            - Signed release APK
+            - APK signature verified before publication
+          files: |
+            mobile/android/app/build/outputs/apk/release/app-release.apk
+            mobile/android/app/build/outputs/apk/release/app-release.apk.sha256
+          fail_on_unmatched_files: true
+
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
