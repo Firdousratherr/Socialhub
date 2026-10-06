@@ -877,7 +877,17 @@ function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: (
   );
 }
 
-function HomeScreen({ onMenu }: { onMenu: () => void }) {
+function HomeScreen({
+  onMenu,
+  initialPostId,
+  initialStoryId,
+  onDeepLinkHandled,
+}: {
+  onMenu: () => void;
+  initialPostId?: string;
+  initialStoryId?: string;
+  onDeepLinkHandled: () => void;
+}) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
@@ -905,6 +915,25 @@ function HomeScreen({ onMenu }: { onMenu: () => void }) {
 
   const [storyIndex, setStoryIndex] = useState<number | null>(null);
   const [creatingStory, setCreatingStory] = useState(false);
+  const [handledPostId, setHandledPostId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!initialStoryId || !stories.length || storyIndex !== null) return;
+    const index = stories.findIndex((story) => story.id === initialStoryId);
+    if (index >= 0) {
+      setStoryIndex(index);
+      onDeepLinkHandled();
+    }
+  }, [initialStoryId, stories, storyIndex, onDeepLinkHandled]);
+
+  useEffect(() => {
+    if (!initialPostId || !posts.length || handledPostId === initialPostId) return;
+    const target = posts.find((post) => post.id === initialPostId);
+    if (!target) return;
+    setPosts([target, ...posts.filter((post) => post.id !== initialPostId)]);
+    setHandledPostId(initialPostId);
+    onDeepLinkHandled();
+  }, [initialPostId, posts, handledPostId, onDeepLinkHandled]);
 
   const replacePost = (next: Post) => setPosts((current) => current.map((post) => post.id === next.id ? next : post));
 
@@ -947,8 +976,16 @@ function HomeScreen({ onMenu }: { onMenu: () => void }) {
   );
 }
 
-function DiscoverScreen({ onMenu }: { onMenu: () => void }) {
-  const [query, setQuery] = useState("");
+function DiscoverScreen({
+  onMenu,
+  initialQuery,
+  onDeepLinkHandled,
+}: {
+  onMenu: () => void;
+  initialQuery?: string;
+  onDeepLinkHandled: () => void;
+}) {
+  const [query, setQuery] = useState(initialQuery ?? "");
   const [users, setUsers] = useState<SearchUser[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(false);
@@ -965,6 +1002,13 @@ function DiscoverScreen({ onMenu }: { onMenu: () => void }) {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (initialQuery && initialQuery !== query) {
+      setQuery(initialQuery);
+      onDeepLinkHandled();
+    }
+  }, [initialQuery, query, onDeepLinkHandled]);
 
   useEffect(() => {
     const timeout = setTimeout(() => void search(query), query ? 250 : 0);
