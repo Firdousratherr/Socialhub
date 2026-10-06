@@ -1270,6 +1270,7 @@ function ChatScreen({
         method: "PATCH",
         body: JSON.stringify({ action: "read" }),
       });
+      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
     } catch (e) {
       Alert.alert("Messages", e instanceof Error ? e.message : "Unable to load chat.");
     } finally {
@@ -1280,7 +1281,125 @@ function ChatScreen({
   useEffect(() => {
     void load();
     const timer = setInterval(() => void load(), 5_000);
-    return (
+    return () => clearInterval(timer);
+  }, [load]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      onBack();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [onBack]);
+
+  const send = async () => {
+    if (editing) {
+      if (!text.trim()) return;
+      try {
+        const data = await apiFetch<{ message: Message }>("/api/messages/" + editing.id, {
+          method: "PATCH",
+          body: JSON.stringify({ action: "edit", content: text.trim() }),
+        });
+        setMessages((current) => current.map((item) => item.id === editing.id ? data.message : item));
+        setEditing(null);
+        setText("");
+      } catch (e) {
+        Alert.alert("Messages", e instanceof Error ? e.message : "Unable to edit.");
+      }
+      return;
+    }
+
+    if (!text.trim()) return;
+    try {
+      const data = await apiFetch<{ message: Message }>("/api/conversations/" + conversation.id + "/messages", {
+        method: "POST",
+        body: JSON.stringify({
+          content: text.trim(),
+          attachments: [],
+          replyToId: replyingTo?.id,
+        }),
+      });
+      setMessages((current) => [...current, data.message]);
+      setText("");
+      setReplyingTo(null);
+      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+    } catch (e) {
+      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to send.");
+    }
+  };
+
+  const sendAttachment = async () => {
+    setAttachmentBusy(true);
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Messages", "Allow photo access to attach an image.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.9,
+        allowsEditing: false,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const upload = await uploadMedia(asset.uri, asset.mimeType ?? "image/jpeg", asset.fileName ?? "message.jpg");
+      const data = await apiFetch<{ message: Message }>("/api/conversations/" + conversation.id + "/messages", {
+        method: "POST",
+        body: JSON.stringify({
+          content: text.trim(),
+          attachments: [upload.url],
+          replyToId: replyingTo?.id,
+        }),
+      });
+      setMessages((current) => [...current, data.message]);
+      setText("");
+      setReplyingTo(null);
+      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+    } catch (e) {
+      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to attach image.");
+    } finally {
+      setAttachmentBusy(false);
+    }
+  };
+
+  const removeMessage = async (message: Message) => {
+    try {
+      await apiFetch("/api/messages/" + message.id, { method: "DELETE" });
+      setMessages((current) => current.map((item) => item.id === message.id ? { ...item, deletedAt: new Date().toISOString(), content: "" } : item));
+    } catch (e) {
+      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to delete message.");
+    }
+  };
+
+  const messageActions = (message: Message) => {
+    if (message.deletedAt) {
+      Alert.alert("Message", "This message has been deleted.", [{ text: "Close" }]);
+      return;
+    }
+    const buttons: Array<{ text: string; style?: "default" | "cancel" | "destructive"; onPress?: () => void }> = [
+      { text: "Reply", onPress: () => setReplyingTo(message) },
+    ];
+    if (message.senderId === currentUserId) {
+      buttons.push({
+        text: "Edit",
+        onPress: () => {
+          setEditing(message);
+          setReplyingTo(null);
+          setText(message.content);
+        },
+      });
+      buttons.push({
+        text: "Delete",
+        style: "destructive",
+        onPress: () => void removeMessage(message),
+      });
+    }
+    buttons.push({ text: "Cancel", style: "cancel" });
+    Alert.alert("Message actions", "Reply, edit, or delete this message.", buttons);
+  };
+
+  return (
     <View style={styles.chatScreen}>
       <View style={[styles.chatHeader, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Go back">
@@ -1292,7 +1411,11 @@ function ChatScreen({
           <Text style={styles.userHandle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
         </View>
       </View>
-      <KeyboardAvoidingView style={styles.chatKeyboard} behavior={Platform.OS === "android" ? "height" : "padding"} keyboardVerticalOffset={0}>
+      <KeyboardAvoidingView
+        style={styles.chatKeyboard}
+        behavior={Platform.OS === "android" ? "height" : "padding"}
+        keyboardVerticalOffset={0}
+      >
         {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
         <FlatList
           ref={listRef}
@@ -1303,11 +1426,16 @@ function ChatScreen({
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           renderItem={({ item }) => (
-            <Pressable onLongPress={() => messageActions(item)} style={[styles.messageBubble, item.senderId === currentUserId ? styles.myBubble : styles.theirBubble]}>
-              {item.replyTo ? <View style={styles.replyPreview}>
-                <Text style={styles.replyPreviewTitle}>Reply</Text>
-                <Text numberOfLines={2} style={styles.replyPreviewText}>{item.replyTo.content || "Message"}</Text>
-              </View> : null}
+            <Pressable
+              onLongPress={() => messageActions(item)}
+              style={[styles.messageBubble, item.senderId === currentUserId ? styles.myBubble : styles.theirBubble]}
+            >
+              {item.replyTo ? (
+                <View style={styles.replyPreview}>
+                  <Text style={styles.replyPreviewTitle}>Reply</Text>
+                  <Text numberOfLines={2} style={styles.replyPreviewText}>{item.replyTo.content || "Message"}</Text>
+                </View>
+              ) : null}
               {item.attachments?.map((attachment) => (
                 <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />
               ))}
