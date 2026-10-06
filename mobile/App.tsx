@@ -17,11 +17,15 @@ import {
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import * as Linking from "expo-linking";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppHeader, MenuDrawer, type MobileRoute } from "./components/MobileShell";
 import FriendsScreen from "./screens/FriendsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import SavedScreen from "./screens/SavedScreen";
+import SecurityScreen from "./screens/SecurityScreen";
+import AdminScreen from "./screens/AdminScreen";
+import VideoMedia from "./components/VideoMedia";
 import { Share } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { authClient } from "./lib/auth-client";
