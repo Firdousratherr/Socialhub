@@ -100,6 +100,7 @@ export const auth = betterAuth({
       }
     : {}),
   plugins: [
+    expo(),
     twoFactor({ issuer: "Socialhub" }),
     emailOTP({
       otpLength: 6,
