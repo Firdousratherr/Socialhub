@@ -33,6 +33,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Deduplicate native dependencies
+        run: npm dedupe --no-audit --no-fund
+
       - name: Expo doctor
         run: npx expo-doctor
         continue-on-error: true
