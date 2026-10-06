@@ -670,11 +670,7 @@ function StoryViewer({
           {current.mediaType === "IMAGE" ? (
             <Image source={{ uri: current.mediaUrl }} style={styles.storyMedia} resizeMode="contain" />
           ) : (
-            <View style={styles.videoPlaceholder}>
-              <Text style={styles.videoIcon}>▶</Text>
-              <Text style={styles.videoText}>Video story</Text>
-              <Text style={styles.muted}>Video playback is part of the next native media phase.</Text>
-            </View>
+            <VideoMedia uri={current.mediaUrl} height={390} autoPlay loop />
           )}
           <Pressable style={styles.storyTapLeft} onPress={() => move(-1)} />
           <Pressable style={styles.storyTapRight} onPress={() => move(1)} />
