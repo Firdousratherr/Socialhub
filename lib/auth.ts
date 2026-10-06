@@ -100,6 +100,7 @@ export const auth = betterAuth({
       }
     : {}),
   plugins: [
+    expo(),
     twoFactor({ issuer: "Socialhub" }),
     emailOTP({
       otpLength: 6,
@@ -160,8 +161,6 @@ export const auth = betterAuth({
       "socialhub-ruby.vercel.app",
       "socialhub-firdousratherr.vercel.app",
       "*.vercel.app",
-      "localhost:3000",
-      "localhost:3001",
     ],
     protocol: process.env.NODE_ENV === "development" ? "http" : "https",
     fallback: "https://socialhub-ruby.vercel.app",
@@ -170,8 +169,6 @@ export const auth = betterAuth({
     "https://socialhub-ruby.vercel.app",
     "https://socialhub-firdousratherr.vercel.app",
     "https://*.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:3001",
     "socialhub://",
     "socialhub://*",
   ],
