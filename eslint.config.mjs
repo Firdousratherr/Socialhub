@@ -3,6 +3,6 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 
 export default defineConfig([
   ...nextVitals,
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "app/generated/prisma/**"]),
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "app/generated/prisma/**", "mobile/**"]),
   { rules: { "react-hooks/set-state-in-effect": "off" } },
 ]);
