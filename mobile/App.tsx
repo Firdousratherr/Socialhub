@@ -856,7 +856,6 @@ function DiscoverScreen() {
   const [users, setUsers] = useState<SearchUser[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(false);
-  const [friends, setFriends] = useState<Set<string>>(new Set());
 
   const search = useCallback(async (value: string) => {
     setLoading(true);
@@ -1116,8 +1115,12 @@ function NotificationsScreen() {
   useEffect(() => { void load(); }, [load]);
 
   const markAll = async () => {
-    await apiFetch("/api/notifications", { method: "PATCH", body: JSON.stringify({ markAll: true }) });
-    setItems((current) => current.map((item) => ({ ...item, readAt: new Date().toISOString() })));
+    try {
+      await apiFetch("/api/notifications", { method: "PATCH", body: JSON.stringify({ markAll: true }) });
+      setItems((current) => current.map((item) => ({ ...item, readAt: new Date().toISOString() })));
+    } catch (e) {
+      Alert.alert("Notifications", e instanceof Error ? e.message : "Unable to mark notifications as read.");
+    }
   };
 
   return (
