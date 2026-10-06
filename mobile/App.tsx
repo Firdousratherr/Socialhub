@@ -740,6 +740,7 @@ function MediaPickerButton({
 function CreatePost({ onCreated }: { onCreated: (post: Post) => void }) {
   const [content, setContent] = useState("");
   const [asset, setAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [visibility, setVisibility] = useState<"PUBLIC" | "FRIENDS" | "PRIVATE">("PUBLIC");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
@@ -758,7 +759,7 @@ function CreatePost({ onCreated }: { onCreated: (post: Post) => void }) {
         body: JSON.stringify({
           content: content.trim() || null,
           mediaUrl: mediaUrl ?? null,
-          visibility: "PUBLIC",
+          visibility,
         }),
       });
       onCreated({
@@ -793,6 +794,21 @@ function CreatePost({ onCreated }: { onCreated: (post: Post) => void }) {
           <Pressable onPress={() => setAsset(null)}><Text style={styles.dangerText}>Remove</Text></Pressable>
         </View>
       ) : null}
+      <View style={styles.visibilityRow}>
+        {[
+          ["PUBLIC", "Public"],
+          ["FRIENDS", "Friends"],
+          ["PRIVATE", "Only me"],
+        ].map(([value, label]) => (
+          <Pressable
+            key={value}
+            onPress={() => setVisibility(value as "PUBLIC" | "FRIENDS" | "PRIVATE")}
+            style={[styles.visibilityChip, visibility === value && styles.visibilityChipActive]}
+          >
+            <Text style={[styles.visibilityText, visibility === value && styles.visibilityTextActive]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
       <View style={styles.composerActions}>
         <MediaPickerButton label="Media" onPicked={setAsset} />
         <PrimaryButton label={busy ? "Posting…" : "Post"} onPress={() => void submit()} disabled={busy || (!content.trim() && !asset)} />
