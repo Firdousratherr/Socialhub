@@ -11,7 +11,8 @@
       "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#0b0b0f"
-      }
+      },
+      "backgroundColor": "#08080c"
     },
     "plugins": [
       "expo-secure-store",
@@ -24,6 +25,17 @@
     ],
     "extra": {
       "apiBaseUrl": "https://socialhub-ruby.vercel.app"
+    },
+    "backgroundColor": "#08080c",
+    "androidStatusBar": {
+      "barStyle": "light-content",
+      "backgroundColor": "#08080c",
+      "translucent": true
+    },
+    "androidNavigationBar": {
+      "barStyle": "light-content",
+      "backgroundColor": "#08080c",
+      "contrastEnforced": false
     }
   }
 }
