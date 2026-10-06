@@ -46,6 +46,9 @@ export type Story = {
 export type ConversationMember = {
   userId: string;
   role?: string;
+  lastReadAt?: string | null;
+  mutedUntil?: string | null;
+  archivedAt?: string | null;
   user: User;
 };
 
