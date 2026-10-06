@@ -1,0 +1,1488 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { StatusBar } from "expo-status-bar";
+import * as ImagePicker from "expo-image-picker";
+import { authClient } from "./lib/auth-client";
+import { apiFetch, uploadMedia } from "./lib/api";
+import type {
+  Conversation,
+  Message,
+  Notification,
+  Post,
+  Profile,
+  SearchUser,
+  Story,
+  User,
+} from "./types";
+
+type Tab = "Home" | "Discover" | "Messages" | "Notifications" | "Profile";
+
+const colors = {
+  bg: "#08080c",
+  panel: "#111118",
+  panel2: "#171720",
+  border: "#252531",
+  text: "#f8f8ff",
+  muted: "#8d8d9b",
+  accent: "#725cff",
+  accentSoft: "#251f55",
+  success: "#69d79b",
+  danger: "#ff7474",
+};
+
+function formatCount(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return String(value);
+}
+
+function formatTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const diff = Date.now() - date.getTime();
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return date.toLocaleDateString();
+}
+
+function initials(user?: User | null) {
+  return user?.name?.trim()?.[0]?.toUpperCase() ?? "S";
+}
+
+function Avatar({ user, size = 44 }: { user?: User | null; size?: number }) {
+  return user?.image ? (
+    <Image source={{ uri: user.image }} style={{ width: size, height: size, borderRadius: size / 2 }} />
+  ) : (
+    <View style={[styles.avatarFallback, { width: size, height: size, borderRadius: size / 2 }]}>
+      <Text style={styles.avatarInitial}>{initials(user)}</Text>
+    </View>
+  );
+}
+
+function SectionHeader({
+  title,
+  action,
+  onAction,
+}: {
+  title: string;
+  action?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {action ? (
+        <Pressable onPress={onAction}>
+          <Text style={styles.linkText}>{action}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function PrimaryButton({
+  label,
+  onPress,
+  disabled,
+  secondary = false,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  secondary?: boolean;
+}) {
+  return (
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.primaryButton, secondary && styles.secondaryButton, disabled && styles.disabledButton]}
+    >
+      {disabled ? <ActivityIndicator color={secondary ? colors.text : "#fff"} /> : <Text style={styles.primaryButtonText}>{label}</Text>}
+    </Pressable>
+  );
+}
+
+function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
+  const [mode, setMode] = useState<"signin" | "signup" | "otp" | "forgot">("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [otpType, setOtpType] = useState<"sign-in" | "email-verification" | "forget-password">("sign-in");
+
+  const resetMessages = () => {
+    setError("");
+    setMessage("");
+  };
+
+  const run = async (fn: () => Promise<{ error?: { message?: string } | null }>) => {
+    setBusy(true);
+    resetMessages();
+    try {
+      const result = await fn();
+      if (result?.error) setError(result.error.message ?? "Something went wrong.");
+      return result;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const signIn = async () => {
+    if (!email.trim() || !password) {
+      setError("Enter your email and password.");
+      return;
+    }
+    const result = await run(() => authClient.signIn.email({
+      email: email.trim(),
+      password,
+      rememberMe: true,
+    }));
+    if (result && !result.error) onSignedIn();
+  };
+
+  const signUp = async () => {
+    if (!name.trim() || !email.trim() || password.length < 8) {
+      setError("Enter your name, email, and a password with at least 8 characters.");
+      return;
+    }
+    const result = await run(() => authClient.signUp.email({
+      name: name.trim(),
+      email: email.trim(),
+      password,
+      callbackURL: "/",
+    }));
+    if (result && !result.error) {
+      setOtpType("email-verification");
+      setMode("otp");
+      setMessage("We sent a verification code to your email.");
+    }
+  };
+
+  const sendOtp = async (type = otpType) => {
+    if (!email.trim()) {
+      setError("Enter your email first.");
+      return;
+    }
+    const result = await run(() => authClient.emailOtp.sendVerificationOtp({
+      email: email.trim(),
+      type,
+    }));
+    if (result && !result.error) setMessage("Verification code sent.");
+  };
+
+  const verifySignInOtp = async () => {
+    if (otp.length < 4) {
+      setError("Enter the verification code.");
+      return;
+    }
+    const result = await run(() => authClient.signIn.emailOtp({
+      email: email.trim(),
+      otp,
+      name: name.trim() || undefined,
+    }));
+    if (result && !result.error) onSignedIn();
+  };
+
+  const verifyEmail = async () => {
+    if (otp.length < 4) {
+      setError("Enter the verification code.");
+      return;
+    }
+    const result = await run(() => authClient.emailOtp.verifyEmail({
+      email: email.trim(),
+      otp,
+    }));
+    if (result && !result.error) {
+      setMessage("Email verified. You can sign in now.");
+      setMode("signin");
+    }
+  };
+
+  const requestReset = async () => {
+    if (!email.trim()) {
+      setError("Enter your account email.");
+      return;
+    }
+    const result = await run(() => authClient.emailOtp.requestPasswordReset({ email: email.trim() }));
+    if (result && !result.error) {
+      setOtpType("forget-password");
+      setMode("otp");
+      setMessage("Password reset code sent.");
+    }
+  };
+
+  const resetPassword = async () => {
+    if (otp.length < 4 || newPassword.length < 8) {
+      setError("Enter the OTP and a new password with at least 8 characters.");
+      return;
+    }
+    const result = await run(() => authClient.emailOtp.resetPassword({
+      email: email.trim(),
+      otp,
+      password: newPassword,
+    }));
+    if (result && !result.error) {
+      setMessage("Password reset successfully. Sign in with your new password.");
+      setMode("signin");
+      setPassword("");
+      setNewPassword("");
+      setOtp("");
+    }
+  };
+
+  const google = async () => {
+    setBusy(true);
+    resetMessages();
+    try {
+      const result = await authClient.signIn.social({
+        provider: "google",
+        callbackURL: "/",
+      });
+      if (result.error) {
+        setError(result.error.message ?? "Google sign-in failed.");
+        return;
+      }
+      const session = await authClient.getSession();
+      if (session.data?.user) onSignedIn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Google sign-in failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const title = mode === "signup" ? "Create your account" : mode === "forgot" ? "Reset your password" : mode === "otp" ? "Enter verification code" : "Welcome back";
+
+  return (
+    <SafeAreaView style={styles.authScreen}>
+      <StatusBar style="light" />
+      <ScrollView contentContainerStyle={styles.authContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.logo}>
+          <Text style={styles.logoLetter}>S</Text>
+        </View>
+        <Text style={styles.authBrand}>SocialHub</Text>
+        <Text style={styles.authSubtitle}>{title}</Text>
+
+        {mode === "signup" ? (
+          <TextInput value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={colors.muted} style={styles.input} />
+        ) : null}
+
+        <TextInput
+          value={email}
+          onChangeText={setEmail}
+          placeholder="Email address"
+          placeholderTextColor={colors.muted}
+          style={styles.input}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+
+        {mode !== "otp" && mode !== "forgot" ? (
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Password"
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+            secureTextEntry
+          />
+        ) : null}
+
+        {mode === "otp" ? (
+          <>
+            <TextInput
+              value={otp}
+              onChangeText={setOtp}
+              placeholder="6-digit code"
+              placeholderTextColor={colors.muted}
+              style={styles.input}
+              keyboardType="number-pad"
+              maxLength={8}
+            />
+            {otpType === "forget-password" ? (
+              <TextInput
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="New password"
+                placeholderTextColor={colors.muted}
+                style={styles.input}
+                secureTextEntry
+              />
+            ) : null}
+          </>
+        ) : null}
+
+        {message ? <Text style={styles.successText}>{message}</Text> : null}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        {mode === "signin" ? (
+          <>
+            <PrimaryButton label="Sign in" onPress={() => void signIn()} disabled={busy} />
+            <PrimaryButton label="Continue with Google" onPress={() => void google()} disabled={busy} secondary />
+            <View style={styles.authRow}>
+              <Pressable onPress={() => { resetMessages(); setOtpType("sign-in"); setMode("otp"); }}>
+                <Text style={styles.linkText}>Use email OTP</Text>
+              </Pressable>
+              <Pressable onPress={() => { resetMessages(); setMode("forgot"); }}>
+                <Text style={styles.linkText}>Forgot password?</Text>
+              </Pressable>
+            </View>
+            <Pressable onPress={() => { resetMessages(); setMode("signup"); }}>
+              <Text style={styles.authSwitch}>New to SocialHub? <Text style={styles.linkText}>Create account</Text></Text>
+            </Pressable>
+          </>
+        ) : null}
+
+        {mode === "signup" ? (
+          <>
+            <PrimaryButton label="Create account" onPress={() => void signUp()} disabled={busy} />
+            <Pressable onPress={() => { resetMessages(); setMode("signin"); }}>
+              <Text style={styles.authSwitch}>Already have an account? <Text style={styles.linkText}>Sign in</Text></Text>
+            </Pressable>
+          </>
+        ) : null}
+
+        {mode === "forgot" ? (
+          <>
+            <PrimaryButton label="Send reset code" onPress={() => void requestReset()} disabled={busy} />
+            <Pressable onPress={() => { resetMessages(); setMode("signin"); }}>
+              <Text style={styles.authSwitch}>Back to <Text style={styles.linkText}>sign in</Text></Text>
+            </Pressable>
+          </>
+        ) : null}
+
+        {mode === "otp" ? (
+          <>
+            <PrimaryButton
+              label={otpType === "forget-password" ? "Reset password" : otpType === "email-verification" ? "Verify email" : "Sign in with OTP"}
+              onPress={() => void (otpType === "forget-password" ? resetPassword() : otpType === "email-verification" ? verifyEmail() : verifySignInOtp())}
+              disabled={busy}
+            />
+            <Pressable onPress={() => void sendOtp()}>
+              <Text style={styles.authSwitch}>Didn't receive it? <Text style={styles.linkText}>Resend code</Text></Text>
+            </Pressable>
+            <Pressable onPress={() => { resetMessages(); setMode("signin"); }}>
+              <Text style={styles.authSwitch}>Back to <Text style={styles.linkText}>sign in</Text></Text>
+            </Pressable>
+          </>
+        ) : null}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function PostCard({
+  post,
+  onChanged,
+}: {
+  post: Post;
+  onChanged: (next: Post) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  const mutatePost = async (action: "like" | "save") => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const liked = action === "like" ? post.liked : post.saved;
+      const endpoint = action === "like"
+        ? `/api/posts/${post.id}/like`
+        : `/api/posts/${post.id}/save`;
+      const data = await apiFetch<{ liked?: boolean; count?: number; saved?: boolean }>(endpoint, {
+        method: liked ? "DELETE" : "POST",
+        body: action === "save" ? JSON.stringify({}) : undefined,
+      });
+      onChanged({
+        ...post,
+        liked: action === "like" ? Boolean(data.liked) : post.liked,
+        saved: action === "save" ? Boolean(data.saved) : post.saved,
+        displayCounts: action === "like" && typeof data.count === "number"
+          ? { ...post.displayCounts, likes: data.count }
+          : post.displayCounts,
+      });
+    } catch (e) {
+      Alert.alert("SocialHub", e instanceof Error ? e.message : "Unable to update post.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View style={styles.postCard}>
+      <View style={styles.row}>
+        <Avatar user={post.author} />
+        <View style={styles.flex}>
+          <Text style={styles.userName}>{post.author.name}</Text>
+          <Text style={styles.userHandle}>@{post.author.username ?? "socialhub"} · {formatTime(post.createdAt)}</Text>
+        </View>
+      </View>
+      {post.content ? <Text style={styles.postText}>{post.content}</Text> : null}
+      {post.mediaUrl ? <Image source={{ uri: post.mediaUrl }} style={styles.postMedia} resizeMode="cover" /> : null}
+      <View style={styles.metricsRow}>
+        <Text style={styles.muted}>{formatCount(post.displayCounts.likes)} likes</Text>
+        <Text style={styles.muted}>{formatCount(post.displayCounts.comments)} comments</Text>
+        <Text style={styles.muted}>{formatCount(post.displayCounts.shares)} shares</Text>
+      </View>
+      <View style={styles.actionRow}>
+        <Pressable style={styles.actionButton} onPress={() => void mutatePost("like")}>
+          <Text style={[styles.actionText, post.liked && styles.activeAction]}>{post.liked ? "♥ Liked" : "♡ Like"}</Text>
+        </Pressable>
+        <Pressable style={styles.actionButton} onPress={() => Alert.alert("Comments", "Comment composer will be added in the next native engagement phase.")}>
+          <Text style={styles.actionText}>💬 Comment</Text>
+        </Pressable>
+        <Pressable style={styles.actionButton} onPress={() => void mutatePost("save")}>
+          <Text style={[styles.actionText, post.saved && styles.activeAction]}>{post.saved ? "🔖 Saved" : "🔖 Save"}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function StoryTray({
+  stories,
+  onOpen,
+  onCreate,
+}: {
+  stories: Story[];
+  onOpen: (index: number) => void;
+  onCreate: () => void;
+}) {
+  return (
+    <View style={styles.storyTray}>
+      <Pressable style={styles.storyItem} onPress={onCreate}>
+        <View style={styles.storyCreate}><Text style={styles.storyCreateText}>＋</Text></View>
+        <Text style={styles.storyLabel}>Your story</Text>
+      </Pressable>
+      {stories.map((story, index) => (
+        <Pressable key={story.id} style={styles.storyItem} onPress={() => onOpen(index)}>
+          <View style={[styles.storyRing, !story.hasViewed && styles.storyRingUnread]}>
+            <Avatar user={story.author} size={58} />
+          </View>
+          <Text numberOfLines={1} style={styles.storyLabel}>{story.author.name}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function StoryViewer({
+  stories,
+  initialIndex,
+  onClose,
+  onRefresh,
+}: {
+  stories: Story[];
+  initialIndex: number;
+  onClose: () => void;
+  onRefresh: () => void;
+}) {
+  const [index, setIndex] = useState(initialIndex);
+  const [detail, setDetail] = useState<Record<string, {
+    reactionCounts: { emoji: string; count: number }[];
+    replyCount: number;
+    viewCount: number;
+  }>>({});
+  const [reply, setReply] = useState("");
+  const current = stories[index];
+
+  const loadDetail = useCallback(async () => {
+    if (!current) return;
+    try {
+      await apiFetch(`/api/stories/${current.id}`, { method: "POST", body: JSON.stringify({}) });
+      const data = await apiFetch<{
+        reactionCounts: { emoji: string; count: number }[];
+        replyCount: number;
+        viewCount: number;
+      }>(`/api/stories/${current.id}`);
+      setDetail((prev) => ({ ...prev, [current.id]: data }));
+      onRefresh();
+    } catch {
+      // Story may expire between tray load and open.
+    }
+  }, [current, onRefresh]);
+
+  useEffect(() => { void loadDetail(); }, [loadDetail]);
+
+  if (!current) return null;
+
+  const doReaction = async (emoji: string) => {
+    try {
+      await apiFetch(`/api/stories/${current.id}`, {
+        method: "POST",
+        body: JSON.stringify({ action: "reaction", emoji }),
+      });
+      void loadDetail();
+    } catch (e) {
+      Alert.alert("Story", e instanceof Error ? e.message : "Unable to react.");
+    }
+  };
+
+  const sendReply = async () => {
+    if (!reply.trim()) return;
+    try {
+      await apiFetch(`/api/stories/${current.id}`, {
+        method: "POST",
+        body: JSON.stringify({ action: "reply", content: reply.trim() }),
+      });
+      setReply("");
+      void loadDetail();
+    } catch (e) {
+      Alert.alert("Story", e instanceof Error ? e.message : "Unable to reply.");
+    }
+  };
+
+  const move = (direction: -1 | 1) => {
+    const next = index + direction;
+    if (next < 0) return setIndex(stories.length - 1);
+    if (next >= stories.length) return setIndex(0);
+    setIndex(next);
+  };
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.storyModal}>
+        <View style={styles.storyTop}>
+          <Pressable onPress={onClose}><Text style={styles.closeText}>✕</Text></Pressable>
+          <View style={styles.flex}>
+            <Text style={styles.storyViewerName}>{current.author.name}</Text>
+            <Text style={styles.muted}>{formatTime(current.createdAt)}</Text>
+          </View>
+          <Text style={styles.muted}>{(detail[current.id]?.viewCount ?? current.viewCount)} views</Text>
+        </View>
+
+        <View style={styles.storyMediaArea}>
+          {current.mediaType === "IMAGE" ? (
+            <Image source={{ uri: current.mediaUrl }} style={styles.storyMedia} resizeMode="contain" />
+          ) : (
+            <View style={styles.videoPlaceholder}>
+              <Text style={styles.videoIcon}>▶</Text>
+              <Text style={styles.videoText}>Video story</Text>
+              <Text style={styles.muted}>Video playback is part of the next native media phase.</Text>
+            </View>
+          )}
+          <Pressable style={styles.storyTapLeft} onPress={() => move(-1)} />
+          <Pressable style={styles.storyTapRight} onPress={() => move(1)} />
+        </View>
+
+        <View style={styles.storyBottom}>
+          {current.caption ? <Text style={styles.storyCaption}>{current.caption}</Text> : null}
+          <View style={styles.reactionsRow}>
+            {["❤️", "😂", "😮", "😢", "🔥", "👍"].map((emoji) => (
+              <Pressable key={emoji} onPress={() => void doReaction(emoji)} style={styles.reactionChip}>
+                <Text style={styles.reactionText}>{emoji}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput
+            value={reply}
+            onChangeText={setReply}
+            placeholder="Reply to this story…"
+            placeholderTextColor={colors.muted}
+            style={styles.storyReplyInput}
+            onSubmitEditing={() => void sendReply()}
+            returnKeyType="send"
+          />
+          <View style={styles.storyStats}>
+            <Text style={styles.muted}>{detail[current.id]?.replyCount ?? current.replyCount} replies</Text>
+            <Text style={styles.muted}>{current.reactionCount} reactions</Text>
+            <Text style={styles.muted}>Swipe-like taps: left / right</Text>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function MediaPickerButton({
+  label,
+  onPicked,
+}: {
+  label: string;
+  onPicked: (asset: ImagePicker.ImagePickerAsset) => void;
+}) {
+  const pick = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Allow SocialHub to access your media so you can share photos and videos.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images", "videos"],
+      allowsEditing: false,
+      quality: 1,
+      selectionLimit: 1,
+    });
+    if (!result.canceled && result.assets[0]) onPicked(result.assets[0]);
+  };
+  return (
+    <Pressable style={styles.mediaPickerButton} onPress={() => void pick()}>
+      <Text style={styles.actionText}>＋ {label}</Text>
+    </Pressable>
+  );
+}
+
+function CreatePost({ onCreated }: { onCreated: (post: Post) => void }) {
+  const [content, setContent] = useState("");
+  const [asset, setAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!content.trim() && !asset) return;
+    setBusy(true);
+    try {
+      let mediaUrl: string | undefined;
+      if (asset) {
+        const mime = asset.mimeType ?? (asset.type === "video" ? "video/mp4" : "image/jpeg");
+        const fileName = asset.fileName ?? `socialhub-${Date.now()}${asset.type === "video" ? ".mp4" : ".jpg"}`;
+        const upload = await uploadMedia(asset.uri, mime, fileName);
+        mediaUrl = upload.url;
+      }
+      const data = await apiFetch<{ post: Post; liked?: boolean; saved?: boolean }>("/api/posts", {
+        method: "POST",
+        body: JSON.stringify({
+          content: content.trim() || null,
+          mediaUrl: mediaUrl ?? null,
+          visibility: "PUBLIC",
+        }),
+      });
+      onCreated({
+        ...data.post,
+        liked: false,
+        saved: false,
+        reactions: [],
+        displayCounts: data.post.displayCounts ?? { likes: 0, comments: 0, shares: 0 },
+      });
+      setContent("");
+      setAsset(null);
+    } catch (e) {
+      Alert.alert("Create post", e instanceof Error ? e.message : "Unable to create post.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View style={styles.composer}>
+      <TextInput
+        value={content}
+        onChangeText={setContent}
+        placeholder="What's happening?"
+        placeholderTextColor={colors.muted}
+        style={styles.composerInput}
+        multiline
+      />
+      {asset ? (
+        <View style={styles.selectedMedia}>
+          <Text style={styles.muted}>{asset.type === "video" ? "Video attached" : "Image attached"}</Text>
+          <Pressable onPress={() => setAsset(null)}><Text style={styles.dangerText}>Remove</Text></Pressable>
+        </View>
+      ) : null}
+      <View style={styles.composerActions}>
+        <MediaPickerButton label="Media" onPicked={setAsset} />
+        <PrimaryButton label={busy ? "Posting…" : "Post"} onPress={() => void submit()} disabled={busy || (!content.trim() && !asset)} />
+      </View>
+    </View>
+  );
+}
+
+function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: () => void }) {
+  const [asset, setAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [caption, setCaption] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!asset) {
+      Alert.alert("Story", "Choose a photo or video first.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const mime = asset.mimeType ?? (asset.type === "video" ? "video/mp4" : "image/jpeg");
+      const fileName = asset.fileName ?? `story-${Date.now()}${asset.type === "video" ? ".mp4" : ".jpg"}`;
+      const upload = await uploadMedia(asset.uri, mime, fileName);
+      await apiFetch("/api/stories", {
+        method: "POST",
+        body: JSON.stringify({
+          mediaUrl: upload.url,
+          mediaType: upload.mediaType,
+          caption: caption.trim() || null,
+          audience: "PUBLIC",
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000 - 60_000).toISOString(),
+        }),
+      });
+      onCreated();
+      onClose();
+    } catch (e) {
+      Alert.alert("Story", e instanceof Error ? e.message : "Unable to create story.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <SafeAreaView style={styles.sheet}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Create story</Text>
+          <Pressable onPress={onClose}><Text style={styles.closeText}>✕</Text></Pressable>
+        </View>
+        <ScrollView contentContainerStyle={styles.sheetContent}>
+          <MediaPickerButton label={asset ? "Change media" : "Choose media"} onPicked={setAsset} />
+          {asset ? (
+            asset.type === "image" ? (
+              <Image source={{ uri: asset.uri }} style={styles.previewMedia} resizeMode="cover" />
+            ) : (
+              <View style={styles.videoPreview}><Text style={styles.videoIcon}>▶</Text><Text style={styles.storyCaption}>Video selected</Text></View>
+            )
+          ) : null}
+          <TextInput
+            value={caption}
+            onChangeText={setCaption}
+            placeholder="Add a caption…"
+            placeholderTextColor={colors.muted}
+            style={styles.input}
+          />
+          <PrimaryButton label={busy ? "Publishing…" : "Publish story"} onPress={() => void submit()} disabled={busy || !asset} />
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+function HomeScreen() {
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [stories, setStories] = useState<Story[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const [postData, storyData] = await Promise.all([
+        apiFetch<{ posts: Post[] }>("/api/posts?take=20&mode=FOR_YOU"),
+        apiFetch<{ stories: Story[] }>("/api/stories"),
+      ]);
+      setPosts(postData.posts);
+      setStories(storyData.stories);
+    } catch (e) {
+      Alert.alert("Feed", e instanceof Error ? e.message : "Unable to load your feed.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const [storyIndex, setStoryIndex] = useState<number | null>(null);
+  const [creatingStory, setCreatingStory] = useState(false);
+
+  const replacePost = (next: Post) => setPosts((current) => current.map((post) => post.id === next.id ? next : post));
+
+  return (
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>SocialHub</Text>
+          <Text style={styles.subtitle}>Your people, your feed.</Text>
+        </View>
+        <Pressable onPress={() => void load(true)}><Text style={styles.refresh}>↻</Text></Pressable>
+      </View>
+
+      {loading && !posts.length ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
+
+      <FlatList
+        data={posts}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <PostCard post={item} onChanged={replacePost} />}
+        ListHeaderComponent={
+          <View>
+            <StoryTray stories={stories} onOpen={setStoryIndex} onCreate={() => setCreatingStory(true)} />
+            <CreatePost onCreated={(post) => setPosts((current) => [post, ...current])} />
+          </View>
+        }
+        ListEmptyComponent={!loading ? <Text style={styles.empty}>No posts to show yet.</Text> : null}
+        contentContainerStyle={styles.feed}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.accent} />}
+      />
+
+      {storyIndex !== null ? (
+        <StoryViewer
+          stories={stories}
+          initialIndex={storyIndex}
+          onClose={() => setStoryIndex(null)}
+          onRefresh={() => void load(true)}
+        />
+      ) : null}
+      {creatingStory ? (
+        <StoryCreate
+          onCreated={() => void load(true)}
+          onClose={() => setCreatingStory(false)}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function DiscoverScreen() {
+  const [query, setQuery] = useState("");
+  const [users, setUsers] = useState<SearchUser[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const search = useCallback(async (value: string) => {
+    setLoading(true);
+    try {
+      const data = await apiFetch<{ users: SearchUser[]; posts: Post[] }>(`/api/search?q=${encodeURIComponent(value.trim())}&take=20`);
+      setUsers(data.users);
+      setPosts(data.posts);
+    } catch (e) {
+      Alert.alert("Discover", e instanceof Error ? e.message : "Search failed.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => void search(query), query ? 250 : 0);
+    return () => clearTimeout(timeout);
+  }, [query, search]);
+
+  const friendRequest = async (user: SearchUser) => {
+    try {
+      if (user.friendRequestStatus === "INCOMING_PENDING") {
+        const requests = await apiFetch<{ received: { id: string; sender: User }[] }>("/api/friend-requests");
+        const request = requests.received.find((item) => item.sender.id === user.id);
+        if (!request) return;
+        await apiFetch(`/api/friend-requests/${request.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "ACCEPTED" }),
+        });
+        Alert.alert("Friends", "Friend request accepted.");
+      } else if (user.canSendFriendRequest) {
+        await apiFetch("/api/friend-requests", {
+          method: "POST",
+          body: JSON.stringify({ receiverId: user.id }),
+        });
+        Alert.alert("Friends", "Friend request sent.");
+      }
+      await search(query);
+    } catch (e) {
+      Alert.alert("Friends", e instanceof Error ? e.message : "Unable to update friendship.");
+    }
+  };
+
+  return (
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <View><Text style={styles.title}>Discover</Text><Text style={styles.subtitle}>Find people and posts.</Text></View>
+      </View>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search people, usernames or posts…"
+          placeholderTextColor={colors.muted}
+          style={styles.searchInput}
+          autoCapitalize="none"
+        />
+        {loading ? <ActivityIndicator color={colors.accent} /> : null}
+
+        <SectionHeader title="People" />
+        {users.length ? users.map((user) => (
+          <View key={user.id} style={styles.userCard}>
+            <Avatar user={user} size={46} />
+            <View style={styles.flex}>
+              <Text style={styles.userName}>{user.name}</Text>
+              <Text style={styles.userHandle}>@{user.username ?? "socialhub"} · {formatCount(user.displayCounts?.followers ?? 0)} followers</Text>
+            </View>
+            {user.isFriend ? (
+              <Text style={styles.successText}>Friends</Text>
+            ) : user.friendRequestStatus === "OUTGOING_PENDING" ? (
+              <Text style={styles.muted}>Pending</Text>
+            ) : user.friendRequestStatus === "INCOMING_PENDING" ? (
+              <Pressable style={styles.miniButton} onPress={() => void friendRequest(user)}><Text style={styles.miniButtonText}>Accept</Text></Pressable>
+            ) : user.canSendFriendRequest ? (
+              <Pressable style={styles.miniButton} onPress={() => void friendRequest(user)}><Text style={styles.miniButtonText}>Add</Text></Pressable>
+            ) : null}
+          </View>
+        )) : <Text style={styles.emptySmall}>No people found.</Text>}
+
+        <SectionHeader title="Posts" />
+        {posts.map((post) => <PostCard key={post.id} post={post} onChanged={(next) => setPosts((items) => items.map((item) => item.id === next.id ? next : item))} />)}
+      </ScrollView>
+    </View>
+  );
+}
+
+function conversationName(conversation: Conversation, currentUserId: string) {
+  if (conversation.isGroup) return conversation.title || "Group conversation";
+  return conversation.members.find((member) => member.userId !== currentUserId)?.user.name ?? "Conversation";
+}
+
+function MessagingScreen({ currentUserId }: { currentUserId: string }) {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selected, setSelected] = useState<Conversation | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch<{ conversations: Conversation[] }>("/api/conversations");
+      setConversations(data.conversations);
+    } catch (e) {
+      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to load conversations.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  if (selected) {
+    return (
+      <ChatScreen
+        conversation={selected}
+        currentUserId={currentUserId}
+        onBack={() => { setSelected(null); void load(); }}
+      />
+    );
+  }
+
+  return (
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <View><Text style={styles.title}>Messages</Text><Text style={styles.subtitle}>Private conversations.</Text></View>
+      </View>
+      {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
+      <FlatList
+        data={conversations}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.feed}
+        renderItem={({ item }) => {
+          const member = item.members.find((m) => m.userId !== currentUserId)?.user;
+          const last = item.messages?.[0];
+          return (
+            <Pressable style={styles.conversationCard} onPress={() => setSelected(item)}>
+              <Avatar user={member} size={50} />
+              <View style={styles.flex}>
+                <View style={styles.row}>
+                  <Text style={styles.userName}>{conversationName(item, currentUserId)}</Text>
+                  {item.unreadCount > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>{formatCount(item.unreadCount)}</Text></View> : null}
+                </View>
+                <Text numberOfLines={1} style={styles.userHandle}>{last?.content || "Start the conversation"}</Text>
+              </View>
+            </Pressable>
+          );
+        }}
+        ListEmptyComponent={!loading ? <Text style={styles.empty}>No conversations yet.</Text> : null}
+      />
+    </View>
+  );
+}
+
+function ChatScreen({
+  conversation,
+  currentUserId,
+  onBack,
+}: {
+  conversation: Conversation;
+  currentUserId: string;
+  onBack: () => void;
+}) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(true);
+  const other = conversation.members.find((member) => member.userId !== currentUserId)?.user;
+
+  const load = useCallback(async () => {
+    try {
+      const data = await apiFetch<{ messages: Message[] }>(`/api/conversations/${conversation.id}/messages`);
+      setMessages(data.messages);
+      await apiFetch(`/api/conversations/${conversation.id}/messages`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "read" }),
+      });
+    } catch (e) {
+      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to load chat.");
+    } finally {
+      setLoading(false);
+    }
+  }, [conversation.id]);
+
+  useEffect(() => {
+    void load();
+    const timer = setInterval(() => void load(), 15_000);
+    return () => clearInterval(timer);
+  }, [load]);
+
+  const send = async () => {
+    if (!text.trim()) return;
+    try {
+      const data = await apiFetch<{ message: Message }>(`/api/conversations/${conversation.id}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ content: text.trim(), attachments: [] }),
+      });
+      setMessages((current) => [...current, data.message]);
+      setText("");
+    } catch (e) {
+      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to send.");
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.chatScreen}>
+      <View style={styles.chatHeader}>
+        <Pressable onPress={onBack}><Text style={styles.backText}>‹</Text></Pressable>
+        <Avatar user={other} size={40} />
+        <View style={styles.flex}>
+          <Text style={styles.userName}>{conversationName(conversation, currentUserId)}</Text>
+          <Text style={styles.userHandle}>@{other?.username ?? "socialhub"}</Text>
+        </View>
+      </View>
+      {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
+      <FlatList
+        data={messages}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.chatList}
+        renderItem={({ item }) => (
+          <View style={[styles.messageBubble, item.senderId === currentUserId ? styles.myBubble : styles.theirBubble]}>
+            <Text style={styles.messageText}>{item.deletedAt ? "Message deleted" : item.content}</Text>
+            <Text style={styles.messageTime}>{formatTime(item.createdAt)}</Text>
+          </View>
+        )}
+      />
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
+        <View style={styles.messageComposer}>
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            placeholder="Type a message…"
+            placeholderTextColor={colors.muted}
+            style={styles.messageInput}
+            multiline
+          />
+          <Pressable onPress={() => void send()} style={styles.sendButton}><Text style={styles.sendButtonText}>➤</Text></Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+function NotificationsScreen() {
+  const [items, setItems] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch<{ notifications: Notification[] }>("/api/notifications");
+      setItems(data.notifications);
+    } catch (e) {
+      Alert.alert("Notifications", e instanceof Error ? e.message : "Unable to load notifications.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const markAll = async () => {
+    try {
+      await apiFetch("/api/notifications", { method: "PATCH", body: JSON.stringify({ markAll: true }) });
+      setItems((current) => current.map((item) => ({ ...item, readAt: new Date().toISOString() })));
+    } catch (e) {
+      Alert.alert("Notifications", e instanceof Error ? e.message : "Unable to mark notifications as read.");
+    }
+  };
+
+  return (
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <View><Text style={styles.title}>Notifications</Text><Text style={styles.subtitle}>Stay up to date.</Text></View>
+        <Pressable onPress={() => void markAll()}><Text style={styles.linkText}>Mark all read</Text></Pressable>
+      </View>
+      {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
+      <FlatList
+        data={items}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.feed}
+        renderItem={({ item }) => (
+          <View style={[styles.notificationCard, !item.readAt && styles.unreadCard]}>
+            <Avatar user={item.actor} size={42} />
+            <View style={styles.flex}>
+              <Text style={styles.notificationTitle}>{item.title || notificationLabel(item.type)}</Text>
+              <Text style={styles.notificationBody}>{item.body || "You have a new SocialHub activity."}</Text>
+              <Text style={styles.userHandle}>{formatTime(item.createdAt)}</Text>
+            </View>
+          </View>
+        )}
+        ListEmptyComponent={!loading ? <Text style={styles.empty}>No notifications yet.</Text> : null}
+      />
+    </View>
+  );
+}
+
+function notificationLabel(type: string) {
+  switch (type) {
+    case "LIKE": return "Someone liked your post";
+    case "COMMENT": return "Someone commented on your post";
+    case "FOLLOW": return "New follower";
+    case "FRIEND_REQUEST": return "New friend request";
+    case "FRIEND_ACCEPTED": return "Friend request accepted";
+    case "MESSAGE": return "New message";
+    case "MENTION": return "You were mentioned";
+    case "STORY_REPLY": return "New story reply";
+    case "STORY_REACTION": return "New story reaction";
+    default: return "New SocialHub notification";
+  }
+}
+
+function ProfileScreen({ onSignedOut }: { onSignedOut: () => void }) {
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ name: "", username: "", bio: "" });
+
+  const load = useCallback(async () => {
+    try {
+      const [profileData, postData] = await Promise.all([
+        apiFetch<{ profile: Profile }>("/api/profile"),
+        apiFetch<{ posts: Post[] }>("/api/posts?take=20&mode=LATEST"),
+      ]);
+      setProfile(profileData.profile);
+      setForm({
+        name: profileData.profile.name,
+        username: profileData.profile.username ?? "",
+        bio: profileData.profile.bio ?? "",
+      });
+      setPosts(postData.posts.filter((post) => post.author.id === profileData.profile.id));
+    } catch (e) {
+      Alert.alert("Profile", e instanceof Error ? e.message : "Unable to load profile.");
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const data = await apiFetch<{ profile: Profile }>("/api/profile", {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: form.name.trim(),
+          username: form.username.trim(),
+          bio: form.bio.trim(),
+        }),
+      });
+      setProfile(data.profile);
+      setEditing(false);
+    } catch (e) {
+      Alert.alert("Profile", e instanceof Error ? e.message : "Unable to save profile.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const signOut = async () => {
+    await authClient.signOut();
+    onSignedOut();
+  };
+
+  if (!profile) {
+    return <View style={styles.screen}><ActivityIndicator color={colors.accent} style={styles.loader} /></View>;
+  }
+
+  return (
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <View><Text style={styles.title}>Profile</Text><Text style={styles.subtitle}>Your SocialHub identity.</Text></View>
+        <Pressable onPress={() => setEditing((value) => !value)}><Text style={styles.linkText}>{editing ? "Cancel" : "Edit"}</Text></Pressable>
+      </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.profileHero}>
+          <Avatar user={profile} size={86} />
+          <Text style={styles.profileName}>{profile.name}</Text>
+          <Text style={styles.userHandle}>@{profile.username ?? "socialhub"}</Text>
+          {profile.bio ? <Text style={styles.profileBio}>{profile.bio}</Text> : null}
+        </View>
+        <View style={styles.statsGrid}>
+          <Stat label="Posts" value={profile.visibleCounts.posts} />
+          <Stat label="Followers" value={profile.visibleCounts.followers} />
+          <Stat label="Following" value={profile.visibleCounts.following} />
+          <Stat label="Views" value={profile.visibleCounts.profileViews} />
+        </View>
+
+        {editing ? (
+          <View style={styles.editPanel}>
+            <TextInput value={form.name} onChangeText={(name) => setForm((f) => ({ ...f, name }))} placeholder="Name" placeholderTextColor={colors.muted} style={styles.input} />
+            <TextInput value={form.username} onChangeText={(username) => setForm((f) => ({ ...f, username }))} placeholder="Username" placeholderTextColor={colors.muted} style={styles.input} autoCapitalize="none" />
+            <TextInput value={form.bio} onChangeText={(bio) => setForm((f) => ({ ...f, bio }))} placeholder="Bio" placeholderTextColor={colors.muted} style={[styles.input, styles.bioInput]} multiline />
+            <PrimaryButton label={busy ? "Saving…" : "Save changes"} onPress={() => void save()} disabled={busy} />
+          </View>
+        ) : null}
+
+        <SectionHeader title="Your recent posts" />
+        {posts.map((post) => <PostCard key={post.id} post={post} onChanged={(next) => setPosts((current) => current.map((item) => item.id === next.id ? next : item))} />)}
+
+        <PrimaryButton label="Sign out" onPress={() => void signOut()} secondary />
+      </ScrollView>
+    </View>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statValue}>{formatCount(value)}</Text>
+      <Text style={styles.userHandle}>{label}</Text>
+    </View>
+  );
+}
+
+export default function App() {
+  const [booting, setBooting] = useState(true);
+  const [signedIn, setSignedIn] = useState(false);
+  const [sessionUser, setSessionUser] = useState<User | null>(null);
+  const [tab, setTab] = useState<Tab>("Home");
+  const [unread, setUnread] = useState({ messages: 0, notifications: 0, friendRequests: 0 });
+
+  const refreshSession = useCallback(async () => {
+    try {
+      const session = await authClient.getSession();
+      const user = session.data?.user as User | undefined;
+      setSessionUser(user ?? null);
+      setSignedIn(Boolean(user));
+    } catch {
+      setSessionUser(null);
+      setSignedIn(false);
+    } finally {
+      setBooting(false);
+    }
+  }, []);
+
+  const refreshUnread = useCallback(async () => {
+    if (!signedIn) return;
+    try {
+      const data = await apiFetch<{ messages: number; notifications: number; friendRequests: number }>("/api/unread-summary");
+      setUnread(data);
+    } catch {
+      // Badge refresh is non-critical.
+    }
+  }, [signedIn]);
+
+  useEffect(() => { void refreshSession(); }, [refreshSession]);
+  useEffect(() => {
+    if (!signedIn) return;
+    void refreshUnread();
+    const timer = setInterval(() => void refreshUnread(), 20_000);
+    return () => clearInterval(timer);
+  }, [signedIn, refreshUnread]);
+
+  if (booting) {
+    return (
+      <SafeAreaView style={styles.root}>
+        <StatusBar style="light" />
+        <View style={styles.centered}><ActivityIndicator size="large" color={colors.accent} /></View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!signedIn) return <AuthScreen onSignedIn={() => void refreshSession()} />;
+
+  const badge = (value: number) => value > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>{formatCount(value)}</Text></View> : null;
+
+  return (
+    <SafeAreaView style={styles.root}>
+      <StatusBar style="light" />
+      {tab === "Home" ? <HomeScreen /> : null}
+      {tab === "Discover" ? <DiscoverScreen /> : null}
+      {tab === "Messages" && sessionUser ? <MessagingScreen currentUserId={sessionUser.id} /> : null}
+      {tab === "Notifications" ? <NotificationsScreen /> : null}
+      {tab === "Profile" ? <ProfileScreen onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
+
+      <View style={styles.bottomNav}>
+        <NavItem icon="⌂" label="Home" active={tab === "Home"} onPress={() => setTab("Home")} />
+        <NavItem icon="⌕" label="Discover" active={tab === "Discover"} onPress={() => setTab("Discover")} />
+        <NavItem icon="✉" label="Messages" active={tab === "Messages"} onPress={() => setTab("Messages")} badge={badge(unread.messages)} />
+        <NavItem icon="♡" label="Alerts" active={tab === "Notifications"} onPress={() => setTab("Notifications")} badge={badge(unread.notifications + unread.friendRequests)} />
+        <NavItem icon="◉" label="Profile" active={tab === "Profile"} onPress={() => setTab("Profile")} />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function NavItem({
+  icon,
+  label,
+  active,
+  onPress,
+  badge,
+}: {
+  icon: string;
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  badge?: React.ReactNode;
+}) {
+  return (
+    <Pressable onPress={onPress} style={styles.navItem}>
+      <View>
+        <Text style={[styles.navIcon, active && styles.navActive]}>{icon}</Text>
+        {badge ? <View style={styles.navBadge}>{badge}</View> : null}
+      </View>
+      <Text style={[styles.navLabel, active && styles.navActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1, backgroundColor: colors.bg },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
+  authScreen: { flex: 1, backgroundColor: colors.bg },
+  authContent: { flexGrow: 1, justifyContent: "center", padding: 24, paddingBottom: 40 },
+  logo: { width: 78, height: 78, borderRadius: 26, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", alignSelf: "center" },
+  logoLetter: { color: "#fff", fontSize: 42, fontWeight: "900" },
+  authBrand: { color: colors.text, fontSize: 34, fontWeight: "900", textAlign: "center", marginTop: 16 },
+  authSubtitle: { color: colors.muted, textAlign: "center", marginTop: 6, marginBottom: 24, fontSize: 15 },
+  authRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 16 },
+  authSwitch: { color: colors.muted, textAlign: "center", marginTop: 18 },
+  input: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, color: colors.text, borderRadius: 14, paddingHorizontal: 15, paddingVertical: 14, marginBottom: 12 },
+  primaryButton: { minHeight: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.accent, paddingHorizontal: 16, marginTop: 6 },
+  secondaryButton: { backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  disabledButton: { opacity: 0.55 },
+  primaryButtonText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  successText: { color: colors.success, marginBottom: 10 },
+  errorText: { color: colors.danger, marginBottom: 10 },
+  dangerText: { color: colors.danger },
+  linkText: { color: "#a99cff", fontWeight: "700" },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingTop: 10, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title: { color: colors.text, fontSize: 24, fontWeight: "900" },
+  subtitle: { color: colors.muted, marginTop: 3 },
+  refresh: { color: colors.text, fontSize: 30 },
+  loader: { marginVertical: 18 },
+  feed: { padding: 12, paddingBottom: 110 },
+  scrollContent: { padding: 14, paddingBottom: 110 },
+  empty: { color: colors.muted, textAlign: "center", paddingVertical: 60 },
+  emptySmall: { color: colors.muted, textAlign: "center", paddingVertical: 20 },
+  flex: { flex: 1 },
+  row: { flexDirection: "row", alignItems: "center" },
+  avatarFallback: { backgroundColor: "#2a2937", alignItems: "center", justifyContent: "center", marginRight: 10 },
+  avatarInitial: { color: "#fff", fontSize: 18, fontWeight: "900" },
+  userName: { color: colors.text, fontWeight: "800", fontSize: 15 },
+  userHandle: { color: colors.muted, marginTop: 3, fontSize: 12 },
+  muted: { color: colors.muted, fontSize: 12 },
+  postCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: 14, marginBottom: 12 },
+  postText: { color: colors.text, fontSize: 16, lineHeight: 23, marginTop: 12 },
+  postMedia: { width: "100%", height: 260, borderRadius: 15, marginTop: 12, backgroundColor: colors.panel2 },
+  metricsRow: { flexDirection: "row", gap: 18, paddingTop: 12, paddingBottom: 8 },
+  actionRow: { flexDirection: "row", gap: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
+  actionButton: { flex: 1, paddingVertical: 8, alignItems: "center" },
+  actionText: { color: colors.muted, fontWeight: "700", fontSize: 12 },
+  activeAction: { color: colors.accent },
+  composer: { backgroundColor: colors.panel, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 12 },
+  composerInput: { minHeight: 80, color: colors.text, textAlignVertical: "top", padding: 4 },
+  composerActions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
+  mediaPickerButton: { paddingHorizontal: 12, paddingVertical: 11, borderRadius: 12, backgroundColor: colors.panel2 },
+  selectedMedia: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: colors.panel2 },
+  storyTray: { flexDirection: "row", paddingVertical: 10, marginBottom: 2 },
+  storyItem: { width: 76, alignItems: "center", marginRight: 8 },
+  storyCreate: { width: 64, height: 64, borderRadius: 32, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
+  storyCreateText: { color: colors.text, fontSize: 30, lineHeight: 32 },
+  storyRing: { width: 68, height: 68, borderRadius: 34, padding: 3, alignItems: "center", justifyContent: "center", backgroundColor: "#32323e" },
+  storyRingUnread: { backgroundColor: colors.accent },
+  storyLabel: { color: colors.muted, fontSize: 11, marginTop: 5, maxWidth: 70 },
+  storyModal: { flex: 1, backgroundColor: "#050507" },
+  storyTop: { flexDirection: "row", alignItems: "center", padding: 16, gap: 10 },
+  closeText: { color: colors.text, fontSize: 22, fontWeight: "700", padding: 6 },
+  storyViewerName: { color: colors.text, fontWeight: "800", fontSize: 15 },
+  storyMediaArea: { flex: 1, position: "relative", alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
+  storyMedia: { width: "100%", height: "78%" },
+  storyTapLeft: { position: "absolute", top: 0, bottom: 0, left: 0, width: "35%" },
+  storyTapRight: { position: "absolute", top: 0, bottom: 0, right: 0, width: "35%" },
+  videoPlaceholder: { alignItems: "center", justifyContent: "center", gap: 8, padding: 30 },
+  videoIcon: { color: colors.text, fontSize: 54 },
+  videoText: { color: colors.text, fontSize: 20, fontWeight: "800" },
+  storyBottom: { padding: 14, borderTopWidth: 1, borderTopColor: colors.border },
+  storyCaption: { color: colors.text, marginBottom: 10, lineHeight: 20 },
+  reactionsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
+  reactionChip: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
+  reactionText: { fontSize: 19 },
+  storyReplyInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, color: colors.text, paddingHorizontal: 14, paddingVertical: 12 },
+  storyStats: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
+  sheet: { flex: 1, backgroundColor: colors.bg, marginTop: 80, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: colors.border },
+  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+  sheetTitle: { color: colors.text, fontSize: 20, fontWeight: "900" },
+  sheetContent: { padding: 16, gap: 12, paddingBottom: 40 },
+  previewMedia: { width: "100%", height: 320, borderRadius: 18 },
+  videoPreview: { width: "100%", height: 220, backgroundColor: colors.panel2, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  searchInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, color: colors.text, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 18 },
+  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 12 },
+  sectionTitle: { color: colors.text, fontSize: 18, fontWeight: "900" },
+  userCard: { flexDirection: "row", alignItems: "center", backgroundColor: colors.panel, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
+  miniButton: { backgroundColor: colors.accent, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 11 },
+  miniButtonText: { color: "#fff", fontWeight: "800", fontSize: 12 },
+  conversationCard: { flexDirection: "row", alignItems: "center", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, marginBottom: 10 },
+  badge: { minWidth: 22, height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", marginLeft: 8 },
+  badgeText: { color: "#fff", fontSize: 10, fontWeight: "900" },
+  chatScreen: { flex: 1, backgroundColor: colors.bg },
+  chatHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  backText: { color: colors.text, fontSize: 38, lineHeight: 38, paddingHorizontal: 6 },
+  chatList: { padding: 12, gap: 8, paddingBottom: 14 },
+  messageBubble: { maxWidth: "82%", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
+  myBubble: { alignSelf: "flex-end", backgroundColor: colors.accent },
+  theirBubble: { alignSelf: "flex-start", backgroundColor: colors.panel2 },
+  messageText: { color: "#fff", lineHeight: 20 },
+  messageTime: { color: "rgba(255,255,255,0.58)", fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
+  messageComposer: { flexDirection: "row", alignItems: "flex-end", gap: 8, padding: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.panel },
+  messageInput: { flex: 1, minHeight: 46, maxHeight: 120, color: colors.text, backgroundColor: colors.panel2, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 11, textAlignVertical: "top" },
+  sendButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+  sendButtonText: { color: "#fff", fontSize: 20, fontWeight: "900" },
+  notificationCard: { flexDirection: "row", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, marginBottom: 10 },
+  unreadCard: { borderColor: colors.accent, backgroundColor: "#151122" },
+  notificationTitle: { color: colors.text, fontWeight: "800" },
+  notificationBody: { color: colors.muted, marginTop: 4, lineHeight: 18 },
+  profileHero: { alignItems: "center", paddingVertical: 18 },
+  profileName: { color: colors.text, fontSize: 24, fontWeight: "900", marginTop: 10 },
+  profileBio: { color: colors.muted, textAlign: "center", marginTop: 8, maxWidth: 320, lineHeight: 20 },
+  statsGrid: { flexDirection: "row", gap: 8, marginBottom: 10 },
+  statCard: { flex: 1, alignItems: "center", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, paddingVertical: 13, borderRadius: 14 },
+  statValue: { color: colors.text, fontSize: 18, fontWeight: "900" },
+  editPanel: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, marginBottom: 10 },
+  bioInput: { minHeight: 100, textAlignVertical: "top" },
+  bottomNav: { position: "absolute", left: 10, right: 10, bottom: 10, height: 70, backgroundColor: "#15151d", borderWidth: 1, borderColor: colors.border, borderRadius: 22, flexDirection: "row", alignItems: "center", justifyContent: "space-around" },
+  navItem: { minWidth: 55, alignItems: "center", justifyContent: "center" },
+  navIcon: { color: colors.muted, fontSize: 22, marginBottom: 2 },
+  navLabel: { color: colors.muted, fontSize: 10 },
+  navActive: { color: colors.text, fontWeight: "900" },
+  navBadge: { position: "absolute", top: -6, right: -12 },
+});

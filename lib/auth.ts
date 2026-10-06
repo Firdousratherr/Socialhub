@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { emailOTP, twoFactor } from "better-auth/plugins";
+import { expo } from "@better-auth/expo";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
 import { sendTransactionalEmail } from "@/lib/email";
@@ -171,6 +172,8 @@ export const auth = betterAuth({
     "https://*.vercel.app",
     "http://localhost:3000",
     "http://localhost:3001",
+    "socialhub://",
+    "socialhub://*",
   ],
   secret: process.env.BETTER_AUTH_SECRET,
 });
