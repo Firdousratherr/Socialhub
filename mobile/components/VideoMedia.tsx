@@ -24,7 +24,6 @@ export default function VideoMedia({
         player={player}
         style={styles.video}
         contentFit="contain"
-        allowsFullscreen
         allowsPictureInPicture
       />
     </View>
