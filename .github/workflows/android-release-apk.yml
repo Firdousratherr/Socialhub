@@ -161,10 +161,10 @@ jobs:
         if: success()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0
-          name: Socialhub v1.0.0
+          tag_name: v1.0.1
+          name: Socialhub v1.0.1
           body: |
-            Socialhub native Android application v1.0.0.
+            Socialhub native Android application v1.0.1.
 
             - Native Android/Expo build
             - Signed release APK
