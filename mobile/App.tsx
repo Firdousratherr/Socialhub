@@ -1446,6 +1446,7 @@ function ChatScreen({
 function NotificationsScreen({ onMenu }: { onMenu: () => void }) {
   const [items, setItems] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"ALL" | "UNREAD">("ALL");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1470,25 +1471,53 @@ function NotificationsScreen({ onMenu }: { onMenu: () => void }) {
     }
   };
 
+  const markRead = async (item: Notification) => {
+    if (item.readAt) return;
+    try {
+      await apiFetch("/api/notifications", {
+        method: "PATCH",
+        body: JSON.stringify({ notificationId: item.id }),
+      });
+      setItems((current) => current.map((value) => value.id === item.id ? { ...value, readAt: new Date().toISOString() } : value));
+    } catch (e) {
+      Alert.alert("Notifications", e instanceof Error ? e.message : "Unable to mark notification as read.");
+    }
+  };
+
+  const visible = filter === "UNREAD" ? items.filter((item) => !item.readAt) : items;
+
   return (
     <View style={styles.screen}>
       <AppHeader title="Notifications" subtitle="Stay up to date." onMenu={onMenu} action="Mark all" onAction={() => void markAll()} />
+      <View style={styles.notificationFilters}>
+        {["ALL", "UNREAD"].map((value) => (
+          <Pressable
+            key={value}
+            onPress={() => setFilter(value === "UNREAD" ? "UNREAD" : "ALL")}
+            style={[styles.visibilityChip, filter === value && styles.visibilityChipActive]}
+          >
+            <Text style={[styles.visibilityText, filter === value && styles.visibilityTextActive]}>
+              {value === "ALL" ? "All" : "Unread"}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
       {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
       <FlatList
-        data={items}
+        data={visible}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.feed}
         renderItem={({ item }) => (
-          <View style={[styles.notificationCard, !item.readAt && styles.unreadCard]}>
+          <Pressable onPress={() => void markRead(item)} style={[styles.notificationCard, !item.readAt && styles.unreadCard]}>
             <Avatar user={item.actor} size={42} />
             <View style={styles.flex}>
               <Text style={styles.notificationTitle}>{item.title || notificationLabel(item.type)}</Text>
               <Text style={styles.notificationBody}>{item.body || "You have a new SocialHub activity."}</Text>
               <Text style={styles.userHandle}>{formatTime(item.createdAt)}</Text>
             </View>
-          </View>
+          </Pressable>
         )}
-        ListEmptyComponent={!loading ? <Text style={styles.empty}>No notifications yet.</Text> : null}
+        ListEmptyComponent={!loading ? <Text style={styles.empty}>{filter === "UNREAD" ? "No unread notifications." : "No notifications yet."}</Text> : null}
       />
     </View>
   );
