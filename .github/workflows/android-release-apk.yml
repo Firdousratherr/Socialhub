@@ -1,5 +1,7 @@
 name: Android Release APK
 
+# Native app UI/branding release pipeline. Vercel deployments are intentionally not part of this workflow.
+
 on:
   push:
     branches: ["release/android-v1"]
