@@ -14,11 +14,7 @@
       },
       "backgroundColor": "#08080c",
       "icon": "./assets/icon.png",
-      "softwareKeyboardLayoutMode": "resize",
-      "blockedPermissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
-      ]
+      "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
       "expo-secure-store",
@@ -26,10 +22,28 @@
         "expo-image-picker",
         {
           "photosPermission": "Socialhub uses your photos and videos only when you choose media to post or share.",
-          "cameraPermission": false,
-          "microphonePermission": false
+          "cameraPermission": "Socialhub uses the camera only when you choose to take a photo or video.",
+          "microphonePermission": "Socialhub uses the microphone only when you choose to record or make a call."
         }
       ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Socialhub uses the camera only when you choose to take a photo, video, or join a video call.",
+          "microphonePermission": "Socialhub uses the microphone only when you choose to record or join a call.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Socialhub uses the microphone only when you choose to record audio or join a call.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false
+        }
+      ],
+      "expo-document-picker",
+      "expo-notifications",
       [
         "expo-video",
         {
