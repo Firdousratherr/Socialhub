@@ -14,7 +14,11 @@
       },
       "backgroundColor": "#08080c",
       "icon": "./assets/icon.png",
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "blockedPermissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-secure-store",
@@ -22,7 +26,7 @@
         "expo-image-picker",
         {
           "photosPermission": "Socialhub uses your photos and videos only when you choose media to post or share.",
-          "cameraPermission": "Socialhub uses your camera only when you choose to capture media.",
+          "cameraPermission": false,
           "microphonePermission": false
         }
       ],
