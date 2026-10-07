@@ -22,6 +22,14 @@ export function configurePushNotifications() {
   }
 }
 
+export function subscribeToNotificationOpen(onUrl: (url: string) => void) {
+  return Notifications.addNotificationResponseReceivedListener((response) => {
+    const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+    const url = typeof data?.url === "string" ? data.url : typeof data?.deepLink === "string" ? data.deepLink : "";
+    if (url) onUrl(url);
+  });
+}
+
 export async function registerPushDevice() {
   if (Platform.OS !== "android") return { granted: false, registered: false };
 
@@ -49,14 +57,20 @@ export async function registerPushDevice() {
     }),
   });
 
-  return { granted: true, registered: true };
+  return { granted: true, registered: true, token };
 }
 
 export async function unregisterPushDevice(token?: string) {
   try {
+    let deviceToken = token?.trim() ?? "";
+    if (!deviceToken && Platform.OS === "android") {
+      const native = await Notifications.getDevicePushTokenAsync();
+      deviceToken = String(native.data ?? "").trim();
+    }
+    if (!deviceToken) return;
     await apiFetch("/api/push/register", {
       method: "DELETE",
-      body: JSON.stringify(token ? { token } : { }),
+      body: JSON.stringify({ token: deviceToken }),
     });
   } catch {
     // Best-effort cleanup during sign-out.
