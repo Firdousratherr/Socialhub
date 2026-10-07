@@ -21,16 +21,24 @@ export async function GET(request: Request) {
 
   const rows = await prisma.presence.findMany({
     where: { userId: { in: userIds } },
-    select: { userId: true, state: true, lastSeenAt: true, expiresAt: true },
+    select: {
+      userId: true,
+      state: true,
+      lastSeenAt: true,
+      expiresAt: true,
+      user: { select: { privacySetting: { select: { showActiveStatus: true } } } },
+    },
   });
 
   const now = new Date();
   const byId = new Map(rows.map((row) => [
     row.userId,
     {
-      state: row.expiresAt && row.expiresAt > now ? row.state : "OFFLINE",
-      lastSeenAt: row.lastSeenAt,
-      expiresAt: row.expiresAt,
+      state: row.userId === session.user.id || row.user.privacySetting?.showActiveStatus !== false
+        ? (row.expiresAt && row.expiresAt > now ? row.state : "OFFLINE")
+        : "OFFLINE",
+      lastSeenAt: row.userId === session.user.id || row.user.privacySetting?.showActiveStatus !== false ? row.lastSeenAt : null,
+      expiresAt: row.userId === session.user.id || row.user.privacySetting?.showActiveStatus !== false ? row.expiresAt : null,
     },
   ]));
 
