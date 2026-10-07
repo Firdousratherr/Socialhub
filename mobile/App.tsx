@@ -888,7 +888,7 @@ function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: (
     </Modal>
   );
 }
-\n\nfunction HomeScreen({
+function HomeScreen({
   onMenu,
   initialPostId,
   initialStoryId,
@@ -1017,7 +1017,7 @@ function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: (
     </View>
   );
 }
-\nfunction DiscoverScreen({
+function DiscoverScreen({
   onMenu,
   initialQuery,
   onDeepLinkHandled,
@@ -1241,7 +1241,7 @@ function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: (
     </View>
   );
 }
-\n\nfunction CallOverlay({ currentUserId }: { currentUserId: string }) {
+function CallOverlay({ currentUserId }: { currentUserId: string }) {
   const [incoming, setIncoming] = useState<NativeCall | null>(null);
   const [active, setActive] = useState<NativeCall | null>(null);
   const [activeIsIncoming, setActiveIsIncoming] = useState(false);
@@ -1907,7 +1907,7 @@ function ChatScreen({
               <Ionicons name="videocam-outline" size={19} color={colors.text} />
             </Pressable>
           </View>
-        )
+        )}
       </View>
       <KeyboardAvoidingView
         style={styles.chatKeyboard}
