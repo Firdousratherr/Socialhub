@@ -64,3 +64,14 @@ Complete Phase 0 and the usable Phase 1 core in the feature branch, validate the
 - Authentication is guarded; signed-out users cannot enter app screens.
 - Core tabs are functional rather than placeholders.
 - No website/Vercel deployment is triggered by the Android workflow.
+
+
+## Android 1.1.0 implementation status
+- Runtime camera and microphone permissions are enabled and requested only from capture/call actions.
+- Android system document picker is available for message attachments.
+- Upload API validates common document MIME types and file signatures, with a 10 MB per-document limit.
+- Message attachments preserve image/video/document type.
+- Notification permission settings and device push-token registration endpoint are present.
+- Voice/video calling backend uses short-lived LiveKit tokens; secrets remain server-side.
+- Android LiveKit native config is included; screen-sharing service remains disabled.
+- No contacts, location, SMS, call-log, broad filesystem, hidden capture, or covert monitoring permissions are added.

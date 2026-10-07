@@ -30,8 +30,14 @@ import AdminScreen from "./screens/AdminScreen";
 import VideoMedia from "./components/VideoMedia";
 import { Share } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as SecureStore from "expo-secure-store";
+import PermissionOnboarding from "./components/PermissionOnboarding";
 import { authClient } from "./lib/auth-client";
-import { apiFetch, uploadMedia } from "./lib/api";
+import { apiFetch, uploadFile, uploadMedia } from "./lib/api";
+import { requestCameraPermission, requestMicrophonePermission } from "./lib/permissions";
+import { AudioSession, LiveKitRoom, VideoTrack, useTracks, registerGlobals } from "@livekit/react-native";
+import { Track } from "livekit-client";
+import { pickAndUploadDocument } from "./lib/document-picker";
 import type {
   Conversation,
   Message,
@@ -46,6 +52,7 @@ import type {
 type Tab = MobileRoute;
 
 const BRAND_ICON = require("./assets/icon.png");
+const PERMISSION_ONBOARDING_KEY = "socialhub:permissions-intro:v1";
 
 const colors = {
   bg: "#08080c",
@@ -59,6 +66,8 @@ const colors = {
   success: "#69d79b",
   danger: "#ff7474",
 };
+
+registerGlobals();
 
 SplashScreen.setOptions({ duration: 650 });
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -507,7 +516,7 @@ function PostCard({
 
   const sharePost = async () => {
     try {
-      await Share.share({ message: `${post.content || "Shared a Socialhub post"}\nhttps://socialhub-ruby.vercel.app/home#post-${post.id}` });
+      await Share.share({ message: `${post.content || "Shared a Socialhub post"}\nhttps://socialhublive.vercel.app/home#post-${post.id}` });
       const data = await apiFetch<{ shareCount: number }>(`/api/posts/${post.id}/share`, { method: "POST" });
       onChanged({ ...post, displayCounts: { ...post.displayCounts, shares: data.shareCount } });
     } catch (e) {
@@ -1243,6 +1252,20 @@ function MessagingScreen({
   );
 }
 
+function CallRoomContent({ isVideo, title, onEnd }: { isVideo: boolean; title: string; onEnd: () => void }) {
+  const tracks = useTracks([Track.Source.Camera]);
+  useEffect(() => { void AudioSession.startAudioSession(); return () => { void AudioSession.stopAudioSession(); }; }, []);
+  return <View style={styles.callScreen}>
+    <Text style={styles.callTitle}>{title}</Text>
+    <Text style={styles.callStatus}>Connected call</Text>
+    <View style={styles.callVideo}>{isVideo && tracks.length ? tracks.map((track, index) => <VideoTrack key={track.publication.trackSid ?? String(index)} trackRef={track} style={styles.remoteVideo} />) : <Text style={styles.callPlaceholderText}>{isVideo ? "Waiting for video…" : "Voice call active"}</Text>}</View>
+    <Pressable style={styles.endCall} onPress={onEnd}><Text style={styles.endCallText}>End call</Text></Pressable>
+  </View>;
+}
+function ActiveCallView({ token, serverUrl, isVideo, title, onEnd }: { token: string; serverUrl: string; isVideo: boolean; title: string; onEnd: () => void }) {
+  return <Modal visible animationType="slide" onRequestClose={onEnd}><LiveKitRoom serverUrl={serverUrl} token={token} connect audio video={isVideo}><CallRoomContent isVideo={isVideo} title={title} onEnd={onEnd} /></LiveKitRoom></Modal>;
+}
+
 function ChatScreen({
   conversation,
   currentUserId,
@@ -1258,6 +1281,7 @@ function ChatScreen({
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
+  const [call, setCall] = useState<{ token: string; serverUrl: string; isVideo: boolean } | null>(null);
   const other = conversation.members.find((member) => member.userId !== currentUserId)?.user;
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Message>>(null);
@@ -1291,6 +1315,22 @@ function ChatScreen({
     });
     return () => subscription.remove();
   }, [onBack]);
+
+  const startCall = async (isVideo: boolean) => {
+    const microphone = await requestMicrophonePermission();
+    if (!microphone.granted) { Alert.alert("Microphone permission", "Allow microphone access to start a call."); return; }
+    if (isVideo) {
+      const camera = await requestCameraPermission();
+      if (!camera.granted) { Alert.alert("Camera permission", "Allow camera access to start a video call."); return; }
+    }
+    try {
+      const calleeId = other?.id;
+      if (!calleeId) throw new Error("This conversation has no call recipient.");
+      const data = await apiFetch<{ token: string; serverUrl?: string }>("/api/calls", { method: "POST", body: JSON.stringify({ calleeId, isVideo }) });
+      if (!data.serverUrl) throw new Error("Calling server is not configured.");
+      setCall({ token: data.token, serverUrl: data.serverUrl, isVideo });
+    } catch (e) { Alert.alert("Call", e instanceof Error ? e.message : "Unable to start the call."); }
+  };
 
   const send = async () => {
     if (editing) {
@@ -1329,38 +1369,50 @@ function ChatScreen({
   };
 
   const sendAttachment = async () => {
+    Alert.alert("Attach to message", "Choose what you want to attach.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Photo / video", onPress: () => void pickMediaAttachment() },
+      { text: "Camera", onPress: () => void captureCameraAttachment() },
+      { text: "Document", onPress: () => void pickDocumentAttachment() },
+    ]);
+  };
+
+  const postAttachment = async (url: string, kind: "image" | "video" | "document") => {
+    const data = await apiFetch<{ message: Message }>("/api/conversations/" + conversation.id + "/messages", { method: "POST", body: JSON.stringify({ content: text.trim(), attachments: [{ url, kind }], replyToId: replyingTo?.id }) });
+    setMessages((current) => [...current, data.message]); setText(""); setReplyingTo(null);
+    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+  };
+
+  const pickMediaAttachment = async () => {
     setAttachmentBusy(true);
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert("Messages", "Allow photo access to attach an image.");
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        quality: 0.9,
-        allowsEditing: false,
-      });
+      if (!permission.granted) { Alert.alert("Messages", "Allow photo/video access to attach media."); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images", "videos"], quality: 0.9, allowsEditing: false });
       if (result.canceled || !result.assets[0]) return;
-      const asset = result.assets[0];
-      const upload = await uploadMedia(asset.uri, asset.mimeType ?? "image/jpeg", asset.fileName ?? "message.jpg");
-      const data = await apiFetch<{ message: Message }>("/api/conversations/" + conversation.id + "/messages", {
-        method: "POST",
-        body: JSON.stringify({
-          content: text.trim(),
-          attachments: [upload.url],
-          replyToId: replyingTo?.id,
-        }),
-      });
-      setMessages((current) => [...current, data.message]);
-      setText("");
-      setReplyingTo(null);
-      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
-    } catch (e) {
-      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to attach image.");
-    } finally {
-      setAttachmentBusy(false);
-    }
+      const asset = result.assets[0]; const kind = asset.type === "video" ? "video" : "image";
+      const upload = await uploadFile(asset.uri, asset.mimeType ?? (kind === "video" ? "video/mp4" : "image/jpeg"), asset.fileName ?? (kind === "video" ? "message.mp4" : "message.jpg"));
+      await postAttachment(upload.url, kind);
+    } catch (e) { Alert.alert("Messages", e instanceof Error ? e.message : "Unable to attach media."); } finally { setAttachmentBusy(false); }
+  };
+
+  const captureCameraAttachment = async () => {
+    setAttachmentBusy(true);
+    try {
+      const permission = await requestCameraPermission();
+      if (!permission.granted) { Alert.alert("Camera", "Camera access is required to take a photo or video."); return; }
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ["images", "videos"], videoMaxDuration: 60, quality: 0.9 });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0]; const kind = asset.type === "video" ? "video" : "image";
+      const upload = await uploadFile(asset.uri, asset.mimeType ?? (kind === "video" ? "video/mp4" : "image/jpeg"), asset.fileName ?? (kind === "video" ? "camera.mp4" : "camera.jpg"));
+      await postAttachment(upload.url, kind);
+    } catch (e) { Alert.alert("Camera", e instanceof Error ? e.message : "Unable to capture media."); } finally { setAttachmentBusy(false); }
+  };
+
+  const pickDocumentAttachment = async () => {
+    setAttachmentBusy(true);
+    try { const upload = await pickAndUploadDocument(); if (upload) await postAttachment(upload.url, "document"); }
+    catch (e) { Alert.alert("Documents", e instanceof Error ? e.message : "Unable to attach document."); } finally { setAttachmentBusy(false); }
   };
 
   const removeMessage = async (message: Message) => {
@@ -1408,7 +1460,7 @@ function ChatScreen({
         <Avatar user={other} size={40} />
         <View style={styles.flex}>
           <Text style={styles.userName}>{conversationName(conversation, currentUserId)}</Text>
-          <Text style={styles.userHandle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
+          <Text style={styles.userHandle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>\n          {!conversation.isGroup && other ? <View style={styles.callHeaderActions}><Pressable onPress={() => void startCall(false)}><Text style={styles.callHeaderButton}>📞</Text></Pressable><Pressable onPress={() => void startCall(true)}><Text style={styles.callHeaderButton}>📹</Text></Pressable></View> : null}
         </View>
       </View>
       <KeyboardAvoidingView
@@ -1436,9 +1488,13 @@ function ChatScreen({
                   <Text numberOfLines={2} style={styles.replyPreviewText}>{item.replyTo.content || "Message"}</Text>
                 </View>
               ) : null}
-              {item.attachments?.map((attachment) => (
-                <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />
-              ))}
+              {item.attachments?.map((attachment) => attachment.kind === "document" ? (
+                <Pressable key={attachment.id} onPress={() => void Linking.openURL(attachment.url)} style={styles.documentAttachment}>
+                  <Text style={styles.documentIcon}>📄</Text><View style={styles.flex}><Text style={styles.documentTitle}>Document attachment</Text><Text style={styles.documentLink}>Open file</Text></View>
+                </Pressable>
+              ) : attachment.kind === "video" ? (
+                <View key={attachment.id} style={styles.messageAttachment}><VideoMedia uri={attachment.url} height={150} autoPlay={false} loop={false} /></View>
+              ) : <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />)}
               <Text style={styles.messageText}>{item.deletedAt ? "Message deleted" : item.content}</Text>
               <Text style={styles.messageTime}>{formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}</Text>
             </Pressable>
@@ -1736,6 +1792,8 @@ function RootContent() {
   const [hideBottomNav, setHideBottomNav] = useState(false);
   const [unread, setUnread] = useState({ messages: 0, notifications: 0, friendRequests: 0 });
   const [deepLink, setDeepLink] = useState<DeepLinkTarget | null>(null);
+  const [permissionsReady, setPermissionsReady] = useState(false);
+  const [showPermissionOnboarding, setShowPermissionOnboarding] = useState(false);
 
   const refreshSession = useCallback(async () => {
     try {
@@ -1806,6 +1864,22 @@ function RootContent() {
   useEffect(() => { void refreshSession(); }, [refreshSession]);
 
   useEffect(() => {
+    let active = true;
+    void SecureStore.getItemAsync(PERMISSION_ONBOARDING_KEY)
+      .then((value) => {
+        if (!active) return;
+        setShowPermissionOnboarding(!value);
+        setPermissionsReady(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        setShowPermissionOnboarding(true);
+        setPermissionsReady(true);
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     if (!booting) void SplashScreen.hideAsync().catch(() => {});
   }, [booting]);
 
@@ -1838,7 +1912,7 @@ function RootContent() {
     setTab("Home");
   }, []);
 
-  if (booting) {
+  if (booting || !permissionsReady) {
     return (
       <View style={styles.root}>
         <StatusBar style="light" />
@@ -1847,7 +1921,20 @@ function RootContent() {
     );
   }
 
-  if (!signedIn) return <AuthScreen onSignedIn={() => void refreshSession()} />;
+  if (!signedIn) {
+    return (
+      <>
+        <AuthScreen onSignedIn={() => void refreshSession()} />
+        <PermissionOnboarding
+          visible={showPermissionOnboarding}
+          onDone={() => {
+            setShowPermissionOnboarding(false);
+            void SecureStore.setItemAsync(PERMISSION_ONBOARDING_KEY, "completed");
+          }}
+        />
+      </>
+    );
+  }
 
   const badge = (value: number) => value > 0 ? (
     <View style={styles.badge}><Text style={styles.badgeText}>{formatCount(value)}</Text></View>
@@ -2047,6 +2134,20 @@ const styles = StyleSheet.create({
   conversationCard: { flexDirection: "row", alignItems: "center", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, marginBottom: 10 },
   badge: { minWidth: 22, height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", marginLeft: 8 },
   badgeText: { color: "#fff", fontSize: 10, fontWeight: "900" },
+  documentAttachment: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: colors.panel2, marginBottom: 6 },
+  documentIcon: { fontSize: 24 },
+  documentTitle: { color: colors.text, fontWeight: "800" },
+  documentLink: { color: colors.accent, fontSize: 12, marginTop: 2 },
+  callHeaderActions: { flexDirection: "row", alignItems: "center", gap: 12, marginLeft: "auto" },
+  callHeaderButton: { color: colors.text, fontSize: 22 },
+  callScreen: { flex: 1, backgroundColor: colors.bg, paddingTop: 60, paddingHorizontal: 16 },
+  callTitle: { color: colors.text, fontSize: 22, fontWeight: "900", textAlign: "center" },
+  callStatus: { color: colors.success, textAlign: "center", marginTop: 4 },
+  callVideo: { flex: 1, marginTop: 20, borderRadius: 20, overflow: "hidden", backgroundColor: "#000", alignItems: "center", justifyContent: "center" },
+  remoteVideo: { flex: 1, width: "100%" },
+  callPlaceholderText: { color: colors.muted, fontSize: 18, fontWeight: "800" },
+  endCall: { paddingHorizontal: 20, paddingVertical: 13, borderRadius: 14, backgroundColor: colors.danger, alignSelf: "center", marginBottom: 24 },
+  endCallText: { color: "#fff", fontWeight: "900" },
   chatScreen: { flex: 1, backgroundColor: colors.bg },
   chatKeyboard: { flex: 1, backgroundColor: colors.bg },
   chatListFlex: { flex: 1 },

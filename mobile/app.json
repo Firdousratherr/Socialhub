@@ -2,15 +2,15 @@
   "expo": {
     "name": "SocialHub",
     "slug": "socialhub",
-    "version": "1.0.2",
+    "version": "1.1.0",
     "orientation": "portrait",
     "scheme": "socialhub",
     "userInterfaceStyle": "automatic",
     "android": {
       "package": "com.socialhub.app",
-      "versionCode": 3,
+      "versionCode": 5,
       "adaptiveIcon": {
-        "backgroundColor": "#0b0b0f"
+        "backgroundColor": "#6d5dfc"
       },
       "backgroundColor": "#08080c",
       "icon": "./assets/icon.png",
@@ -21,7 +21,9 @@
       [
         "expo-image-picker",
         {
-          "microphonePermission": false
+          "photosPermission": "Socialhub uses your photos and videos only when you choose media to post or share.",
+          "cameraPermission": "Socialhub uses your camera only when you choose to take a photo, record a video, or start a video call.",
+          "microphonePermission": "Socialhub uses your microphone only when you choose to record audio or start a voice/video call."
         }
       ],
       [
@@ -38,17 +40,35 @@
           "imageWidth": 180,
           "resizeMode": "contain"
         }
+      ],
+      [
+        "@livekit/react-native-expo-plugin",
+        {
+          "android": {
+            "audioType": "communication",
+            "enableScreenShareService": false
+          }
+        }
+      ],
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "Socialhub uses your camera only when you choose to take a photo, record a video, or start a video call.",
+          "microphonePermission": "Socialhub uses your microphone only when you choose to record audio or start a voice/video call."
+        }
+      ],
+      "expo-document-picker",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "socialhub-default"
+        }
       ]
     ],
     "extra": {
-      "apiBaseUrl": "https://socialhub-ruby.vercel.app"
+      "apiBaseUrl": "https://socialhublive.vercel.app"
     },
     "backgroundColor": "#08080c",
-    "androidStatusBar": {
-      "barStyle": "light-content",
-      "backgroundColor": "#08080c",
-      "translucent": true
-    },
     "icon": "./assets/icon.png"
   }
 }

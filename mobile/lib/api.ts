@@ -2,7 +2,7 @@ import { authClient } from "./auth-client";
 
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
-  "https://socialhub-ruby.vercel.app";
+  "https://socialhublive.vercel.app";
 
 const NATIVE_CLIENT_HEADER = "X-Socialhub-Client";
 const NATIVE_CLIENT_VALUE = "android";
@@ -48,8 +48,25 @@ export async function apiFetch<T>(
 export type UploadResult = {
   url: string;
   pathname: string;
-  mediaType: "IMAGE" | "VIDEO";
+  mediaType: "IMAGE" | "VIDEO" | "DOCUMENT";
 };
+
+export async function uploadFile(
+  uri: string,
+  mimeType: string,
+  fileName: string,
+): Promise<UploadResult> {
+  const cookie = await authClient.getCookie();
+  const formData = new FormData();
+  formData.append("file", { uri, type: mimeType, name: fileName } as unknown as Blob);
+  const headers = new Headers({ Accept: "application/json" });
+  addNativeHeaders(headers);
+  if (cookie) headers.set("Cookie", cookie);
+  const response = await fetch(`${API_BASE_URL}/api/uploads`, { method: "POST", headers, body: formData, credentials: "omit" });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(errorMessage(data, `Upload failed (${response.status})`));
+  return data as UploadResult;
+}
 
 export async function uploadMedia(
   uri: string,
