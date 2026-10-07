@@ -32,7 +32,7 @@
     "react-native-webrtc": "124.0.8",
     "react-native-incall-manager": "4.3.0",
     "@config-plugins/react-native-webrtc": "15.0.2",
-    "@expo/vector-icons": "15.1.1"
+    "@expo/vector-icons": "15.0.3"
   },
   "devDependencies": {
     "@types/react": "~19.2.0",
