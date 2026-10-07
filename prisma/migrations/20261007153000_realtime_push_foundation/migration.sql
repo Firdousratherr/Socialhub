@@ -1,3 +1,6 @@
+ALTER TABLE "UserPrivacySetting"
+  ADD COLUMN IF NOT EXISTS "showActiveStatus" BOOLEAN NOT NULL DEFAULT true;
+
 CREATE TABLE IF NOT EXISTS "PushDevice" (
   "id" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
