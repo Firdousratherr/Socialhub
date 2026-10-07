@@ -2,15 +2,15 @@
   "expo": {
     "name": "SocialHub",
     "slug": "socialhub",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "scheme": "socialhub",
     "userInterfaceStyle": "automatic",
     "android": {
       "package": "com.socialhub.app",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
-        "backgroundColor": "#0b0b0f"
+        "backgroundColor": "#6d5dfc"
       },
       "backgroundColor": "#08080c",
       "icon": "./assets/icon.png",
@@ -21,6 +21,8 @@
       [
         "expo-image-picker",
         {
+          "photosPermission": "Socialhub uses your photos and videos only when you choose media to post or share.",
+          "cameraPermission": "Socialhub uses your camera only when you choose to capture media.",
           "microphonePermission": false
         }
       ],
@@ -41,7 +43,7 @@
       ]
     ],
     "extra": {
-      "apiBaseUrl": "https://socialhub-ruby.vercel.app"
+      "apiBaseUrl": "https://socialhublive.vercel.app"
     },
     "backgroundColor": "#08080c",
     "icon": "./assets/icon.png"
