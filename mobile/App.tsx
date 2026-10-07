@@ -1135,6 +1135,7 @@ function DiscoverScreen({
 function CallOverlay({ currentUserId }: { currentUserId: string }) {
   const [incoming, setIncoming] = useState<NativeCall | null>(null);
   const [active, setActive] = useState<NativeCall | null>(null);
+  const [activeIsIncoming, setActiveIsIncoming] = useState(false);
   const incomingRef = useRef<NativeCall | null>(null);
   const activeRef = useRef<NativeCall | null>(null);
 
@@ -1159,7 +1160,10 @@ function CallOverlay({ currentUserId }: { currentUserId: string }) {
           if (nextStatus === "ACTIVE") {
             void apiFetch<{ call: NativeCall }>(`/api/calls/${event.entityId}`)
               .then((data) => {
-                if (data.call.status === "ACTIVE") setActive(data.call);
+                if (data.call.status === "ACTIVE") {
+                  setActive(data.call);
+                  setActiveIsIncoming(true);
+                }
               })
               .catch(() => {});
           }
@@ -1193,7 +1197,8 @@ function CallOverlay({ currentUserId }: { currentUserId: string }) {
           currentUserId={currentUserId}
           remoteUser={remoteUser}
           incoming={false}
-          onFinished={() => setActive(null)}
+          incoming={activeIsIncoming}
+          onFinished={() => { setActive(null); setActiveIsIncoming(false); }}
         />
       </View>
     );
@@ -1210,6 +1215,7 @@ function CallOverlay({ currentUserId }: { currentUserId: string }) {
       try { InCallManager.stopRingtone(); } catch {}
       setIncoming(null);
       setActive(incoming);
+      setActiveIsIncoming(true);
     } catch (error) {
       Alert.alert("Call", error instanceof Error ? error.message : "Unable to accept the call.");
     }
