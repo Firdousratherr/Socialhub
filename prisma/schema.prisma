@@ -431,6 +431,7 @@ model UserPrivacySetting {
   showFollowingList     Boolean  @default(true)
   allowMessagesEveryone Boolean  @default(true)
   allowFriendRequests   Boolean  @default(true)
+  showActiveStatus      Boolean  @default(true)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
