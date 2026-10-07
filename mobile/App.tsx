@@ -888,8 +888,7 @@ function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: (
     </Modal>
   );
 }
-
-function HomeScreen({
+\n\nfunction HomeScreen({
   onMenu,
   initialPostId,
   initialStoryId,
@@ -902,6 +901,7 @@ function HomeScreen({
 }) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
+  const [feedMode, setFeedMode] = useState<"FOR_YOU" | "FOLLOWING" | "FRIENDS" | "LATEST" | "SAVED">("FOR_YOU");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -909,28 +909,32 @@ function HomeScreen({
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
+      const query = new URLSearchParams({ take: "20", mode: feedMode });
       const [postData, storyData] = await Promise.all([
-        apiFetch<{ posts: Post[] }>("/api/posts?take=20&mode=FOR_YOU"),
-        apiFetch<{ stories: Story[] }>("/api/stories"),
+        apiFetch<{ posts?: Post[] }>("/api/" + (feedMode === "FOR_YOU" ? "feed/recommended?take=20" : "posts?" + query.toString())),
+        apiFetch<{ stories?: Story[] }>("/api/stories"),
       ]);
-      setPosts(postData.posts);
-      setStories(storyData.stories);
+      setPosts(postData.posts ?? []);
+      setStories(storyData.stories ?? []);
     } catch (e) {
       Alert.alert("Feed", e instanceof Error ? e.message : "Unable to load your feed.");
+      if (!isRefresh) {
+        setPosts([]);
+        setStories([]);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [feedMode]);
+
+  useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
-    void load();
     const unsubscribe = subscribeRealtime((event) => {
-      if (event.type === "message.created") void load();
+      if (event.type === "message.created" || event.type === "post.created") void load(true);
     });
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [load]);
 
   const [storyIndex, setStoryIndex] = useState<number | null>(null);
@@ -960,6 +964,24 @@ function HomeScreen({
   return (
     <View style={styles.screen}>
       <AppHeader title="Socialhub" subtitle="Your people, your feed." onMenu={onMenu} action="↻" onAction={() => void load(true)} />
+      <View style={styles.feedModeRow}>
+        {[
+          ["FOR_YOU", "For You"],
+          ["FOLLOWING", "Following"],
+          ["FRIENDS", "Friends"],
+          ["LATEST", "Latest"],
+          ["SAVED", "Saved"],
+        ].map(([value, label]) => (
+          <Pressable
+            key={value}
+            onPress={() => setFeedMode(value as typeof feedMode)}
+            style={[styles.feedModeChip, feedMode === value && styles.feedModeChipActive]}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.feedModeText, feedMode === value && styles.feedModeTextActive]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
 
       {loading && !posts.length ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
 
@@ -973,7 +995,7 @@ function HomeScreen({
             <CreatePost onCreated={(post) => setPosts((current) => [post, ...current])} />
           </View>
         }
-        ListEmptyComponent={!loading ? <Text style={styles.empty}>No posts to show yet.</Text> : null}
+        ListEmptyComponent={!loading ? <Text style={styles.empty}>No posts to show here yet.</Text> : null}
         contentContainerStyle={styles.feed}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.accent} />}
       />
@@ -995,40 +1017,75 @@ function HomeScreen({
     </View>
   );
 }
-
-function DiscoverScreen({
+\nfunction DiscoverScreen({
   onMenu,
   initialQuery,
   onDeepLinkHandled,
+  onOpenProfile,
 }: {
   onMenu: () => void;
   initialQuery?: string;
   onDeepLinkHandled: () => void;
+  onOpenProfile: (usernameOrId: string) => void;
 }) {
+  type HashtagResult = { tag: string; count?: number };
+  type Trend = { tag: string; posts: number };
+
   const [query, setQuery] = useState(initialQuery ?? "");
   const [users, setUsers] = useState<SearchUser[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [hashtags, setHashtags] = useState<HashtagResult[]>([]);
+  const [suggestions, setSuggestions] = useState<SearchUser[]>([]);
+  const [trends, setTrends] = useState<Trend[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingHome, setLoadingHome] = useState(true);
+
+  const loadExplore = useCallback(async () => {
+    setLoadingHome(true);
+    try {
+      const [people, trendData] = await Promise.all([
+        apiFetch<{ users?: SearchUser[] }>("/api/users?suggestions=true&take=8"),
+        apiFetch<{ trends?: Trend[] }>("/api/discover/trends"),
+      ]);
+      setSuggestions((people.users ?? []).filter((u) => !u.isFriend && !u.isFollowing && (u.friendRequestStatus ?? "NONE") === "NONE"));
+      setTrends(trendData.trends ?? []);
+    } catch {
+      setSuggestions([]);
+      setTrends([]);
+    } finally {
+      setLoadingHome(false);
+    }
+  }, []);
 
   const search = useCallback(async (value: string) => {
     const term = value.trim();
     if (!term) {
       setUsers([]);
       setPosts([]);
-      setLoading(false);
+      setHashtags([]);
       return;
     }
     setLoading(true);
     try {
-      const data = await apiFetch<{ users: SearchUser[]; posts: Post[] }>(`/api/search?q=${encodeURIComponent(term)}&take=20`);
-      setUsers(data.users);
-      setPosts(data.posts);
+      const data = await apiFetch<{ users?: SearchUser[]; posts?: Post[]; hashtags?: HashtagResult[] }>(
+        `/api/search?q=${encodeURIComponent(term)}&take=20`,
+      );
+      setUsers(data.users ?? []);
+      setPosts(data.posts ?? []);
+      setHashtags(data.hashtags ?? []);
     } catch (e) {
+      setUsers([]);
+      setPosts([]);
+      setHashtags([]);
       Alert.alert("Discover", e instanceof Error ? e.message : "Search failed.");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    void loadExplore();
+  }, [loadExplore]);
 
   useEffect(() => {
     if (initialQuery && initialQuery !== query) {
@@ -1038,7 +1095,7 @@ function DiscoverScreen({
   }, [initialQuery, query, onDeepLinkHandled]);
 
   useEffect(() => {
-    const timeout = query.trim() ? setTimeout(() => void search(query), 250) : null;
+    const timeout = query.trim() ? setTimeout(() => void search(query), 260) : null;
     return () => {
       if (timeout) clearTimeout(timeout);
     };
@@ -1054,74 +1111,137 @@ function DiscoverScreen({
           method: "PATCH",
           body: JSON.stringify({ status: "ACCEPTED" }),
         });
-        Alert.alert("Friends", "Friend request accepted.");
       } else if (user.canSendFriendRequest) {
         await apiFetch("/api/friend-requests", {
           method: "POST",
           body: JSON.stringify({ receiverId: user.id }),
         });
-        Alert.alert("Friends", "Friend request sent.");
       }
       await search(query);
+      await loadExplore();
     } catch (e) {
       Alert.alert("Friends", e instanceof Error ? e.message : "Unable to update friendship.");
     }
   };
 
+  const personCard = (user: SearchUser, suggested = false) => (
+    <Pressable
+      key={user.id}
+      style={styles.userCard}
+      onPress={() => onOpenProfile(user.username ?? user.id)}
+    >
+      <Avatar user={user} size={50} />
+      <View style={styles.flex}>
+        <View style={styles.row}>
+          <Text numberOfLines={1} style={styles.userName}>{user.name}</Text>
+          {user.isVerified ? <Ionicons name="checkmark-circle" size={14} color={colors.accentBright} /> : null}
+        </View>
+        <Text numberOfLines={1} style={styles.userHandle}>
+          @{user.username ?? "socialhub"} · {formatCount(user.displayCounts?.followers ?? 0)} followers
+        </Text>
+        {user.bio ? <Text numberOfLines={1} style={styles.muted}>{user.bio}</Text> : null}
+      </View>
+      {!suggested && user.isFriend ? (
+        <Text style={styles.successText}>Friends</Text>
+      ) : !suggested && user.friendRequestStatus === "OUTGOING_PENDING" ? (
+        <Text style={styles.muted}>Pending</Text>
+      ) : !suggested && user.friendRequestStatus === "INCOMING_PENDING" ? (
+        <Pressable style={styles.miniButton} onPress={(event) => { event.stopPropagation(); void friendRequest(user); }}>
+          <Text style={styles.miniButtonText}>Accept</Text>
+        </Pressable>
+      ) : user.canSendFriendRequest ? (
+        <Pressable style={styles.miniButton} onPress={(event) => { event.stopPropagation(); void friendRequest(user); }}>
+          <Text style={styles.miniButtonText}>Add</Text>
+        </Pressable>
+      ) : null}
+    </Pressable>
+  );
+
   return (
     <View style={styles.screen}>
-      <AppHeader title="Discover" subtitle="Find people and posts." onMenu={onMenu} />
+      <AppHeader title="Discover" subtitle="People, posts, hashtags and trends." onMenu={onMenu} />
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.discoverHero}>
-          <Text style={styles.discoverEyebrow}>DISCOVER</Text>
+          <View style={styles.discoverHeroRow}>
+            <View style={styles.discoverHeroBadge}><Ionicons name="sparkles-outline" size={16} color={colors.accentBright} /></View>
+            <Text style={styles.discoverEyebrow}>DISCOVER</Text>
+          </View>
           <Text style={styles.discoverTitle}>Find your people</Text>
-          <Text style={styles.discoverSubtitle}>Search profiles, usernames, and posts.</Text>
+          <Text style={styles.discoverSubtitle}>Explore creators, conversations and topics worth following.</Text>
         </View>
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search people, usernames or posts…"
-          placeholderTextColor={colors.muted}
-          style={styles.searchInput}
-          autoCapitalize="none"
-        />
-        {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
-        {!query.trim() && !loading ? (
-          <View style={styles.discoverEmptyCard}>
-            <Text style={styles.discoverEmptyIcon}>⌕</Text>
-            <Text style={styles.discoverEmptyTitle}>Start with a search</Text>
-            <Text style={styles.emptySmall}>Try a name, @username, hashtag, or a word from a post.</Text>
-          </View>
-        ) : null}
 
-        {query.trim() ? <SectionHeader title="People" /> : null}
-        {users.length ? users.map((user) => (
-          <View key={user.id} style={styles.userCard}>
-            <Avatar user={user} size={46} />
-            <View style={styles.flex}>
-              <Text style={styles.userName}>{user.name}</Text>
-              <Text style={styles.userHandle}>@{user.username ?? "socialhub"} · {formatCount(user.displayCounts?.followers ?? 0)} followers</Text>
-            </View>
-            {user.isFriend ? (
-              <Text style={styles.successText}>Friends</Text>
-            ) : user.friendRequestStatus === "OUTGOING_PENDING" ? (
-              <Text style={styles.muted}>Pending</Text>
-            ) : user.friendRequestStatus === "INCOMING_PENDING" ? (
-              <Pressable style={styles.miniButton} onPress={() => void friendRequest(user)}><Text style={styles.miniButtonText}>Accept</Text></Pressable>
-            ) : user.canSendFriendRequest ? (
-              <Pressable style={styles.miniButton} onPress={() => void friendRequest(user)}><Text style={styles.miniButtonText}>Add</Text></Pressable>
-            ) : null}
-          </View>
-        )) : query.trim() ? <Text style={styles.emptySmall}>No people found.</Text> : null}
+        <View style={styles.discoverSearchWrap}>
+          <Ionicons name="search" size={19} color={colors.muted} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search people, usernames, posts or #hashtags"
+            placeholderTextColor={colors.muted}
+            style={styles.discoverSearchInput}
+            autoCapitalize="none"
+            returnKeyType="search"
+          />
+          {query ? (
+            <Pressable onPress={() => setQuery("")} style={styles.discoverClear}>
+              <Ionicons name="close" size={18} color={colors.muted} />
+            </Pressable>
+          ) : null}
+        </View>
 
-        {query.trim() ? <SectionHeader title="Posts" /> : null}
-        {query.trim() ? posts.map((post) => <PostCard key={post.id} post={post} onChanged={(next) => setPosts((items) => items.map((item) => item.id === next.id ? next : item))} />) : null}
+        {loading || loadingHome ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
+
+        {!query.trim() ? (
+          <>
+            <SectionHeader title="Suggested for you" action="Refresh" onAction={() => void loadExplore()} />
+            {suggestions.length ? suggestions.slice(0, 6).map((user) => personCard(user, true)) : (
+              <View style={styles.discoverEmptyCard}>
+                <Ionicons name="compass-outline" size={30} color={colors.accent} />
+                <Text style={styles.discoverEmptyTitle}>Your discovery space is ready</Text>
+                <Text style={styles.emptySmall}>Search for a person, post or hashtag to start exploring.</Text>
+              </View>
+            )}
+
+            <SectionHeader title="Trending now" />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trendRow}>
+              {trends.length ? trends.map((trend) => (
+                <Pressable key={trend.tag} style={styles.trendChip} onPress={() => setQuery(trend.tag)}>
+                  <Text style={styles.trendRank}>#{trends.indexOf(trend) + 1}</Text>
+                  <Text style={styles.trendTag}>{trend.tag}</Text>
+                  <Text style={styles.trendCount}>{trend.posts}</Text>
+                </Pressable>
+              )) : (
+                <View style={styles.trendEmpty}><Text style={styles.muted}>No active trends yet.</Text></View>
+              )}
+            </ScrollView>
+          </>
+        ) : (
+          <>
+            <SectionHeader title="People" action={`${users.length} results`} />
+            {users.length ? users.map((user) => personCard(user)) : <Text style={styles.emptySmall}>No people found.</Text>}
+
+            <SectionHeader title="Posts" action={`${posts.length} results`} />
+            {posts.length ? posts.map((post) => (
+              <PostCard key={post.id} post={post} onChanged={(next) => setPosts((items) => items.map((item) => item.id === next.id ? next : item))} />
+            )) : <Text style={styles.emptySmall}>No matching posts found.</Text>}
+
+            <SectionHeader title="Hashtags" action={`${hashtags.length} results`} />
+            {hashtags.length ? hashtags.map((item) => (
+              <Pressable key={item.tag} style={styles.hashtagCard} onPress={() => setQuery(item.tag)}>
+                <View style={styles.hashtagIcon}><Ionicons name="pricetag-outline" size={18} color={colors.accentBright} /></View>
+                <View style={styles.flex}>
+                  <Text style={styles.hashtagTag}>{item.tag}</Text>
+                  <Text style={styles.muted}>{item.count ?? 0} matching posts</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={19} color={colors.muted} />
+              </Pressable>
+            )) : <Text style={styles.emptySmall}>No matching hashtags found.</Text>}
+          </>
+        )}
       </ScrollView>
     </View>
   );
 }
-
-function CallOverlay({ currentUserId }: { currentUserId: string }) {
+\n\nfunction CallOverlay({ currentUserId }: { currentUserId: string }) {
   const [incoming, setIncoming] = useState<NativeCall | null>(null);
   const [active, setActive] = useState<NativeCall | null>(null);
   const [activeIsIncoming, setActiveIsIncoming] = useState(false);
@@ -2181,6 +2301,7 @@ function RootContent() {
           onMenu={openMenu}
           initialQuery={deepLink?.kind === "profile" ? deepLink.id : undefined}
           onDeepLinkHandled={onDeepLinkHandled}
+          onOpenProfile={(usernameOrId) => { setDeepLink({ kind: "profile", id: usernameOrId }); setTab("Profile"); }}
         />
       ) : null}
       {tab === "Friends" ? <FriendsScreen onMenu={openMenu} /> : null}
