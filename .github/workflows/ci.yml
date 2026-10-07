@@ -47,3 +47,30 @@ jobs:
 
       - name: Production build
         run: npm run build:ci
+
+
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package.json
+
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Mobile TypeScript
+        run: npx tsc --noEmit
+
+      - name: Expo project validation
+        run: npx expo-doctor

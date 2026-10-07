@@ -2845,7 +2845,7 @@ function SettingsPage() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const [privateAccount, setPrivate] = useState(false);
-  const [privacySettings, setPrivacySettings] = useState({ showFriendsList: true, showFollowersList: true, showFollowingList: true, allowMessagesEveryone: true, allowFriendRequests: true });
+  const [privacySettings, setPrivacySettings] = useState({ showFriendsList: true, showFollowersList: true, showFollowingList: true, allowMessagesEveryone: true, allowFriendRequests: true, showActiveStatus: true });
   const [savingPrivacySetting, setSavingPrivacySetting] = useState<string | null>(null);
   const [email, setEmail] = useState("Not loaded");
   const [username, setUsername] = useState("Not loaded");
@@ -3025,7 +3025,7 @@ function SettingsPage() {
       setVerificationSubmitting(false);
     }
   }
-  async function updatePrivacySetting(key: "showFriendsList" | "showFollowersList" | "showFollowingList" | "allowMessagesEveryone" | "allowFriendRequests", value: boolean) {
+  async function updatePrivacySetting(key: "showFriendsList" | "showFollowersList" | "showFollowingList" | "allowMessagesEveryone" | "allowFriendRequests" | "showActiveStatus", value: boolean) {
     if (!session?.user || savingPrivacySetting) return;
     setSavingPrivacySetting(key);
     try {
@@ -3435,6 +3435,10 @@ function SettingsPage() {
             <div className="flex items-center gap-4 py-4">
               <div className="flex-1"><p className="text-sm font-bold">Allow messages from everyone</p><p className="text-xs text-gray-500">Turn off to limit new direct conversations to accepted friends.</p></div>
               <SettingsToggle value={privacySettings.allowMessagesEveryone} disabled={!session?.user || savingPrivacySetting === "allowMessagesEveryone"} onChange={(value)=>void updatePrivacySetting("allowMessagesEveryone", value)}/>
+            </div>
+            <div className="flex items-center gap-4 py-4">
+              <div className="flex-1"><p className="text-sm font-bold">Show active status</p><p className="text-xs text-gray-500">Control whether other people can see when you are active on Socialhub.</p></div>
+              <SettingsToggle value={privacySettings.showActiveStatus} disabled={!session?.user || savingPrivacySetting === "showActiveStatus"} onChange={(value)=>void updatePrivacySetting("showActiveStatus", value)}/>
             </div>
             <div className="flex items-center gap-4 py-4">
               <div className="flex-1"><p className="text-sm font-bold">Allow friend requests</p><p className="text-xs text-gray-500">Turn off to stop new people from sending friend requests.</p></div>

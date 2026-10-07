@@ -12,6 +12,9 @@ const requiredFiles = [
   "app/api/friend-requests/route.ts",
   "app/api/friends/[friendId]/route.ts",
   "app/api/notifications/route.ts",
+  "app/api/realtime/route.ts",
+  "app/api/push/register/route.ts",
+  "app/api/presence/route.ts",
   "app/api/privacy-settings/route.ts",
   "app/api/profile/route.ts",
   "app/api/search/route.ts",
@@ -34,6 +37,7 @@ const requiredFiles = [
   "lib/auth.ts",
   "lib/post-access.ts",
   "lib/social-access.ts",
+  "lib/realtime.ts",
   "prisma/schema.prisma",
 ];
 
@@ -73,6 +77,9 @@ const requiredSchemaModels = [
   "model RateLimitBucket",
   "model TwoFactor",
   "model Mute",
+  "model PushDevice",
+  "model Presence",
+  "model RealtimeEvent",
 ];
 const missingModels = requiredSchemaModels.filter((marker) => !schema.includes(marker));
 if (missingModels.length) {

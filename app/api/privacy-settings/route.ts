@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-const keys = ["showFriendsList","showFollowersList","showFollowingList","allowMessagesEveryone","allowFriendRequests"] as const;
+const keys = ["showFriendsList","showFollowersList","showFollowingList","allowMessagesEveryone","allowFriendRequests","showActiveStatus"] as const;
 type Key = typeof keys[number];
 
 async function getSession() {

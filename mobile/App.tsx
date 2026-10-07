@@ -34,6 +34,9 @@ import * as SecureStore from "expo-secure-store";
 import PermissionOnboarding from "./components/PermissionOnboarding";
 import { authClient } from "./lib/auth-client";
 import { apiFetch, uploadMedia } from "./lib/api";
+import { configurePushNotifications, subscribeToNotificationOpen, unregisterPushDevice } from "./lib/push";
+import { startPresenceHeartbeat } from "./lib/presence";
+import { startRealtime, subscribeRealtime } from "./lib/realtime";
 import type {
   Conversation,
   Message,
@@ -922,7 +925,12 @@ function HomeScreen({
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return subscribeRealtime((event) => {
+      if (event.type === "message.created") void load();
+    });
+  }, [load]);
 
   const [storyIndex, setStoryIndex] = useState<number | null>(null);
   const [creatingStory, setCreatingStory] = useState(false);
@@ -1283,9 +1291,12 @@ function ChatScreen({
 
   useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), 5_000);
-    return () => clearInterval(timer);
-  }, [load]);
+    return subscribeRealtime((event) => {
+      if (event.type === "message.created" && event.conversationId === conversation.id) {
+        void load();
+      }
+    });
+  }, [load, conversation.id]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -1808,6 +1819,29 @@ function RootContent() {
 
   const onDeepLinkHandled = useCallback(() => setDeepLink(null), []);
 
+  useEffect(() => {
+    configurePushNotifications();
+    const subscription = subscribeToNotificationOpen(parseDeepLink);
+    return () => subscription.remove();
+  }, [parseDeepLink]);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    return startPresenceHeartbeat();
+  }, [signedIn]);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    return startRealtime();
+  }, [signedIn]);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    return subscribeRealtime(() => {
+      void refreshUnread();
+    });
+  }, [signedIn, refreshUnread]);
+
   useEffect(() => { void refreshSession(); }, [refreshSession]);
 
   useEffect(() => {
@@ -1852,6 +1886,7 @@ function RootContent() {
   }, [sessionUser?.isOwner]);
 
   const signOut = useCallback(async () => {
+    await unregisterPushDevice();
     await authClient.signOut();
     setDrawerOpen(false);
     setSignedIn(false);

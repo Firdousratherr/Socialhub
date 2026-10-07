@@ -7,6 +7,7 @@ import { canSendMessageInConversation } from "@/lib/conversation-access";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { platformEnabled } from "@/lib/platform-controls";
 import { getActiveUserRestriction } from "@/lib/user-restrictions";
+import { publishConversationEvent } from "@/lib/realtime";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -139,6 +140,20 @@ export async function POST(
 
     return created;
   });
+
+  try {
+    await publishConversationEvent(conversationId, {
+      type: "message.created",
+      entityId: message.id,
+      payload: {
+        message,
+        senderId: session.user.id,
+        conversationId,
+      },
+    });
+  } catch {
+    // Realtime delivery is best-effort; message creation must remain reliable.
+  }
 
   return NextResponse.json({ message }, { status: 201 });
 }
