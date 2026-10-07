@@ -1134,3 +1134,288 @@ model DeviceManagementAudit {
   @@index([actorId, createdAt])
   @@index([resource, resourceId, createdAt])
 }
+
+
+model PushDeviceToken {
+  id          String   @id @default(cuid())
+  userId      String
+  token       String   @unique
+  platform    String
+  deviceId    String?
+  appVersion  String?
+  enabled     Boolean  @default(true)
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, enabled])
+  @@index([userId, lastSeenAt])
+}
+
+model PostMedia {
+  id          String   @id @default(cuid())
+  postId      String
+  userId      String
+  url         String
+  mimeType    String
+  mediaType   String
+  width       Int?
+  height      Int?
+  durationMs  Int?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([postId, sortOrder])
+  @@index([userId, createdAt])
+}
+
+model PostDraft {
+  id          String   @id @default(cuid())
+  userId      String
+  content     String?
+  visibility  PostVisibility @default(PUBLIC)
+  media       String?
+  scheduledAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+  @@index([userId, scheduledAt])
+}
+
+model Repost {
+  id            String   @id @default(cuid())
+  userId        String
+  originalPostId String
+  quoteText     String?
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, originalPostId])
+  @@index([originalPostId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model Poll {
+  id          String   @id @default(cuid())
+  postId      String   @unique
+  question   String
+  multiple   Boolean  @default(false)
+  closesAt   DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([closesAt])
+}
+
+model PollOption {
+  id          String   @id @default(cuid())
+  pollId      String
+  label       String
+  sortOrder   Int      @default(0)
+
+  @@index([pollId, sortOrder])
+}
+
+model PollVote {
+  id          String   @id @default(cuid())
+  pollId      String
+  optionId    String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  @@unique([pollId, optionId, userId])
+  @@index([pollId, userId])
+  @@index([optionId, createdAt])
+}
+
+model CallSession {
+  id          String   @id @default(cuid())
+  conversationId String
+  createdById String
+  kind        String
+  status      String   @default("RINGING")
+  provider    String?
+  roomName    String?
+  createdAt   DateTime @default(now())
+  startedAt   DateTime?
+  endedAt     DateTime?
+
+  @@index([conversationId, createdAt])
+  @@index([status, createdAt])
+}
+
+model CallParticipant {
+  id          String   @id @default(cuid())
+  callId      String
+  userId      String
+  role        String   @default("PARTICIPANT")
+  joinedAt    DateTime?
+  leftAt      DateTime?
+
+  @@unique([callId, userId])
+  @@index([userId, joinedAt])
+}
+
+model OfflineMutation {
+  id          String   @id @default(cuid())
+  userId      String
+  clientId    String
+  operation   String
+  payload     String
+  status      String   @default("PENDING")
+  error      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, clientId])
+  @@index([userId, status, createdAt])
+}
+
+model CreatorProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  enabled       Boolean  @default(false)
+  displayName   String?
+  payoutStatus  String   @default("UNSET")
+  payoutAddress String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([enabled, payoutStatus])
+}
+
+model CreatorSubscription {
+  id          String   @id @default(cuid())
+  creatorId   String
+  subscriberId String
+  status      String   @default("ACTIVE")
+  priceMinor  Int
+  currency    String   @default("INR")
+  startedAt   DateTime @default(now())
+  endsAt      DateTime?
+
+  @@unique([creatorId, subscriberId])
+  @@index([creatorId, status])
+  @@index([subscriberId, status])
+}
+
+model CreatorTip {
+  id          String   @id @default(cuid())
+  creatorId   String
+  senderId    String
+  amountMinor Int
+  currency    String   @default("INR")
+  note        String?
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+
+  @@index([creatorId, createdAt])
+  @@index([senderId, createdAt])
+  @@index([status, createdAt])
+}
+
+model WebAuthnCredential {
+  id            String   @id @default(cuid())
+  userId        String
+  credentialId  String   @unique
+  publicKey     String
+  signCount     Int      @default(0)
+  transports    String?
+  deviceType    String?
+  backedUp      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  lastUsedAt    DateTime?
+
+  @@index([userId, createdAt])
+}
+
+model UserSafetySetting {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  ageBand               String?
+  restrictedMode        Boolean  @default(false)
+  hiddenWords           String?
+  messageSafetyMode    String   @default("STANDARD")
+  sensitiveContentMode String   @default("STANDARD")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model CloseFriend {
+  id          String   @id @default(cuid())
+  userId      String
+  friendId    String
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, friendId])
+  @@index([userId, createdAt])
+}
+
+model SavedCollection {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+}
+
+model SavedCollectionItem {
+  id           String   @id @default(cuid())
+  collectionId String
+  postId       String
+  createdAt    DateTime @default(now())
+
+  @@unique([collectionId, postId])
+  @@index([collectionId, createdAt])
+}
+
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  image       String?
+  ownerId     String
+  isPrivate   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId, createdAt])
+}
+
+model GroupMember {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String
+  role      String   @default("MEMBER")
+  joinedAt  DateTime @default(now())
+  mutedUntil DateTime?
+
+  @@unique([groupId, userId])
+  @@index([userId, joinedAt])
+  @@index([groupId, role])
+}
+
+model GroupInvite {
+  id          String   @id @default(cuid())
+  groupId     String
+  inviterId   String
+  inviteeId   String
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime?
+
+  @@index([inviteeId, status, createdAt])
+  @@index([groupId, status, createdAt])
+}
+
+model KeywordMute {
+  id        String   @id @default(cuid())
+  userId    String
+  keyword   String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, keyword])
+  @@index([userId, createdAt])
+}
