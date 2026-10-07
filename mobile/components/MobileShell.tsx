@@ -68,6 +68,7 @@ export function DetailHeader({
       <Pressable onPress={onBack} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
         <Text style={styles.backIcon}>‹</Text>
       </Pressable>
+      <Image source={BRAND_ICON} style={styles.headerBrandIcon} />
       <View style={styles.headerCopy}>
         <Text numberOfLines={1} style={styles.title}>{title}</Text>
         {subtitle ? <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text> : null}
