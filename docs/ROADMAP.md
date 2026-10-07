@@ -122,6 +122,37 @@ Status: In implementation
 - Online/last-seen presence
 - Conversation mute/archive
 
+
+## Milestone E.5 — Device & App Control Center
+Status: Foundation implemented
+
+### Managed-device foundation
+- Device enrollment and ownership state
+- Device registry and lifecycle state
+- Installed-application inventory model
+- Policy assignments and version-aware app rules
+- Device command queue with explicit execution status
+- Inventory snapshots
+- Device-management audit trail
+- Dedicated `DEVICE_MANAGEMENT` admin permission
+
+### Control Center
+- Device 360 overview
+- Application inventory with package/version/policy state
+- Allowed / blocked / required application policies
+- Minimum-version compliance
+- Device compliance and synchronization state
+- Explicit, auditable administrative commands
+- User-facing management transparency
+- No covert access to personal app contents, camera, microphone, calls, files, or credentials
+
+### Android management boundary
+- Ordinary Socialhub installs remain limited to Android APIs and package visibility permitted to normal apps.
+- Device Owner / Profile Owner capabilities are used only for explicitly enrolled managed devices.
+- Broad package visibility is not added solely to enumerate unrelated applications.
+- Every management mutation requires server-side authorization, validation, audit logging, and a device acknowledgement.
+
+
 ## Milestone F — Stories 2.0
 - Image/video upload
 - 24-hour expiry
