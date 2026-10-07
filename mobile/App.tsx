@@ -1541,6 +1541,13 @@ function ChatScreen({
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Array<{ id: string; name: string }>>([]);
   const [activeCall, setActiveCall] = useState<NativeCall | null>(null);
+  const [groupInfoOpen, setGroupInfoOpen] = useState(false);
+  const [groupTitleDraft, setGroupTitleDraft] = useState(conversation.title ?? "");
+  const [groupMembers, setGroupMembers] = useState(conversation.members);
+  const [groupQuery, setGroupQuery] = useState("");
+  const [groupPeople, setGroupPeople] = useState<User[]>([]);
+  const [groupBusy, setGroupBusy] = useState(false);
+  const groupAdmin = Boolean(conversation.members.find((member) => member.userId === currentUserId)?.role === "ADMIN");
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const other = conversation.members.find((member) => member.userId !== currentUserId)?.user;
   const insets = useSafeAreaInsets();
@@ -1654,6 +1661,92 @@ function ChatScreen({
     } catch (error) {
       Alert.alert("Call", error instanceof Error ? error.message : "Unable to start the call.");
     }
+  };
+
+  useEffect(() => {
+    if (!conversation.isGroup) return;
+    const query = groupQuery.trim();
+    if (!query) {
+      setGroupPeople([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void apiFetch<{ users?: User[] }>(`/api/users?q=${encodeURIComponent(query)}&take=8`)
+        .then((data) => {
+          const existingIds = new Set(groupMembers.map((member) => member.userId));
+          setGroupPeople((data.users ?? []).filter((user) => !existingIds.has(user.id)));
+        })
+        .catch(() => setGroupPeople([]));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [conversation.isGroup, groupMembers, groupQuery]);
+
+  const renameGroup = async () => {
+    if (!conversation.isGroup || !groupAdmin || !groupTitleDraft.trim() || groupBusy) return;
+    setGroupBusy(true);
+    try {
+      await apiFetch(`/api/conversations/${conversation.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title: groupTitleDraft.trim() }),
+      });
+      Alert.alert("Group", "Group name updated.");
+    } catch (e) {
+      Alert.alert("Group", e instanceof Error ? e.message : "Unable to rename group.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+
+  const addGroupMember = async (userId: string) => {
+    if (!conversation.isGroup || !groupAdmin || groupBusy) return;
+    setGroupBusy(true);
+    try {
+      const data = await apiFetch<{ membership?: typeof groupMembers[number] }>(`/api/conversations/${conversation.id}`, {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      });
+      if (data.membership) setGroupMembers((current) => [...current, data.membership!]);
+      setGroupPeople((current) => current.filter((person) => person.id !== userId));
+      setGroupQuery("");
+    } catch (e) {
+      Alert.alert("Group", e instanceof Error ? e.message : "Unable to add member.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+
+  const removeGroupMember = async (userId: string) => {
+    if (!conversation.isGroup || !groupAdmin || groupBusy || userId === currentUserId) return;
+    setGroupBusy(true);
+    try {
+      await apiFetch(`/api/conversations/${conversation.id}`, {
+        method: "DELETE",
+        body: JSON.stringify({ userId }),
+      });
+      setGroupMembers((current) => current.filter((member) => member.userId !== userId));
+    } catch (e) {
+      Alert.alert("Group", e instanceof Error ? e.message : "Unable to remove member.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+
+  const leaveGroup = () => {
+    if (!conversation.isGroup || groupBusy) return;
+    Alert.alert("Leave group", "You will leave this conversation.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Leave",
+        style: "destructive",
+        onPress: () => {
+          setGroupBusy(true);
+          void apiFetch(`/api/conversations/${conversation.id}`, { method: "DELETE" })
+            .then(() => onBack())
+            .catch((e) => Alert.alert("Group", e instanceof Error ? e.message : "Unable to leave group."))
+            .finally(() => setGroupBusy(false));
+        },
+      },
+    ]);
   };
 
   useEffect(() => {
@@ -1798,10 +1891,23 @@ function ChatScreen({
         </Pressable>
         <Avatar user={other} size={46} />
         <View style={styles.flex}>
-          <Text numberOfLines={1} style={styles.chatTitle}>{conversationName(conversation, currentUserId)}</Text>
-          <Text numberOfLines={1} style={styles.chatSubtitle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
+          <Text numberOfLines={1} style={styles.chatTitle}>{conversation.isGroup ? (conversation.title || "Group conversation") : conversationName(conversation, currentUserId)}</Text>
+          <Text numberOfLines={1} style={styles.chatSubtitle}>{conversation.isGroup ? groupMembers.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
         </View>
-        <View style={styles.chatStatusPill}><Text style={styles.chatStatusText}>Chat</Text></View>
+        {conversation.isGroup ? (
+          <Pressable onPress={() => setGroupInfoOpen(true)} style={styles.callButton} accessibilityLabel="Open group information">
+            <Ionicons name="people-outline" size={19} color={colors.text} />
+          </Pressable>
+        ) : (
+          <View style={styles.chatHeaderActions}>
+            <Pressable onPress={() => void startCall("AUDIO")} style={styles.callButton} accessibilityLabel="Start voice call">
+              <Ionicons name="call-outline" size={18} color={colors.text} />
+            </Pressable>
+            <Pressable onPress={() => void startCall("VIDEO")} style={styles.callButton} accessibilityLabel="Start video call">
+              <Ionicons name="videocam-outline" size={19} color={colors.text} />
+            </Pressable>
+          </View>
+        )
       </View>
       <KeyboardAvoidingView
         style={styles.chatKeyboard}
@@ -1884,6 +1990,85 @@ function ChatScreen({
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      <Modal visible={groupInfoOpen} transparent animationType="slide" onRequestClose={() => setGroupInfoOpen(false)}>
+        <View style={styles.groupModalOverlay}>
+          <Pressable style={styles.commentScrim} onPress={() => setGroupInfoOpen(false)} />
+          <View style={styles.groupModal}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.flex}>
+                <Text style={styles.sheetTitle}>Group info</Text>
+                <Text style={styles.subtitle}>{groupMembers.length} members</Text>
+              </View>
+              <Pressable onPress={() => setGroupInfoOpen(false)} accessibilityLabel="Close group information">
+                <Ionicons name="close" size={23} color={colors.text} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={styles.groupContent} keyboardShouldPersistTaps="handled">
+              {groupAdmin ? (
+                <View style={styles.groupRenameRow}>
+                  <TextInput
+                    value={groupTitleDraft}
+                    onChangeText={setGroupTitleDraft}
+                    placeholder="Group name"
+                    placeholderTextColor={colors.muted}
+                    style={styles.groupTitleInput}
+                    maxLength={100}
+                  />
+                  <Pressable disabled={groupBusy || !groupTitleDraft.trim()} onPress={() => void renameGroup()} style={styles.groupActionButton}>
+                    <Text style={styles.groupActionText}>Rename</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              <Text style={styles.groupSectionLabel}>Members</Text>
+              {groupMembers.map((member) => (
+                <View key={member.userId} style={styles.groupMemberRow}>
+                  <Avatar user={member.user} size={42} />
+                  <View style={styles.flex}>
+                    <Text numberOfLines={1} style={styles.userName}>{member.user.name}</Text>
+                    <Text style={styles.userHandle}>{member.role === "ADMIN" ? "Administrator" : "Member"}</Text>
+                  </View>
+                  {groupAdmin && member.userId !== currentUserId && member.role !== "ADMIN" ? (
+                    <Pressable disabled={groupBusy} onPress={() => void removeGroupMember(member.userId)} style={styles.groupRemoveButton}>
+                      <Ionicons name="remove-circle-outline" size={18} color={colors.danger} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+
+              {groupAdmin ? (
+                <>
+                  <Text style={styles.groupSectionLabel}>Add member</Text>
+                  <View style={styles.discoverSearchWrap}>
+                    <Ionicons name="search" size={17} color={colors.muted} />
+                    <TextInput
+                      value={groupQuery}
+                      onChangeText={setGroupQuery}
+                      placeholder="Search people…"
+                      placeholderTextColor={colors.muted}
+                      style={styles.discoverSearchInput}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  {groupPeople.slice(0, 5).map((person) => (
+                    <Pressable key={person.id} onPress={() => void addGroupMember(person.id)} style={styles.groupMemberRow}>
+                      <Avatar user={person} size={40} />
+                      <Text style={[styles.userName, styles.flex]}>{person.name}</Text>
+                      <Ionicons name="add-circle-outline" size={20} color={colors.accentBright} />
+                    </Pressable>
+                  ))}
+                </>
+              ) : null}
+
+              <Pressable disabled={groupBusy} onPress={leaveGroup} style={styles.leaveGroupButton}>
+                <Ionicons name="exit-outline" size={18} color={colors.danger} />
+                <Text style={styles.visitorDangerText}>{groupBusy ? "Working…" : "Leave group"}</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
