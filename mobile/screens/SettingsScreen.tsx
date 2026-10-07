@@ -11,7 +11,7 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
  const [profile,setProfile]=useState<Profile|null>(null);
  const [form,setForm]=useState({name:"",username:"",bio:""});
  const [privateAccount,setPrivateAccount]=useState(false);
- const [privacy,setPrivacy]=useState({showFriendsList:true,showFollowersList:true,showFollowingList:true,allowMessagesEveryone:true,allowFriendRequests:true});
+ const [privacy,setPrivacy]=useState({showFriendsList:true,showFollowersList:true,showFollowingList:true,allowMessagesEveryone:true,allowFriendRequests:true,showActiveStatus:true});
  const [preferences,setPreferences]=useState<Record<string,boolean>>({});
  const [editing,setEditing]=useState(false);
  const [busy,setBusy]=useState(false);
@@ -58,6 +58,7 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
     <Row label="Show following list" description="Allow people to see who you follow." value={privacy.showFollowingList} onChange={v=>void setPrivacyValue("showFollowingList",v)}/>
     <Row label="Messages from everyone" description="Allow new people to start conversations." value={privacy.allowMessagesEveryone} onChange={v=>void setPrivacyValue("allowMessagesEveryone",v)}/>
     <Row label="Friend requests" description="Allow people to send you friend requests." value={privacy.allowFriendRequests} onChange={v=>void setPrivacyValue("allowFriendRequests",v)}/>
+    <Row label="Show active status" description="Let people see when you are active in Socialhub." value={privacy.showActiveStatus} onChange={v=>void setPrivacyValue("showActiveStatus",v)}/>
    </SettingCard>
    <SettingCard title="Notifications" subtitle="Choose which activity reaches your account.">
     {["likes","comments","follows","friendRequests","friendAccepted","messages","mentions","shares","storyReplies","storyReactions","system"].map(k=><Row key={k} label={k.replace(/[A-Z]/g,m=>" "+m).replace(/^./,m=>m.toUpperCase())} value={Boolean(preferences[k])} onChange={v=>void setPreference(k,v)}/>)}
