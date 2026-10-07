@@ -1545,6 +1545,38 @@ function ChatScreen({
   const other = conversation.members.find((member) => member.userId !== currentUserId)?.user;
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Message>>(null);
+  const draftKey = "socialhub:message-draft:" + conversation.id;
+
+  useEffect(() => {
+    let active = true;
+    void SecureStore.getItemAsync(draftKey).then((draft) => {
+      if (active && draft) setText(draft);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [draftKey]);
+
+  const reactToMessage = async (messageId: string, emoji = "❤️") => {
+    const current = messages.find((message) => message.id === messageId);
+    const existing = current?.reactions?.find((reaction) => reaction.userId === currentUserId);
+    try {
+      const data = await apiFetch<{ reaction?: { id: string; emoji: string; userId: string } }>(
+        "/api/messages/" + messageId + "/reaction",
+        existing
+          ? { method: "DELETE" }
+          : { method: "POST", body: JSON.stringify({ emoji }) },
+      );
+      setMessages((items) => items.map((message) => {
+        if (message.id !== messageId) return message;
+        const reactions = message.reactions ?? [];
+        return {
+          ...message,
+          reactions: existing
+            ? reactions.filter((reaction) => reaction.userId !== currentUserId)
+            : [...reactions, data.reaction!],
+        };
+      }));
+    } catch {}
+  };
 
   const load = useCallback(async () => {
     try {
@@ -1595,6 +1627,8 @@ function ChatScreen({
 
   const updateTyping = (value: string) => {
     setText(value);
+    if (value.trim()) void SecureStore.setItemAsync(draftKey, value).catch(() => {});
+    else void SecureStore.deleteItemAsync(draftKey).catch(() => {});
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     if (!value.trim()) {
       void apiFetch("/api/conversations/" + conversation.id + "/typing", { method: "DELETE" }).catch(() => {});
@@ -1656,6 +1690,7 @@ function ChatScreen({
         setMessages((current) => current.map((item) => item.id === editing.id ? data.message : item));
         setEditing(null);
         setText("");
+        void SecureStore.deleteItemAsync(draftKey).catch(() => {});
       } catch (e) {
         Alert.alert("Messages", e instanceof Error ? e.message : "Unable to edit.");
       }
@@ -1674,6 +1709,7 @@ function ChatScreen({
       });
       setMessages((current) => [...current, data.message]);
       setText("");
+      void SecureStore.deleteItemAsync(draftKey).catch(() => {});
       void apiFetch("/api/conversations/" + conversation.id + "/typing", { method: "DELETE" }).catch(() => {});
       setReplyingTo(null);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
@@ -1708,6 +1744,7 @@ function ChatScreen({
       });
       setMessages((current) => [...current, data.message]);
       setText("");
+      void SecureStore.deleteItemAsync(draftKey).catch(() => {});
       setReplyingTo(null);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     } catch (e) {
@@ -1795,7 +1832,22 @@ function ChatScreen({
                 <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />
               ))}
               <Text style={styles.messageText}>{item.deletedAt ? "Message deleted" : item.content}</Text>
-              <Text style={styles.messageTime}>{formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}</Text>
+              <Text style={styles.messageTime}>
+                {formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}
+                {item.senderId === currentUserId && !item.deletedAt && conversation.members.some((member) => member.userId !== currentUserId && member.lastReadAt && new Date(member.lastReadAt).getTime() >= new Date(item.createdAt).getTime()) ? " · Seen" : ""}
+              </Text>
+              {!item.deletedAt ? (
+                <View style={styles.messageReactionRow}>
+                  {(item.reactions ?? []).slice(0, 4).map((reaction) => (
+                    <Pressable key={reaction.id} onPress={() => void reactToMessage(item.id, reaction.emoji)} style={styles.messageReactionChip}>
+                      <Text style={styles.messageReactionText}>{reaction.emoji}</Text>
+                    </Pressable>
+                  ))}
+                  <Pressable onPress={() => void reactToMessage(item.id, "❤️")} style={styles.messageReactionAdd}>
+                    <Ionicons name="add" size={14} color={colors.muted} />
+                  </Pressable>
+                </View>
+              ) : null}
             </Pressable>
           )}
           ListEmptyComponent={!loading ? <Text style={styles.emptySmall}>No messages yet. Start the conversation.</Text> : null}
