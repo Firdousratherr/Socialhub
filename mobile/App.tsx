@@ -1895,12 +1895,21 @@ function RootContent() {
   }, [sessionUser?.isOwner]);
 
   const signOut = useCallback(async () => {
-    await unregisterPushDevice();
-    await authClient.signOut();
-    setDrawerOpen(false);
-    setSignedIn(false);
-    setSessionUser(null);
-    setTab("Home");
+    try {
+      await unregisterPushDevice();
+    } catch {
+      // Push cleanup is best-effort; do not block account sign-out.
+    }
+    try {
+      await authClient.signOut();
+    } finally {
+      setDrawerOpen(false);
+      setSignedIn(false);
+      setSessionUser(null);
+      setTab("Home");
+      setHideBottomNav(false);
+      setDeepLink(null);
+    }
   }, []);
 
   if (booting || !permissionsReady) {
