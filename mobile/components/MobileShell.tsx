@@ -14,7 +14,7 @@ const colors = {
   accent: "#725cff",
 };
 
-export type MobileRoute = "Home" | "Discover" | "Friends" | "Messages" | "Notifications" | "Profile" | "Saved" | "Settings" | "Security" | "Admin";
+export type MobileRoute = "Home" | "Discover" | "Friends" | "Messages" | "Calls" | "Notifications" | "Profile" | "Saved" | "Settings" | "Security" | "Admin";
 
 export function AppHeader({
   title,
@@ -99,6 +99,7 @@ export function MenuDrawer({
     { route: "Discover", label: "Discover", icon: "⌕", description: "People, posts and trends" },
     { route: "Friends", label: "Friends", icon: "♧", description: "Requests and connections" },
     { route: "Messages", label: "Messages", icon: "✉", description: "Private conversations" },
+    { route: "Calls", label: "Calls", icon: "☎", description: "Voice and video call history" },
     { route: "Notifications", label: "Notifications", icon: "♡", description: "Activity and requests" },
     { route: "Profile", label: "Profile", icon: "◉", description: "Your public identity" },
     { route: "Saved", label: "Saved posts", icon: "▱", description: "Posts you saved for later" },
