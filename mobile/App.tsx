@@ -304,7 +304,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
 
   return (
     <View style={[styles.authScreen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <StatusBar style="light" />
+      <StatusBar style="light" backgroundColor={colors.bg} translucent={false} />
       <ScrollView contentContainerStyle={styles.authContent} keyboardShouldPersistTaps="handled">
         <View style={styles.logo}>
           <Image source={BRAND_ICON} style={styles.logoImage} resizeMode="contain" />
@@ -1917,7 +1917,7 @@ function RootContent() {
   if (booting || !permissionsReady) {
     return (
       <View style={styles.root}>
-        <StatusBar style="light" />
+        <StatusBar style="light" backgroundColor={colors.bg} translucent={false} />
         <View style={styles.centered}><ActivityIndicator size="large" color={colors.accent} /></View>
       </View>
     );
@@ -1946,7 +1946,7 @@ function RootContent() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style="light" backgroundColor={colors.bg} translucent={false} />
       {tab === "Home" ? (
         <HomeScreen
           onMenu={openMenu}
