@@ -14,11 +14,32 @@ function isTrustedMediaUrl(value: string) {
 
 const mediaUrlSchema = z.string().url().max(2048).refine(isTrustedMediaUrl, "Media must be uploaded through an approved storage host.");
 
+const postMediaInputSchema = z.object({
+  url: mediaUrlSchema,
+  mimeType: z.string().trim().max(100),
+  mediaType: z.enum(["IMAGE", "VIDEO", "DOCUMENT"]),
+  width: z.number().int().positive().max(20000).optional(),
+  height: z.number().int().positive().max(20000).optional(),
+  durationMs: z.number().int().nonnegative().max(3600000).optional(),
+});
+
+const pollInputSchema = z.object({
+  question: z.string().trim().min(1).max(300),
+  options: z.array(z.string().trim().min(1).max(100)).min(2).max(10),
+  multiple: z.boolean().default(false),
+  closesAt: z.coerce.date().nullable().optional(),
+});
+
 export const postInputSchema = z.object({
   content: z.string().trim().max(5000).optional().nullable(),
   mediaUrl: mediaUrlSchema.optional().nullable(),
+  media: z.array(postMediaInputSchema).max(10).optional().default([]),
+  poll: pollInputSchema.optional(),
   visibility: z.enum(["PUBLIC", "FRIENDS", "PRIVATE"]).default("PUBLIC"),
-}).refine((value) => Boolean(value.content) || Boolean(value.mediaUrl), "A post needs text or media.");
+}).refine(
+  (value) => Boolean(value.content) || Boolean(value.mediaUrl) || value.media.length > 0 || Boolean(value.poll),
+  "A post needs text, media, or a poll.",
+);
 
 export const profileInputSchema = z.object({
   name: z.string().trim().min(2).max(80).optional(),
