@@ -32,7 +32,7 @@ import { Share } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { authClient } from "./lib/auth-client";
 import { apiFetch, uploadMedia } from "./lib/api";
-import { configurePushNotifications, subscribeToNotificationOpen } from "./lib/push";
+import { configurePushNotifications, subscribeToNotificationOpen, unregisterPushDevice } from "./lib/push";
 import { startPresenceHeartbeat } from "./lib/presence";
 import { startRealtime, subscribeRealtime } from "./lib/realtime";
 import type {
@@ -1865,6 +1865,7 @@ function RootContent() {
   }, [sessionUser?.isOwner]);
 
   const signOut = useCallback(async () => {
+    await unregisterPushDevice();
     await authClient.signOut();
     setDrawerOpen(false);
     setSignedIn(false);
