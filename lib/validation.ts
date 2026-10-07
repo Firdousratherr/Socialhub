@@ -62,6 +62,14 @@ export const friendRequestInputSchema = z.object({
   receiverId: z.string().min(1),
 });
 
+export const pushDeviceInputSchema = z.object({
+  token: z.string().trim().min(8).max(4096),
+  platform: z.enum(["ANDROID", "IOS"]).default("ANDROID"),
+  provider: z.enum(["FCM", "EXPO"]).default("FCM"),
+  appVersion: z.string().trim().max(32).optional().nullable(),
+  deviceName: z.string().trim().max(120).optional().nullable(),
+});
+
 export const notificationUpdateSchema = z.object({
   notificationId: z.string().min(1).optional(),
   markAll: z.boolean().optional(),
