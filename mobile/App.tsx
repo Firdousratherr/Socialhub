@@ -1433,8 +1433,8 @@ function ChatScreen({
       </View>
       <KeyboardAvoidingView
         style={styles.chatKeyboard}
-        behavior={Platform.OS === "android" ? "height" : "padding"}
-        keyboardVerticalOffset={0}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={insets.top}
       >
         {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
         <FlatList
