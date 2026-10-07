@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getBlockedUserIds, getMutedUserIds } from "@/lib/social-access";
+import { getPostDisplayCountsMap } from "@/lib/post-metrics";
 
 function score(createdAt: Date, relation: number, engagement: number, authorAffinity: number) {
   const ageHours = Math.max(0, (Date.now() - createdAt.getTime()) / 3_600_000);
@@ -66,8 +67,40 @@ export async function GET(request: Request) {
     .sort((a, b) => b.rankingScore - a.rankingScore)
     .slice(0, take);
 
+  const ids = ranked.map(({ post }) => post.id);
+  const [displayCounts, liked, saved, reactions, mine] = await Promise.all([
+    getPostDisplayCountsMap(ids),
+    prisma.like.findMany({ where: { userId: s.user.id, postId: { in: ids } }, select: { postId: true } }),
+    prisma.savedPost.findMany({ where: { userId: s.user.id, postId: { in: ids } }, select: { postId: true } }),
+    ids.length ? prisma.postReaction.groupBy({ by: ["postId", "emoji"], where: { postId: { in: ids } }, _count: { _all: true } }) : Promise.resolve([]),
+    ids.length ? prisma.postReaction.findMany({ where: { userId: s.user.id, postId: { in: ids } }, select: { postId: true, emoji: true } }) : Promise.resolve([]),
+  ]);
+
+  const likedSet = new Set(liked.map((row) => row.postId));
+  const savedSet = new Set(saved.map((row) => row.postId));
+  const reactionMap = new Map<string, Array<{ emoji: string; count: number }>>();
+  for (const row of reactions) {
+    const list = reactionMap.get(row.postId) ?? [];
+    list.push({ emoji: row.emoji, count: row._count._all });
+    reactionMap.set(row.postId, list);
+  }
+  const mineMap = new Map(mine.map((row) => [row.postId, row.emoji]));
+
   return NextResponse.json({
-    posts: ranked.map(({ post, rankingScore }) => ({ ...post, rankingScore })),
+    posts: ranked.map(({ post, rankingScore }) => ({
+      ...post,
+      displayCounts: {
+        likes: displayCounts.get(post.id)?.likes ?? post._count.likes,
+        comments: displayCounts.get(post.id)?.comments ?? post._count.comments,
+        shares: displayCounts.get(post.id)?.shares ?? post.shareCount,
+      },
+      liked: likedSet.has(post.id),
+      saved: savedSet.has(post.id),
+      reactions: reactionMap.get(post.id) ?? [],
+      myReaction: mineMap.get(post.id) ?? null,
+      rankingScore,
+    })),
+    nextBefore: null,
     generatedAt: new Date().toISOString(),
   });
 }
