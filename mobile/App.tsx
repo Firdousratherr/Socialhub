@@ -33,7 +33,9 @@ import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
 import PermissionOnboarding from "./components/PermissionOnboarding";
 import { authClient } from "./lib/auth-client";
-import { apiFetch, uploadMedia } from "./lib/api";
+import { apiFetch, uploadFile, uploadMedia } from "./lib/api";
+import { pickAndUploadDocument } from "./lib/document-picker";
+import { requestCameraPermission } from "./lib/permissions";
 import type {
   Conversation,
   Message,
@@ -1332,38 +1334,50 @@ function ChatScreen({
   };
 
   const sendAttachment = async () => {
+    Alert.alert("Attach to message", "Choose what you want to attach.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Photo / video", onPress: () => void pickMediaAttachment() },
+      { text: "Camera", onPress: () => void captureCameraAttachment() },
+      { text: "Document", onPress: () => void pickDocumentAttachment() },
+    ]);
+  };
+
+  const postAttachment = async (url: string, kind: "image" | "video" | "document") => {
+    const data = await apiFetch<{ message: Message }>("/api/conversations/" + conversation.id + "/messages", { method: "POST", body: JSON.stringify({ content: text.trim(), attachments: [{ url, kind }], replyToId: replyingTo?.id }) });
+    setMessages((current) => [...current, data.message]); setText(""); setReplyingTo(null);
+    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+  };
+
+  const pickMediaAttachment = async () => {
     setAttachmentBusy(true);
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert("Messages", "Allow photo access to attach an image.");
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        quality: 0.9,
-        allowsEditing: false,
-      });
+      if (!permission.granted) { Alert.alert("Messages", "Allow photo/video access to attach media."); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images", "videos"], quality: 0.9, allowsEditing: false });
       if (result.canceled || !result.assets[0]) return;
-      const asset = result.assets[0];
-      const upload = await uploadMedia(asset.uri, asset.mimeType ?? "image/jpeg", asset.fileName ?? "message.jpg");
-      const data = await apiFetch<{ message: Message }>("/api/conversations/" + conversation.id + "/messages", {
-        method: "POST",
-        body: JSON.stringify({
-          content: text.trim(),
-          attachments: [upload.url],
-          replyToId: replyingTo?.id,
-        }),
-      });
-      setMessages((current) => [...current, data.message]);
-      setText("");
-      setReplyingTo(null);
-      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
-    } catch (e) {
-      Alert.alert("Messages", e instanceof Error ? e.message : "Unable to attach image.");
-    } finally {
-      setAttachmentBusy(false);
-    }
+      const asset = result.assets[0]; const kind = asset.type === "video" ? "video" : "image";
+      const upload = await uploadFile(asset.uri, asset.mimeType ?? (kind === "video" ? "video/mp4" : "image/jpeg"), asset.fileName ?? (kind === "video" ? "message.mp4" : "message.jpg"));
+      await postAttachment(upload.url, kind);
+    } catch (e) { Alert.alert("Messages", e instanceof Error ? e.message : "Unable to attach media."); } finally { setAttachmentBusy(false); }
+  };
+
+  const captureCameraAttachment = async () => {
+    setAttachmentBusy(true);
+    try {
+      const permission = await requestCameraPermission();
+      if (!permission.granted) { Alert.alert("Camera", "Camera access is required to take a photo or video."); return; }
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ["images", "videos"], videoMaxDuration: 60, quality: 0.9 });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0]; const kind = asset.type === "video" ? "video" : "image";
+      const upload = await uploadFile(asset.uri, asset.mimeType ?? (kind === "video" ? "video/mp4" : "image/jpeg"), asset.fileName ?? (kind === "video" ? "camera.mp4" : "camera.jpg"));
+      await postAttachment(upload.url, kind);
+    } catch (e) { Alert.alert("Camera", e instanceof Error ? e.message : "Unable to capture media."); } finally { setAttachmentBusy(false); }
+  };
+
+  const pickDocumentAttachment = async () => {
+    setAttachmentBusy(true);
+    try { const upload = await pickAndUploadDocument(); if (upload) await postAttachment(upload.url, "document"); }
+    catch (e) { Alert.alert("Documents", e instanceof Error ? e.message : "Unable to attach document."); } finally { setAttachmentBusy(false); }
   };
 
   const removeMessage = async (message: Message) => {
@@ -1439,9 +1453,13 @@ function ChatScreen({
                   <Text numberOfLines={2} style={styles.replyPreviewText}>{item.replyTo.content || "Message"}</Text>
                 </View>
               ) : null}
-              {item.attachments?.map((attachment) => (
-                <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />
-              ))}
+              {item.attachments?.map((attachment) => attachment.kind === "document" ? (
+                <Pressable key={attachment.id} onPress={() => void Linking.openURL(attachment.url)} style={styles.documentAttachment}>
+                  <Text style={styles.documentIcon}>📄</Text><View style={styles.flex}><Text style={styles.documentTitle}>Document attachment</Text><Text style={styles.documentLink}>Open file</Text></View>
+                </Pressable>
+              ) : attachment.kind === "video" ? (
+                <VideoMedia key={attachment.id} uri={attachment.url} style={styles.messageAttachment} />
+              ) : <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />)}
               <Text style={styles.messageText}>{item.deletedAt ? "Message deleted" : item.content}</Text>
               <Text style={styles.messageTime}>{formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}</Text>
             </Pressable>
@@ -2081,6 +2099,10 @@ const styles = StyleSheet.create({
   conversationCard: { flexDirection: "row", alignItems: "center", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, marginBottom: 10 },
   badge: { minWidth: 22, height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", marginLeft: 8 },
   badgeText: { color: "#fff", fontSize: 10, fontWeight: "900" },
+  documentAttachment: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: colors.panel2, marginBottom: 6 },
+  documentIcon: { fontSize: 24 },
+  documentTitle: { color: colors.text, fontWeight: "800" },
+  documentLink: { color: colors.accent, fontSize: 12, marginTop: 2 },
   chatScreen: { flex: 1, backgroundColor: colors.bg },
   chatKeyboard: { flex: 1, backgroundColor: colors.bg },
   chatListFlex: { flex: 1 },
