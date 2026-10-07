@@ -1238,6 +1238,7 @@ model CallSession {
   createdAt   DateTime @default(now())
   startedAt   DateTime?
   endedAt     DateTime?
+  participants CallParticipant[]
 
   @@index([conversationId, createdAt])
   @@index([status, createdAt])
