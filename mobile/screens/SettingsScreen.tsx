@@ -28,7 +28,7 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
     apiFetch<{profile:Profile}>("/api/profile"),
     apiFetch<{settings:any}>("/api/privacy-settings"),
     apiFetch<{preferences:Record<string,boolean}>("/api/notification-preferences"),
-    apiFetch<PushDeviceResponse>("/api/push/register")
+    apiFetch("/api/push/register") as Promise<PushDeviceResponse>
    ]);
    setProfile(p.profile);setForm({name:p.profile.name,username:p.profile.username||"",bio:p.profile.bio||""});
    setPrivateAccount(Boolean(p.profile.isPrivate));setPrivacy(pr.settings||privacy);setPreferences(prefs.preferences||{});setPushEnabled(Boolean(devices.devices?.some((device)=>device.enabled)));
