@@ -1,0 +1,51 @@
+name: Android Validation
+
+on:
+  push:
+    branches: ["feat/android-live-domain-branding-hardening"]
+  workflow_dispatch:
+
+concurrency:
+  group: android-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Deduplicate native dependencies
+        run: npm dedupe --no-audit --no-fund
+
+      - name: Validate TypeScript
+        run: npx tsc --noEmit
+
+      - name: Validate Expo project
+        run: npx expo-doctor
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --non-interactive
+
+      - name: Build debug APK
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug --no-daemon
