@@ -54,7 +54,8 @@ export async function DELETE(request: Request) {
     action: "REVOKE_USER_SESSION",
     resource: "SESSION",
     resourceId: sessionId,
-    metadata: { userId: session.userId },
+    reason: "Owner/admin revoked a user session from the Device & Security Center.",
+    after: { userId: session.userId },
   });
 
   return NextResponse.json({ revoked: true, userId: session.userId });
