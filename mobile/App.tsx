@@ -20,7 +20,7 @@ import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import * as Linking from "expo-linking";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
-import { AppHeader, MenuDrawer, type MobileRoute } from "./components/MobileShell";
+import { AppHeader, DetailHeader, MenuDrawer, type MobileRoute } from "./components/MobileShell";
 import FriendsScreen from "./screens/FriendsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import SavedScreen from "./screens/SavedScreen";
@@ -1931,6 +1931,354 @@ function notificationLabel(type: string) {
   }
 }
 
+type VisitorProfileData = Profile & {
+  isFollowing?: boolean;
+  isMuted?: boolean;
+  isFriend?: boolean;
+  friendRequestStatus?: "SELF" | "FRIENDS" | "OUTGOING_PENDING" | "INCOMING_PENDING" | "NONE";
+  friendRequestId?: string | null;
+  canMessage?: boolean;
+  canSendFriendRequest?: boolean;
+  canFollow?: boolean;
+};
+
+type RelationshipPerson = User & { id: string; username?: string | null };
+
+function VisitorProfileScreen({
+  username,
+  onBack,
+  onOpenMessages,
+}: {
+  username: string;
+  onBack: () => void;
+  onOpenMessages: (conversationId: string) => void;
+}) {
+  const [profile, setProfile] = useState<VisitorProfileData | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [action, setAction] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [relationshipView, setRelationshipView] = useState<"followers" | "following" | "mutual" | "friends" | null>(null);
+  const [relationshipPeople, setRelationshipPeople] = useState<RelationshipPerson[]>([]);
+  const [relationshipHidden, setRelationshipHidden] = useState(false);
+  const [relationshipLoading, setRelationshipLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<{ profile: VisitorProfileData }>(
+        "/api/users/" + encodeURIComponent(username),
+      );
+      setProfile(data.profile);
+      const postsData = await apiFetch<{ posts?: Post[] }>(
+        "/api/users/" + encodeURIComponent(data.profile.username ?? username) + "/posts?take=20",
+      );
+      setPosts(postsData.posts ?? []);
+    } catch (e) {
+      setProfile(null);
+      setError(e instanceof Error ? e.message : "Unable to load this profile.");
+    } finally {
+      setLoading(false);
+    }
+  }, [username]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const mutate = async (fn: () => Promise<void>, label: string) => {
+    setAction(label);
+    setError("");
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not update this profile.");
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const toggleFollow = () => {
+    if (!profile || !profile.canFollow) return;
+    void mutate(async () => {
+      const response = await apiFetch<{ following?: boolean }>(
+        "/api/users/" + profile.id + "/follow",
+        { method: profile.isFollowing ? "DELETE" : "POST" },
+      );
+      setProfile((current) => current ? {
+        ...current,
+        isFollowing: Boolean(response.following),
+        visibleCounts: {
+          ...current.visibleCounts,
+          followers: Math.max(0, current.visibleCounts.followers + (response.following ? 1 : -1)),
+        },
+      } : current);
+    }, "follow");
+  };
+
+  const sendFriend = () => {
+    if (!profile || !profile.canSendFriendRequest) return;
+    void mutate(async () => {
+      const data = await apiFetch<{ friendRequest?: { id?: string } }>("/api/friend-requests", {
+        method: "POST",
+        body: JSON.stringify({ receiverId: profile.id }),
+      });
+      setProfile((current) => current ? { ...current, friendRequestStatus: "OUTGOING_PENDING", friendRequestId: data.friendRequest?.id ?? null } : current);
+    }, "friend");
+  };
+
+  const cancelFriend = () => {
+    if (!profile?.friendRequestId) return;
+    void mutate(async () => {
+      await apiFetch("/api/friend-requests/" + encodeURIComponent(profile.friendRequestId as string), { method: "DELETE" });
+      setProfile((current) => current ? { ...current, friendRequestStatus: "NONE", friendRequestId: null } : current);
+    }, "cancel-friend");
+  };
+
+  const acceptFriend = () => {
+    if (!profile?.friendRequestId) return;
+    void mutate(async () => {
+      await apiFetch("/api/friend-requests/" + encodeURIComponent(profile.friendRequestId as string), {
+        method: "PATCH",
+        body: JSON.stringify({ status: "ACCEPTED" }),
+      });
+      setProfile((current) => current ? {
+        ...current,
+        friendRequestStatus: "FRIENDS",
+        friendRequestId: null,
+        isFriend: true,
+        isFollowing: true,
+      } : current);
+    }, "accept-friend");
+  };
+
+  const declineFriend = () => {
+    if (!profile?.friendRequestId) return;
+    void mutate(async () => {
+      await apiFetch("/api/friend-requests/" + encodeURIComponent(profile.friendRequestId as string), {
+        method: "PATCH",
+        body: JSON.stringify({ status: "DECLINED" }),
+      });
+      setProfile((current) => current ? { ...current, friendRequestStatus: "NONE", friendRequestId: null } : current);
+    }, "decline-friend");
+  };
+
+  const unfriend = () => {
+    if (!profile) return;
+    Alert.alert("Unfriend", "Remove this person from your friends?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => void mutate(async () => {
+          await apiFetch("/api/friends/" + encodeURIComponent(profile.id), { method: "DELETE" });
+          setProfile((current) => current ? {
+            ...current,
+            friendRequestStatus: "NONE",
+            isFriend: false,
+            isFollowing: false,
+          } : current);
+        }, "unfriend"),
+      },
+    ]);
+  };
+
+  const openConversation = () => {
+    if (!profile?.canMessage) return;
+    void mutate(async () => {
+      const data = await apiFetch<{ conversation: Conversation }>("/api/conversations", {
+        method: "POST",
+        body: JSON.stringify({ memberIds: [profile.id], isGroup: false }),
+      });
+      onOpenMessages(data.conversation.id);
+    }, "message");
+  };
+
+  const toggleMute = () => {
+    if (!profile) return;
+    void mutate(async () => {
+      const data = await apiFetch<{ muted?: boolean }>("/api/users/" + profile.id + "/mute", {
+        method: profile.isMuted ? "DELETE" : "POST",
+      });
+      setProfile((current) => current ? { ...current, isMuted: Boolean(data.muted) } : current);
+    }, "mute");
+  };
+
+  const report = () => {
+    if (!profile) return;
+    Alert.prompt(
+      "Report profile",
+      "Tell us briefly what is wrong with this profile.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Submit",
+          onPress: (reason?: string) => {
+            if (!reason?.trim()) return;
+            void mutate(async () => {
+              await apiFetch("/api/users/" + profile.id + "/report", {
+                method: "POST",
+                body: JSON.stringify({ reason: reason.trim() }),
+              });
+            }, "report");
+          },
+        },
+      ],
+      "plain-text",
+    );
+  };
+
+  const block = () => {
+    if (!profile) return;
+    Alert.alert("Block profile", "This person's content will stop appearing for you.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Block",
+        style: "destructive",
+        onPress: () => void mutate(async () => {
+          await apiFetch("/api/users/" + profile.id + "/block", { method: "POST" });
+          onBack();
+        }, "block"),
+      },
+    ]);
+  };
+
+  const shareProfile = async () => {
+    if (!profile) return;
+    try {
+      await Share.share({
+        title: "Socialhub profile",
+        message: "https://socialhublive.vercel.app/profile/" + encodeURIComponent(profile.username ?? username),
+      });
+    } catch {}
+  };
+
+  const openRelationships = async (view: "followers" | "following" | "mutual" | "friends") => {
+    if (!profile) return;
+    setRelationshipView(view);
+    setRelationshipLoading(true);
+    setRelationshipHidden(false);
+    try {
+      const endpoint = view === "friends"
+        ? "/api/users/" + profile.id + "/friends"
+        : "/api/users/" + profile.id + "/relationships";
+      const data = await apiFetch<Record<string, unknown>>(endpoint);
+      if (view === "friends") {
+        setRelationshipPeople((data.friends ?? []) as RelationshipPerson[]);
+        setRelationshipHidden(Boolean(data.hidden));
+      } else {
+        setRelationshipPeople((data[view] ?? []) as RelationshipPerson[]);
+      }
+    } catch (e) {
+      setRelationshipPeople([]);
+      setRelationshipHidden(false);
+      Alert.alert("Profile", e instanceof Error ? e.message : "Unable to load this list.");
+    } finally {
+      setRelationshipLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <View style={styles.screen}><DetailHeader title="Profile" subtitle="Loading profile…" onBack={onBack} /><ActivityIndicator color={colors.accent} style={styles.loader} /></View>;
+  }
+
+  if (!profile) {
+    return <View style={styles.screen}><DetailHeader title="Profile" subtitle={error || "Unavailable"} onBack={onBack} /><Text style={styles.empty}>{error || "Profile unavailable."}</Text></View>;
+  }
+
+  const friendState = profile.friendRequestStatus ?? "NONE";
+
+  return (
+    <View style={styles.screen}>
+      <DetailHeader
+        title={profile.name || "Profile"}
+        subtitle={"@" + (profile.username ?? username)}
+        onBack={onBack}
+        action="⋯"
+        onAction={() => Alert.alert("Profile actions", "Choose an action.", [
+          { text: profile.isMuted ? "Unmute" : "Mute", onPress: toggleMute },
+          { text: "Share profile", onPress: () => void shareProfile() },
+          { text: "Report", onPress: report },
+          { text: "Block", style: "destructive", onPress: block },
+          { text: "Cancel", style: "cancel" },
+        ])}
+      />
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.profileVisitorHero}>
+          {profile.coverImage ? <Image source={{ uri: profile.coverImage }} style={styles.profileCoverVisitor} resizeMode="cover" /> : <View style={styles.profileCoverVisitorPlaceholder} />}
+          <View style={styles.profileVisitorIdentity}>
+            <Avatar user={profile} size={92} />
+            <View style={styles.visitorTitleWrap}>
+              <View style={styles.row}>
+                <Text style={styles.profileName}>{profile.name}</Text>
+                {profile.isVerified ? <Ionicons name="checkmark-circle" size={18} color={colors.accentBright} /> : null}
+              </View>
+              <Text style={styles.userHandle}>@{profile.username ?? "socialhub"}</Text>
+            </View>
+          </View>
+          {profile.bio ? <Text style={styles.profileBio}>{profile.bio}</Text> : null}
+        </View>
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        <View style={styles.statsGrid}>
+          <Stat label="Posts" value={profile.visibleCounts.posts} />
+          <Pressable onPress={() => void openRelationships("followers")} style={styles.statCard}><Text style={styles.statValue}>{formatCount(profile.visibleCounts.followers)}</Text><Text style={styles.userHandle}>Followers</Text></Pressable>
+          <Pressable onPress={() => void openRelationships("following")} style={styles.statCard}><Text style={styles.statValue}>{formatCount(profile.visibleCounts.following)}</Text><Text style={styles.userHandle}>Following</Text></Pressable>
+          <Pressable onPress={() => void openRelationships("mutual")} style={styles.statCard}><Text style={styles.statValue}>{formatCount(profile.visibleCounts.profileViews)}</Text><Text style={styles.userHandle}>Views</Text></Pressable>
+        </View>
+
+        <View style={styles.visitorActions}>
+          {profile.canMessage ? <Pressable disabled={Boolean(action)} onPress={openConversation} style={styles.visitorPrimaryAction}><Ionicons name="chatbubble-ellipses-outline" size={17} color="#fff" /><Text style={styles.visitorPrimaryText}>{action === "message" ? "Opening…" : "Message"}</Text></Pressable> : null}
+          {profile.canFollow ? <Pressable disabled={Boolean(action)} onPress={toggleFollow} style={styles.visitorSecondaryAction}><Ionicons name={profile.isFollowing ? "person-remove-outline" : "person-add-outline"} size={17} color={colors.text} /><Text style={styles.visitorSecondaryText}>{action === "follow" ? "Updating…" : profile.isFollowing ? "Following" : "Follow"}</Text></Pressable> : null}
+          {friendState === "FRIENDS" ? <Pressable onPress={unfriend} style={styles.visitorSecondaryAction}><Ionicons name="people-outline" size={17} color={colors.text} /><Text style={styles.visitorSecondaryText}>Friends</Text></Pressable> : null}
+          {friendState === "OUTGOING_PENDING" ? <Pressable onPress={cancelFriend} style={styles.visitorSecondaryAction}><Text style={styles.visitorSecondaryText}>{action === "cancel-friend" ? "Cancelling…" : "Request sent"}</Text></Pressable> : null}
+          {friendState === "INCOMING_PENDING" ? (
+            <>
+              <Pressable onPress={acceptFriend} style={styles.visitorPrimaryAction}><Text style={styles.visitorPrimaryText}>{action === "accept-friend" ? "Accepting…" : "Accept"}</Text></Pressable>
+              <Pressable onPress={declineFriend} style={styles.visitorDangerAction}><Text style={styles.visitorDangerText}>Decline</Text></Pressable>
+            </>
+          ) : null}
+          {friendState === "NONE" && profile.canSendFriendRequest ? <Pressable onPress={sendFriend} style={styles.visitorSecondaryAction}><Ionicons name="person-add-outline" size={17} color={colors.text} /><Text style={styles.visitorSecondaryText}>{action === "friend" ? "Sending…" : "Add friend"}</Text></Pressable> : null}
+        </View>
+
+        <View style={styles.profileInfoRow}>
+          <Pressable onPress={() => void openRelationships("friends")} style={styles.infoChip}><Ionicons name="people-outline" size={15} color={colors.accentBright} /><Text style={styles.infoChipText}>Friends</Text></Pressable>
+          <View style={styles.infoChip}><Ionicons name="shield-checkmark-outline" size={15} color={colors.accentBright} /><Text style={styles.infoChipText}>{profile.isPrivate ? "Private" : "Public"} account</Text></View>
+          {profile.location ? <View style={styles.infoChip}><Ionicons name="location-outline" size={15} color={colors.accentBright} /><Text numberOfLines={1} style={styles.infoChipText}>{profile.location}</Text></View> : null}
+        </View>
+
+        <SectionHeader title="Posts" />
+        {posts.length ? posts.map((post) => <PostCard key={post.id} post={post} onChanged={(next) => setPosts((current) => current.map((item) => item.id === next.id ? next : item))} />) : <View style={styles.discoverEmptyCard}><Ionicons name="images-outline" size={28} color={colors.accent} /><Text style={styles.discoverEmptyTitle}>{profile.isPrivate && friendState !== "FRIENDS" ? "Posts are private" : "No public posts yet"}</Text><Text style={styles.emptySmall}>There are no posts available here.</Text></View>}
+      </ScrollView>
+
+      <Modal visible={relationshipView !== null} transparent animationType="slide" onRequestClose={() => setRelationshipView(null)}>
+        <View style={styles.relationshipOverlay}>
+          <Pressable style={styles.commentScrim} onPress={() => setRelationshipView(null)} />
+          <View style={styles.relationshipSheet}>
+            <View style={styles.sheetHeader}>
+              <View>
+                <Text style={styles.sheetTitle}>{relationshipView === "followers" ? "Followers" : relationshipView === "following" ? "Following" : relationshipView === "mutual" ? "Mutual connections" : "Friends"}</Text>
+                <Text style={styles.subtitle}>Real account relationships</Text>
+              </View>
+              <Pressable onPress={() => setRelationshipView(null)}><Ionicons name="close" size={22} color={colors.text} /></Pressable>
+            </View>
+            {relationshipLoading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : relationshipHidden ? <Text style={styles.emptySmall}>This list is private.</Text> : (
+              <ScrollView contentContainerStyle={styles.relationshipList}>
+                {relationshipPeople.length ? relationshipPeople.map((person) => (
+                  <View key={person.id} style={styles.relationshipRow}>
+                    <Avatar user={person} size={44} />
+                    <View style={styles.flex}><Text style={styles.userName}>{person.name}</Text><Text style={styles.userHandle}>@{person.username ?? "member"}</Text></View>
+                  </View>
+                )) : <Text style={styles.emptySmall}>No accounts to show.</Text>}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
 function ProfileScreen({ onSignedOut, onMenu }: { onSignedOut: () => void; onMenu: () => void }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -2316,7 +2664,17 @@ function RootContent() {
         />
       ) : null}
       {tab === "Notifications" ? <NotificationsScreen onMenu={openMenu} /> : null}
-      {tab === "Profile" ? <ProfileScreen username={deepLink?.kind === "profile" ? deepLink.id : undefined} onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); onDeepLinkHandled(); }} /> : null}
+      {tab === "Profile" ? (
+        deepLink?.kind === "profile" && deepLink.id !== sessionUser?.username ? (
+          <VisitorProfileScreen
+            username={deepLink.id}
+            onBack={() => { setDeepLink(null); setTab("Discover"); }}
+            onOpenMessages={(conversationId) => { setDeepLink({ kind: "message", id: conversationId }); setTab("Messages"); }}
+          />
+        ) : (
+          <ProfileScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} />
+        )
+      ) : null}
       {tab === "Settings" ? <SettingsScreen onMenu={openMenu} isOwner={Boolean(sessionUser?.isOwner)} onOpenAdmin={() => navigate("Admin")} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
       {tab === "Saved" ? <SavedScreen onMenu={openMenu} /> : null}
       {tab === "Security" ? <SecurityScreen onMenu={openMenu} /> : null}
