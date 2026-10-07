@@ -2,15 +2,16 @@
   "expo": {
     "name": "SocialHub",
     "slug": "socialhub",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "scheme": "socialhub",
     "userInterfaceStyle": "automatic",
     "android": {
       "package": "com.socialhub.app",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
-        "backgroundColor": "#6d5dfc"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#08080c"
       },
       "backgroundColor": "#08080c",
       "icon": "./assets/icon.png",
@@ -43,7 +44,11 @@
         }
       ],
       "expo-document-picker",
-      "expo-notifications",
+      ["expo-notifications", {
+        "icon": "./assets/icon.png",
+        "color": "#725cff",
+        "defaultChannel": "default"
+      }],
       [
         "expo-video",
         {
@@ -64,6 +69,11 @@
       "apiBaseUrl": "https://socialhublive.vercel.app"
     },
     "backgroundColor": "#08080c",
+    "androidStatusBar": {
+      "barStyle": "light-content",
+      "backgroundColor": "#08080c",
+      "translucent": true
+    },
     "icon": "./assets/icon.png"
   }
 }
