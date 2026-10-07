@@ -1,6 +1,9 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import appConfig from "../app.json";
 import { apiFetch } from "./api";
+
+const APP_VERSION = appConfig.expo.version;
 
 export function configurePushNotifications() {
   Notifications.setNotificationHandler({
@@ -52,7 +55,7 @@ export async function registerPushDevice() {
       token,
       platform: "ANDROID",
       provider: "FCM",
-      appVersion: "1.0.4",
+      appVersion: APP_VERSION,
       deviceName: "Android device",
     }),
   });
