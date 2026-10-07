@@ -959,3 +959,16 @@ test("native push consent is not requested automatically at app boot", () => {
   assert.doesNotMatch(app, /requestPermissionsAsync/);
   assert.match(settings, /registerPushDevice/);
 });
+
+
+test("active-status privacy is exposed consistently on web and Android", () => {
+  const web = read("components/social-pages.tsx");
+  const api = read("app/api/privacy-settings/route.ts");
+  const android = read("mobile/screens/SettingsScreen.tsx");
+  const presence = read("app/api/presence/route.ts");
+  assert.match(web, /showActiveStatus/);
+  assert.match(web, /Show active status/);
+  assert.match(api, /showActiveStatus/);
+  assert.match(android, /Show active status/);
+  assert.match(presence, /showActiveStatus/);
+});
