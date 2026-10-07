@@ -32,9 +32,6 @@ export function AppHeader({
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-      <Pressable onPress={onMenu} accessibilityRole="button" accessibilityLabel="Open Socialhub menu" style={styles.menuButton}>
-        <Text style={styles.menuIcon}>☰</Text>
-      </Pressable>
       <Image source={BRAND_ICON} style={styles.headerBrandIcon} />
       <View style={styles.headerCopy}>
         <Text numberOfLines={1} style={styles.title}>{title}</Text>
@@ -44,7 +41,16 @@ export function AppHeader({
         <Pressable onPress={onAction} style={styles.headerAction}>
           <Text style={styles.actionText}>{action}</Text>
         </Pressable>
-      ) : <View style={styles.headerSpacer} />}
+      ) : null}
+      <Pressable
+        onPress={onMenu}
+        accessibilityRole="button"
+        accessibilityLabel="Open Socialhub menu"
+        hitSlop={6}
+        style={styles.menuButton}
+      >
+        <Text style={styles.menuIcon}>☰</Text>
+      </Pressable>
     </View>
   );
 }
@@ -116,8 +122,8 @@ export function MenuDrawer({
             <View style={styles.drawerBrandRow}>
               <Image source={BRAND_ICON} style={styles.drawerBrandIcon} />
               <View>
-              <Text style={styles.brand}>Socialhub</Text>
-              <Text style={styles.drawerUser}>{userName || "Your account"}</Text>
+                <Text style={styles.brand}>Socialhub</Text>
+                <Text style={styles.drawerUser}>{userName || "Your account"}</Text>
               </View>
             </View>
             <Pressable onPress={onClose} style={styles.closeButton} accessibilityLabel="Close menu">
@@ -169,7 +175,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     zIndex: 5,
   },
-  menuButton: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  menuButton: { width: 44, height: 44, marginLeft: 10, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   menuIcon: { color: colors.text, fontSize: 21, fontWeight: "800", lineHeight: 24 },
   backButton: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   backIcon: { color: colors.text, fontSize: 38, lineHeight: 38, marginTop: -4 },
