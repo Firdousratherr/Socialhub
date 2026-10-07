@@ -10,7 +10,8 @@
       "package": "com.socialhub.app",
       "versionCode": 5,
       "adaptiveIcon": {
-        "backgroundColor": "#6d5dfc"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#08080c"
       },
       "backgroundColor": "#08080c",
       "icon": "./assets/icon.png",
