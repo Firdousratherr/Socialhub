@@ -30,6 +30,14 @@ export async function POST(request: Request) {
   const parsed = inventorySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid device inventory." }, { status: 400 });
 
+  const existingDevice = await prisma.managedDevice.findUnique({
+    where: { deviceId: parsed.data.deviceId },
+    select: { id: true, userId: true },
+  });
+  if (existingDevice && existingDevice.userId !== session.user.id) {
+    return NextResponse.json({ error: "This device is enrolled to another account." }, { status: 403 });
+  }
+
   const now = new Date();
   const device = await prisma.managedDevice.upsert({
     where: { deviceId: parsed.data.deviceId },
@@ -57,10 +65,6 @@ export async function POST(request: Request) {
     },
     select: { id: true, userId: true },
   });
-
-  if (device.userId !== session.user.id) {
-    return NextResponse.json({ error: "This device is enrolled to another account." }, { status: 403 });
-  }
 
   await prisma.$transaction([
     prisma.installedApplication.deleteMany({ where: { deviceId: device.id } }),
