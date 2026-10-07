@@ -34,6 +34,7 @@ import { authClient } from "./lib/auth-client";
 import { apiFetch, uploadMedia } from "./lib/api";
 import { configurePushNotifications, subscribeToNotificationOpen } from "./lib/push";
 import { startPresenceHeartbeat } from "./lib/presence";
+import { startRealtime, subscribeRealtime } from "./lib/realtime";
 import type {
   Conversation,
   Message,
@@ -1133,7 +1134,12 @@ function MessagingScreen({
     }
   }, [includeArchived, initialConversationId, onDeepLinkHandled]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return subscribeRealtime((event) => {
+      if (event.type === "message.created") void load();
+    });
+  }, [load]);
   useEffect(() => {
     onChildStateChange(Boolean(selected));
     return () => onChildStateChange(false);
@@ -1282,9 +1288,12 @@ function ChatScreen({
 
   useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), 5_000);
-    return () => clearInterval(timer);
-  }, [load]);
+    return subscribeRealtime((event) => {
+      if (event.type === "message.created" && event.conversationId === conversation.id) {
+        void load();
+      }
+    });
+  }, [load, conversation.id]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -1815,6 +1824,18 @@ function RootContent() {
     if (!signedIn) return;
     return startPresenceHeartbeat();
   }, [signedIn]);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    return startRealtime();
+  }, [signedIn]);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    return subscribeRealtime(() => {
+      void refreshUnread();
+    });
+  }, [signedIn, refreshUnread]);
 
   useEffect(() => { void refreshSession(); }, [refreshSession]);
 
