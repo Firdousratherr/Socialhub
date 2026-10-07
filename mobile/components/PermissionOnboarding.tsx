@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Image, Modal, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, View } from "react-native";
+import { Image, Modal, Pressable, StatusBar, StyleSheet, Text, View } from "react-native";
 import { getDevicePermissionState, requestDevicePermission, type DevicePermissionState } from "../lib/device-permissions";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const BRAND_ICON = require("../assets/icon.png");
 const permissionMeta: Array<{ key: keyof DevicePermissionState; title: string; body: string; icon: string }> = [
@@ -11,6 +12,7 @@ const permissionMeta: Array<{ key: keyof DevicePermissionState; title: string; b
 ];
 
 export default function PermissionOnboarding({ visible, onDone }: { visible: boolean; onDone: () => void }) {
+  const insets = useSafeAreaInsets();
   const [permissions, setPermissions] = useState<DevicePermissionState>({ photos: false, camera: false, microphone: false, notifications: false });
   const [busy, setBusy] = useState(false);
 
@@ -36,7 +38,7 @@ export default function PermissionOnboarding({ visible, onDone }: { visible: boo
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDone} statusBarTranslucent>
-      <SafeAreaView style={styles.safe}>
+      <View style={[styles.safe, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <StatusBar barStyle="light-content" backgroundColor="#08080c" />
         <View style={styles.scrim} />
         <View style={styles.card}>
@@ -68,7 +70,7 @@ export default function PermissionOnboarding({ visible, onDone }: { visible: boo
           <Pressable disabled={busy} onPress={onDone} style={styles.primary}><Text style={styles.primaryText}>Continue</Text></Pressable>
           <Pressable disabled={busy} onPress={onDone} style={styles.secondary}><Text style={styles.secondaryText}>Skip for now</Text></Pressable>
         </View>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
