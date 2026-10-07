@@ -120,7 +120,7 @@ export async function POST(
         replyToId,
         attachments: parsed.data.attachments.length ? {
           createMany: {
-            data: parsed.data.attachments.map((url) => ({ url, senderId: session.user.id, kind: "image" })),
+            data: parsed.data.attachments.map((attachment) => ({ url: attachment.url, senderId: session.user.id, kind: attachment.kind })),
           },
         } : undefined,
       },
