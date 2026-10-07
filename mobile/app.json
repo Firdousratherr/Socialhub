@@ -44,11 +44,6 @@
       "apiBaseUrl": "https://socialhub-ruby.vercel.app"
     },
     "backgroundColor": "#08080c",
-    "androidStatusBar": {
-      "barStyle": "light-content",
-      "backgroundColor": "#08080c",
-      "translucent": true
-    },
     "icon": "./assets/icon.png"
   }
 }
