@@ -507,7 +507,7 @@ function PostCard({
 
   const sharePost = async () => {
     try {
-      await Share.share({ message: `${post.content || "Shared a Socialhub post"}\nhttps://socialhub-ruby.vercel.app/home#post-${post.id}` });
+      await Share.share({ message: `${post.content || "Shared a Socialhub post"}\nhttps://socialhublive.vercel.app/home#post-${post.id}` });
       const data = await apiFetch<{ shareCount: number }>(`/api/posts/${post.id}/share`, { method: "POST" });
       onChanged({ ...post, displayCounts: { ...post.displayCounts, shares: data.shareCount } });
     } catch (e) {
