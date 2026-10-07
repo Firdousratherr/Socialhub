@@ -95,7 +95,6 @@
       "apiBaseUrl": "https://socialhublive.vercel.app"
     },
     "backgroundColor": "#08080c",
-    "icon": "./assets/icon.png",
-    "splash": {}
+    "icon": "./assets/icon.png"
   }
 }
