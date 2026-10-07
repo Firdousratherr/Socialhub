@@ -48,7 +48,7 @@ import type {
 type Tab = MobileRoute;
 
 const BRAND_ICON = require("./assets/icon.png");
-const PERMISSION_ONBOARDING_KEY = "socialhub:permissions-intro:v1";
+const PERMISSION_ONBOARDING_KEY = "socialhub:permissions-intro:v2";
 
 const colors = {
   bg: "#08080c",
