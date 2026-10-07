@@ -1,6 +1,8 @@
 import React from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const BRAND_ICON = require("../assets/icon.png");
 
 const colors = {
   bg: "#08080c",
@@ -33,6 +35,7 @@ export function AppHeader({
       <Pressable onPress={onMenu} accessibilityRole="button" accessibilityLabel="Open Socialhub menu" style={styles.menuButton}>
         <Text style={styles.menuIcon}>☰</Text>
       </Pressable>
+      <Image source={BRAND_ICON} style={styles.headerBrandIcon} />
       <View style={styles.headerCopy}>
         <Text numberOfLines={1} style={styles.title}>{title}</Text>
         {subtitle ? <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text> : null}
@@ -108,9 +111,12 @@ export function MenuDrawer({
         <Pressable style={styles.scrim} onPress={onClose} />
         <View style={[styles.drawer, { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 12) }]}>
           <View style={styles.drawerHeader}>
-            <View>
+            <View style={styles.drawerBrandRow}>
+              <Image source={BRAND_ICON} style={styles.drawerBrandIcon} />
+              <View>
               <Text style={styles.brand}>Socialhub</Text>
               <Text style={styles.drawerUser}>{userName || "Your account"}</Text>
+              </View>
             </View>
             <Pressable onPress={onClose} style={styles.closeButton} accessibilityLabel="Close menu">
               <Text style={styles.closeText}>×</Text>
@@ -165,7 +171,8 @@ const styles = StyleSheet.create({
   menuIcon: { color: colors.text, fontSize: 25, fontWeight: "800", lineHeight: 28 },
   backButton: { width: 50, height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   backIcon: { color: colors.text, fontSize: 38, lineHeight: 38, marginTop: -4 },
-  headerCopy: { flex: 1, minWidth: 0, paddingHorizontal: 12 },
+  headerBrandIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.panel2 },
+  headerCopy: { flex: 1, minWidth: 0, paddingHorizontal: 11 },
   title: { color: colors.text, fontSize: 25, fontWeight: "900", letterSpacing: -0.3 },
   subtitle: { color: colors.muted, marginTop: 3, fontSize: 12 },
   headerAction: { minWidth: 48, minHeight: 44, alignItems: "center", justifyContent: "center" },
@@ -175,6 +182,8 @@ const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: "rgba(0,0,0,0.68)" },
   drawer: { width: "86%", maxWidth: 390, backgroundColor: colors.bg, borderRightWidth: 1, borderRightColor: colors.border },
   drawerHeader: { paddingHorizontal: 18, paddingBottom: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: colors.border },
+  drawerBrandRow: { flexDirection: "row", alignItems: "center", minWidth: 0, flex: 1 },
+  drawerBrandIcon: { width: 48, height: 48, borderRadius: 14, marginRight: 12 },
   brand: { color: colors.text, fontSize: 27, fontWeight: "900" },
   drawerUser: { color: colors.muted, fontSize: 12, marginTop: 4 },
   closeButton: { width: 44, height: 44, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2 },
