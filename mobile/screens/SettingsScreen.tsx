@@ -77,8 +77,20 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
  const openAppSettings=async()=>{
   try{await Linking.openSettings();}catch(e){Alert.alert("Settings",e instanceof Error?e.message:"Unable to open Android settings.");}
  };
- const setPreference=async(key:string,v:boolean)=>{setPreferences({...preferences,[key]:v});try{await apiFetch("/api/notification-preferences",{method:"PATCH",body:JSON.stringify({[key]:v})});}catch(e){setPreferences({...preferences,[key]:!v});Alert.alert("Notifications",e instanceof Error?e.message:"Unable to update notification preference.");}};
- const signOut=async()=>{await authClient.signOut();onSignedOut();};
+ const setPreference=async(key:string,v:boolean)=>{
+  const previous=preferences[key];
+  setPreferences(current=>({...current,[key]:v}));
+  try{
+   await apiFetch("/api/notification-preferences",{method:"PATCH",body:JSON.stringify({[key]:v})});
+  }catch(e){
+   setPreferences(current=>({...current,[key]:previous}));
+   Alert.alert("Notifications",e instanceof Error?e.message:"Unable to update notification preference.");
+  }
+ };
+ const signOut=async()=>{
+  try{await unregisterPushDevice();}catch{}
+  try{await authClient.signOut();}finally{onSignedOut();}
+ };
 
  if(loading)return <View style={styles.screen}><AppHeader title="Settings" subtitle="Account, privacy and security." onMenu={onMenu}/><ActivityIndicator color={colors.accent} style={{marginTop:40}}/></View>;
 
