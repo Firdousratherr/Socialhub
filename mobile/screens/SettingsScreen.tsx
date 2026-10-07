@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { AppHeader } from "../components/MobileShell";
 import { apiFetch } from "../lib/api";
 import { authClient } from "../lib/auth-client";
+import * as ImagePicker from "expo-image-picker";
 import type { Profile } from "../types";
 
 const colors={bg:"#08080c",panel:"#111118",panel2:"#171720",border:"#252531",text:"#f8f8ff",muted:"#8d8d9b",accent:"#725cff",success:"#69d79b",danger:"#ff7474"};
@@ -16,16 +17,18 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
  const [editing,setEditing]=useState(false);
  const [busy,setBusy]=useState(false);
  const [loading,setLoading]=useState(true);
+ const [mediaPermission,setMediaPermission]=useState<ImagePicker.PermissionResponse | null>(null);
 
  const load=useCallback(async()=>{
   try{
-   const [p,pr,prefs]=await Promise.all([
+   const [p,pr,prefs,media]=await Promise.all([
     apiFetch<{profile:Profile}>("/api/profile"),
     apiFetch<{settings:any}>("/api/privacy-settings"),
-    apiFetch<{preferences:Record<string,boolean>}>("/api/notification-preferences")
+    apiFetch<{preferences:Record<string,boolean>}>("/api/notification-preferences"),
+    ImagePicker.getMediaLibraryPermissionsAsync()
    ]);
    setProfile(p.profile);setForm({name:p.profile.name,username:p.profile.username||"",bio:p.profile.bio||""});
-   setPrivateAccount(Boolean(p.profile.isPrivate));setPrivacy(pr.settings||privacy);setPreferences(prefs.preferences||{});
+   setPrivateAccount(Boolean(p.profile.isPrivate));setPrivacy(pr.settings||privacy);setPreferences(prefs.preferences||{});setMediaPermission(media);
   }catch(e){Alert.alert("Settings",e instanceof Error?e.message:"Unable to load settings.");}
   finally{setLoading(false);}
  },[]);
@@ -39,6 +42,17 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
  };
  const setPrivate=async(v:boolean)=>{setPrivateAccount(v);try{await apiFetch("/api/privacy-settings",{method:"PATCH",body:JSON.stringify({isPrivate:v})});}catch(e){setPrivateAccount(!v);Alert.alert("Privacy",e instanceof Error?e.message:"Unable to update privacy.");}};
  const setPrivacyValue=async(key:string,v:boolean)=>{const old={...privacy};setPrivacy({...privacy,[key]:v});try{await apiFetch("/api/privacy-settings",{method:"PATCH",body:JSON.stringify({[key]:v})});}catch(e){setPrivacy(old);Alert.alert("Privacy",e instanceof Error?e.message:"Unable to update privacy.");}};
+ const requestMediaPermission=async()=>{
+  try{
+   const result=await ImagePicker.requestMediaLibraryPermissionsAsync();
+   setMediaPermission(result);
+   if(result.granted) Alert.alert("Photos & videos","Socialhub can now use media when you choose it.");
+   else if(!result.canAskAgain) Alert.alert("Permission required","Media access is blocked. You can enable it from Android Settings.");
+  }catch(e){Alert.alert("Permissions",e instanceof Error?e.message:"Unable to update media permission.");}
+ };
+ const openAppSettings=async()=>{
+  try{await Linking.openSettings();}catch(e){Alert.alert("Settings",e instanceof Error?e.message:"Unable to open Android settings.");}
+ };
  const setPreference=async(key:string,v:boolean)=>{setPreferences({...preferences,[key]:v});try{await apiFetch("/api/notification-preferences",{method:"PATCH",body:JSON.stringify({[key]:v})});}catch(e){setPreferences({...preferences,[key]:!v});Alert.alert("Notifications",e instanceof Error?e.message:"Unable to update notification preference.");}};
  const signOut=async()=>{await authClient.signOut();onSignedOut();};
 
@@ -58,6 +72,18 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
     <Row label="Show following list" description="Allow people to see who you follow." value={privacy.showFollowingList} onChange={v=>void setPrivacyValue("showFollowingList",v)}/>
     <Row label="Messages from everyone" description="Allow new people to start conversations." value={privacy.allowMessagesEveryone} onChange={v=>void setPrivacyValue("allowMessagesEveryone",v)}/>
     <Row label="Friend requests" description="Allow people to send you friend requests." value={privacy.allowFriendRequests} onChange={v=>void setPrivacyValue("allowFriendRequests",v)}/>
+   </SettingCard>
+   <SettingCard title="App permissions" subtitle="Device access is requested only for a feature that needs it.">
+    <View style={styles.notice}>
+      <Text style={styles.noticeTitle}>Photos & videos</Text>
+      <Text style={styles.muted}>
+        {mediaPermission?.granted ? "Allowed. Socialhub can use your selected media." : mediaPermission?.canAskAgain === false ? "Blocked by Android. Use Settings to enable it." : "Not granted yet. You can allow it when you are ready."}
+      </Text>
+    </View>
+    <Pressable onPress={()=>void (mediaPermission?.canAskAgain===false ? openAppSettings() : requestMediaPermission())} style={styles.secondary}>
+      <Text style={styles.secondaryText}>{mediaPermission?.granted ? "Manage permission" : mediaPermission?.canAskAgain===false ? "Open Android Settings" : "Allow photos & videos"}</Text>
+    </Pressable>
+    <Text style={styles.muted}>Camera, microphone, location, calls, notification contents, files outside selected media, and screen sharing are not requested here.</Text>
    </SettingCard>
    <SettingCard title="Notifications" subtitle="Choose which activity reaches your account.">
     {["likes","comments","follows","friendRequests","friendAccepted","messages","mentions","shares","storyReplies","storyReactions","system"].map(k=><Row key={k} label={k.replace(/[A-Z]/g,m=>" "+m).replace(/^./,m=>m.toUpperCase())} value={Boolean(preferences[k])} onChange={v=>void setPreference(k,v)}/>)}
