@@ -49,7 +49,9 @@ function schedule() {
 
 export function subscribeRealtime(listener: Listener) {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 export function startRealtime() {
