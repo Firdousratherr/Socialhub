@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Te
 import { AppHeader } from "../components/MobileShell";
 import { apiFetch } from "../lib/api";
 import { authClient } from "../lib/auth-client";
+import { registerPushDevice, unregisterPushDevice } from "../lib/push";
 import type { Profile } from "../types";
 
 const colors={bg:"#08080c",panel:"#111118",panel2:"#171720",border:"#252531",text:"#f8f8ff",muted:"#8d8d9b",accent:"#725cff",success:"#69d79b",danger:"#ff7474"};
@@ -16,6 +17,8 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
  const [editing,setEditing]=useState(false);
  const [busy,setBusy]=useState(false);
  const [loading,setLoading]=useState(true);
+ const [pushEnabled,setPushEnabled]=useState(false);
+ const [pushBusy,setPushBusy]=useState(false);
 
  const load=useCallback(async()=>{
   try{
@@ -25,7 +28,7 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
     apiFetch<{preferences:Record<string,boolean>}>("/api/notification-preferences")
    ]);
    setProfile(p.profile);setForm({name:p.profile.name,username:p.profile.username||"",bio:p.profile.bio||""});
-   setPrivateAccount(Boolean(p.profile.isPrivate));setPrivacy(pr.settings||privacy);setPreferences(prefs.preferences||{});
+   setPrivateAccount(Boolean(p.profile.isPrivate));setPrivacy(pr.settings||privacy);setPreferences(prefs.preferences||{});setPushEnabled(Boolean(devices.devices?.some((device)=>device.enabled)));
   }catch(e){Alert.alert("Settings",e instanceof Error?e.message:"Unable to load settings.");}
   finally{setLoading(false);}
  },[]);
@@ -61,6 +64,7 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
     <Row label="Show active status" description="Let people see when you are active in Socialhub." value={privacy.showActiveStatus} onChange={v=>void setPrivacyValue("showActiveStatus",v)}/>
    </SettingCard>
    <SettingCard title="Notifications" subtitle="Choose which activity reaches your account.">
+    <Row label="Push notifications on this device" description="Enable Android notifications for new messages, requests and Socialhub activity." value={pushEnabled} disabled={pushBusy} onChange={v=>void setPush(v)}/>
     {["likes","comments","follows","friendRequests","friendAccepted","messages","mentions","shares","storyReplies","storyReactions","system"].map(k=><Row key={k} label={k.replace(/[A-Z]/g,m=>" "+m).replace(/^./,m=>m.toUpperCase())} value={Boolean(preferences[k])} onChange={v=>void setPreference(k,v)}/>)}
    </SettingCard>
    {isOwner?<SettingCard title="Owner console" subtitle="This entry is visible only to the Socialhub owner account.">
@@ -78,7 +82,7 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
 }
 
 function SettingCard({title,subtitle,children}:{title:string;subtitle:string;children:React.ReactNode}){return <View style={styles.card}><Text style={styles.sectionLabel}>{title.toUpperCase()}</Text><Text style={styles.heading}>{title}</Text><Text style={styles.muted}>{subtitle}</Text><View style={styles.divider}/>{children}</View>}
-function Row({label,description,value,onChange}:{label:string;description?:string;value:boolean;onChange:(v:boolean)=>void}){return <View style={styles.row}><View style={styles.flex}><Text style={styles.rowLabel}>{label}</Text>{description?<Text style={styles.muted}>{description}</Text>:null}</View><Switch value={value} onValueChange={onChange} trackColor={{false:"#34343f",true:"#5f4fe4"}} thumbColor="#fff"/></View>}
+function Row({label,description,value,onChange,disabled}:{label:string;description?:string;value:boolean;onChange:(v:boolean)=>void;disabled?:boolean}){return <View style={styles.row}><View style={styles.flex}><Text style={styles.rowLabel}>{label}</Text>{description?<Text style={styles.muted}>{description}</Text>:null}</View><Switch disabled={disabled} value={value} onValueChange={onChange} trackColor={{false:"#34343f",true:"#5f4fe4"}} thumbColor="#fff"/></View>}
 
 const styles=StyleSheet.create({
  screen:{flex:1,backgroundColor:colors.bg},content:{padding:14,paddingBottom:150,gap:12},card:{backgroundColor:colors.panel,borderWidth:1,borderColor:colors.border,borderRadius:20,padding:16},sectionLabel:{color:"#a99cff",fontSize:10,fontWeight:"900",letterSpacing:1.2},heading:{color:colors.text,fontSize:19,fontWeight:"900",marginTop:4,marginBottom:4},value:{color:colors.text,fontSize:17,fontWeight:"800",marginTop:10},muted:{color:colors.muted,fontSize:12,lineHeight:18,marginTop:3},input:{backgroundColor:colors.panel2,borderWidth:1,borderColor:colors.border,color:colors.text,borderRadius:14,paddingHorizontal:14,paddingVertical:13,marginTop:10},primary:{backgroundColor:colors.accent,borderRadius:14,minHeight:48,alignItems:"center",justifyContent:"center",marginTop:10},primaryText:{color:"#fff",fontWeight:"900"},secondary:{backgroundColor:colors.panel2,borderWidth:1,borderColor:colors.border,borderRadius:13,minHeight:44,alignItems:"center",justifyContent:"center",marginTop:12},secondaryText:{color:colors.text,fontWeight:"800"},divider:{height:1,backgroundColor:colors.border,marginVertical:12},row:{flexDirection:"row",alignItems:"center",gap:12,paddingVertical:12,borderBottomWidth:1,borderBottomColor:colors.border},rowLabel:{color:colors.text,fontWeight:"800",fontSize:13},flex:{flex:1,minWidth:0},notice:{backgroundColor:"#18152a",borderWidth:1,borderColor:"#3a326d",borderRadius:16,padding:13,marginBottom:12},noticeTitle:{color:"#c8c0ff",fontWeight:"900",fontSize:13},signOut:{backgroundColor:colors.panel,borderWidth:1,borderColor:"#4b2b35",borderRadius:18,minHeight:52,alignItems:"center",justifyContent:"center"},signOutText:{color:colors.danger,fontWeight:"900"},version:{color:"#666674",textAlign:"center",fontSize:10,paddingBottom:20}
