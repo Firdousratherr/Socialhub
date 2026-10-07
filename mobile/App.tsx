@@ -10,7 +10,6 @@ import {
   Platform,
   Pressable,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -145,6 +144,7 @@ function PrimaryButton({
 }
 
 function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
+  const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<"signin" | "signup" | "otp" | "forgot">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -303,7 +303,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
   const title = mode === "signup" ? "Create your account" : mode === "forgot" ? "Reset your password" : mode === "otp" ? "Enter verification code" : "Welcome back";
 
   return (
-    <SafeAreaView style={styles.authScreen}>
+    <View style={[styles.authScreen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.authContent} keyboardShouldPersistTaps="handled">
         <View style={styles.logo}>
@@ -416,7 +416,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
           </>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
