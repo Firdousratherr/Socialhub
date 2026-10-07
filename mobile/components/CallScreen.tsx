@@ -40,7 +40,7 @@ function rtcIceServers() {
   ];
   const turnUrls = (process.env.EXPO_PUBLIC_TURN_URLS ?? "")
     .split(",")
-    .map((item) => item.trim())
+    .map((item: string) => item.trim())
     .filter(Boolean);
   if (turnUrls.length) {
     servers.push({
@@ -147,7 +147,7 @@ export default function CallScreen({
           if (!pc) continue;
 
           if (signal.kind === "OFFER" && incoming) {
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as Record<string, unknown>));
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
             for (const candidate of pendingCandidates.current.splice(0)) await pc.addIceCandidate(candidate);
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
@@ -183,10 +183,10 @@ export default function CallScreen({
         peerRef.current = pc;
 
         stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-        pc.onicecandidate = (event) => {
+        pc.onicecandidate = (event: any) => {
           if (event.candidate) void sendSignal("CANDIDATE", event.candidate.toJSON());
         };
-        pc.ontrack = (event) => {
+        pc.ontrack = (event: any) => {
           const stream = event.streams?.[0];
           if (!stream) return;
           remoteRef.current = stream;
