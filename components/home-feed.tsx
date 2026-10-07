@@ -800,10 +800,25 @@ export default function HomeFeed() {
     } catch {}
   }, [session?.user?.id, newPost]);
 
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const timer = window.setTimeout(() => {
+      void fetch("/api/post-draft", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: newPost, visibility: "PUBLIC" }),
+      }).catch(() => {});
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [session?.user?.id, newPost]);
+
   async function fetchFeed(before?: string | null, append = false) {
     const query = new URLSearchParams({ take: "20", mode: feedMode });
     if (before) query.set("before", before);
-    const response = await fetch(`/api/posts?${query.toString()}`, { cache: "no-store" });
+    const feedUrl = feedMode === "FOR_YOU"
+      ? `/api/feed/recommended?take=20`
+      : `/api/posts?${query.toString()}`;
+    const response = await fetch(feedUrl, { cache: "no-store" });
     const json = await response.json();
     if (!response.ok) throw new Error(json.error ?? "Could not load your feed.");
     const mapped = (json.posts ?? []).map(mapApiPostToFeedPost);
@@ -818,7 +833,12 @@ export default function HomeFeed() {
       setLoadingFeed(true);
       try {
         const [feedResponse, storyResponse, usersResponse, trendsResponse] = await Promise.all([
-          fetch("/api/posts?take=20&mode=" + encodeURIComponent(feedMode), { cache: "no-store" }),
+          fetch(
+            feedMode === "FOR_YOU"
+              ? "/api/feed/recommended?take=20"
+              : "/api/posts?take=20&mode=" + encodeURIComponent(feedMode),
+            { cache: "no-store" },
+          ),
           fetch("/api/stories", { cache: "no-store" }),
           fetch("/api/users?suggestions=true&take=3", { cache: "no-store" }),
           fetch("/api/discover/trends", { cache: "no-store" }),
@@ -853,7 +873,10 @@ export default function HomeFeed() {
   async function refreshLiveFeed() {
     const query = new URLSearchParams({ take: "20", mode: feedMode });
     try {
-      const response = await fetch("/api/posts?" + query.toString(), { cache: "no-store" });
+      const response = await fetch(
+        feedMode === "FOR_YOU" ? "/api/feed/recommended?take=20" : "/api/posts?" + query.toString(),
+        { cache: "no-store" },
+      );
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not refresh your feed.");
       const latest = (json.posts ?? []).map(mapApiPostToFeedPost) as Post[];
