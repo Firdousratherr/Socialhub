@@ -145,7 +145,6 @@ export async function GET(request: Request) {
         prisma.postMedia.findMany({ where: { postId: { in: postIds } }, orderBy: [{ postId: "asc" }, { sortOrder: "asc" }] }),
         prisma.poll.findMany({
           where: { postId: { in: postIds } },
-          include: { _count: { select: { id: true } } },
         }),
       ])
     : [[], []];
