@@ -910,3 +910,52 @@ test("public and private page policy distinguishes auth entry points from social
   assert.match(proxy, /matcher:\s*\[/);
   assert.match(proxy, /_next/);
 });
+
+
+test("realtime push foundation has recipient-scoped events, presence privacy, and Android registration", () => {
+  const schema = read("prisma/schema.prisma");
+  const migration = read("prisma/migrations/20261007153000_realtime_push_foundation/migration.sql");
+  const realtime = read("lib/realtime.ts");
+  const realtimeRoute = read("app/api/realtime/route.ts");
+  const pushRoute = read("app/api/push/register/route.ts");
+  const presenceRoute = read("app/api/presence/route.ts");
+  const privacyRoute = read("app/api/privacy-settings/route.ts");
+  const messageRoute = read("app/api/conversations/[conversationId]/messages/route.ts");
+  const mobilePush = read("mobile/lib/push.ts");
+  const mobileRealtime = read("mobile/lib/realtime.ts");
+  const mobileApp = read("mobile/App.tsx");
+  const mobileSettings = read("mobile/screens/SettingsScreen.tsx");
+
+  assert.match(schema, /model PushDevice/);
+  assert.match(schema, /model Presence/);
+  assert.match(schema, /model RealtimeEvent/);
+  assert.match(schema, /showActiveStatus\s+Boolean\s+@default\(true\)/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS "PushDevice"/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS "Presence"/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS "RealtimeEvent"/);
+
+  assert.match(realtime, /publishConversationEvent/);
+  assert.match(realtime, /recipientId/);
+  assert.match(realtimeRoute, /readRealtimeEvents/);
+  assert.match(pushRoute, /pushDeviceInputSchema/);
+  assert.match(presenceRoute, /showActiveStatus/);
+  assert.match(privacyRoute, /showActiveStatus/);
+  assert.match(messageRoute, /publishConversationEvent/);
+
+  assert.match(mobilePush, /requestPermissionsAsync/);
+  assert.match(mobilePush, /getDevicePushTokenAsync/);
+  assert.match(mobilePush, /addNotificationResponseReceivedListener/);
+  assert.match(mobileRealtime, /\/api\/realtime/);
+  assert.match(mobileRealtime, /subscribeRealtime/);
+  assert.match(mobileApp, /startRealtime/);
+  assert.match(mobileApp, /startPresenceHeartbeat/);
+  assert.match(mobileSettings, /Push notifications on this device/);
+  assert.match(mobileSettings, /Show active status/);
+});
+
+test("native push consent is not requested automatically at app boot", () => {
+  const app = read("mobile/App.tsx");
+  const settings = read("mobile/screens/SettingsScreen.tsx");
+  assert.doesNotMatch(app, /requestPermissionsAsync/);
+  assert.match(settings, /registerPushDevice/);
+});
