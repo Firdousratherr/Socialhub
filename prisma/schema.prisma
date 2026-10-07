@@ -42,6 +42,7 @@ enum AdminPermissionKey {
   APPROVALS_MANAGE
   DATA_INTEGRITY
   RATE_LIMITS_VIEW
+  DEVICE_MANAGEMENT
 }
 
 enum PostVisibility {
@@ -171,6 +172,9 @@ model User {
   profileViewsReceived ProfileView[] @relation("ProfileViewProfile")
   profileViewsMade ProfileView[] @relation("ProfileViewViewer")
   adminAuditLogs AdminAuditLog[] @relation("AdminAuditActor")
+  managedDevices ManagedDevice[] @relation("DeviceOwner")
+  devicePolicyChanges DevicePolicy[] @relation("DevicePolicyActor")
+  deviceManagementAudits DeviceManagementAudit[] @relation("DeviceManagementAuditActor")
 
   @@index([createdAt])
   @@index([role])
@@ -965,4 +969,168 @@ model AdminAuditEvent {
   @@index([caseId, createdAt])
   @@index([riskLevel, createdAt])
   @@index([outcome, createdAt])
+}
+
+
+enum ManagedDeviceStatus {
+  PENDING
+  ACTIVE
+  OFFLINE
+  NON_COMPLIANT
+  REVOKED
+}
+
+enum DeviceCommandStatus {
+  PENDING
+  SENT
+  SUCCEEDED
+  FAILED
+  EXPIRED
+}
+
+model ManagedDevice {
+  id                    String              @id @default(cuid())
+  userId                String
+  deviceId              String              @unique
+  deviceName            String?
+  manufacturer          String?
+  model                 String?
+  androidVersion        String?
+  sdkInt                Int?
+  appVersion            String?
+  status                ManagedDeviceStatus  @default(PENDING)
+  isDeviceOwner         Boolean             @default(false)
+  isProfileOwner        Boolean             @default(false)
+  lastSeenAt            DateTime?
+  enrolledAt            DateTime            @default(now())
+  revokedAt             DateTime?
+
+  owner                 User                @relation("DeviceOwner", fields: [userId], references: [id], onDelete: Cascade)
+  applications          InstalledApplication[]
+  policyAssignments     DevicePolicyAssignment[]
+  commands              DeviceCommand[]
+  inventorySnapshots    DeviceInventorySnapshot[]
+  managementAudits      DeviceManagementAudit[]
+
+  @@index([userId, status])
+  @@index([status, lastSeenAt])
+}
+
+model InstalledApplication {
+  id                  String        @id @default(cuid())
+  deviceId            String
+  packageName         String
+  appName             String
+  versionName         String?
+  versionCode         String?
+  isSystemApp         Boolean       @default(false)
+  isManaged            Boolean       @default(false)
+  policyState         String        @default("UNMANAGED")
+  installedAt         DateTime?
+  updatedAt            DateTime?
+  firstSeenAt          DateTime      @default(now())
+  lastSeenAt           DateTime      @default(now())
+
+  device              ManagedDevice  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, packageName])
+  @@index([deviceId, policyState])
+  @@index([packageName])
+}
+
+model DevicePolicy {
+  id                    String          @id @default(cuid())
+  name                  String
+  description           String?
+  allowedPackages       String?
+  blockedPackages       String?
+  requiredPackages      String?
+  minimumVersions       String?
+  enabled               Boolean         @default(true)
+  createdById            String
+  updatedById            String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  createdBy              User            @relation("DevicePolicyActor", fields: [createdById], references: [id], onDelete: Cascade)
+  assignments            DevicePolicyAssignment[]
+
+  @@index([enabled, updatedAt])
+  @@index([createdById, createdAt])
+}
+
+model DevicePolicyAssignment {
+  id                  String        @id @default(cuid())
+  deviceId            String
+  policyId            String
+  assignedAt          DateTime      @default(now())
+  revokedAt           DateTime?
+
+  device              ManagedDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  policy              DevicePolicy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, policyId])
+  @@index([deviceId, revokedAt])
+  @@index([policyId, revokedAt])
+}
+
+model DeviceCommand {
+  id            String             @id @default(cuid())
+  deviceId      String
+  requestedById String
+  action        String
+  payload       String?
+  status        DeviceCommandStatus @default(PENDING)
+  expiresAt     DateTime?
+  createdAt     DateTime            @default(now())
+  completedAt   DateTime?
+
+  device        ManagedDevice      @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  results       DeviceCommandResult[]
+
+  @@index([deviceId, status, createdAt])
+  @@index([requestedById, createdAt])
+}
+
+model DeviceCommandResult {
+  id          String              @id @default(cuid())
+  commandId   String
+  status      DeviceCommandStatus
+  message     String?
+  createdAt   DateTime            @default(now())
+
+  command     DeviceCommand        @relation(fields: [commandId], references: [id], onDelete: Cascade)
+
+  @@index([commandId, createdAt])
+}
+
+model DeviceInventorySnapshot {
+  id          String        @id @default(cuid())
+  deviceId    String
+  capturedAt  DateTime      @default(now())
+  appCount    Int           @default(0)
+  payload     String?
+
+  device      ManagedDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, capturedAt])
+}
+
+model DeviceManagementAudit {
+  id          String        @id @default(cuid())
+  deviceId    String?
+  actorId     String?
+  action      String
+  resource    String
+  resourceId  String?
+  outcome     String        @default("SUCCESS")
+  details     String?
+  createdAt   DateTime      @default(now())
+
+  device      ManagedDevice? @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  actor       User?         @relation("DeviceManagementAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([deviceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([resource, resourceId, createdAt])
 }

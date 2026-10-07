@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/route-access";
 import { prisma } from "@/lib/prisma";
 import { SocialPages } from "@/components/social-pages";
 
-const SITE_URL = "https://socialhub-ruby.vercel.app";
+const SITE_URL = "https://socialhublive.vercel.app";
 
 type Props = {
   params: Promise<{ username: string }>;

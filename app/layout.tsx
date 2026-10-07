@@ -3,7 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://socialhub-ruby.vercel.app"),
+  metadataBase: new URL("https://socialhublive.vercel.app"),
   title: {
     default: "Socialhub — Connect. Share. Belong.",
     template: "%s · Socialhub",
