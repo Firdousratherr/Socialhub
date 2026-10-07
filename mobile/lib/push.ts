@@ -52,7 +52,7 @@ export async function registerPushDevice() {
       token,
       platform: "ANDROID",
       provider: "FCM",
-      appVersion: "1.0.2",
+      appVersion: "1.0.3",
       deviceName: "Android device",
     }),
   });
