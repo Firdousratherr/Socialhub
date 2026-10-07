@@ -32,6 +32,10 @@ import { Share } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
 import PermissionOnboarding from "./components/PermissionOnboarding";
+import LaunchScreen from "./components/LaunchScreen";
+import { BrandMark } from "./components/BrandMark";
+import { Ionicons } from "@expo/vector-icons";
+import { colors } from "./theme";
 import CallScreen, { IncomingCallPrompt, type NativeCall } from "./components/CallScreen";
 import InCallManager from "react-native-incall-manager";
 import { authClient } from "./lib/auth-client";
@@ -52,21 +56,7 @@ import type {
 
 type Tab = MobileRoute;
 
-const BRAND_ICON = require("./assets/icon.png");
 const PERMISSION_ONBOARDING_KEY = "socialhub:permissions-intro:v2";
-
-const colors = {
-  bg: "#08080c",
-  panel: "#111118",
-  panel2: "#171720",
-  border: "#252531",
-  text: "#f8f8ff",
-  muted: "#8d8d9b",
-  accent: "#725cff",
-  accentSoft: "#251f55",
-  success: "#69d79b",
-  danger: "#ff7474",
-};
 
 SplashScreen.setOptions({ duration: 650 });
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -311,10 +301,8 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
     <View style={[styles.authScreen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.authContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.logo}>
-          <Image source={BRAND_ICON} style={styles.logoImage} resizeMode="contain" />
-        </View>
-        <Text style={styles.authBrand}>SocialHub</Text>
+        <BrandMark size={96} style={styles.authBrandMark} />
+        <Text style={styles.authBrand}>Socialhub</Text>
         <Text style={styles.authSubtitle}>{title}</Text>
 
         {mode === "signup" ? (
@@ -1987,6 +1975,7 @@ function RootContent() {
   const [unread, setUnread] = useState({ messages: 0, notifications: 0, friendRequests: 0 });
   const [deepLink, setDeepLink] = useState<DeepLinkTarget | null>(null);
   const [permissionsReady, setPermissionsReady] = useState(false);
+  const [launching, setLaunching] = useState(true);
   const [showPermissionOnboarding, setShowPermissionOnboarding] = useState(false);
 
   const refreshSession = useCallback(async () => {
@@ -2049,7 +2038,7 @@ function RootContent() {
   useEffect(() => {
     if (!signedIn || !deepLink) return;
     if (deepLink.kind === "message") setTab("Messages");
-    else if (deepLink.kind === "profile") setTab("Discover");
+    else if (deepLink.kind === "profile") setTab("Profile");
     else setTab("Home");
   }, [signedIn, deepLink]);
 
@@ -2100,8 +2089,8 @@ function RootContent() {
   }, []);
 
   useEffect(() => {
-    if (!booting) void SplashScreen.hideAsync().catch(() => {});
-  }, [booting]);
+    if (!booting && permissionsReady) void SplashScreen.hideAsync().catch(() => {});
+  }, [booting, permissionsReady]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -2149,6 +2138,10 @@ function RootContent() {
         <View style={styles.centered}><ActivityIndicator size="large" color={colors.accent} /></View>
       </View>
     );
+  }
+
+  if (launching) {
+    return <LaunchScreen onFinished={() => setLaunching(false)} />;
   }
 
   if (!signedIn) {
@@ -2202,7 +2195,7 @@ function RootContent() {
         />
       ) : null}
       {tab === "Notifications" ? <NotificationsScreen onMenu={openMenu} /> : null}
-      {tab === "Profile" ? <ProfileScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
+      {tab === "Profile" ? <ProfileScreen username={deepLink?.kind === "profile" ? deepLink.id : undefined} onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); onDeepLinkHandled(); }} /> : null}
       {tab === "Settings" ? <SettingsScreen onMenu={openMenu} isOwner={Boolean(sessionUser?.isOwner)} onOpenAdmin={() => navigate("Admin")} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
       {tab === "Saved" ? <SavedScreen onMenu={openMenu} /> : null}
       {tab === "Security" ? <SecurityScreen onMenu={openMenu} /> : null}
@@ -2212,11 +2205,11 @@ function RootContent() {
 
       {!hideBottomNav ? (
         <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom + 8, 10) }]}>
-          <NavItem icon="⌂" label="Home" active={tab === "Home"} onPress={() => navigate("Home")} />
-          <NavItem icon="♧" label="Friends" active={tab === "Friends"} onPress={() => navigate("Friends")} badge={badge(unread.friendRequests)} />
-          <NavItem icon="✉" label="Messages" active={tab === "Messages"} onPress={() => navigate("Messages")} badge={badge(unread.messages)} />
-          <NavItem icon="♡" label="Alerts" active={tab === "Notifications"} onPress={() => navigate("Notifications")} badge={badge(unread.notifications)} />
-          <NavItem icon="◉" label="Profile" active={tab === "Profile"} onPress={() => navigate("Profile")} />
+          <NavItem icon="home-outline" activeIcon="home" label="Home" active={tab === "Home"} onPress={() => navigate("Home")} />
+          <NavItem icon="people-outline" activeIcon="people" label="Friends" active={tab === "Friends"} onPress={() => navigate("Friends")} badge={badge(unread.friendRequests)} />
+          <NavItem icon="chatbubble-ellipses-outline" activeIcon="chatbubble-ellipses" label="Messages" active={tab === "Messages"} onPress={() => navigate("Messages")} badge={badge(unread.messages)} />
+          <NavItem icon="notifications-outline" activeIcon="notifications" label="Alerts" active={tab === "Notifications"} onPress={() => navigate("Notifications")} badge={badge(unread.notifications)} />
+          <NavItem icon="person-outline" activeIcon="person" label="Profile" active={tab === "Profile"} onPress={() => navigate("Profile")} />
         </View>
       ) : null}
 
@@ -2227,6 +2220,7 @@ function RootContent() {
         onClose={() => setDrawerOpen(false)}
         onNavigate={navigate}
         onSignOut={() => void signOut()}
+        isOwner={Boolean(sessionUser?.isOwner)}
       />
     </View>
   );
@@ -2234,21 +2228,28 @@ function RootContent() {
 
 function NavItem({
   icon,
+  activeIcon,
   label,
   active,
   onPress,
   badge,
 }: {
-  icon: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  activeIcon: keyof typeof Ionicons.glyphMap;
   label: string;
   active: boolean;
   onPress: () => void;
   badge?: React.ReactNode;
 }) {
   return (
-    <Pressable onPress={onPress} style={styles.navItem}>
-      <View>
-        <Text style={[styles.navIcon, active && styles.navActive]}>{icon}</Text>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      style={[styles.navItem, active && styles.navItemActive]}
+    >
+      <View style={styles.navIconWrap}>
+        <Ionicons name={active ? activeIcon : icon} size={22} color={active ? colors.text : colors.muted} />
         {badge ? <View style={styles.navBadge}>{badge}</View> : null}
       </View>
       <Text style={[styles.navLabel, active && styles.navActive]}>{label}</Text>
