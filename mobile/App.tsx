@@ -432,6 +432,7 @@ function PostCard({
   const [comments, setComments] = useState<Array<{ id: string; content: string; createdAt: string; author: User }>>([]);
   const [commentText, setCommentText] = useState("");
   const [reactionOpen, setReactionOpen] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const mutatePost = async (action: "like" | "save") => {
     if (busy) return;
@@ -549,7 +550,7 @@ function PostCard({
         {reactionOpen ? <View style={styles.reactionPicker}>{["❤️","😂","😮","😢","🔥","👍"].map(e => <Pressable key={e} onPress={() => void react(e)} style={styles.reactionPickerItem}><Text style={styles.reactionPickerEmoji}>{e}</Text></Pressable>)}</View> : null}
       </View>
       <Modal visible={commentOpen} transparent animationType="slide" onRequestClose={() => setCommentOpen(false)}>
-        <KeyboardAvoidingView style={styles.commentOverlay} behavior={Platform.OS === "ios" ? "padding" : "padding"}>
+        <KeyboardAvoidingView style={styles.commentOverlay} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={insets.top}>
           <Pressable style={styles.commentScrim} onPress={() => setCommentOpen(false)} />
           <View style={styles.commentSheet}>
             <View style={styles.commentHeader}><Text style={styles.sheetTitle}>Comments</Text><Pressable onPress={() => setCommentOpen(false)}><Text style={styles.closeText}>×</Text></Pressable></View>
@@ -560,7 +561,7 @@ function PostCard({
               renderItem={({ item }) => <View style={styles.commentRow}><Avatar user={item.author} size={36}/><View style={styles.flex}><Text style={styles.commentAuthor}>{item.author.name}</Text><Text style={styles.commentBody}>{item.content}</Text><Text style={styles.userHandle}>{formatTime(item.createdAt)}</Text></View></View>}
               ListEmptyComponent={<Text style={styles.emptySmall}>No comments yet.</Text>}
             />
-            <View style={styles.commentComposer}><TextInput value={commentText} onChangeText={setCommentText} placeholder="Write a comment…" placeholderTextColor={colors.muted} style={styles.commentInput} multiline/><Pressable onPress={() => void sendComment()} style={styles.sendButton}><Text style={styles.sendButtonText}>➤</Text></Pressable></View>
+            <View style={[styles.commentComposer, { paddingBottom: Math.max(insets.bottom, 10) }]}><TextInput value={commentText} onChangeText={setCommentText} placeholder="Write a comment…" placeholderTextColor={colors.muted} style={styles.commentInput} multiline/><Pressable onPress={() => void sendComment()} style={styles.sendButton}><Text style={styles.sendButtonText}>➤</Text></Pressable></View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
