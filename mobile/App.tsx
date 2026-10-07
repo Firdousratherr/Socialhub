@@ -1305,7 +1305,6 @@ function CallOverlay({ currentUserId }: { currentUserId: string }) {
           call={active}
           currentUserId={currentUserId}
           remoteUser={remoteUser}
-          incoming={false}
           incoming={activeIsIncoming}
           onFinished={() => { setActive(null); setActiveIsIncoming(false); }}
         />
