@@ -125,11 +125,13 @@ function PrimaryButton({
   label,
   onPress,
   disabled,
+  loading = false,
   secondary = false,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  loading?: boolean;
   secondary?: boolean;
 }) {
   return (
@@ -138,7 +140,7 @@ function PrimaryButton({
       onPress={onPress}
       style={[styles.primaryButton, secondary && styles.secondaryButton, disabled && styles.disabledButton]}
     >
-      {disabled ? <ActivityIndicator color={secondary ? colors.text : "#fff"} /> : <Text style={styles.primaryButtonText}>{label}</Text>}
+      {loading ? <ActivityIndicator color={secondary ? colors.text : "#fff"} /> : <Text style={styles.primaryButtonText}>{label}</Text>}
     </Pressable>
   );
 }
@@ -366,8 +368,8 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
 
         {mode === "signin" ? (
           <>
-            <PrimaryButton label="Sign in" onPress={() => void signIn()} disabled={busy} />
-            <PrimaryButton label="Continue with Google" onPress={() => void google()} disabled={busy} secondary />
+            <PrimaryButton label="Sign in" onPress={() => void signIn()} disabled={busy} loading={busy} />
+            <PrimaryButton label="Continue with Google" onPress={() => void google()} disabled={busy} loading={busy} secondary />
             <View style={styles.authRow}>
               <Pressable onPress={() => { resetMessages(); setOtpType("sign-in"); setMode("otp"); }}>
                 <Text style={styles.linkText}>Use email OTP</Text>
@@ -384,7 +386,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
 
         {mode === "signup" ? (
           <>
-            <PrimaryButton label="Create account" onPress={() => void signUp()} disabled={busy} />
+            <PrimaryButton label="Create account" onPress={() => void signUp()} disabled={busy} loading={busy} />
             <Pressable onPress={() => { resetMessages(); setMode("signin"); }}>
               <Text style={styles.authSwitch}>Already have an account? <Text style={styles.linkText}>Sign in</Text></Text>
             </Pressable>
@@ -393,7 +395,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
 
         {mode === "forgot" ? (
           <>
-            <PrimaryButton label="Send reset code" onPress={() => void requestReset()} disabled={busy} />
+            <PrimaryButton label="Send reset code" onPress={() => void requestReset()} disabled={busy} loading={busy} />
             <Pressable onPress={() => { resetMessages(); setMode("signin"); }}>
               <Text style={styles.authSwitch}>Back to <Text style={styles.linkText}>sign in</Text></Text>
             </Pressable>
@@ -406,6 +408,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
               label={otpType === "forget-password" ? "Reset password" : otpType === "email-verification" ? "Verify email" : "Sign in with OTP"}
               onPress={() => void (otpType === "forget-password" ? resetPassword() : otpType === "email-verification" ? verifyEmail() : verifySignInOtp())}
               disabled={busy}
+              loading={busy}
             />
             <Pressable onPress={() => void sendOtp()}>
               <Text style={styles.authSwitch}>Didn't receive it? <Text style={styles.linkText}>Resend code</Text></Text>
@@ -433,6 +436,8 @@ function PostCard({
   const [commentText, setCommentText] = useState("");
   const [reactionOpen, setReactionOpen] = useState(false);
   const insets = useSafeAreaInsets();
+  const reactions = Array.isArray(post.reactions) ? post.reactions : [];
+  const displayCounts = post.displayCounts ?? { likes: 0, comments: 0, shares: 0 };
 
   const mutatePost = async (action: "like" | "save") => {
     if (busy) return;
@@ -495,7 +500,7 @@ function PostCard({
             body: JSON.stringify({ emoji }),
           });
       const nextEmoji = "reaction" in data && data.reaction ? data.reaction.emoji : null;
-      const nextCounts = post.reactions.map((item) => ({ ...item }));
+      const nextCounts = reactions.map((item) => ({ ...item }));
       if (current) {
         const index = nextCounts.findIndex((item) => item.emoji === current);
         if (index >= 0) nextCounts[index] = { ...nextCounts[index], count: Math.max(0, nextCounts[index].count - 1) };
@@ -535,7 +540,7 @@ function PostCard({
         </View>
         {post.content ? <Text style={styles.postText}>{post.content}</Text> : null}
         {post.mediaUrl ? <Image source={{ uri: post.mediaUrl }} style={styles.postMedia} resizeMode="cover" /> : null}
-        {post.reactions.length ? <Text style={styles.reactionSummary}>{post.reactions.filter(r => r.count > 0).map(r => `${r.emoji} ${formatCount(r.count)}`).join("  ")}</Text> : null}
+        {reactions.length ? <Text style={styles.reactionSummary}>{reactions.filter(r => r.count > 0).map(r => `${r.emoji} ${formatCount(r.count)}`).join("  ")}</Text> : null}
         <View style={styles.metricsRow}>
           <Text style={styles.muted}>{formatCount(post.displayCounts.likes)} likes</Text>
           <Text style={styles.muted}>{formatCount(post.displayCounts.comments)} comments</Text>
@@ -822,7 +827,7 @@ function CreatePost({ onCreated }: { onCreated: (post: Post) => void }) {
       </View>
       <View style={styles.composerActions}>
         <MediaPickerButton label="Media" onPicked={setAsset} />
-        <PrimaryButton label={busy ? "Posting…" : "Post"} onPress={() => void submit()} disabled={busy || (!content.trim() && !asset)} />
+        <PrimaryButton label={busy ? "Posting…" : "Post"} onPress={() => void submit()} disabled={busy || (!content.trim() && !asset)} loading={busy} />
       </View>
     </View>
   );
@@ -886,7 +891,7 @@ function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: (
             placeholderTextColor={colors.muted}
             style={styles.input}
           />
-          <PrimaryButton label={busy ? "Publishing…" : "Publish story"} onPress={() => void submit()} disabled={busy || !asset} />
+          <PrimaryButton label={busy ? "Publishing…" : "Publish story"} onPress={() => void submit()} disabled={busy || !asset} loading={busy} />
         </ScrollView>
       </View>
     </Modal>
@@ -1015,9 +1020,16 @@ function DiscoverScreen({
   const [loading, setLoading] = useState(false);
 
   const search = useCallback(async (value: string) => {
+    const term = value.trim();
+    if (!term) {
+      setUsers([]);
+      setPosts([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const data = await apiFetch<{ users: SearchUser[]; posts: Post[] }>(`/api/search?q=${encodeURIComponent(value.trim())}&take=20`);
+      const data = await apiFetch<{ users: SearchUser[]; posts: Post[] }>(`/api/search?q=${encodeURIComponent(term)}&take=20`);
       setUsers(data.users);
       setPosts(data.posts);
     } catch (e) {
@@ -1035,8 +1047,10 @@ function DiscoverScreen({
   }, [initialQuery, query, onDeepLinkHandled]);
 
   useEffect(() => {
-    const timeout = setTimeout(() => void search(query), query ? 250 : 0);
-    return () => clearTimeout(timeout);
+    const timeout = query.trim() ? setTimeout(() => void search(query), 250) : null;
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
   }, [query, search]);
 
   const friendRequest = async (user: SearchUser) => {
@@ -1067,6 +1081,11 @@ function DiscoverScreen({
     <View style={styles.screen}>
       <AppHeader title="Discover" subtitle="Find people and posts." onMenu={onMenu} />
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.discoverHero}>
+          <Text style={styles.discoverEyebrow}>DISCOVER</Text>
+          <Text style={styles.discoverTitle}>Find your people</Text>
+          <Text style={styles.discoverSubtitle}>Search profiles, usernames, and posts.</Text>
+        </View>
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -1075,9 +1094,16 @@ function DiscoverScreen({
           style={styles.searchInput}
           autoCapitalize="none"
         />
-        {loading ? <ActivityIndicator color={colors.accent} /> : null}
+        {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
+        {!query.trim() && !loading ? (
+          <View style={styles.discoverEmptyCard}>
+            <Text style={styles.discoverEmptyIcon}>⌕</Text>
+            <Text style={styles.discoverEmptyTitle}>Start with a search</Text>
+            <Text style={styles.emptySmall}>Try a name, @username, hashtag, or a word from a post.</Text>
+          </View>
+        ) : null}
 
-        <SectionHeader title="People" />
+        {query.trim() ? <SectionHeader title="People" /> : null}
         {users.length ? users.map((user) => (
           <View key={user.id} style={styles.userCard}>
             <Avatar user={user} size={46} />
@@ -1095,10 +1121,10 @@ function DiscoverScreen({
               <Pressable style={styles.miniButton} onPress={() => void friendRequest(user)}><Text style={styles.miniButtonText}>Add</Text></Pressable>
             ) : null}
           </View>
-        )) : <Text style={styles.emptySmall}>No people found.</Text>}
+        )) : query.trim() ? <Text style={styles.emptySmall}>No people found.</Text> : null}
 
-        <SectionHeader title="Posts" />
-        {posts.map((post) => <PostCard key={post.id} post={post} onChanged={(next) => setPosts((items) => items.map((item) => item.id === next.id ? next : item))} />)}
+        {query.trim() ? <SectionHeader title="Posts" /> : null}
+        {query.trim() ? posts.map((post) => <PostCard key={post.id} post={post} onChanged={(next) => setPosts((items) => items.map((item) => item.id === next.id ? next : item))} />) : null}
       </ScrollView>
     </View>
   );
@@ -1126,6 +1152,7 @@ function MessagingScreen({
   const [selected, setSelected] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [includeArchived, setIncludeArchived] = useState(false);
+  const [conversationQuery, setConversationQuery] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1220,15 +1247,29 @@ function MessagingScreen({
   return (
     <View style={styles.screen}>
       <AppHeader
-        title={includeArchived ? "Archived messages" : "Messages"}
-        subtitle="Private conversations."
+        title="Messages"
+        subtitle={includeArchived ? "Archived conversations." : "Your private conversations."}
         onMenu={onMenu}
         action={includeArchived ? "Active" : "Archived"}
         onAction={() => setIncludeArchived((value) => !value)}
       />
+      <View style={styles.messageListToolbar}>
+        <TextInput
+          value={conversationQuery}
+          onChangeText={setConversationQuery}
+          placeholder="Search conversations…"
+          placeholderTextColor={colors.muted}
+          style={styles.messageSearchInput}
+        />
+      </View>
       {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
       <FlatList
-        data={conversations}
+        data={conversations.filter((item) => {
+          const memberName = conversationName(item, currentUserId).toLowerCase();
+          const preview = item.messages?.[0]?.content?.toLowerCase() ?? "";
+          const q = conversationQuery.trim().toLowerCase();
+          return !q || memberName.includes(q) || preview.includes(q);
+        })}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.feed}
         renderItem={({ item }) => {
@@ -1241,14 +1282,17 @@ function MessagingScreen({
               onPress={() => setSelected(item)}
               onLongPress={() => void controlConversation(item)}
             >
-              <Avatar user={member} size={50} />
+              <Avatar user={member} size={56} />
               <View style={styles.flex}>
-                <View style={styles.row}>
-                  <Text style={styles.userName}>{conversationName(item, currentUserId)}</Text>
-                  {me?.archivedAt ? <Text style={styles.muted}>ARCHIVED</Text> : null}
+                <View style={styles.conversationTopRow}>
+                  <Text numberOfLines={1} style={styles.conversationName}>{conversationName(item, currentUserId)}</Text>
+                  {last?.createdAt ? <Text style={styles.conversationTime}>{formatTime(last.createdAt)}</Text> : null}
+                </View>
+                <View style={styles.conversationPreviewRow}>
+                  <Text numberOfLines={1} style={styles.conversationPreview}>{last?.content || "Start the conversation"}</Text>
                   {item.unreadCount > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>{formatCount(item.unreadCount)}</Text></View> : null}
                 </View>
-                <Text numberOfLines={1} style={styles.userHandle}>{last?.content || "Start the conversation"}</Text>
+                {me?.archivedAt ? <Text style={styles.archivedLabel}>ARCHIVED</Text> : null}
               </View>
             </Pressable>
           );
@@ -1462,14 +1506,15 @@ function ChatScreen({
   return (
     <View style={styles.chatScreen}>
       <View style={[styles.chatHeader, { paddingTop: insets.top + 8 }]}>
-        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Go back">
-          <Text style={styles.backText}>‹</Text>
+        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Go back" style={styles.chatBackButton}>
+          <Text style={styles.chatBackIcon}>‹</Text>
         </Pressable>
-        <Avatar user={other} size={40} />
+        <Avatar user={other} size={46} />
         <View style={styles.flex}>
-          <Text style={styles.userName}>{conversationName(conversation, currentUserId)}</Text>
-          <Text style={styles.userHandle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
+          <Text numberOfLines={1} style={styles.chatTitle}>{conversationName(conversation, currentUserId)}</Text>
+          <Text numberOfLines={1} style={styles.chatSubtitle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
         </View>
+        <View style={styles.chatStatusPill}><Text style={styles.chatStatusText}>Chat</Text></View>
       </View>
       <KeyboardAvoidingView
         style={styles.chatKeyboard}
@@ -1519,7 +1564,7 @@ function ChatScreen({
         {typingUsers.length ? <Text style={styles.typingIndicator}>{typingUsers.length === 1 ? `${typingUsers[0].name} is typing…` : `${typingUsers.length} people are typing…`}</Text> : null}
         <View style={[styles.messageComposer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
           <Pressable onPress={() => void sendAttachment()} disabled={attachmentBusy} style={styles.attachButton}>
-            <Text style={styles.attachButtonText}>{attachmentBusy ? "…" : "+"}</Text>
+            <Text style={styles.attachButtonText}>{attachmentBusy ? "…" : "＋"}</Text>
           </Pressable>
           <TextInput
             value={text}
@@ -1533,7 +1578,7 @@ function ChatScreen({
             returnKeyType="default"
           />
           <Pressable onPress={() => void send()} style={styles.sendButton}>
-            <Text style={styles.sendButtonText}>➤</Text>
+            <Text style={styles.sendButtonText}>↑</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -1753,7 +1798,7 @@ function ProfileScreen({ onSignedOut, onMenu }: { onSignedOut: () => void; onMen
                 <Text style={styles.mediaEditText}>{mediaBusy === "coverImage" ? "Updating…" : "Change cover"}</Text>
               </Pressable>
             </View>
-            <PrimaryButton label={busy ? "Saving…" : "Save changes"} onPress={() => void save()} disabled={busy || mediaBusy !== null} />
+            <PrimaryButton label={busy ? "Saving…" : "Save changes"} onPress={() => void save()} disabled={busy || mediaBusy !== null} loading={busy} />
           </View>
         ) : null}
 
@@ -2067,6 +2112,27 @@ function NavItem({
 }
 
 const styles = StyleSheet.create({
+  discoverHero: { paddingHorizontal: 2, paddingTop: 6, paddingBottom: 4 },
+  discoverEyebrow: { color: colors.accent, fontSize: 10, fontWeight: "900", letterSpacing: 1.6 },
+  discoverTitle: { color: colors.text, fontSize: 28, fontWeight: "900", marginTop: 4 },
+  discoverSubtitle: { color: colors.muted, marginTop: 4, lineHeight: 18 },
+  discoverEmptyCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 20, padding: 26, alignItems: "center", marginBottom: 14 },
+  discoverEmptyIcon: { color: colors.accent, fontSize: 32 },
+  discoverEmptyTitle: { color: colors.text, fontSize: 16, fontWeight: "900", marginTop: 8 },
+  messageListToolbar: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4 },
+  messageSearchInput: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, color: colors.text, paddingHorizontal: 15, paddingVertical: 13 },
+  conversationTopRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  conversationName: { flex: 1, color: colors.text, fontSize: 15, fontWeight: "900" },
+  conversationTime: { color: colors.muted, fontSize: 10 },
+  conversationPreviewRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
+  conversationPreview: { flex: 1, color: colors.muted, fontSize: 12 },
+  archivedLabel: { color: colors.accent, fontSize: 9, fontWeight: "900", marginTop: 6, letterSpacing: 0.8 },
+  chatBackButton: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  chatBackIcon: { color: colors.text, fontSize: 34, lineHeight: 34, marginTop: -3 },
+  chatTitle: { color: colors.text, fontSize: 16, fontWeight: "900" },
+  chatSubtitle: { color: colors.muted, fontSize: 11, marginTop: 2 },
+  chatStatusPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: colors.accentSoft },
+  chatStatusText: { color: colors.accent, fontSize: 10, fontWeight: "900" },
   root: { flex: 1, backgroundColor: colors.bg },
   screen: { flex: 1, backgroundColor: colors.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
@@ -2088,7 +2154,7 @@ const styles = StyleSheet.create({
   errorText: { color: colors.danger, marginBottom: 10 },
   dangerText: { color: colors.danger },
   linkText: { color: "#a99cff", fontWeight: "700" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingTop: 10, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  header: { flexDirection: "row", alignItems: "center", minHeight: 104, paddingHorizontal: 14, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.bg },
   title: { color: colors.text, fontSize: 24, fontWeight: "900" },
   subtitle: { color: colors.muted, marginTop: 3 },
   refresh: { color: colors.text, fontSize: 30 },
@@ -2180,12 +2246,12 @@ const styles = StyleSheet.create({
   chatScreen: { flex: 1, backgroundColor: colors.bg },
   chatKeyboard: { flex: 1, backgroundColor: colors.bg },
   chatListFlex: { flex: 1 },
-  chatHeader: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  chatHeader: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.bg },
   backText: { color: colors.text, fontSize: 38, lineHeight: 38, paddingHorizontal: 6 },
   chatList: { padding: 12, gap: 8, paddingBottom: 14 },
-  messageBubble: { maxWidth: "82%", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
-  myBubble: { alignSelf: "flex-end", backgroundColor: colors.accent },
-  theirBubble: { alignSelf: "flex-start", backgroundColor: colors.panel2 },
+  messageBubble: { maxWidth: "84%", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 11, marginVertical: 2 },
+  myBubble: { alignSelf: "flex-end", backgroundColor: colors.accent, borderBottomRightRadius: 7 },
+  theirBubble: { alignSelf: "flex-start", backgroundColor: colors.panel2, borderBottomLeftRadius: 7 },
   messageText: { color: "#fff", lineHeight: 20 },
   messageTime: { color: "rgba(255,255,255,0.58)", fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
   messageAttachment: { width: 190, height: 150, borderRadius: 13, marginBottom: 7, backgroundColor: colors.panel },
@@ -2198,7 +2264,7 @@ const styles = StyleSheet.create({
   attachButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
   attachButtonText: { color: colors.text, fontSize: 24, fontWeight: "700" },
   typingIndicator: { color: colors.muted, fontSize: 11, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 2, backgroundColor: colors.bg },
-  messageComposer: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.panel, minHeight: 70 },
+  messageComposer: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.panel, minHeight: 72 },
   messageInput: { flex: 1, minHeight: 52, maxHeight: 140, color: colors.text, backgroundColor: colors.panel2, borderRadius: 18, paddingHorizontal: 15, paddingVertical: 12, textAlignVertical: "top" },
   sendButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
   sendButtonText: { color: "#fff", fontSize: 20, fontWeight: "900" },
@@ -2219,7 +2285,7 @@ const styles = StyleSheet.create({
   mediaEditButton: { flex: 1, minHeight: 42, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   mediaEditText: { color: colors.text, fontSize: 12, fontWeight: "800" },
   bioInput: { minHeight: 100, textAlignVertical: "top" },
-  bottomNav: { position: "absolute", left: 12, right: 12, height: 72, backgroundColor: "#15151d", borderWidth: 1, borderColor: colors.border, borderRadius: 22, flexDirection: "row", alignItems: "center", justifyContent: "space-around" },
+  bottomNav: { position: "absolute", left: 10, right: 10, height: 72, backgroundColor: "#14141b", borderWidth: 1, borderColor: colors.border, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "space-around", shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 10 },
   navItem: { minWidth: 55, alignItems: "center", justifyContent: "center" },
   navIcon: { color: colors.muted, fontSize: 22, marginBottom: 2 },
   navLabel: { color: colors.muted, fontSize: 10 },
