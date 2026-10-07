@@ -927,9 +927,9 @@ function HomeScreen({
 
   useEffect(() => {
     void load();
-    return subscribeRealtime((event) => {
+    return () => { subscribeRealtime((event) => {
       if (event.type === "message.created") void load();
-    });
+    }); };
   }, [load]);
 
   const [storyIndex, setStoryIndex] = useState<number | null>(null);
@@ -1295,7 +1295,7 @@ function ChatScreen({
       if (event.type === "message.created" && event.conversationId === conversation.id) {
         void load();
       }
-    });
+    }); };
   }, [load, conversation.id]);
 
   useEffect(() => {
@@ -1837,9 +1837,9 @@ function RootContent() {
 
   useEffect(() => {
     if (!signedIn) return;
-    return subscribeRealtime(() => {
+    return () => { subscribeRealtime(() => {
       void refreshUnread();
-    });
+    }); };
   }, [signedIn, refreshUnread]);
 
   useEffect(() => { void refreshSession(); }, [refreshSession]);
