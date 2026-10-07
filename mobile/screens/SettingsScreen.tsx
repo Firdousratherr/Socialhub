@@ -22,7 +22,7 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
 
  const load=useCallback(async()=>{
   try{
-   const [p,pr,prefs]=await Promise.all([
+   const [p,pr,prefs,devices]=await Promise.all([
     apiFetch<{profile:Profile}>("/api/profile"),
     apiFetch<{settings:any}>("/api/privacy-settings"),
     apiFetch<{preferences:Record<string,boolean>}>("/api/notification-preferences")
@@ -33,6 +33,21 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
   finally{setLoading(false);}
  },[]);
  useEffect(()=>{void load()},[load]);
+
+ const setPush=async(v:boolean)=>{
+  setPushBusy(true);
+  try{
+   if(v){
+    const result=await registerPushDevice();
+    if(!result.granted){Alert.alert("Notifications","Android notification permission was not granted.");return;}
+    setPushEnabled(Boolean(result.registered));
+   }else{
+    await unregisterPushDevice();
+    setPushEnabled(false);
+   }
+  }catch(e){Alert.alert("Notifications",e instanceof Error?e.message:"Unable to update device notifications.");}
+  finally{setPushBusy(false);}
+ };
 
  const saveProfile=async()=>{
   setBusy(true);
