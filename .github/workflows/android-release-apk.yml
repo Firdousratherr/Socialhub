@@ -4,7 +4,7 @@ name: Android Release APK
 
 on:
   push:
-    branches: ["main", "release/android-v1", "release/android-v1.0.4"]
+    branches: ["release/android-v1", "release/android-v1.0.4"]
   workflow_dispatch:
 
 concurrency:
