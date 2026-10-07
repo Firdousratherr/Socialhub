@@ -34,6 +34,9 @@ import * as SecureStore from "expo-secure-store";
 import PermissionOnboarding from "./components/PermissionOnboarding";
 import { authClient } from "./lib/auth-client";
 import { apiFetch, uploadFile, uploadMedia } from "./lib/api";
+import { requestCameraPermission, requestMicrophonePermission } from "./lib/permissions";
+import { AudioSession, LiveKitRoom, VideoTrack, useTracks, registerGlobals } from "@livekit/react-native";
+import { Track } from "livekit-client";
 import { pickAndUploadDocument } from "./lib/document-picker";
 import { requestCameraPermission } from "./lib/permissions";
 import type {
@@ -64,6 +67,8 @@ const colors = {
   success: "#69d79b",
   danger: "#ff7474",
 };
+
+registerGlobals();
 
 SplashScreen.setOptions({ duration: 650 });
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -1248,6 +1253,20 @@ function MessagingScreen({
   );
 }
 
+function CallRoomContent({ isVideo, title, onEnd }: { isVideo: boolean; title: string; onEnd: () => void }) {
+  const tracks = useTracks([Track.Source.Camera]);
+  useEffect(() => { void AudioSession.startAudioSession(); return () => { void AudioSession.stopAudioSession(); }; }, []);
+  return <View style={styles.callScreen}>
+    <Text style={styles.callTitle}>{title}</Text>
+    <Text style={styles.callStatus}>Connected call</Text>
+    <View style={styles.callVideo}>{isVideo && tracks.length ? tracks.map((track, index) => <VideoTrack key={track.publication.trackSid ?? String(index)} trackRef={track} style={styles.remoteVideo} />) : <Text style={styles.callPlaceholderText}>{isVideo ? "Waiting for video…" : "Voice call active"}</Text>}</View>
+    <Pressable style={styles.endCall} onPress={onEnd}><Text style={styles.endCallText}>End call</Text></Pressable>
+  </View>;
+}
+function ActiveCallView({ token, serverUrl, isVideo, title, onEnd }: { token: string; serverUrl: string; isVideo: boolean; title: string; onEnd: () => void }) {
+  return <Modal visible animationType="slide" onRequestClose={onEnd}><LiveKitRoom serverUrl={serverUrl} token={token} connect audio video={isVideo}><CallRoomContent isVideo={isVideo} title={title} onEnd={onEnd} /></LiveKitRoom></Modal>;
+}
+
 function ChatScreen({
   conversation,
   currentUserId,
@@ -1263,6 +1282,7 @@ function ChatScreen({
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
+  const [call, setCall] = useState<{ token: string; serverUrl: string; isVideo: boolean } | null>(null);
   const other = conversation.members.find((member) => member.userId !== currentUserId)?.user;
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Message>>(null);
@@ -1296,6 +1316,22 @@ function ChatScreen({
     });
     return () => subscription.remove();
   }, [onBack]);
+
+  const startCall = async (isVideo: boolean) => {
+    const microphone = await requestMicrophonePermission();
+    if (!microphone.granted) { Alert.alert("Microphone permission", "Allow microphone access to start a call."); return; }
+    if (isVideo) {
+      const camera = await requestCameraPermission();
+      if (!camera.granted) { Alert.alert("Camera permission", "Allow camera access to start a video call."); return; }
+    }
+    try {
+      const calleeId = other?.id;
+      if (!calleeId) throw new Error("This conversation has no call recipient.");
+      const data = await apiFetch<{ token: string; serverUrl?: string }>("/api/calls", { method: "POST", body: JSON.stringify({ calleeId, isVideo }) });
+      if (!data.serverUrl) throw new Error("Calling server is not configured.");
+      setCall({ token: data.token, serverUrl: data.serverUrl, isVideo });
+    } catch (e) { Alert.alert("Call", e instanceof Error ? e.message : "Unable to start the call."); }
+  };
 
   const send = async () => {
     if (editing) {
@@ -1425,7 +1461,7 @@ function ChatScreen({
         <Avatar user={other} size={40} />
         <View style={styles.flex}>
           <Text style={styles.userName}>{conversationName(conversation, currentUserId)}</Text>
-          <Text style={styles.userHandle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
+          <Text style={styles.userHandle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>\n          {!conversation.isGroup && other ? <View style={styles.callHeaderActions}><Pressable onPress={() => void startCall(false)}><Text style={styles.callHeaderButton}>📞</Text></Pressable><Pressable onPress={() => void startCall(true)}><Text style={styles.callHeaderButton}>📹</Text></Pressable></View> : null}
         </View>
       </View>
       <KeyboardAvoidingView
@@ -2103,6 +2139,16 @@ const styles = StyleSheet.create({
   documentIcon: { fontSize: 24 },
   documentTitle: { color: colors.text, fontWeight: "800" },
   documentLink: { color: colors.accent, fontSize: 12, marginTop: 2 },
+  callHeaderActions: { flexDirection: "row", alignItems: "center", gap: 12, marginLeft: "auto" },
+  callHeaderButton: { color: colors.text, fontSize: 22 },
+  callScreen: { flex: 1, backgroundColor: colors.bg, paddingTop: 60, paddingHorizontal: 16 },
+  callTitle: { color: colors.text, fontSize: 22, fontWeight: "900", textAlign: "center" },
+  callStatus: { color: colors.success, textAlign: "center", marginTop: 4 },
+  callVideo: { flex: 1, marginTop: 20, borderRadius: 20, overflow: "hidden", backgroundColor: "#000", alignItems: "center", justifyContent: "center" },
+  remoteVideo: { flex: 1, width: "100%" },
+  callPlaceholderText: { color: colors.muted, fontSize: 18, fontWeight: "800" },
+  endCall: { paddingHorizontal: 20, paddingVertical: 13, borderRadius: 14, backgroundColor: colors.danger, alignSelf: "center", marginBottom: 24 },
+  endCallText: { color: "#fff", fontWeight: "900" },
   chatScreen: { flex: 1, backgroundColor: colors.bg },
   chatKeyboard: { flex: 1, backgroundColor: colors.bg },
   chatListFlex: { flex: 1 },
