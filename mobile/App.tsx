@@ -125,11 +125,13 @@ function PrimaryButton({
   label,
   onPress,
   disabled,
+  loading = false,
   secondary = false,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  loading?: boolean;
   secondary?: boolean;
 }) {
   return (
@@ -138,7 +140,7 @@ function PrimaryButton({
       onPress={onPress}
       style={[styles.primaryButton, secondary && styles.secondaryButton, disabled && styles.disabledButton]}
     >
-      {disabled ? <ActivityIndicator color={secondary ? colors.text : "#fff"} /> : <Text style={styles.primaryButtonText}>{label}</Text>}
+      {loading ? <ActivityIndicator color={secondary ? colors.text : "#fff"} /> : <Text style={styles.primaryButtonText}>{label}</Text>}
     </Pressable>
   );
 }
@@ -366,8 +368,8 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
 
         {mode === "signin" ? (
           <>
-            <PrimaryButton label="Sign in" onPress={() => void signIn()} disabled={busy} />
-            <PrimaryButton label="Continue with Google" onPress={() => void google()} disabled={busy} secondary />
+            <PrimaryButton label="Sign in" onPress={() => void signIn()} disabled={busy} loading={busy} />
+            <PrimaryButton label="Continue with Google" onPress={() => void google()} disabled={busy} loading={busy} secondary />
             <View style={styles.authRow}>
               <Pressable onPress={() => { resetMessages(); setOtpType("sign-in"); setMode("otp"); }}>
                 <Text style={styles.linkText}>Use email OTP</Text>
@@ -384,7 +386,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
 
         {mode === "signup" ? (
           <>
-            <PrimaryButton label="Create account" onPress={() => void signUp()} disabled={busy} />
+            <PrimaryButton label="Create account" onPress={() => void signUp()} disabled={busy} loading={busy} />
             <Pressable onPress={() => { resetMessages(); setMode("signin"); }}>
               <Text style={styles.authSwitch}>Already have an account? <Text style={styles.linkText}>Sign in</Text></Text>
             </Pressable>
@@ -393,7 +395,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
 
         {mode === "forgot" ? (
           <>
-            <PrimaryButton label="Send reset code" onPress={() => void requestReset()} disabled={busy} />
+            <PrimaryButton label="Send reset code" onPress={() => void requestReset()} disabled={busy} loading={busy} />
             <Pressable onPress={() => { resetMessages(); setMode("signin"); }}>
               <Text style={styles.authSwitch}>Back to <Text style={styles.linkText}>sign in</Text></Text>
             </Pressable>
@@ -406,6 +408,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
               label={otpType === "forget-password" ? "Reset password" : otpType === "email-verification" ? "Verify email" : "Sign in with OTP"}
               onPress={() => void (otpType === "forget-password" ? resetPassword() : otpType === "email-verification" ? verifyEmail() : verifySignInOtp())}
               disabled={busy}
+              loading={busy}
             />
             <Pressable onPress={() => void sendOtp()}>
               <Text style={styles.authSwitch}>Didn't receive it? <Text style={styles.linkText}>Resend code</Text></Text>
@@ -433,6 +436,8 @@ function PostCard({
   const [commentText, setCommentText] = useState("");
   const [reactionOpen, setReactionOpen] = useState(false);
   const insets = useSafeAreaInsets();
+  const reactions = Array.isArray(post.reactions) ? post.reactions : [];
+  const displayCounts = post.displayCounts ?? { likes: 0, comments: 0, shares: 0 };
 
   const mutatePost = async (action: "like" | "save") => {
     if (busy) return;
@@ -495,7 +500,7 @@ function PostCard({
             body: JSON.stringify({ emoji }),
           });
       const nextEmoji = "reaction" in data && data.reaction ? data.reaction.emoji : null;
-      const nextCounts = post.reactions.map((item) => ({ ...item }));
+      const nextCounts = reactions.map((item) => ({ ...item }));
       if (current) {
         const index = nextCounts.findIndex((item) => item.emoji === current);
         if (index >= 0) nextCounts[index] = { ...nextCounts[index], count: Math.max(0, nextCounts[index].count - 1) };
@@ -535,7 +540,7 @@ function PostCard({
         </View>
         {post.content ? <Text style={styles.postText}>{post.content}</Text> : null}
         {post.mediaUrl ? <Image source={{ uri: post.mediaUrl }} style={styles.postMedia} resizeMode="cover" /> : null}
-        {post.reactions.length ? <Text style={styles.reactionSummary}>{post.reactions.filter(r => r.count > 0).map(r => `${r.emoji} ${formatCount(r.count)}`).join("  ")}</Text> : null}
+        {reactions.length ? <Text style={styles.reactionSummary}>{reactions.filter(r => r.count > 0).map(r => `${r.emoji} ${formatCount(r.count)}`).join("  ")}</Text> : null}
         <View style={styles.metricsRow}>
           <Text style={styles.muted}>{formatCount(post.displayCounts.likes)} likes</Text>
           <Text style={styles.muted}>{formatCount(post.displayCounts.comments)} comments</Text>
@@ -822,7 +827,7 @@ function CreatePost({ onCreated }: { onCreated: (post: Post) => void }) {
       </View>
       <View style={styles.composerActions}>
         <MediaPickerButton label="Media" onPicked={setAsset} />
-        <PrimaryButton label={busy ? "Posting…" : "Post"} onPress={() => void submit()} disabled={busy || (!content.trim() && !asset)} />
+        <PrimaryButton label={busy ? "Posting…" : "Post"} onPress={() => void submit()} disabled={busy || (!content.trim() && !asset)} loading={busy} />
       </View>
     </View>
   );
@@ -886,7 +891,7 @@ function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: (
             placeholderTextColor={colors.muted}
             style={styles.input}
           />
-          <PrimaryButton label={busy ? "Publishing…" : "Publish story"} onPress={() => void submit()} disabled={busy || !asset} />
+          <PrimaryButton label={busy ? "Publishing…" : "Publish story"} onPress={() => void submit()} disabled={busy || !asset} loading={busy} />
         </ScrollView>
       </View>
     </Modal>
@@ -1015,9 +1020,16 @@ function DiscoverScreen({
   const [loading, setLoading] = useState(false);
 
   const search = useCallback(async (value: string) => {
+    const term = value.trim();
+    if (!term) {
+      setUsers([]);
+      setPosts([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const data = await apiFetch<{ users: SearchUser[]; posts: Post[] }>(`/api/search?q=${encodeURIComponent(value.trim())}&take=20`);
+      const data = await apiFetch<{ users: SearchUser[]; posts: Post[] }>(`/api/search?q=${encodeURIComponent(term)}&take=20`);
       setUsers(data.users);
       setPosts(data.posts);
     } catch (e) {
@@ -1035,8 +1047,10 @@ function DiscoverScreen({
   }, [initialQuery, query, onDeepLinkHandled]);
 
   useEffect(() => {
-    const timeout = setTimeout(() => void search(query), query ? 250 : 0);
-    return () => clearTimeout(timeout);
+    const timeout = query.trim() ? setTimeout(() => void search(query), 250) : null;
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
   }, [query, search]);
 
   const friendRequest = async (user: SearchUser) => {
@@ -1753,7 +1767,7 @@ function ProfileScreen({ onSignedOut, onMenu }: { onSignedOut: () => void; onMen
                 <Text style={styles.mediaEditText}>{mediaBusy === "coverImage" ? "Updating…" : "Change cover"}</Text>
               </Pressable>
             </View>
-            <PrimaryButton label={busy ? "Saving…" : "Save changes"} onPress={() => void save()} disabled={busy || mediaBusy !== null} />
+            <PrimaryButton label={busy ? "Saving…" : "Save changes"} onPress={() => void save()} disabled={busy || mediaBusy !== null} loading={busy} />
           </View>
         ) : null}
 
