@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AppDownloadFooter } from "@/components/app-download-footer";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://socialhublive.vercel.app"),
@@ -30,7 +31,7 @@ export default function RootLayout({
           crossOrigin="anonymous"
         />
       </head>
-      <body><ThemeProvider>{children}</ThemeProvider></body>
+      <body><ThemeProvider>{children}</ThemeProvider><AppDownloadFooter /></body>
     </html>
   );
 }
