@@ -1274,6 +1274,8 @@ function ChatScreen({
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<Array<{ id: string; name: string }>>([]);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const other = conversation.members.find((member) => member.userId !== currentUserId)?.user;
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Message>>(null);
@@ -1305,6 +1307,41 @@ function ChatScreen({
       unsubscribe();
     };
   }, [load, conversation.id]);
+
+  useEffect(() => {
+    const pollTyping = async () => {
+      try {
+        const data = await apiFetch<{ typing: Array<{ id: string; name: string }> }>("/api/conversations/" + conversation.id + "/typing");
+        setTypingUsers(data.typing ?? []);
+      } catch {}
+    };
+    void pollTyping();
+    const timer = setInterval(() => void pollTyping(), 1_500);
+    return () => clearInterval(timer);
+  }, [conversation.id]);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      void apiFetch("/api/conversations/" + conversation.id + "/typing", { method: "DELETE" }).catch(() => {});
+    };
+  }, [conversation.id]);
+
+  const updateTyping = (value: string) => {
+    setText(value);
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    if (!value.trim()) {
+      void apiFetch("/api/conversations/" + conversation.id + "/typing", { method: "DELETE" }).catch(() => {});
+      return;
+    }
+    void apiFetch("/api/conversations/" + conversation.id + "/typing", {
+      method: "POST",
+      body: JSON.stringify({ typing: true }),
+    }).catch(() => {});
+    typingTimerRef.current = setTimeout(() => {
+      void apiFetch("/api/conversations/" + conversation.id + "/typing", { method: "DELETE" }).catch(() => {});
+    }, 4_500);
+  };
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -1343,6 +1380,7 @@ function ChatScreen({
       });
       setMessages((current) => [...current, data.message]);
       setText("");
+      void apiFetch("/api/conversations/" + conversation.id + "/typing", { method: "DELETE" }).catch(() => {});
       setReplyingTo(null);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     } catch (e) {
@@ -1435,8 +1473,8 @@ function ChatScreen({
       </View>
       <KeyboardAvoidingView
         style={styles.chatKeyboard}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={insets.top}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
       >
         {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
         <FlatList
@@ -1478,18 +1516,21 @@ function ChatScreen({
             </Pressable>
           </View>
         ) : null}
+        {typingUsers.length ? <Text style={styles.typingIndicator}>{typingUsers.length === 1 ? `${typingUsers[0].name} is typing…` : `${typingUsers.length} people are typing…`}</Text> : null}
         <View style={[styles.messageComposer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
           <Pressable onPress={() => void sendAttachment()} disabled={attachmentBusy} style={styles.attachButton}>
             <Text style={styles.attachButtonText}>{attachmentBusy ? "…" : "+"}</Text>
           </Pressable>
           <TextInput
             value={text}
-            onChangeText={setText}
+            onChangeText={updateTyping}
             placeholder={editing ? "Edit message…" : "Type a message…"}
             placeholderTextColor={colors.muted}
             style={styles.messageInput}
             multiline
             blurOnSubmit={false}
+            textAlignVertical="top"
+            returnKeyType="default"
           />
           <Pressable onPress={() => void send()} style={styles.sendButton}>
             <Text style={styles.sendButtonText}>➤</Text>
@@ -2156,6 +2197,7 @@ const styles = StyleSheet.create({
   composeContextText: { color: colors.text, fontSize: 12, marginTop: 2 },
   attachButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
   attachButtonText: { color: colors.text, fontSize: 24, fontWeight: "700" },
+  typingIndicator: { color: colors.muted, fontSize: 11, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 2, backgroundColor: colors.bg },
   messageComposer: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.panel, minHeight: 70 },
   messageInput: { flex: 1, minHeight: 52, maxHeight: 140, color: colors.text, backgroundColor: colors.panel2, borderRadius: 18, paddingHorizontal: 15, paddingVertical: 12, textAlignVertical: "top" },
   sendButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
