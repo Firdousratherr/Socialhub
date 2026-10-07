@@ -1,5 +1,4 @@
 import * as ImagePicker from "expo-image-picker";
-import * as Camera from "expo-camera";
 import * as Audio from "expo-audio";
 import * as Notifications from "expo-notifications";
 
@@ -13,7 +12,7 @@ export type DevicePermissionState = {
 export async function getDevicePermissionState(): Promise<DevicePermissionState> {
   const [photos, camera, microphone, notifications] = await Promise.all([
     ImagePicker.getMediaLibraryPermissionsAsync(),
-    Camera.getCameraPermissionsAsync(),
+    ImagePicker.getCameraPermissionsAsync(),
     Audio.getRecordingPermissionsAsync(),
     Notifications.getPermissionsAsync(),
   ]);
@@ -31,7 +30,7 @@ export async function requestDevicePermission(kind: keyof DevicePermissionState)
     case "photos":
       return ImagePicker.requestMediaLibraryPermissionsAsync();
     case "camera":
-      return Camera.requestCameraPermissionsAsync();
+      return ImagePicker.requestCameraPermissionsAsync();
     case "microphone":
       return Audio.requestRecordingPermissionsAsync();
     case "notifications":
