@@ -38,7 +38,6 @@ import { requestCameraPermission, requestMicrophonePermission } from "./lib/perm
 import { AudioSession, LiveKitRoom, VideoTrack, useTracks, registerGlobals } from "@livekit/react-native";
 import { Track } from "livekit-client";
 import { pickAndUploadDocument } from "./lib/document-picker";
-import { requestCameraPermission } from "./lib/permissions";
 import type {
   Conversation,
   Message,
@@ -1494,7 +1493,7 @@ function ChatScreen({
                   <Text style={styles.documentIcon}>📄</Text><View style={styles.flex}><Text style={styles.documentTitle}>Document attachment</Text><Text style={styles.documentLink}>Open file</Text></View>
                 </Pressable>
               ) : attachment.kind === "video" ? (
-                <VideoMedia key={attachment.id} uri={attachment.url} style={styles.messageAttachment} />
+                <View key={attachment.id} style={styles.messageAttachment}><VideoMedia uri={attachment.url} height={150} autoPlay={false} loop={false} /></View>
               ) : <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />)}
               <Text style={styles.messageText}>{item.deletedAt ? "Message deleted" : item.content}</Text>
               <Text style={styles.messageTime}>{formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}</Text>
