@@ -30,6 +30,8 @@ import AdminScreen from "./screens/AdminScreen";
 import VideoMedia from "./components/VideoMedia";
 import { Share } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as SecureStore from "expo-secure-store";
+import PermissionOnboarding from "./components/PermissionOnboarding";
 import { authClient } from "./lib/auth-client";
 import { apiFetch, uploadMedia } from "./lib/api";
 import type {
@@ -46,6 +48,7 @@ import type {
 type Tab = MobileRoute;
 
 const BRAND_ICON = require("./assets/icon.png");
+const PERMISSION_ONBOARDING_KEY = "socialhub:permissions-intro:v2";
 
 const colors = {
   bg: "#08080c",
@@ -507,7 +510,7 @@ function PostCard({
 
   const sharePost = async () => {
     try {
-      await Share.share({ message: `${post.content || "Shared a Socialhub post"}\nhttps://socialhub-ruby.vercel.app/home#post-${post.id}` });
+      await Share.share({ message: `${post.content || "Shared a Socialhub post"}\nhttps://socialhublive.vercel.app/home#post-${post.id}` });
       const data = await apiFetch<{ shareCount: number }>(`/api/posts/${post.id}/share`, { method: "POST" });
       onChanged({ ...post, displayCounts: { ...post.displayCounts, shares: data.shareCount } });
     } catch (e) {
@@ -1736,6 +1739,8 @@ function RootContent() {
   const [hideBottomNav, setHideBottomNav] = useState(false);
   const [unread, setUnread] = useState({ messages: 0, notifications: 0, friendRequests: 0 });
   const [deepLink, setDeepLink] = useState<DeepLinkTarget | null>(null);
+  const [permissionsReady, setPermissionsReady] = useState(false);
+  const [showPermissionOnboarding, setShowPermissionOnboarding] = useState(false);
 
   const refreshSession = useCallback(async () => {
     try {
@@ -1806,6 +1811,22 @@ function RootContent() {
   useEffect(() => { void refreshSession(); }, [refreshSession]);
 
   useEffect(() => {
+    let active = true;
+    void SecureStore.getItemAsync(PERMISSION_ONBOARDING_KEY)
+      .then((value) => {
+        if (!active) return;
+        setShowPermissionOnboarding(!value);
+        setPermissionsReady(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        setShowPermissionOnboarding(true);
+        setPermissionsReady(true);
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     if (!booting) void SplashScreen.hideAsync().catch(() => {});
   }, [booting]);
 
@@ -1838,7 +1859,7 @@ function RootContent() {
     setTab("Home");
   }, []);
 
-  if (booting) {
+  if (booting || !permissionsReady) {
     return (
       <View style={styles.root}>
         <StatusBar style="light" />
@@ -1847,7 +1868,20 @@ function RootContent() {
     );
   }
 
-  if (!signedIn) return <AuthScreen onSignedIn={() => void refreshSession()} />;
+  if (!signedIn) {
+    return (
+      <>
+        <AuthScreen onSignedIn={() => void refreshSession()} />
+        <PermissionOnboarding
+          visible={showPermissionOnboarding}
+          onDone={() => {
+            setShowPermissionOnboarding(false);
+            void SecureStore.setItemAsync(PERMISSION_ONBOARDING_KEY, "completed");
+          }}
+        />
+      </>
+    );
+  }
 
   const badge = (value: number) => value > 0 ? (
     <View style={styles.badge}><Text style={styles.badgeText}>{formatCount(value)}</Text></View>

@@ -42,6 +42,7 @@ enum AdminPermissionKey {
   APPROVALS_MANAGE
   DATA_INTEGRITY
   RATE_LIMITS_VIEW
+  DEVICE_MANAGEMENT
 }
 
 enum PostVisibility {
@@ -171,6 +172,9 @@ model User {
   profileViewsReceived ProfileView[] @relation("ProfileViewProfile")
   profileViewsMade ProfileView[] @relation("ProfileViewViewer")
   adminAuditLogs AdminAuditLog[] @relation("AdminAuditActor")
+  managedDevices ManagedDevice[] @relation("DeviceOwner")
+  devicePolicyChanges DevicePolicy[] @relation("DevicePolicyActor")
+  deviceManagementAudits DeviceManagementAudit[] @relation("DeviceManagementAuditActor")
 
   @@index([createdAt])
   @@index([role])
@@ -965,4 +969,454 @@ model AdminAuditEvent {
   @@index([caseId, createdAt])
   @@index([riskLevel, createdAt])
   @@index([outcome, createdAt])
+}
+
+
+enum ManagedDeviceStatus {
+  PENDING
+  ACTIVE
+  OFFLINE
+  NON_COMPLIANT
+  REVOKED
+}
+
+enum DeviceCommandStatus {
+  PENDING
+  SENT
+  SUCCEEDED
+  FAILED
+  EXPIRED
+}
+
+model ManagedDevice {
+  id                    String              @id @default(cuid())
+  userId                String
+  deviceId              String              @unique
+  deviceName            String?
+  manufacturer          String?
+  model                 String?
+  androidVersion        String?
+  sdkInt                Int?
+  appVersion            String?
+  status                ManagedDeviceStatus  @default(PENDING)
+  isDeviceOwner         Boolean             @default(false)
+  isProfileOwner        Boolean             @default(false)
+  lastSeenAt            DateTime?
+  enrolledAt            DateTime            @default(now())
+  revokedAt             DateTime?
+
+  owner                 User                @relation("DeviceOwner", fields: [userId], references: [id], onDelete: Cascade)
+  applications          InstalledApplication[]
+  policyAssignments     DevicePolicyAssignment[]
+  commands              DeviceCommand[]
+  inventorySnapshots    DeviceInventorySnapshot[]
+  managementAudits      DeviceManagementAudit[]
+
+  @@index([userId, status])
+  @@index([status, lastSeenAt])
+}
+
+model InstalledApplication {
+  id                  String        @id @default(cuid())
+  deviceId            String
+  packageName         String
+  appName             String
+  versionName         String?
+  versionCode         String?
+  isSystemApp         Boolean       @default(false)
+  isManaged            Boolean       @default(false)
+  policyState         String        @default("UNMANAGED")
+  installedAt         DateTime?
+  updatedAt            DateTime?
+  firstSeenAt          DateTime      @default(now())
+  lastSeenAt           DateTime      @default(now())
+
+  device              ManagedDevice  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, packageName])
+  @@index([deviceId, policyState])
+  @@index([packageName])
+}
+
+model DevicePolicy {
+  id                    String          @id @default(cuid())
+  name                  String
+  description           String?
+  allowedPackages       String?
+  blockedPackages       String?
+  requiredPackages      String?
+  minimumVersions       String?
+  enabled               Boolean         @default(true)
+  createdById            String
+  updatedById            String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  createdBy              User            @relation("DevicePolicyActor", fields: [createdById], references: [id], onDelete: Cascade)
+  assignments            DevicePolicyAssignment[]
+
+  @@index([enabled, updatedAt])
+  @@index([createdById, createdAt])
+}
+
+model DevicePolicyAssignment {
+  id                  String        @id @default(cuid())
+  deviceId            String
+  policyId            String
+  assignedAt          DateTime      @default(now())
+  revokedAt           DateTime?
+
+  device              ManagedDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  policy              DevicePolicy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, policyId])
+  @@index([deviceId, revokedAt])
+  @@index([policyId, revokedAt])
+}
+
+model DeviceCommand {
+  id            String             @id @default(cuid())
+  deviceId      String
+  requestedById String
+  action        String
+  payload       String?
+  status        DeviceCommandStatus @default(PENDING)
+  expiresAt     DateTime?
+  createdAt     DateTime            @default(now())
+  completedAt   DateTime?
+
+  device        ManagedDevice      @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  results       DeviceCommandResult[]
+
+  @@index([deviceId, status, createdAt])
+  @@index([requestedById, createdAt])
+}
+
+model DeviceCommandResult {
+  id          String              @id @default(cuid())
+  commandId   String
+  status      DeviceCommandStatus
+  message     String?
+  createdAt   DateTime            @default(now())
+
+  command     DeviceCommand        @relation(fields: [commandId], references: [id], onDelete: Cascade)
+
+  @@index([commandId, createdAt])
+}
+
+model DeviceInventorySnapshot {
+  id          String        @id @default(cuid())
+  deviceId    String
+  capturedAt  DateTime      @default(now())
+  appCount    Int           @default(0)
+  payload     String?
+
+  device      ManagedDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, capturedAt])
+}
+
+model DeviceManagementAudit {
+  id          String        @id @default(cuid())
+  deviceId    String?
+  actorId     String?
+  action      String
+  resource    String
+  resourceId  String?
+  outcome     String        @default("SUCCESS")
+  details     String?
+  createdAt   DateTime      @default(now())
+
+  device      ManagedDevice? @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  actor       User?         @relation("DeviceManagementAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([deviceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([resource, resourceId, createdAt])
+}
+
+
+model PushDeviceToken {
+  id          String   @id @default(cuid())
+  userId      String
+  token       String   @unique
+  platform    String
+  deviceId    String?
+  appVersion  String?
+  enabled     Boolean  @default(true)
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, enabled])
+  @@index([userId, lastSeenAt])
+}
+
+model PostMedia {
+  id          String   @id @default(cuid())
+  postId      String
+  userId      String
+  url         String
+  mimeType    String
+  mediaType   String
+  width       Int?
+  height      Int?
+  durationMs  Int?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([postId, sortOrder])
+  @@index([userId, createdAt])
+}
+
+model PostDraft {
+  id          String   @id @default(cuid())
+  userId      String
+  content     String?
+  visibility  PostVisibility @default(PUBLIC)
+  media       String?
+  scheduledAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+  @@index([userId, scheduledAt])
+}
+
+model Repost {
+  id            String   @id @default(cuid())
+  userId        String
+  originalPostId String
+  quoteText     String?
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, originalPostId])
+  @@index([originalPostId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model Poll {
+  id          String   @id @default(cuid())
+  postId      String   @unique
+  question   String
+  multiple   Boolean  @default(false)
+  closesAt   DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([closesAt])
+}
+
+model PollOption {
+  id          String   @id @default(cuid())
+  pollId      String
+  label       String
+  sortOrder   Int      @default(0)
+
+  @@index([pollId, sortOrder])
+}
+
+model PollVote {
+  id          String   @id @default(cuid())
+  pollId      String
+  optionId    String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  @@unique([pollId, optionId, userId])
+  @@index([pollId, userId])
+  @@index([optionId, createdAt])
+}
+
+model CallSession {
+  id          String   @id @default(cuid())
+  conversationId String
+  createdById String
+  kind        String
+  status      String   @default("RINGING")
+  provider    String?
+  roomName    String?
+  createdAt   DateTime @default(now())
+  startedAt   DateTime?
+  endedAt     DateTime?
+  participants CallParticipant[]
+
+  @@index([conversationId, createdAt])
+  @@index([status, createdAt])
+}
+
+model CallParticipant {
+  id          String   @id @default(cuid())
+  callId      String
+  userId      String
+  role        String   @default("PARTICIPANT")
+  joinedAt    DateTime?
+  leftAt      DateTime?
+
+  @@unique([callId, userId])
+  @@index([userId, joinedAt])
+}
+
+model OfflineMutation {
+  id          String   @id @default(cuid())
+  userId      String
+  clientId    String
+  operation   String
+  payload     String
+  status      String   @default("PENDING")
+  error      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, clientId])
+  @@index([userId, status, createdAt])
+}
+
+model CreatorProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  enabled       Boolean  @default(false)
+  displayName   String?
+  payoutStatus  String   @default("UNSET")
+  payoutAddress String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([enabled, payoutStatus])
+}
+
+model CreatorSubscription {
+  id          String   @id @default(cuid())
+  creatorId   String
+  subscriberId String
+  status      String   @default("ACTIVE")
+  priceMinor  Int
+  currency    String   @default("INR")
+  startedAt   DateTime @default(now())
+  endsAt      DateTime?
+
+  @@unique([creatorId, subscriberId])
+  @@index([creatorId, status])
+  @@index([subscriberId, status])
+}
+
+model CreatorTip {
+  id          String   @id @default(cuid())
+  creatorId   String
+  senderId    String
+  amountMinor Int
+  currency    String   @default("INR")
+  note        String?
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+
+  @@index([creatorId, createdAt])
+  @@index([senderId, createdAt])
+  @@index([status, createdAt])
+}
+
+model WebAuthnCredential {
+  id            String   @id @default(cuid())
+  userId        String
+  credentialId  String   @unique
+  publicKey     String
+  signCount     Int      @default(0)
+  transports    String?
+  deviceType    String?
+  backedUp      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  lastUsedAt    DateTime?
+
+  @@index([userId, createdAt])
+}
+
+model UserSafetySetting {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  ageBand               String?
+  restrictedMode        Boolean  @default(false)
+  hiddenWords           String?
+  messageSafetyMode    String   @default("STANDARD")
+  sensitiveContentMode String   @default("STANDARD")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model CloseFriend {
+  id          String   @id @default(cuid())
+  userId      String
+  friendId    String
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, friendId])
+  @@index([userId, createdAt])
+}
+
+model SavedCollection {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+}
+
+model SavedCollectionItem {
+  id           String   @id @default(cuid())
+  collectionId String
+  postId       String
+  createdAt    DateTime @default(now())
+
+  @@unique([collectionId, postId])
+  @@index([collectionId, createdAt])
+}
+
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  image       String?
+  ownerId     String
+  isPrivate   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId, createdAt])
+}
+
+model GroupMember {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String
+  role      String   @default("MEMBER")
+  joinedAt  DateTime @default(now())
+  mutedUntil DateTime?
+
+  @@unique([groupId, userId])
+  @@index([userId, joinedAt])
+  @@index([groupId, role])
+}
+
+model GroupInvite {
+  id          String   @id @default(cuid())
+  groupId     String
+  inviterId   String
+  inviteeId   String
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime?
+
+  @@index([inviteeId, status, createdAt])
+  @@index([groupId, status, createdAt])
+}
+
+model KeywordMute {
+  id        String   @id @default(cuid())
+  userId    String
+  keyword   String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, keyword])
+  @@index([userId, createdAt])
 }

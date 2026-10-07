@@ -156,15 +156,23 @@ jobs:
         working-directory: mobile/android
         run: sha256sum app/build/outputs/apk/release/app-release.apk > app/build/outputs/apk/release/app-release.apk.sha256
 
+      - name: Resolve release version
+        id: release
+        working-directory: mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./app.json').expo.version")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Publish GitHub Release
         if: success()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.2
-          name: Socialhub v1.0.2
+          tag_name: v${{ steps.release.outputs.version }}
+          name: Socialhub v${{ steps.release.outputs.version }}
           body: |
-            Socialhub native Android application v1.0.2.
+            Socialhub native Android application v${{ steps.release.outputs.version }}.
 
             - Native Android/Expo build
             - Signed release APK

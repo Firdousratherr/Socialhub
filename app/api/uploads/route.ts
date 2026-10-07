@@ -9,9 +9,11 @@ import { platformEnabled } from "@/lib/platform-controls";
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 const MAX_DAILY_UPLOAD_BYTES = Number(process.env.MAX_DAILY_UPLOAD_BYTES ?? 25 * 1024 * 1024);
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/webm"]);
+const ALLOWED_DOCUMENT_TYPES = new Set(["application/pdf"]);
 
 function matches(bytes: Uint8Array, signature: number[], offset = 0) {
   return signature.every((value, index) => bytes[offset + index] === value);
@@ -26,6 +28,11 @@ function detectImageType(bytes: Uint8Array) {
   if (bytes.length >= 8 && matches(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
   if (bytes.length >= 6 && (matchesAscii(bytes, "GIF87a") || matchesAscii(bytes, "GIF89a"))) return "image/gif";
   if (bytes.length >= 12 && matchesAscii(bytes, "RIFF", 0) && matchesAscii(bytes, "WEBP", 8)) return "image/webp";
+  return null;
+}
+
+function detectDocumentType(bytes: Uint8Array) {
+  if (bytes.length >= 5 && matchesAscii(bytes, "%PDF-", 0)) return "application/pdf";
   return null;
 }
 
@@ -60,12 +67,13 @@ export async function POST(request: Request) {
 
   const isImage = ALLOWED_IMAGE_TYPES.has(file.type);
   const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
+  const isDocument = ALLOWED_DOCUMENT_TYPES.has(file.type);
 
-  if (!isImage && !isVideo) {
-    return NextResponse.json({ error: "Only JPG, PNG, WebP, GIF images or MP4/WebM videos are supported." }, { status: 415 });
+  if (!isImage && !isVideo && !isDocument) {
+    return NextResponse.json({ error: "Supported uploads are JPG, PNG, WebP, GIF, MP4/WebM, or PDF." }, { status: 415 });
   }
 
-  const maxBytes = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+  const maxBytes = isVideo ? MAX_VIDEO_BYTES : isDocument ? MAX_DOCUMENT_BYTES : MAX_IMAGE_BYTES;
   if (file.size > maxBytes) {
     return NextResponse.json({
       error: isVideo ? "Video must be 20 MB or smaller." : "Image must be 4 MB or smaller.",
@@ -84,7 +92,7 @@ export async function POST(request: Request) {
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const detectedType = isImage ? detectImageType(bytes) : detectVideoType(bytes);
+  const detectedType = isImage ? detectImageType(bytes) : isVideo ? detectVideoType(bytes) : detectDocumentType(bytes);
   if (!detectedType || detectedType !== file.type) {
     return NextResponse.json({ error: "The file contents do not match the declared media type." }, { status: 415 });
   }
@@ -106,5 +114,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Could not finish recording the upload. Please try again." }, { status: 500 });
   }
 
-  return NextResponse.json({ url: blob.url, pathname: blob.pathname, mediaType: isVideo ? "VIDEO" : "IMAGE" }, { status: 201 });
+  return NextResponse.json({ url: blob.url, pathname: blob.pathname, mediaType: isVideo ? "VIDEO" : isDocument ? "DOCUMENT" : "IMAGE" }, { status: 201 });
 }

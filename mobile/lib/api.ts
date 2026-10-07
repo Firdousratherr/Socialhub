@@ -2,7 +2,7 @@ import { authClient } from "./auth-client";
 
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
-  "https://socialhub-ruby.vercel.app";
+  "https://socialhublive.vercel.app";
 
 const NATIVE_CLIENT_HEADER = "X-Socialhub-Client";
 const NATIVE_CLIENT_VALUE = "android";

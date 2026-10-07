@@ -140,6 +140,24 @@ export async function GET(request: Request) {
   });
 
   const postIds = posts.map((post) => post.id);
+  const [mediaRows, pollRows] = postIds.length
+    ? await Promise.all([
+        prisma.postMedia.findMany({ where: { postId: { in: postIds } }, orderBy: [{ postId: "asc" }, { sortOrder: "asc" }] }),
+        prisma.poll.findMany({
+          where: { postId: { in: postIds } },
+        }),
+      ])
+    : [[], []];
+  const pollIds = pollRows.map((row) => row.id);
+  const pollOptions = pollIds.length
+    ? await prisma.pollOption.findMany({ where: { pollId: { in: pollIds } }, orderBy: [{ pollId: "asc" }, { sortOrder: "asc" }] })
+    : [];
+  const mediaMap = new Map<string, typeof mediaRows>();
+  for (const row of mediaRows) mediaMap.set(row.postId, [...(mediaMap.get(row.postId) ?? []), row]);
+  const pollMap = new Map(pollRows.map((row) => [row.postId, row]));
+  const pollOptionMap = new Map<string, typeof pollOptions>();
+  for (const row of pollOptions) pollOptionMap.set(row.pollId, [...(pollOptionMap.get(row.pollId) ?? []), row]);
+
   const displayCounts = await getPostDisplayCountsMap(postIds);
   const [likedRows, savedRows] =
     session?.user && postIds.length
@@ -181,6 +199,15 @@ export async function GET(request: Request) {
       saved: savedSet.has(post.id),
       reactions: reactionSummary.get(post.id) ?? [],
       myReaction: myReactionMap.get(post.id) ?? null,
+      media: mediaMap.get(post.id) ?? [],
+      poll: (() => {
+        const poll = pollMap.get(post.id);
+        if (!poll) return null;
+        return {
+          ...poll,
+          options: pollOptionMap.get(poll.id) ?? [],
+        };
+      })(),
     })),
     nextBefore:
       posts.length === take
@@ -211,28 +238,66 @@ export async function POST(request: Request) {
     );
   }
 
-  const post = await prisma.post.create({
-    data: {
-      authorId: session.user.id,
-      content: parsed.data.content ?? null,
-      mediaUrl: parsed.data.mediaUrl ?? null,
-      visibility: parsed.data.visibility,
-    },
-    include: {
-      author: {
-        select: {
-          id: true,
-          name: true,
-          username: true,
-          image: true,
-          isVerified: true,
-          isOwner: true,
-        },
+  const post = await prisma.$transaction(async (tx) => {
+    const created = await tx.post.create({
+      data: {
+        authorId: session.user.id,
+        content: parsed.data.content ?? null,
+        mediaUrl: parsed.data.mediaUrl ?? null,
+        visibility: parsed.data.visibility,
       },
-      _count: { select: { likes: true, comments: true } },
-    },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            image: true,
+            isVerified: true,
+            isOwner: true,
+          },
+        },
+        _count: { select: { likes: true, comments: true } },
+      },
+    });
+
+    if (parsed.data.media.length) {
+      await tx.postMedia.createMany({
+        data: parsed.data.media.map((item, index) => ({
+          postId: created.id,
+          userId: session.user.id,
+          url: item.url,
+          mimeType: item.mimeType,
+          mediaType: item.mediaType,
+          width: item.width,
+          height: item.height,
+          durationMs: item.durationMs,
+          sortOrder: index,
+        })),
+      });
+    }
+
+    if (parsed.data.poll) {
+      const poll = await tx.poll.create({
+        data: {
+          postId: created.id,
+          question: parsed.data.poll.question,
+          multiple: parsed.data.poll.multiple,
+          closesAt: parsed.data.poll.closesAt ?? null,
+        },
+      });
+      await tx.pollOption.createMany({
+        data: parsed.data.poll.options.map((label, index) => ({
+          pollId: poll.id,
+          label,
+          sortOrder: index,
+        })),
+      });
+    }
+
+    return created;
   });
 
   await createMentionNotifications(parsed.data.content ?? "", session.user.id, { postId: post.id });
-  return NextResponse.json({ post, liked: false, saved: false }, { status: 201 });
+  return NextResponse.json({ post, liked: false, saved: false, media: parsed.data.media, poll: parsed.data.poll ?? null }, { status: 201 });
 }
