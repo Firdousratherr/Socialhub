@@ -42,7 +42,10 @@ export const conversationInputSchema = z.object({
 
 export const messageInputSchema = z.object({
   content: z.string().trim().max(5000).default(""),
-  attachments: z.array(mediaUrlSchema).max(4).default([]),
+  attachments: z.array(z.union([
+    mediaUrlSchema.transform((url) => ({ url, kind: "image" })),
+    z.object({ url: mediaUrlSchema, kind: z.enum(["image","video","document"]).default("image") }),
+  ])).max(4).default([]),
 }).refine((value) => Boolean(value.content.trim()) || value.attachments.length > 0, "Message needs text or an attachment.");
 
 export const commentInputSchema = z.object({
