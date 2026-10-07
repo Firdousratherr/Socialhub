@@ -87,7 +87,7 @@ export default function PermissionOnboarding({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#08080c", justifyContent: "flex-end" },
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.7)" },
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.7)" },
   card: {
     margin: 14,
     padding: 20,
