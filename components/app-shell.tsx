@@ -4,7 +4,7 @@ import type { FormEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Bookmark, Compass, Home, LogOut, MessageCircle, Search, Settings, Sparkles, User, Users } from "lucide-react";
+import { Bell, Bookmark, Compass, Home, LogOut, MessageCircle, Phone, Search, Settings, Sparkles, User, Users } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useUnreadSummary } from "@/hooks/use-unread-summary";
 import { MobileMenu } from "@/components/mobile-menu";
@@ -20,6 +20,7 @@ const navItems = [
   { label: "Discover", href: "/discover", icon: Compass },
   { label: "Friends", href: "/friends", icon: Users },
   { label: "Messages", href: "/messages", icon: MessageCircle },
+  { label: "Calls", href: "/calls", icon: Phone },
   { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Saved", href: "/saved", icon: Bookmark },
   { label: "Settings", href: "/settings", icon: Settings },
