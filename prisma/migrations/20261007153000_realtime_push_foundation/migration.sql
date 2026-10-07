@@ -1,6 +1,3 @@
-ALTER TABLE "User"
-  ADD COLUMN IF NOT EXISTS "presenceId" TEXT;
-
 CREATE TABLE IF NOT EXISTS "PushDevice" (
   "id" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
