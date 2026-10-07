@@ -1540,8 +1540,6 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [error, setError] = useState("");
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [activeCall, setActiveCall] = useState<WebCall | null>(null);
-  const [incomingCall, setIncomingCall] = useState<WebCall | null>(null);
-  const callRealtimeCursorRef = useRef<string | null>(null);
   const [userQuery, setUserQuery] = useState("");
   const [people, setPeople] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }>>([]);
   const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
@@ -1578,34 +1576,6 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
-  useLivePoll(async () => {
-    if (!session?.user?.id) return;
-    const cursor = callRealtimeCursorRef.current;
-    const response = await fetch("/api/realtime" + (cursor ? "?cursor=" + encodeURIComponent(cursor) + "&take=100" : "?take=100"), { cache: "no-store" });
-    if (!response.ok) return;
-    const json = await response.json();
-    callRealtimeCursorRef.current = json.nextCursor ?? callRealtimeCursorRef.current;
-    for (const event of json.events ?? []) {
-      if (!event?.type || !event.entityId) continue;
-      const ageMs = Date.now() - new Date(event.createdAt ?? 0).getTime();
-      if (event.type === "call.incoming" && ageMs >= 0 && ageMs < 60_000 && !activeCall) {
-        const callResponse = await fetch("/api/calls/" + event.entityId, { cache: "no-store" });
-        if (callResponse.ok) {
-          const callJson = await callResponse.json();
-          if (callJson.call?.calleeId === session.user.id && callJson.call?.status === "RINGING") {
-            setIncomingCall(callJson.call as WebCall);
-          }
-        }
-      }
-      if (event.type === "call.updated") {
-        const status = String(event.payload?.status ?? "");
-        if (["DECLINED", "MISSED", "ENDED", "CANCELLED"].includes(status)) {
-          if (activeCall?.id === event.entityId) setActiveCall(null);
-          if (incomingCall?.id === event.entityId) setIncomingCall(null);
-        }
-      }
-    }
-  }, 1200, Boolean(session?.user?.id));
   useEffect(() => {
     if (!session?.user?.id || !activeId) {
       setDraft("");
@@ -1962,7 +1932,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   }
 
   async function startCall(type: "AUDIO" | "VIDEO") {
-    if (!activeId || !session?.user?.id || !activeMember || active?.isGroup || activeCall || incomingCall) return;
+    if (!activeId || !session?.user?.id || !activeMember || active?.isGroup || activeCall) return;
     setError("");
     try {
       const response = await fetch("/api/conversations/" + activeId + "/calls", {
@@ -2181,9 +2151,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
       {activeCall && activeMember ? (
         <CallPanel call={activeCall} currentUserId={session?.user?.id ?? ""} remoteUser={activeMember} onClosed={() => setActiveCall(null)} />
       ) : null}
-      {incomingCall?.caller ? (
-        <CallPanel call={incomingCall} currentUserId={session?.user?.id ?? ""} remoteUser={incomingCall.caller} incoming onClosed={() => setIncomingCall(null)} />
-      ) : null}
+
       {!session?.user ? (
         <div className="mb-5 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-4 py-3 text-xs font-semibold text-[#5a4be8]">
           Sign in to load your real conversations. The interface stays browsable while you are signed out.
