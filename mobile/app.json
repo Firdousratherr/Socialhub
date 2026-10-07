@@ -2,15 +2,15 @@
   "expo": {
     "name": "SocialHub",
     "slug": "socialhub",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "scheme": "socialhub",
     "userInterfaceStyle": "automatic",
     "android": {
       "package": "com.socialhub.app",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
-        "backgroundColor": "#0b0b0f"
+        "backgroundColor": "#6d5dfc"
       },
       "backgroundColor": "#08080c",
       "icon": "./assets/icon.png",
@@ -21,9 +21,29 @@
       [
         "expo-image-picker",
         {
-          "microphonePermission": false
+          "photosPermission": "Socialhub uses your photos and videos only when you choose media to post or share.",
+          "cameraPermission": "Socialhub uses the camera only when you choose to take a photo or video.",
+          "microphonePermission": "Socialhub uses the microphone only when you choose to record or make a call."
         }
       ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Socialhub uses the camera only when you choose to take a photo, video, or join a video call.",
+          "microphonePermission": "Socialhub uses the microphone only when you choose to record or join a call.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Socialhub uses the microphone only when you choose to record audio or join a call.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false
+        }
+      ],
+      "expo-document-picker",
+      "expo-notifications",
       [
         "expo-video",
         {
@@ -41,14 +61,9 @@
       ]
     ],
     "extra": {
-      "apiBaseUrl": "https://socialhub-ruby.vercel.app"
+      "apiBaseUrl": "https://socialhublive.vercel.app"
     },
     "backgroundColor": "#08080c",
-    "androidStatusBar": {
-      "barStyle": "light-content",
-      "backgroundColor": "#08080c",
-      "translucent": true
-    },
     "icon": "./assets/icon.png"
   }
 }

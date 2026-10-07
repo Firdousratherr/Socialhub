@@ -5,7 +5,7 @@ import * as SecureStore from "expo-secure-store";
 
 const baseURL =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
-  "https://socialhub-ruby.vercel.app";
+  "https://socialhublive.vercel.app";
 
 export const authClient = createAuthClient({
   baseURL,
