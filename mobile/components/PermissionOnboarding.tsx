@@ -21,15 +21,14 @@ export default function PermissionOnboarding({ visible, onDone }: { visible: boo
     return () => { active = false; };
   }, [visible]);
 
-  const requestAll = async () => {
+  const requestOne = async (key: keyof DevicePermissionState) => {
+    if (busy || permissions[key]) return;
     setBusy(true);
     try {
-      for (const item of permissionMeta) {
-        if (!permissions[item.key]) {
-          try { await requestDevicePermission(item.key); } catch {}
-        }
-      }
+      await requestDevicePermission(key);
       setPermissions(await getDevicePermissionState());
+    } catch {
+      // Android owns the final permission decision; the settings page can retry.
     } finally {
       setBusy(false);
     }
@@ -48,19 +47,26 @@ export default function PermissionOnboarding({ visible, onDone }: { visible: boo
           <View style={styles.list}>
             {permissionMeta.map((item) => {
               const allowed = permissions[item.key];
-              return <View key={item.key} style={styles.permissionRow}>
+              return <Pressable
+                key={item.key}
+                onPress={() => void requestOne(item.key)}
+                disabled={busy || allowed}
+                style={styles.permissionRow}
+                accessibilityRole="button"
+                accessibilityLabel={allowed ? item.title + " allowed" : "Allow " + item.title}
+              >
                 <View style={styles.permissionIcon}><Text style={styles.iconText}>{item.icon}</Text></View>
                 <View style={styles.copy}><Text style={styles.permissionTitle}>{item.title}</Text><Text style={styles.permissionBody}>{item.body}</Text></View>
-                <Text style={[styles.status, allowed ? styles.granted : styles.pending]}>{allowed ? "Allowed" : "Not set"}</Text>
-              </View>;
+                <Text style={[styles.status, allowed ? styles.granted : styles.pending]}>{allowed ? "Allowed" : "Allow"}</Text>
+              </Pressable>;
             })}
           </View>
           <View style={styles.notice}>
             <Text style={styles.noticeTitle}>Files use Android's system picker</Text>
             <Text style={styles.noticeBody}>Socialhub does not request broad storage access. When a file feature is used, Android's picker lets you choose exactly what to share.</Text>
           </View>
-          <Pressable disabled={busy} onPress={() => void requestAll()} style={styles.primary}><Text style={styles.primaryText}>{busy ? "Requesting…" : "Allow selected features"}</Text></Pressable>
-          <Pressable disabled={busy} onPress={onDone} style={styles.secondary}><Text style={styles.secondaryText}>Not now — ask later when needed</Text></Pressable>
+          <Pressable disabled={busy} onPress={onDone} style={styles.primary}><Text style={styles.primaryText}>Continue</Text></Pressable>
+          <Pressable disabled={busy} onPress={onDone} style={styles.secondary}><Text style={styles.secondaryText}>Skip for now</Text></Pressable>
         </View>
       </SafeAreaView>
     </Modal>
