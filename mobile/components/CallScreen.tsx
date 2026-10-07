@@ -154,7 +154,7 @@ export default function CallScreen({
             await sendSignal("ANSWER", answer);
             setStatus("Connecting…");
           } else if (signal.kind === "ANSWER" && !incoming) {
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as Record<string, unknown>));
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
             for (const candidate of pendingCandidates.current.splice(0)) await pc.addIceCandidate(candidate);
             setStatus("Connecting…");
           } else if (signal.kind === "CANDIDATE") {
