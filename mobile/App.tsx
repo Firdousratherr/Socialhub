@@ -1435,8 +1435,8 @@ function ChatScreen({
       </View>
       <KeyboardAvoidingView
         style={styles.chatKeyboard}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={insets.top}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
       >
         {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
         <FlatList
@@ -1490,6 +1490,8 @@ function ChatScreen({
             style={styles.messageInput}
             multiline
             blurOnSubmit={false}
+            textAlignVertical="top"
+            returnKeyType="default"
           />
           <Pressable onPress={() => void send()} style={styles.sendButton}>
             <Text style={styles.sendButtonText}>➤</Text>
