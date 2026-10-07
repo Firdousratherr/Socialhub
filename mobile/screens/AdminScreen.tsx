@@ -11,6 +11,16 @@ type Dashboard = {
 };
 type RiskRow = { user: { id: string; name: string; username?: string | null; isActive: boolean; isVerified: boolean; role: string } | null; score: number; level: string; reports7d: number };
 type Health = { database: string; latencyMs: number; configuration?: Record<string, boolean> };
+type SecuritySession = {
+  id: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  user: { id: string; name: string; username?: string | null; email: string; role: string; isActive: boolean };
+};
 
 function count(value?: number) {
   return typeof value === "number" ? value.toLocaleString() : "0";
@@ -22,6 +32,8 @@ export default function AdminScreen({ onMenu }: { onMenu: () => void }) {
   const [adminSessionCount, setAdminSessionCount] = useState(0);
   const [riskQueue, setRiskQueue] = useState<RiskRow[]>([]);
   const [health, setHealth] = useState<Health | null>(null);
+  const [securitySessions, setSecuritySessions] = useState<SecuritySession[]>([]);
+  const [revokingSession, setRevokingSession] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -29,17 +41,19 @@ export default function AdminScreen({ onMenu }: { onMenu: () => void }) {
     if (refresh) setRefreshing(true); else setLoading(true);
     try {
       await apiFetch<{ allowed: boolean }>("/api/admin/mobile-owner");
-      const [dash, controls, riskResult, healthResult] = await Promise.all([
+      const [dash, controls, riskResult, healthResult, sessionResult] = await Promise.all([
         apiFetch<Dashboard>("/api/admin/dashboard"),
         apiFetch<{ flags: Flag[]; adminSessions?: unknown[] }>("/api/admin/control-center"),
         apiFetch<{ risk: RiskRow[] }>("/api/admin/risk").catch(() => ({ risk: [] })),
         apiFetch<Health>("/api/admin/health").catch(() => null),
+        apiFetch<{ sessions: SecuritySession[] }>("/api/admin/security/sessions").catch(() => ({ sessions: [] })),
       ]);
       setDashboard(dash);
       setFlags(controls.flags ?? []);
       setAdminSessionCount(controls.adminSessions?.length ?? 0);
       setRiskQueue(riskResult.risk ?? []);
       setHealth(healthResult);
+      setSecuritySessions(sessionResult.sessions ?? []);
     } catch (e) {
       Alert.alert("Admin", e instanceof Error ? e.message : "Admin access is unavailable for this account.");
     } finally {
@@ -77,6 +91,36 @@ export default function AdminScreen({ onMenu }: { onMenu: () => void }) {
   };
 
   const stats = dashboard?.stats ?? {};
+  const onlineWindow = 15 * 60 * 1000;
+  const onlineSessions = securitySessions.filter((session) => Date.now() - new Date(session.updatedAt).getTime() <= onlineWindow);
+  const uniqueSecurityUsers = new Set(securitySessions.map((session) => session.userId)).size;
+  const revokeSession = (session: SecuritySession) => {
+    Alert.alert(
+      "Revoke session?",
+      `This will sign out ${session.user.name} from that session. It does not access their camera, microphone, files, screen, calls, or other apps.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Revoke",
+          style: "destructive",
+          onPress: async () => {
+            setRevokingSession(session.id);
+            try {
+              await apiFetch("/api/admin/security/sessions", {
+                method: "DELETE",
+                body: JSON.stringify({ sessionId: session.id }),
+              });
+              setSecuritySessions((items) => items.filter((item) => item.id !== session.id));
+            } catch (e) {
+              Alert.alert("Security", e instanceof Error ? e.message : "Unable to revoke session.");
+            } finally {
+              setRevokingSession(null);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <View style={styles.screen}>
@@ -117,6 +161,46 @@ export default function AdminScreen({ onMenu }: { onMenu: () => void }) {
           <Text style={styles.cardTitle}>Admin sessions</Text>
           <Text style={styles.meta}>{adminSessionCount} active admin/moderator sessions currently visible to this permission scope.</Text>
         </View>
+
+        <Text style={styles.sectionTitle}>Device & Security Center</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Transparent session visibility</Text>
+          <Text style={styles.meta}>Shows signed-in sessions reported by the server. “Online” means the session was updated within the last 15 minutes; it is not device surveillance.</Text>
+          <View style={styles.grid}>
+            {[
+              ["Visible sessions", securitySessions.length],
+              ["Recently active", onlineSessions.length],
+              ["Users represented", uniqueSecurityUsers],
+              ["Expiring soon", securitySessions.filter((session) => new Date(session.expiresAt).getTime() - Date.now() < 24 * 60 * 60 * 1000).length],
+            ].map(([label, value]) => (
+              <View key={String(label)} style={styles.statCard}>
+                <Text style={styles.statValue}>{count(value as number)}</Text>
+                <Text style={styles.statLabel}>{label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {securitySessions.slice(0, 12).map((session) => {
+          const online = Date.now() - new Date(session.updatedAt).getTime() <= onlineWindow;
+          return (
+            <View key={session.id} style={styles.card}>
+              <View style={styles.row}>
+                <View style={styles.copy}>
+                  <Text style={styles.cardTitle}>{session.user.name}</Text>
+                  <Text style={styles.meta}>@{session.user.username ?? "member"} · {session.user.role} · {online ? "recently active" : "not recently active"}</Text>
+                  <Text style={styles.meta}>Last activity: {new Date(session.updatedAt).toLocaleString()}</Text>
+                  {session.ipAddress ? <Text style={styles.meta}>IP: {session.ipAddress}</Text> : null}
+                  {session.userAgent ? <Text numberOfLines={2} style={styles.meta}>{session.userAgent}</Text> : null}
+                </View>
+                <Text style={[styles.state, online ? styles.on : styles.off]}>{online ? "ONLINE" : "IDLE"}</Text>
+              </View>
+              <Pressable disabled={revokingSession === session.id} onPress={() => revokeSession(session)} style={styles.revokeButton}>
+                <Text style={styles.revokeText}>{revokingSession === session.id ? "Revoking…" : "Revoke session"}</Text>
+              </Pressable>
+            </View>
+          );
+        })}
 
         <Text style={styles.sectionTitle}>Safety & operations</Text>
         <View style={styles.grid}>
@@ -232,6 +316,8 @@ const styles = StyleSheet.create({
   off: { color: "#ff8b8b" },
   switch: { width: 54, height: 31, borderRadius: 16, padding: 3, justifyContent: "center", backgroundColor: "#2a2a35" },
   switchOn: { backgroundColor: "#725cff" },
+  revokeButton: { minHeight: 40, borderRadius: 12, borderWidth: 1, borderColor: "#5d3038", backgroundColor: "#211216", alignItems: "center", justifyContent: "center", marginTop: 10 },
+  revokeText: { color: "#ff9b9b", fontSize: 12, fontWeight: "900" },
   knob: { width: 25, height: 25, borderRadius: 13, backgroundColor: "#ddd" },
   knobOn: { alignSelf: "flex-end", backgroundColor: "#fff" },
 });
