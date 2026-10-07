@@ -32,10 +32,22 @@
     "react-native-webrtc": "124.0.8",
     "react-native-incall-manager": "4.3.0",
     "@config-plugins/react-native-webrtc": "15.0.2",
-    "@expo/vector-icons": "15.0.3"
+    "@expo/vector-icons": "15.0.3",
+    "expo-font": "~57.0.4"
   },
   "devDependencies": {
     "@types/react": "~19.2.0",
     "typescript": "~6.0.3"
+  },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "enabled": true,
+        "exclude": [
+          "react-native-webrtc",
+          "react-native-incall-manager"
+        ]
+      }
+    }
   }
 }
