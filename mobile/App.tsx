@@ -26,6 +26,7 @@ import SettingsScreen from "./screens/SettingsScreen";
 import SavedScreen from "./screens/SavedScreen";
 import SecurityScreen from "./screens/SecurityScreen";
 import AdminScreen from "./screens/AdminScreen";
+import CallsScreen from "./screens/CallsScreen";
 import VideoMedia from "./components/VideoMedia";
 import { Share } from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -2190,6 +2191,7 @@ function RootContent() {
         />
       ) : null}
       {tab === "Friends" ? <FriendsScreen onMenu={openMenu} /> : null}
+      {tab === "Calls" ? <CallsScreen onMenu={openMenu} /> : null}
       {tab === "Messages" && sessionUser ? (
         <MessagingScreen
           currentUserId={sessionUser.id}
