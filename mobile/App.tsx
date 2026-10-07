@@ -1140,6 +1140,7 @@ function MessagingScreen({
   const [selected, setSelected] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [includeArchived, setIncludeArchived] = useState(false);
+  const [conversationQuery, setConversationQuery] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1234,15 +1235,29 @@ function MessagingScreen({
   return (
     <View style={styles.screen}>
       <AppHeader
-        title={includeArchived ? "Archived messages" : "Messages"}
-        subtitle="Private conversations."
+        title="Messages"
+        subtitle={includeArchived ? "Archived conversations." : "Your private conversations."}
         onMenu={onMenu}
         action={includeArchived ? "Active" : "Archived"}
         onAction={() => setIncludeArchived((value) => !value)}
       />
+      <View style={styles.messageListToolbar}>
+        <TextInput
+          value={conversationQuery}
+          onChangeText={setConversationQuery}
+          placeholder="Search conversations…"
+          placeholderTextColor={colors.muted}
+          style={styles.messageSearchInput}
+        />
+      </View>
       {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
       <FlatList
-        data={conversations}
+        data={conversations.filter((item) => {
+          const memberName = conversationName(item, currentUserId).toLowerCase();
+          const preview = item.messages?.[0]?.content?.toLowerCase() ?? "";
+          const q = conversationQuery.trim().toLowerCase();
+          return !q || memberName.includes(q) || preview.includes(q);
+        })}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.feed}
         renderItem={({ item }) => {
@@ -1255,14 +1270,17 @@ function MessagingScreen({
               onPress={() => setSelected(item)}
               onLongPress={() => void controlConversation(item)}
             >
-              <Avatar user={member} size={50} />
+              <Avatar user={member} size={56} />
               <View style={styles.flex}>
-                <View style={styles.row}>
-                  <Text style={styles.userName}>{conversationName(item, currentUserId)}</Text>
-                  {me?.archivedAt ? <Text style={styles.muted}>ARCHIVED</Text> : null}
+                <View style={styles.conversationTopRow}>
+                  <Text numberOfLines={1} style={styles.conversationName}>{conversationName(item, currentUserId)}</Text>
+                  {last?.createdAt ? <Text style={styles.conversationTime}>{formatTime(last.createdAt)}</Text> : null}
+                </View>
+                <View style={styles.conversationPreviewRow}>
+                  <Text numberOfLines={1} style={styles.conversationPreview}>{last?.content || "Start the conversation"}</Text>
                   {item.unreadCount > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>{formatCount(item.unreadCount)}</Text></View> : null}
                 </View>
-                <Text numberOfLines={1} style={styles.userHandle}>{last?.content || "Start the conversation"}</Text>
+                {me?.archivedAt ? <Text style={styles.archivedLabel}>ARCHIVED</Text> : null}
               </View>
             </Pressable>
           );
@@ -1476,14 +1494,15 @@ function ChatScreen({
   return (
     <View style={styles.chatScreen}>
       <View style={[styles.chatHeader, { paddingTop: insets.top + 8 }]}>
-        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Go back">
-          <Text style={styles.backText}>‹</Text>
+        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Go back" style={styles.chatBackButton}>
+          <Text style={styles.chatBackIcon}>‹</Text>
         </Pressable>
-        <Avatar user={other} size={40} />
+        <Avatar user={other} size={46} />
         <View style={styles.flex}>
-          <Text style={styles.userName}>{conversationName(conversation, currentUserId)}</Text>
-          <Text style={styles.userHandle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
+          <Text numberOfLines={1} style={styles.chatTitle}>{conversationName(conversation, currentUserId)}</Text>
+          <Text numberOfLines={1} style={styles.chatSubtitle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
         </View>
+        <View style={styles.chatStatusPill}><Text style={styles.chatStatusText}>Chat</Text></View>
       </View>
       <KeyboardAvoidingView
         style={styles.chatKeyboard}
@@ -1533,7 +1552,7 @@ function ChatScreen({
         {typingUsers.length ? <Text style={styles.typingIndicator}>{typingUsers.length === 1 ? `${typingUsers[0].name} is typing…` : `${typingUsers.length} people are typing…`}</Text> : null}
         <View style={[styles.messageComposer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
           <Pressable onPress={() => void sendAttachment()} disabled={attachmentBusy} style={styles.attachButton}>
-            <Text style={styles.attachButtonText}>{attachmentBusy ? "…" : "+"}</Text>
+            <Text style={styles.attachButtonText}>{attachmentBusy ? "…" : "＋"}</Text>
           </Pressable>
           <TextInput
             value={text}
@@ -1547,7 +1566,7 @@ function ChatScreen({
             returnKeyType="default"
           />
           <Pressable onPress={() => void send()} style={styles.sendButton}>
-            <Text style={styles.sendButtonText}>➤</Text>
+            <Text style={styles.sendButtonText}>↑</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
