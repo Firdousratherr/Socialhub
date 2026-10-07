@@ -2197,6 +2197,7 @@ const styles = StyleSheet.create({
   composeContextText: { color: colors.text, fontSize: 12, marginTop: 2 },
   attachButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
   attachButtonText: { color: colors.text, fontSize: 24, fontWeight: "700" },
+  typingIndicator: { color: colors.muted, fontSize: 11, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 2, backgroundColor: colors.bg },
   messageComposer: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.panel, minHeight: 70 },
   messageInput: { flex: 1, minHeight: 52, maxHeight: 140, color: colors.text, backgroundColor: colors.panel2, borderRadius: 18, paddingHorizontal: 15, paddingVertical: 12, textAlignVertical: "top" },
   sendButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
