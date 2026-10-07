@@ -1290,7 +1290,7 @@ function CallOverlay({ currentUserId }: { currentUserId: string }) {
       try { InCallManager.stopRingtone(); } catch {}
       return;
     }
-    try { InCallManager.startRingtone("_DEFAULT_"); } catch {}
+    try { InCallManager.startRingtone("_DEFAULT_", [0, 500, 1000, 500], "playback", 2); } catch {}
     return () => {
       try { InCallManager.stopRingtone(); } catch {}
     };
@@ -2915,7 +2915,7 @@ function RootContent() {
       {tab === "Security" ? <SecurityScreen onMenu={openMenu} /> : null}
       {tab === "Admin" && sessionUser?.isOwner ? <AdminScreen onMenu={openMenu} /> : null}
 
-      <CallOverlay currentUserId={sessionUser.id} />
+      {sessionUser ? <CallOverlay currentUserId={sessionUser.id} /> : null}
 
       {!hideBottomNav ? (
         <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom + 8, 10) }]}>
