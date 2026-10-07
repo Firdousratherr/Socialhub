@@ -1103,7 +1103,7 @@ function DiscoverScreen({
           </View>
         ) : null}
 
-        {query.trim() ? <SectionHeader title="People" /> : null>
+        {query.trim() ? <SectionHeader title="People" /> : null}
         {users.length ? users.map((user) => (
           <View key={user.id} style={styles.userCard}>
             <Avatar user={user} size={46} />
@@ -1124,7 +1124,7 @@ function DiscoverScreen({
         )) : query.trim() ? <Text style={styles.emptySmall}>No people found.</Text> : null}
 
         {query.trim() ? <SectionHeader title="Posts" /> : null}
-        {query.trim() ? posts.map((post) => <PostCard key={post.id} post={post} onChanged={(next) => setPosts((items) => items.map((item) => item.id === next.id ? next : item))} />) : null
+        {query.trim() ? posts.map((post) => <PostCard key={post.id} post={post} onChanged={(next) => setPosts((items) => items.map((item) => item.id === next.id ? next : item))} />) : null}
       </ScrollView>
     </View>
   );
