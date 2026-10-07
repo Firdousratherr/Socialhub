@@ -20,6 +20,12 @@
     "plugins": [
       "expo-secure-store",
       [
+        "expo-status-bar",
+        {
+          "style": "light"
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Socialhub uses your photos and videos only when you choose media to post or share.",
@@ -72,11 +78,6 @@
       "apiBaseUrl": "https://socialhublive.vercel.app"
     },
     "backgroundColor": "#08080c",
-    "androidStatusBar": {
-      "barStyle": "light-content",
-      "backgroundColor": "#08080c",
-      "translucent": true
-    },
     "icon": "./assets/icon.png"
   }
 }
