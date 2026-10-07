@@ -35,7 +35,9 @@ import PermissionOnboarding from "./components/PermissionOnboarding";
 import { authClient } from "./lib/auth-client";
 import { apiFetch, uploadFile, uploadMedia } from "./lib/api";
 import { pickAndUploadDocument } from "./lib/document-picker";
-import { requestCameraPermission } from "./lib/permissions";
+import { requestCameraPermission, requestMicrophonePermission } from "./lib/permissions";
+import { AudioSession, LiveKitRoom, VideoTrack, useTracks, registerGlobals } from "@livekit/react-native";
+import { Track } from "livekit-client";
 import type {
   Conversation,
   Message,
@@ -64,6 +66,8 @@ const colors = {
   success: "#69d79b",
   danger: "#ff7474",
 };
+
+registerGlobals();
 
 SplashScreen.setOptions({ duration: 650 });
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -1248,6 +1252,41 @@ function MessagingScreen({
   );
 }
 
+function ActiveCallView({ token, serverUrl, isVideo, title, onEnd }: { token: string; serverUrl: string; isVideo: boolean; title: string; onEnd: () => void }) {
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [cameraEnabled, setCameraEnabled] = useState(isVideo);
+  const tracks = useTracks([Track.Source.Camera]);
+  useEffect(() => {
+    void AudioSession.startAudioSession();
+    return () => { void AudioSession.stopAudioSession(); };
+  }, []);
+  return (
+    <Modal visible animationType="slide" onRequestClose={onEnd}>
+      <View style={styles.callScreen}>
+        <Text style={styles.callTitle}>{title}</Text>
+        <Text style={styles.callStatus}>Connected call</Text>
+        <View style={styles.callVideo}>
+          {isVideo && cameraEnabled && tracks.length ? (
+            tracks.map((track) => <VideoTrack key={track.publication.trackSid ?? Math.random()} trackRef={track} style={styles.remoteVideo} />)
+          ) : (
+            <View style={styles.callPlaceholder}><Text style={styles.callPlaceholderText}>{isVideo ? "Camera off" : "Voice call"}</Text></View>
+          )}
+        </View>
+        <View style={styles.callControls}>
+          <Pressable style={styles.callControl} onPress={() => setMicEnabled((value) => !value)}>
+            <Text style={styles.callControlText}>{micEnabled ? "Mute" : "Unmute"}</Text>
+          </Pressable>
+          {isVideo ? <Pressable style={styles.callControl} onPress={() => setCameraEnabled((value) => !value)}>
+            <Text style={styles.callControlText}>{cameraEnabled ? "Camera off" : "Camera on"}</Text>
+          </Pressable> : null}
+          <Pressable style={styles.endCall} onPress={onEnd}><Text style={styles.endCallText}>End</Text></Pressable>
+        </View>
+        <LiveKitRoom serverUrl={serverUrl} token={token} connect audio={micEnabled} video={cameraEnabled} />
+      </View>
+    </Modal>
+  );
+}
+
 function ChatScreen({
   conversation,
   currentUserId,
@@ -1264,6 +1303,7 @@ function ChatScreen({
   const [editing, setEditing] = useState<Message | null>(null);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const other = conversation.members.find((member) => member.userId !== currentUserId)?.user;
+  const [call, setCall] = useState<{ token: string; serverUrl: string; isVideo: boolean } | null>(null);
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Message>>(null);
 
@@ -1296,6 +1336,34 @@ function ChatScreen({
     });
     return () => subscription.remove();
   }, [onBack]);
+
+  const startCall = async (isVideo: boolean) => {
+    const microphone = await requestMicrophonePermission();
+    if (!microphone.granted) {
+      Alert.alert("Microphone permission", "Allow microphone access to start a call.");
+      return;
+    }
+    if (isVideo) {
+      const camera = await requestCameraPermission();
+      if (!camera.granted) {
+        Alert.alert("Camera permission", "Allow camera access to start a video call.");
+        return;
+      }
+    }
+    try {
+      const calleeId = other?.id;
+      if (!calleeId) throw new Error("This conversation has no call recipient.");
+      const data = await apiFetch<{ token: string; serverUrl?: string; call: { id: string } }>("/api/calls", {
+        method: "POST",
+        body: JSON.stringify({ calleeId, isVideo }),
+      });
+      if (!data.serverUrl) throw new Error("Calling server is not configured.");
+      await apiFetch("/api/calls/" + data.call.id, { method: "POST", body: JSON.stringify({ action: "connect" }) });
+      setCall({ token: data.token, serverUrl: data.serverUrl, isVideo });
+    } catch (e) {
+      Alert.alert("Call", e instanceof Error ? e.message : "Unable to start the call.");
+    }
+  };
 
   const send = async () => {
     if (editing) {
@@ -1466,6 +1534,10 @@ function ChatScreen({
         <View style={styles.flex}>
           <Text style={styles.userName}>{conversationName(conversation, currentUserId)}</Text>
           <Text style={styles.userHandle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
+          {!conversation.isGroup && other ? <View style={styles.callHeaderActions}>
+            <Pressable onPress={() => void startCall(false)}><Text style={styles.callHeaderButton}>📞</Text></Pressable>
+            <Pressable onPress={() => void startCall(true)}><Text style={styles.callHeaderButton}>📹</Text></Pressable>
+          </View> : null}
         </View>
       </View>
       <KeyboardAvoidingView
@@ -1541,6 +1613,7 @@ function ChatScreen({
         </View>
       </KeyboardAvoidingView>
     </View>
+      {call ? <ActiveCallView token={call.token} serverUrl={call.serverUrl} isVideo={call.isVideo} title={conversationName(conversation, currentUserId)} onEnd={() => setCall(null)} /> : null}
   );
 }
 
@@ -2147,6 +2220,20 @@ const styles = StyleSheet.create({
   chatScreen: { flex: 1, backgroundColor: colors.bg },
   chatKeyboard: { flex: 1, backgroundColor: colors.bg },
   chatListFlex: { flex: 1 },
+  callHeaderActions: { flexDirection: "row", alignItems: "center", gap: 12, marginLeft: "auto" },
+  callHeaderButton: { color: colors.text, fontSize: 22 },
+  callScreen: { flex: 1, backgroundColor: colors.bg, paddingTop: 60, paddingHorizontal: 16 },
+  callTitle: { color: colors.text, fontSize: 22, fontWeight: "900", textAlign: "center" },
+  callStatus: { color: colors.success, textAlign: "center", marginTop: 4 },
+  callVideo: { flex: 1, marginTop: 20, borderRadius: 20, overflow: "hidden", backgroundColor: "#000" },
+  remoteVideo: { flex: 1 },
+  callPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center" },
+  callPlaceholderText: { color: colors.muted, fontSize: 18, fontWeight: "800" },
+  callControls: { flexDirection: "row", justifyContent: "center", gap: 10, paddingVertical: 20 },
+  callControl: { paddingHorizontal: 18, paddingVertical: 13, borderRadius: 14, backgroundColor: colors.panel2 },
+  callControlText: { color: colors.text, fontWeight: "800" },
+  endCall: { paddingHorizontal: 20, paddingVertical: 13, borderRadius: 14, backgroundColor: colors.danger },
+  endCallText: { color: "#fff", fontWeight: "900" },
   chatHeader: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
   backText: { color: colors.text, fontSize: 38, lineHeight: 38, paddingHorizontal: 6 },
   chatList: { padding: 12, gap: 8, paddingBottom: 14 },
