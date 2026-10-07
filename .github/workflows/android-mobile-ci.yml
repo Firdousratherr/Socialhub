@@ -47,7 +47,7 @@ jobs:
         run: npx expo config --type public
 
       - name: Generate native Android project
-        run: npx expo prebuild --platform android --non-interactive --clean
+        run: CI=1 npx expo prebuild --platform android --clean
 
       - name: Build debug APK
         working-directory: mobile/android
