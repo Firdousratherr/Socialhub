@@ -829,6 +829,7 @@ function CreatePost({ onCreated }: { onCreated: (post: Post) => void }) {
 }
 
 function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
   const [asset, setAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
