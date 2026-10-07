@@ -32,6 +32,8 @@ import { Share } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { authClient } from "./lib/auth-client";
 import { apiFetch, uploadMedia } from "./lib/api";
+import { configurePushNotifications, subscribeToNotificationOpen } from "./lib/push";
+import { startPresenceHeartbeat } from "./lib/presence";
 import type {
   Conversation,
   Message,
@@ -1802,6 +1804,17 @@ function RootContent() {
   }, [signedIn, deepLink]);
 
   const onDeepLinkHandled = useCallback(() => setDeepLink(null), []);
+
+  useEffect(() => {
+    configurePushNotifications();
+    const subscription = subscribeToNotificationOpen(parseDeepLink);
+    return () => subscription.remove();
+  }, [parseDeepLink]);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    return startPresenceHeartbeat();
+  }, [signedIn]);
 
   useEffect(() => { void refreshSession(); }, [refreshSession]);
 
