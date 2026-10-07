@@ -7,13 +7,14 @@ export async function GET() {
   const access = await requireAdminPermission("STORAGE_VIEW");
   if (access.response) return access.response;
 
-  const [usage, byUser, profiles, posts, stories, attachments] = await Promise.all([
+  const [usage, byUser, profiles, posts, stories, attachments, mediaAssets] = await Promise.all([
     prisma.uploadUsage.aggregate({ _sum: { bytes: true }, _count: { _all: true } }),
     prisma.uploadUsage.groupBy({ by: ["userId"], _sum: { bytes: true }, _count: { _all: true }, orderBy: { _sum: { bytes: "desc" } }, take: 20 }),
     prisma.user.findMany({ where: { image: { not: null } }, select: { image: true } }),
     prisma.post.findMany({ where: { mediaUrl: { not: null } }, select: { mediaUrl: true } }),
     prisma.story.findMany({ select: { mediaUrl: true } }),
     prisma.messageAttachment.findMany({ select: { url: true } }),
+    prisma.mediaAsset.findMany({ select: { url: true } }),
   ]);
 
   const referenced = new Set<string>();
@@ -21,6 +22,8 @@ export async function GET() {
   for (const row of posts) if (row.mediaUrl) referenced.add(row.mediaUrl);
   for (const row of stories) referenced.add(row.mediaUrl);
   for (const row of attachments) referenced.add(row.url);
+  for (const row of mediaAssets) referenced.add(row.url);
+  for (const row of mediaAssets) referenced.add(row.url);
 
   const recentUploads = await prisma.uploadUsage.findMany({
     orderBy: { bytes: "desc" },
@@ -50,11 +53,12 @@ export async function DELETE(request: Request) {
 
   const rows = await prisma.uploadUsage.findMany({ where: { id: { in: ids } }, select: { id: true, url: true } });
   const referenced = new Set<string>();
-  const [profiles, posts, stories, attachments] = await Promise.all([
+  const [profiles, posts, stories, attachments, mediaAssets] = await Promise.all([
     prisma.user.findMany({ where: { image: { not: null } }, select: { image: true } }),
     prisma.post.findMany({ where: { mediaUrl: { not: null } }, select: { mediaUrl: true } }),
     prisma.story.findMany({ select: { mediaUrl: true } }),
     prisma.messageAttachment.findMany({ select: { url: true } }),
+    prisma.mediaAsset.findMany({ select: { url: true } }),
   ]);
   for (const row of profiles) if (row.image) referenced.add(row.image);
   for (const row of posts) if (row.mediaUrl) referenced.add(row.mediaUrl);
