@@ -1135,35 +1135,53 @@ function DiscoverScreen({
 function CallOverlay({ currentUserId }: { currentUserId: string }) {
   const [incoming, setIncoming] = useState<NativeCall | null>(null);
   const [active, setActive] = useState<NativeCall | null>(null);
+  const incomingRef = useRef<NativeCall | null>(null);
+  const activeRef = useRef<NativeCall | null>(null);
+
+  useEffect(() => { incomingRef.current = incoming; }, [incoming]);
+  useEffect(() => { activeRef.current = active; }, [active]);
 
   useEffect(() => {
     const unsubscribe = subscribeRealtime((event) => {
-      if (event.type === "call.incoming" && event.entityId && !active) {
+      if (event.type === "call.incoming" && event.entityId && !activeRef.current && !incomingRef.current) {
         void apiFetch<{ call: NativeCall }>(`/api/calls/${event.entityId}`)
           .then((data) => {
             if (data.call.calleeId !== currentUserId || data.call.status !== "RINGING") return;
             setIncoming(data.call);
-            try { InCallManager.startRingtone("_DEFAULT_"); } catch {}
           })
           .catch(() => {});
       }
 
       if (event.type === "call.updated" && event.entityId) {
         const nextStatus = String(event.payload?.status ?? "");
-        if (incoming?.id === event.entityId && ["DECLINED", "MISSED", "ENDED", "CANCELLED", "ACTIVE"].includes(nextStatus)) {
-          try { InCallManager.stopRingtone(); } catch {}
-          if (nextStatus !== "ACTIVE") setIncoming(null);
+        if (incomingRef.current?.id === event.entityId && ["DECLINED", "MISSED", "ENDED", "CANCELLED", "ACTIVE"].includes(nextStatus)) {
+          setIncoming(null);
+          if (nextStatus === "ACTIVE") {
+            void apiFetch<{ call: NativeCall }>(`/api/calls/${event.entityId}`)
+              .then((data) => {
+                if (data.call.status === "ACTIVE") setActive(data.call);
+              })
+              .catch(() => {});
+          }
         }
-        if (active?.id === event.entityId && ["DECLINED", "MISSED", "ENDED", "CANCELLED"].includes(nextStatus)) {
+        if (activeRef.current?.id === event.entityId && ["DECLINED", "MISSED", "ENDED", "CANCELLED"].includes(nextStatus)) {
           setActive(null);
         }
       }
     });
+    return unsubscribe;
+  }, [currentUserId]);
+
+  useEffect(() => {
+    if (!incoming) {
+      try { InCallManager.stopRingtone(); } catch {}
+      return;
+    }
+    try { InCallManager.startRingtone("_DEFAULT_"); } catch {}
     return () => {
-      unsubscribe();
       try { InCallManager.stopRingtone(); } catch {}
     };
-  }, [currentUserId, incoming, active]);
+  }, [incoming?.id]);
 
   if (active) {
     const remoteUser = active.callerId === currentUserId ? active.callee : active.caller;
