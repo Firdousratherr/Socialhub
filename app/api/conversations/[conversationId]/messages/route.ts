@@ -141,15 +141,19 @@ export async function POST(
     return created;
   });
 
-  await publishConversationEvent(conversationId, {
-    type: "message.created",
-    entityId: message.id,
-    payload: {
-      message,
-      senderId: session.user.id,
-      conversationId,
-    },
-  });
+  try {
+    await publishConversationEvent(conversationId, {
+      type: "message.created",
+      entityId: message.id,
+      payload: {
+        message,
+        senderId: session.user.id,
+        conversationId,
+      },
+    });
+  } catch {
+    // Realtime delivery is best-effort; message creation must remain reliable.
+  }
 
   return NextResponse.json({ message }, { status: 201 });
 }
