@@ -2,20 +2,30 @@
   "expo": {
     "name": "SocialHub",
     "slug": "socialhub",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "scheme": "socialhub",
     "userInterfaceStyle": "automatic",
     "android": {
       "package": "com.socialhub.app",
-      "versionCode": 7,
+      "versionCode": 8,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#08080c"
       },
       "backgroundColor": "#08080c",
       "icon": "./assets/icon.png",
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "RECORD_AUDIO",
+        "CAMERA",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_SCAN",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MICROPHONE",
+        "FOREGROUND_SERVICE_CAMERA",
+        "POST_NOTIFICATIONS"
+      ]
     },
     "plugins": [
       "expo-secure-store",
@@ -71,6 +81,13 @@
           "image": "./assets/icon.png",
           "imageWidth": 180,
           "resizeMode": "contain"
+        }
+      ],
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "Socialhub uses the camera only when you choose to make or join a video call.",
+          "microphonePermission": "Socialhub uses the microphone only when you choose to make or join a voice or video call."
         }
       ]
     ],
