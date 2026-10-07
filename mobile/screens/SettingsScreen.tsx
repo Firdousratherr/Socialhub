@@ -4,6 +4,8 @@ import { AppHeader } from "../components/MobileShell";
 import { apiFetch } from "../lib/api";
 import { authClient } from "../lib/auth-client";
 import * as ImagePicker from "expo-image-picker";
+import * as Notifications from "expo-notifications";
+import { getMicrophonePermission, requestCameraPermission, requestMicrophonePermission, requestNotificationPermission, openAndroidSettings } from "../lib/permissions";
 import type { Profile } from "../types";
 
 const colors={bg:"#08080c",panel:"#111118",panel2:"#171720",border:"#252531",text:"#f8f8ff",muted:"#8d8d9b",accent:"#725cff",success:"#69d79b",danger:"#ff7474"};
@@ -18,16 +20,25 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
  const [busy,setBusy]=useState(false);
  const [loading,setLoading]=useState(true);
  const [mediaPermission,setMediaPermission]=useState<ImagePicker.PermissionResponse | null>(null);
+ const [cameraPermission,setCameraPermission]=useState<ImagePicker.PermissionResponse | null>(null);
+ const [microphonePermission,setMicrophonePermission]=useState<"granted"|"denied"|"blocked"|"unknown">("unknown");
+ const [notificationPermission,setNotificationPermission]=useState<Notifications.NotificationPermissionsStatus | null>(null);
 
  const load=useCallback(async()=>{
   try{
-   const [p,pr,prefs,media]=await Promise.all([
+   const [p,pr,prefs,media,camera,microphone,notifications]=await Promise.all([
     apiFetch<{profile:Profile}>("/api/profile"),
     apiFetch<{settings:any}>("/api/privacy-settings"),
     apiFetch<{preferences:Record<string,boolean>}>("/api/notification-preferences"),
-    ImagePicker.getMediaLibraryPermissionsAsync()
+    ImagePicker.getMediaLibraryPermissionsAsync(),
+    ImagePicker.getCameraPermissionsAsync(),
+    getMicrophonePermission(),
+    Notifications.getPermissionsAsync()
    ]);
    setProfile(p.profile);setForm({name:p.profile.name,username:p.profile.username||"",bio:p.profile.bio||""});
+   setCameraPermission(camera);
+   setMicrophonePermission(microphone);
+   setNotificationPermission(notifications);
    setPrivateAccount(Boolean(p.profile.isPrivate));setPrivacy(pr.settings||privacy);setPreferences(prefs.preferences||{});setMediaPermission(media);
   }catch(e){Alert.alert("Settings",e instanceof Error?e.message:"Unable to load settings.");}
   finally{setLoading(false);}
@@ -42,6 +53,9 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
  };
  const setPrivate=async(v:boolean)=>{setPrivateAccount(v);try{await apiFetch("/api/privacy-settings",{method:"PATCH",body:JSON.stringify({isPrivate:v})});}catch(e){setPrivateAccount(!v);Alert.alert("Privacy",e instanceof Error?e.message:"Unable to update privacy.");}};
  const setPrivacyValue=async(key:string,v:boolean)=>{const old={...privacy};setPrivacy({...privacy,[key]:v});try{await apiFetch("/api/privacy-settings",{method:"PATCH",body:JSON.stringify({[key]:v})});}catch(e){setPrivacy(old);Alert.alert("Privacy",e instanceof Error?e.message:"Unable to update privacy.");}};
+ const requestCamera=async()=>{try{const r=await requestCameraPermission();setCameraPermission(await ImagePicker.getCameraPermissionsAsync());if(!r.granted&&!r.canAskAgain)await openAndroidSettings();}catch(e){Alert.alert("Camera",e instanceof Error?e.message:"Unable to request camera access.");}};
+ const requestMicrophone=async()=>{try{const r=await requestMicrophonePermission();setMicrophonePermission(r.granted?"granted":r.canAskAgain?"denied":"blocked");if(!r.granted&&!r.canAskAgain)await openAndroidSettings();}catch(e){Alert.alert("Microphone",e instanceof Error?e.message:"Unable to request microphone access.");}};
+ const requestNotifications=async()=>{try{const r=await requestNotificationPermission();setNotificationPermission(r);if(r&&!r.granted&&!r.canAskAgain)await openAndroidSettings();}catch(e){Alert.alert("Notifications",e instanceof Error?e.message:"Unable to request notification access.");}};
  const requestMediaPermission=async()=>{
   try{
    const result=await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -83,7 +97,10 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
     <Pressable onPress={()=>void (mediaPermission?.canAskAgain===false ? openAppSettings() : requestMediaPermission())} style={styles.secondary}>
       <Text style={styles.secondaryText}>{mediaPermission?.granted ? "Manage permission" : mediaPermission?.canAskAgain===false ? "Open Android Settings" : "Allow photos & videos"}</Text>
     </Pressable>
-    <Text style={styles.muted}>Camera, microphone, location, calls, notification contents, files outside selected media, and screen sharing are not requested here.</Text>
+    <PermissionRow label="Camera" status={cameraPermission?.granted ? "Allowed" : cameraPermission?.canAskAgain === false ? "Blocked" : "Not granted"} onPress={()=>void requestCamera()}/>
+    <PermissionRow label="Microphone" status={microphonePermission==="granted" ? "Allowed" : microphonePermission==="blocked" ? "Blocked" : "Not granted"} onPress={()=>void requestMicrophone()}/>
+    <PermissionRow label="Notifications" status={notificationPermission?.granted ? "Allowed" : notificationPermission?.canAskAgain === false ? "Blocked" : "Not granted"} onPress={()=>void requestNotifications()}/>
+    <Text style={styles.muted}>Camera and microphone are used only for user-started capture or calls. Documents use Android's system file picker. Socialhub does not request contacts, location, SMS, call logs, or broad filesystem access.</Text>
    </SettingCard>
    <SettingCard title="Notifications" subtitle="Choose which activity reaches your account.">
     {["likes","comments","follows","friendRequests","friendAccepted","messages","mentions","shares","storyReplies","storyReactions","system"].map(k=><Row key={k} label={k.replace(/[A-Z]/g,m=>" "+m).replace(/^./,m=>m.toUpperCase())} value={Boolean(preferences[k])} onChange={v=>void setPreference(k,v)}/>)}
@@ -102,9 +119,10 @@ export default function SettingsScreen({ onMenu, onSignedOut, isOwner, onOpenAdm
  </View>;
 }
 
+function PermissionRow({label,status,onPress}:{label:string;status:string;onPress:()=>void}){return <View style={styles.permissionRow}><View style={styles.flex}><Text style={styles.rowLabel}>{label}</Text><Text style={styles.muted}>{status}</Text></View><Pressable onPress={onPress} style={styles.permissionButton}><Text style={styles.permissionButtonText}>{status==="Allowed"?"Manage":"Allow"}</Text></Pressable></View>}
 function SettingCard({title,subtitle,children}:{title:string;subtitle:string;children:React.ReactNode}){return <View style={styles.card}><Text style={styles.sectionLabel}>{title.toUpperCase()}</Text><Text style={styles.heading}>{title}</Text><Text style={styles.muted}>{subtitle}</Text><View style={styles.divider}/>{children}</View>}
 function Row({label,description,value,onChange}:{label:string;description?:string;value:boolean;onChange:(v:boolean)=>void}){return <View style={styles.row}><View style={styles.flex}><Text style={styles.rowLabel}>{label}</Text>{description?<Text style={styles.muted}>{description}</Text>:null}</View><Switch value={value} onValueChange={onChange} trackColor={{false:"#34343f",true:"#5f4fe4"}} thumbColor="#fff"/></View>}
 
 const styles=StyleSheet.create({
- screen:{flex:1,backgroundColor:colors.bg},content:{padding:14,paddingBottom:150,gap:12},card:{backgroundColor:colors.panel,borderWidth:1,borderColor:colors.border,borderRadius:20,padding:16},sectionLabel:{color:"#a99cff",fontSize:10,fontWeight:"900",letterSpacing:1.2},heading:{color:colors.text,fontSize:19,fontWeight:"900",marginTop:4,marginBottom:4},value:{color:colors.text,fontSize:17,fontWeight:"800",marginTop:10},muted:{color:colors.muted,fontSize:12,lineHeight:18,marginTop:3},input:{backgroundColor:colors.panel2,borderWidth:1,borderColor:colors.border,color:colors.text,borderRadius:14,paddingHorizontal:14,paddingVertical:13,marginTop:10},primary:{backgroundColor:colors.accent,borderRadius:14,minHeight:48,alignItems:"center",justifyContent:"center",marginTop:10},primaryText:{color:"#fff",fontWeight:"900"},secondary:{backgroundColor:colors.panel2,borderWidth:1,borderColor:colors.border,borderRadius:13,minHeight:44,alignItems:"center",justifyContent:"center",marginTop:12},secondaryText:{color:colors.text,fontWeight:"800"},divider:{height:1,backgroundColor:colors.border,marginVertical:12},row:{flexDirection:"row",alignItems:"center",gap:12,paddingVertical:12,borderBottomWidth:1,borderBottomColor:colors.border},rowLabel:{color:colors.text,fontWeight:"800",fontSize:13},flex:{flex:1,minWidth:0},notice:{backgroundColor:"#18152a",borderWidth:1,borderColor:"#3a326d",borderRadius:16,padding:13,marginBottom:12},noticeTitle:{color:"#c8c0ff",fontWeight:"900",fontSize:13},signOut:{backgroundColor:colors.panel,borderWidth:1,borderColor:"#4b2b35",borderRadius:18,minHeight:52,alignItems:"center",justifyContent:"center"},signOutText:{color:colors.danger,fontWeight:"900"},version:{color:"#666674",textAlign:"center",fontSize:10,paddingBottom:20}
+ screen:{flex:1,backgroundColor:colors.bg},content:{padding:14,paddingBottom:150,gap:12},card:{backgroundColor:colors.panel,borderWidth:1,borderColor:colors.border,borderRadius:20,padding:16},sectionLabel:{color:"#a99cff",fontSize:10,fontWeight:"900",letterSpacing:1.2},heading:{color:colors.text,fontSize:19,fontWeight:"900",marginTop:4,marginBottom:4},value:{color:colors.text,fontSize:17,fontWeight:"800",marginTop:10},muted:{color:colors.muted,fontSize:12,lineHeight:18,marginTop:3},input:{backgroundColor:colors.panel2,borderWidth:1,borderColor:colors.border,color:colors.text,borderRadius:14,paddingHorizontal:14,paddingVertical:13,marginTop:10},primary:{backgroundColor:colors.accent,borderRadius:14,minHeight:48,alignItems:"center",justifyContent:"center",marginTop:10},primaryText:{color:"#fff",fontWeight:"900"},secondary:{backgroundColor:colors.panel2,borderWidth:1,borderColor:colors.border,borderRadius:13,minHeight:44,alignItems:"center",justifyContent:"center",marginTop:12},secondaryText:{color:colors.text,fontWeight:"800"},divider:{height:1,backgroundColor:colors.border,marginVertical:12},row:{flexDirection:"row",alignItems:"center",gap:12,paddingVertical:12,borderBottomWidth:1,borderBottomColor:colors.border},permissionRow:{flexDirection:"row",alignItems:"center",gap:10,paddingVertical:10},permissionButton:{paddingHorizontal:12,paddingVertical:9,borderRadius:11,backgroundColor:colors.panel2,borderWidth:1,borderColor:colors.border},permissionButtonText:{color:colors.text,fontWeight:"800",fontSize:12},rowLabel:{color:colors.text,fontWeight:"800",fontSize:13},flex:{flex:1,minWidth:0},notice:{backgroundColor:"#18152a",borderWidth:1,borderColor:"#3a326d",borderRadius:16,padding:13,marginBottom:12},noticeTitle:{color:"#c8c0ff",fontWeight:"900",fontSize:13},signOut:{backgroundColor:colors.panel,borderWidth:1,borderColor:"#4b2b35",borderRadius:18,minHeight:52,alignItems:"center",justifyContent:"center"},signOutText:{color:colors.danger,fontWeight:"900"},version:{color:"#666674",textAlign:"center",fontSize:10,paddingBottom:20}
 });
