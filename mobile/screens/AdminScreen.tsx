@@ -143,7 +143,7 @@ export default function AdminScreen({ onMenu }: { onMenu: () => void }) {
               <Text style={[styles.riskBadge, item.level === "CRITICAL" ? styles.riskCritical : item.level === "HIGH" ? styles.riskHigh : styles.riskMedium]}>{item.level} · {item.score}</Text>
             </View>
           </View>
-        )) : null}
+        ) : null)}
 
         <View style={styles.card}>
           <View style={styles.row}>
