@@ -2105,25 +2105,21 @@ function VisitorProfileScreen({
 
   const report = () => {
     if (!profile) return;
-    Alert.prompt(
+    Alert.alert(
       "Report profile",
-      "Tell us briefly what is wrong with this profile.",
+      "Report this profile for spam, abuse, or misleading content?",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Submit",
-          onPress: (reason?: string) => {
-            if (!reason?.trim()) return;
-            void mutate(async () => {
-              await apiFetch("/api/users/" + profile.id + "/report", {
-                method: "POST",
-                body: JSON.stringify({ reason: reason.trim() }),
-              });
-            }, "report");
-          },
+          text: "Submit report",
+          onPress: () => void mutate(async () => {
+            await apiFetch("/api/users/" + profile.id + "/report", {
+              method: "POST",
+              body: JSON.stringify({ reason: "Reported from Android profile actions" }),
+            });
+          }, "report"),
         },
       ],
-      "plain-text",
     );
   };
 
