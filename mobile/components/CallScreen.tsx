@@ -34,6 +34,21 @@ export type NativeCall = {
   callee?: User;
 };
 
+type RtcDescriptionType = "offer" | "answer" | "pranswer" | "rollback";
+
+type RtcDescriptionPayload = {
+  type: RtcDescriptionType;
+  sdp: string;
+};
+
+function toRtcSessionDescription(payload: unknown): RTCSessionDescription {
+  const value = payload as Partial<RtcDescriptionPayload>;
+  if (!value.type || typeof value.sdp !== "string") {
+    throw new Error("Invalid call session description.");
+  }
+  return new RTCSessionDescription({ type: value.type, sdp: value.sdp });
+}
+
 function rtcIceServers() {
   const servers: Array<{ urls: string | string[]; username?: string; credential?: string }> = [
     { urls: process.env.EXPO_PUBLIC_STUN_URL ?? "stun:stun.l.google.com:19302" },
@@ -147,7 +162,7 @@ export default function CallScreen({
           if (!pc) continue;
 
           if (signal.kind === "OFFER" && incoming) {
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
+            await pc.setRemoteDescription(toRtcSessionDescription(signal.payload));
             for (const candidate of pendingCandidates.current.splice(0)) await pc.addIceCandidate(candidate);
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
