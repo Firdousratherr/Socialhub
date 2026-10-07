@@ -1081,6 +1081,11 @@ function DiscoverScreen({
     <View style={styles.screen}>
       <AppHeader title="Discover" subtitle="Find people and posts." onMenu={onMenu} />
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.discoverHero}>
+          <Text style={styles.discoverEyebrow}>DISCOVER</Text>
+          <Text style={styles.discoverTitle}>Find your people</Text>
+          <Text style={styles.discoverSubtitle}>Search profiles, usernames, and posts.</Text>
+        </View>
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -1089,9 +1094,16 @@ function DiscoverScreen({
           style={styles.searchInput}
           autoCapitalize="none"
         />
-        {loading ? <ActivityIndicator color={colors.accent} /> : null}
+        {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
+        {!query.trim() && !loading ? (
+          <View style={styles.discoverEmptyCard}>
+            <Text style={styles.discoverEmptyIcon}>⌕</Text>
+            <Text style={styles.discoverEmptyTitle}>Start with a search</Text>
+            <Text style={styles.emptySmall}>Try a name, @username, hashtag, or a word from a post.</Text>
+          </View>
+        ) : null}
 
-        <SectionHeader title="People" />
+        {query.trim() ? <SectionHeader title="People" /> : null>
         {users.length ? users.map((user) => (
           <View key={user.id} style={styles.userCard}>
             <Avatar user={user} size={46} />
@@ -1109,10 +1121,10 @@ function DiscoverScreen({
               <Pressable style={styles.miniButton} onPress={() => void friendRequest(user)}><Text style={styles.miniButtonText}>Add</Text></Pressable>
             ) : null}
           </View>
-        )) : <Text style={styles.emptySmall}>No people found.</Text>}
+        )) : query.trim() ? <Text style={styles.emptySmall}>No people found.</Text> : null}
 
-        <SectionHeader title="Posts" />
-        {posts.map((post) => <PostCard key={post.id} post={post} onChanged={(next) => setPosts((items) => items.map((item) => item.id === next.id ? next : item))} />)}
+        {query.trim() ? <SectionHeader title="Posts" /> : null}
+        {query.trim() ? posts.map((post) => <PostCard key={post.id} post={post} onChanged={(next) => setPosts((items) => items.map((item) => item.id === next.id ? next : item))} />) : null
       </ScrollView>
     </View>
   );
