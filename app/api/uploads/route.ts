@@ -97,9 +97,21 @@ export async function POST(request: Request) {
   });
 
   try {
-    await prisma.uploadUsage.create({
-      data: { userId: session.user.id, bytes: file.size, url: blob.url, pathname: blob.pathname, mimeType: file.type },
-    });
+    await prisma.$transaction([
+      prisma.uploadUsage.create({
+        data: { userId: session.user.id, bytes: file.size, url: blob.url, pathname: blob.pathname, mimeType: file.type },
+      }),
+      prisma.mediaAsset.create({
+        data: {
+          userId: session.user.id,
+          url: blob.url,
+          mediaType: isVideo ? "VIDEO" : "IMAGE",
+          mimeType: file.type,
+          byteSize: file.size,
+          status: "READY",
+        },
+      }),
+    ]);
   } catch (trackingError) {
     await safeDeleteBlob(blob.url);
     console.error("Could not record upload usage; the uploaded blob was removed.", trackingError);

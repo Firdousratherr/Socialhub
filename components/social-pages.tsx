@@ -17,11 +17,12 @@ import { emitUnreadSummarySync } from "@/hooks/use-unread-summary";
 import { useLivePoll } from "@/hooks/use-live-poll";
 import { AppShell } from "@/components/app-shell";
 import { ThemeToggle } from "@/components/social-ui";
+import CallPanel, { type WebCall } from "@/components/call-panel";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
   KeyRound, Lock, LogIn, Mail, MessageCircle, MoreHorizontal, Pencil, Plus,
-  Paperclip, Search, Send, Settings, Shield, ShieldOff, Share2, Sparkles, Trash2, UserPlus, Users, VolumeX, X
+  Paperclip, Phone, Search, Send, Settings, Shield, ShieldOff, Share2, Sparkles, Trash2, UserPlus, Users, Video, VolumeX, X
 } from "lucide-react";
 
 type Screen = { kind: string; username?: string; section?: string; search?: string; next?: string };
@@ -1538,6 +1539,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [newConversationOpen, setNewConversationOpen] = useState(false);
+  const [activeCall, setActiveCall] = useState<WebCall | null>(null);
   const [userQuery, setUserQuery] = useState("");
   const [people, setPeople] = useState<Array<{ id: string; name: string; username: string | null; image: string | null; isVerified?: boolean; isOwner?: boolean }>>([]);
   const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
@@ -1929,6 +1931,23 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     }
   }
 
+  async function startCall(type: "AUDIO" | "VIDEO") {
+    if (!activeId || !session?.user?.id || !activeMember || active?.isGroup || activeCall) return;
+    setError("");
+    try {
+      const response = await fetch("/api/conversations/" + activeId + "/calls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error ?? "Could not start the call.");
+      setActiveCall(json.call as WebCall);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not start the call.");
+    }
+  }
+
   async function editMessage(messageId: string) {
     if (!editingMessageText.trim() || savingMessage) return;
     setSavingMessage(true);
@@ -2129,6 +2148,10 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
 
   return (
     <div className="messages-page min-w-0">
+      {activeCall && activeMember ? (
+        <CallPanel call={activeCall} currentUserId={session?.user?.id ?? ""} remoteUser={activeMember} onClosed={() => setActiveCall(null)} />
+      ) : null}
+
       {!session?.user ? (
         <div className="mb-5 rounded-2xl border border-[#d9d4ff] bg-[#f8f7ff] px-4 py-3 text-xs font-semibold text-[#5a4be8]">
           Sign in to load your real conversations. The interface stays browsable while you are signed out.
@@ -2216,6 +2239,12 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
               {active ? <button type="button" onClick={() => setActiveId(null)} className="grid size-10 shrink-0 place-items-center rounded-xl bg-gray-50 text-gray-600 lg:hidden" aria-label="Back to conversations"><ArrowLeft size={18}/></button> : null}
               <Avatar initials={(activeName || "MS").split(" ").map((part)=>part[0]).join("").slice(0,2).toUpperCase()} image={activeMember?.image} />
               <div className="min-w-0 flex-1"><p className="flex items-center gap-1.5 truncate text-sm font-black">{activeName}<AccountBadge verified={activeMember?.isVerified} owner={activeMember?.isOwner}/></p><p className="text-xs text-gray-500">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
+              {!active?.isGroup && activeMember ? (
+                <>
+                  <button type="button" onClick={() => void startCall("AUDIO")} disabled={Boolean(activeCall || incomingCall)} className="social-icon-button disabled:opacity-40" aria-label="Start voice call"><Phone size={18}/></button>
+                  <button type="button" onClick={() => void startCall("VIDEO")} disabled={Boolean(activeCall || incomingCall)} className="social-icon-button disabled:opacity-40" aria-label="Start video call"><Video size={18}/></button>
+                </>
+              ) : null}
               <div className="relative"><button type="button" onClick={() => setShowConversationOptions((value) => !value)} disabled={!active} className="social-icon-button disabled:opacity-40" aria-label="Conversation options"><MoreHorizontal size={18}/></button>
                 {showConversationOptions && active ? <div className="absolute right-0 top-11 z-30 w-44 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl"><button type="button" onClick={() => void updateConversationAction(active.archivedAt ? "unarchive" : "archive")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.archivedAt ? "Unarchive" : "Archive"}</button><button type="button" onClick={() => void updateConversationAction(active.mutedUntil ? "unmute" : "mute")} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">{active.mutedUntil ? "Unmute" : "Mute for 7 days"}</button>{active.isGroup ? <button type="button" onClick={() => { setShowGroupInfo(true); setShowConversationOptions(false); }} className="flex w-full rounded-xl px-3 py-2.5 text-left text-xs font-bold hover:bg-gray-50">Group info</button> : null}</div> : null}
               </div>

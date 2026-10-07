@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { Activity, Bell, Database, Flag, Search, Shield, Trash2, UserCog, Users, Wrench, BarChart3, HardDrive, RefreshCw, Archive, Pencil, Zap, History } from "lucide-react";
 import { MODERATOR_PERMISSION_PRESETS } from "@/lib/admin-permission-presets";
 import { AdminAppDownloadSettings } from "@/components/admin-app-download-settings";
+import { AdminPriorityCenter } from "@/components/admin-priority-center";
 
-type Tab="security"|"search"|"platform"|"moderation"|"analytics"|"storage"|"permissions"|"health";
+type Tab="security"|"search"|"platform"|"moderation"|"analytics"|"storage"|"permissions"|"health"|"priorities";
 const tabs: {id:Tab;label:string}[]=[
- {id:"security",label:"Security"}, {id:"search",label:"Global search"}, {id:"platform",label:"Platform"}, {id:"moderation",label:"Operations"}, {id:"analytics",label:"Analytics"}, {id:"storage",label:"Storage"}, {id:"permissions",label:"Permissions"}, {id:"health",label:"System health"}
+ {id:"security",label:"Security"}, {id:"search",label:"Global search"}, {id:"platform",label:"Platform"}, {id:"moderation",label:"Operations"}, {id:"analytics",label:"Analytics"}, {id:"storage",label:"Storage"}, {id:"permissions",label:"Permissions"}, {id:"health",label:"System health"}, {id:"priorities",label:"12 priorities"}
 ];
 
 function Card({children}:{children:React.ReactNode}){return <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_10px_35px_rgba(31,26,64,0.05)]">{children}</section>;}
@@ -58,6 +59,7 @@ export function AdminControlCenter({ initialTab = "security" }: { initialTab?: T
   {tab==="storage"?<StoragePanel data={storage}/>:null}
   {tab==="permissions"?<PermissionPanel data={permissionData} setData={setPermissionData}/>:null}
   {tab==="health"?<Health health={health} reload={loadHealth}/>:null}
+  {tab==="priorities"?<AdminPriorityCenter/>:null}
  </div>;
 }
 

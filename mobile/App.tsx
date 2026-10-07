@@ -26,11 +26,14 @@ import SettingsScreen from "./screens/SettingsScreen";
 import SavedScreen from "./screens/SavedScreen";
 import SecurityScreen from "./screens/SecurityScreen";
 import AdminScreen from "./screens/AdminScreen";
+import CallsScreen from "./screens/CallsScreen";
 import VideoMedia from "./components/VideoMedia";
 import { Share } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
 import PermissionOnboarding from "./components/PermissionOnboarding";
+import CallScreen, { IncomingCallPrompt, type NativeCall } from "./components/CallScreen";
+import InCallManager from "react-native-incall-manager";
 import { authClient } from "./lib/auth-client";
 import { apiFetch, uploadMedia } from "./lib/api";
 import { configurePushNotifications, subscribeToNotificationOpen, unregisterPushDevice } from "./lib/push";
@@ -1130,6 +1133,116 @@ function DiscoverScreen({
   );
 }
 
+function CallOverlay({ currentUserId }: { currentUserId: string }) {
+  const [incoming, setIncoming] = useState<NativeCall | null>(null);
+  const [active, setActive] = useState<NativeCall | null>(null);
+  const [activeIsIncoming, setActiveIsIncoming] = useState(false);
+  const incomingRef = useRef<NativeCall | null>(null);
+  const activeRef = useRef<NativeCall | null>(null);
+
+  useEffect(() => { incomingRef.current = incoming; }, [incoming]);
+  useEffect(() => { activeRef.current = active; }, [active]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeRealtime((event) => {
+      if (event.type === "call.incoming" && event.entityId && !activeRef.current && !incomingRef.current) {
+        void apiFetch<{ call: NativeCall }>(`/api/calls/${event.entityId}`)
+          .then((data) => {
+            if (data.call.calleeId !== currentUserId || data.call.status !== "RINGING") return;
+            setIncoming(data.call);
+          })
+          .catch(() => {});
+      }
+
+      if (event.type === "call.updated" && event.entityId) {
+        const nextStatus = String(event.payload?.status ?? "");
+        if (incomingRef.current?.id === event.entityId && ["DECLINED", "MISSED", "ENDED", "CANCELLED", "ACTIVE"].includes(nextStatus)) {
+          setIncoming(null);
+          if (nextStatus === "ACTIVE") {
+            void apiFetch<{ call: NativeCall }>(`/api/calls/${event.entityId}`)
+              .then((data) => {
+                if (data.call.status === "ACTIVE") {
+                  setActive(data.call);
+                  setActiveIsIncoming(true);
+                }
+              })
+              .catch(() => {});
+          }
+        }
+        if (activeRef.current?.id === event.entityId && ["DECLINED", "MISSED", "ENDED", "CANCELLED"].includes(nextStatus)) {
+          setActive(null);
+        }
+      }
+    });
+    return unsubscribe;
+  }, [currentUserId]);
+
+  useEffect(() => {
+    if (!incoming) {
+      try { InCallManager.stopRingtone(); } catch {}
+      return;
+    }
+    try { InCallManager.startRingtone("_DEFAULT_"); } catch {}
+    return () => {
+      try { InCallManager.stopRingtone(); } catch {}
+    };
+  }, [incoming?.id]);
+
+  if (active) {
+    const remoteUser = active.callerId === currentUserId ? active.callee : active.caller;
+    if (!remoteUser) return null;
+    return (
+      <View style={StyleSheet.absoluteFill}>
+        <CallScreen
+          call={active}
+          currentUserId={currentUserId}
+          remoteUser={remoteUser}
+          incoming={false}
+          incoming={activeIsIncoming}
+          onFinished={() => { setActive(null); setActiveIsIncoming(false); }}
+        />
+      </View>
+    );
+  }
+
+  if (!incoming || !incoming.caller) return null;
+
+  const accept = async () => {
+    try {
+      await apiFetch(`/api/calls/${incoming.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "accept" }),
+      });
+      try { InCallManager.stopRingtone(); } catch {}
+      setIncoming(null);
+      setActive(incoming);
+      setActiveIsIncoming(true);
+    } catch (error) {
+      Alert.alert("Call", error instanceof Error ? error.message : "Unable to accept the call.");
+    }
+  };
+
+  const decline = async () => {
+    try {
+      await apiFetch(`/api/calls/${incoming.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "decline" }),
+      });
+    } catch {}
+    try { InCallManager.stopRingtone(); } catch {}
+    setIncoming(null);
+  };
+
+  return (
+    <IncomingCallPrompt
+      call={incoming}
+      caller={incoming.caller}
+      onAccept={() => void accept()}
+      onDecline={() => void decline()}
+    />
+  );
+}
+
 function conversationName(conversation: Conversation, currentUserId: string) {
   if (conversation.isGroup) return conversation.title || "Group conversation";
   return conversation.members.find((member) => member.userId !== currentUserId)?.user.name ?? "Conversation";
@@ -1319,6 +1432,7 @@ function ChatScreen({
   const [editing, setEditing] = useState<Message | null>(null);
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Array<{ id: string; name: string }>>([]);
+  const [activeCall, setActiveCall] = useState<NativeCall | null>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const other = conversation.members.find((member) => member.userId !== currentUserId)?.user;
   const insets = useSafeAreaInsets();
@@ -1387,6 +1501,19 @@ function ChatScreen({
     }, 4_500);
   };
 
+  const startCall = async (type: "AUDIO" | "VIDEO") => {
+    if (!other?.id || conversation.isGroup || activeCall) return;
+    try {
+      const data = await apiFetch<{ call: NativeCall }>(`/api/conversations/${conversation.id}/calls`, {
+        method: "POST",
+        body: JSON.stringify({ type }),
+      });
+      setActiveCall(data.call);
+    } catch (error) {
+      Alert.alert("Call", error instanceof Error ? error.message : "Unable to start the call.");
+    }
+  };
+
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
       onBack();
@@ -1394,6 +1521,21 @@ function ChatScreen({
     });
     return () => subscription.remove();
   }, [onBack]);
+
+  if (activeCall) {
+    const remoteUser = activeCall.callerId === currentUserId ? activeCall.callee : activeCall.caller;
+    if (remoteUser) {
+      return (
+        <CallScreen
+          call={activeCall}
+          currentUserId={currentUserId}
+          remoteUser={remoteUser}
+          incoming={false}
+          onFinished={() => setActiveCall(null)}
+        />
+      );
+    }
+  }
 
   const send = async () => {
     if (editing) {
@@ -2049,6 +2191,7 @@ function RootContent() {
         />
       ) : null}
       {tab === "Friends" ? <FriendsScreen onMenu={openMenu} /> : null}
+      {tab === "Calls" ? <CallsScreen onMenu={openMenu} /> : null}
       {tab === "Messages" && sessionUser ? (
         <MessagingScreen
           currentUserId={sessionUser.id}
@@ -2064,6 +2207,8 @@ function RootContent() {
       {tab === "Saved" ? <SavedScreen onMenu={openMenu} /> : null}
       {tab === "Security" ? <SecurityScreen onMenu={openMenu} /> : null}
       {tab === "Admin" && sessionUser?.isOwner ? <AdminScreen onMenu={openMenu} /> : null}
+
+      <CallOverlay currentUserId={sessionUser.id} />
 
       {!hideBottomNav ? (
         <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom + 8, 10) }]}>
@@ -2133,6 +2278,8 @@ const styles = StyleSheet.create({
   chatSubtitle: { color: colors.muted, fontSize: 11, marginTop: 2 },
   chatStatusPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: colors.accentSoft },
   chatStatusText: { color: colors.accent, fontSize: 10, fontWeight: "900" },
+  callButton: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  callIcon: { color: colors.text, fontSize: 18, fontWeight: "900" },
   root: { flex: 1, backgroundColor: colors.bg },
   screen: { flex: 1, backgroundColor: colors.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },

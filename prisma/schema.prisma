@@ -62,6 +62,26 @@ enum ConversationRole {
   ADMIN
 }
 
+enum CallType {
+  AUDIO
+  VIDEO
+}
+
+enum CallStatus {
+  RINGING
+  ACTIVE
+  DECLINED
+  MISSED
+  ENDED
+  CANCELLED
+}
+
+enum CallSignalKind {
+  OFFER
+  ANSWER
+  CANDIDATE
+}
+
 enum NotificationType {
   LIKE
   COMMENT
@@ -178,6 +198,15 @@ model User {
   managedDevices ManagedDevice[] @relation("DeviceOwner")
   devicePolicyChanges DevicePolicy[] @relation("DevicePolicyActor")
   deviceManagementAudits DeviceManagementAudit[] @relation("DeviceManagementAuditActor")
+  postDrafts     PostDraft[]
+  mediaAssets    MediaAsset[]
+  creatorProfile CreatorProfile?
+  creatorMemberships CreatorSubscription[] @relation("CreatorSubscriptionsMember")
+  creatorSubscribers CreatorSubscription[] @relation("CreatorSubscriptionsCreator")
+  recommendationEvents RecommendationEvent[]
+  outgoingCalls Call[] @relation("CallCaller")
+  incomingCalls Call[] @relation("CallCallee")
+  callSignals CallSignal[] @relation("CallSignalSender")
 
   @@index([createdAt])
   @@index([role])
@@ -249,6 +278,8 @@ model Post {
   notifications Notification[]
   reports    Report[]
   postMetricOverride AdminPostMetricOverride?
+  mediaAssets MediaAsset[] @relation("PostMediaAssets")
+  recommendationEvents RecommendationEvent[]
 
   @@index([authorId, isPinned, createdAt])
   @@index([visibility, createdAt])
@@ -328,6 +359,7 @@ model Conversation {
 
   members   ConversationMember[]
   messages  Message[]
+  calls     Call[]
 
   @@index([updatedAt])
 }
@@ -347,6 +379,44 @@ model ConversationMember {
 
   @@unique([conversationId, userId])
   @@index([userId, lastReadAt])
+}
+
+model Call {
+  id             String     @id @default(cuid())
+  conversationId String
+  callerId       String
+  calleeId       String
+  type           CallType
+  status         CallStatus @default(RINGING)
+  createdAt      DateTime   @default(now())
+  acceptedAt     DateTime?
+  endedAt        DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  caller       User         @relation("CallCaller", fields: [callerId], references: [id], onDelete: Cascade)
+  callee       User         @relation("CallCallee", fields: [calleeId], references: [id], onDelete: Cascade)
+  signals      CallSignal[]
+
+  @@index([conversationId, createdAt])
+  @@index([callerId, status, createdAt])
+  @@index([calleeId, status, createdAt])
+  @@index([status, createdAt])
+}
+
+model CallSignal {
+  id        String          @id @default(cuid())
+  callId    String
+  senderId  String
+  kind      CallSignalKind
+  payload   String
+  createdAt DateTime        @default(now())
+
+  call   Call @relation(fields: [callId], references: [id], onDelete: Cascade)
+  sender User @relation("CallSignalSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([callId, createdAt])
+  @@index([callId, id])
+  @@index([senderId, createdAt])
 }
 
 model Message {
@@ -493,6 +563,94 @@ model StoryView {
 
   @@unique([storyId, viewerId])
   @@index([viewerId, viewedAt])
+}
+
+model PostDraft {
+  id         String         @id @default(cuid())
+  userId     String
+  content    String?
+  mediaUrl   String?
+  visibility PostVisibility @default(PUBLIC)
+  updatedAt  DateTime       @updatedAt
+  createdAt  DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+  @@index([updatedAt])
+}
+
+model MediaAsset {
+  id          String   @id @default(cuid())
+  userId      String
+  postId      String?
+  url         String
+  mediaType   String
+  mimeType    String
+  byteSize    Int
+  width       Int?
+  height      Int?
+  durationMs  Int?
+  status      String   @default("READY")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post? @relation("PostMediaAssets", fields: [postId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([postId])
+  @@index([status, createdAt])
+}
+
+model RecommendationEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  eventType String
+  weight    Float    @default(1)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([postId, createdAt])
+  @@index([userId, postId, eventType])
+}
+
+model CreatorProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  enabled            Boolean  @default(false)
+  displayName        String?
+  bio               String?
+  monthlyPriceCents Int      @default(0)
+  currency           String   @default("INR")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CreatorSubscription {
+  id                String   @id @default(cuid())
+  creatorId         String
+  memberId          String
+  status            String   @default("PENDING")
+  monthlyPriceCents Int      @default(0)
+  currency           String   @default("INR")
+  startedAt         DateTime?
+  cancelledAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  creator User @relation("CreatorSubscriptionsCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  member  User @relation("CreatorSubscriptionsMember", fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorId, memberId])
+  @@index([creatorId, status])
+  @@index([memberId, status])
 }
 
 model SavedPost {

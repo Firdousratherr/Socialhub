@@ -4,7 +4,7 @@ import type { FormEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Bookmark, Compass, Home, LogOut, MessageCircle, Search, Settings, Sparkles, User, Users } from "lucide-react";
+import { Bell, Bookmark, Compass, Home, LogOut, MessageCircle, Phone, Search, Settings, Sparkles, User, Users } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useUnreadSummary } from "@/hooks/use-unread-summary";
 import { MobileMenu } from "@/components/mobile-menu";
@@ -12,12 +12,15 @@ import { PlatformAnnouncements } from "@/components/platform-announcements";
 import { BottomNav } from "@/components/bottom-nav";
 import { Avatar } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/social-ui";
+import CallPanel, { type WebCall } from "@/components/call-panel";
+import { useLivePoll } from "@/hooks/use-live-poll";
 
 const navItems = [
   { label: "Home", href: "/home", icon: Home },
   { label: "Discover", href: "/discover", icon: Compass },
   { label: "Friends", href: "/friends", icon: Users },
   { label: "Messages", href: "/messages", icon: MessageCircle },
+  { label: "Calls", href: "/calls", icon: Phone },
   { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Saved", href: "/saved", icon: Bookmark },
   { label: "Settings", href: "/settings", icon: Settings },
@@ -40,8 +43,35 @@ export function AppShell({ children }: { children: ReactNode }) {
   }>({ users: [], posts: [], hashtags: [] });
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [incomingCall, setIncomingCall] = useState<WebCall | null>(null);
+  const callRealtimeCursorRef = useRef<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useLivePoll(async () => {
+    if (!session?.user?.id || incomingCall) return;
+    const cursor = callRealtimeCursorRef.current;
+    const response = await fetch("/api/realtime" + (cursor ? "?cursor=" + encodeURIComponent(cursor) + "&take=100" : "?take=100"), { cache: "no-store" });
+    if (!response.ok) return;
+    const json = await response.json();
+    callRealtimeCursorRef.current = json.nextCursor ?? callRealtimeCursorRef.current;
+    for (const event of json.events ?? []) {
+      if (event.type !== "call.incoming" || !event.entityId) continue;
+      const ageMs = Date.now() - new Date(event.createdAt ?? 0).getTime();
+      if (ageMs < 0 || ageMs > 60_000) continue;
+      const callResponse = await fetch("/api/calls/" + event.entityId, { cache: "no-store" });
+      if (!callResponse.ok) continue;
+      const callJson = await callResponse.json();
+      if (callJson.call?.calleeId === session.user.id && callJson.call?.status === "RINGING") {
+        setIncomingCall(callJson.call as WebCall);
+        break;
+      }
+    }
+  }, 1200, Boolean(session?.user?.id));
+
+  useEffect(() => {
+    if (!session?.user?.id) setIncomingCall(null);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (!session?.user) return;
@@ -155,6 +185,15 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen overflow-x-clip">
+      {incomingCall?.caller && session?.user?.id ? (
+        <CallPanel
+          call={incomingCall}
+          currentUserId={session.user.id}
+          remoteUser={incomingCall.caller}
+          incoming
+          onClosed={() => setIncomingCall(null)}
+        />
+      ) : null}
       <header className="social-topbar sticky top-0 z-[70]">
         <div className="mx-auto flex h-[var(--header-h)] max-w-[1440px] items-center gap-2 px-3 sm:gap-3 sm:px-5 lg:px-7">
           <Link href="/home" className="flex min-w-0 shrink-0 items-center gap-2 rounded-xl p-1" aria-label="Socialhub home">
