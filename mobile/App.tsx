@@ -2810,9 +2810,11 @@ function RootContent() {
 
   const navigate = useCallback((route: MobileRoute) => {
     if (route === "Admin" && !sessionUser?.isOwner) return;
+    if (route === "Profile" && deepLink?.kind === "profile") setDeepLink(null);
+    if (route === "Messages" && deepLink?.kind === "message") setDeepLink(null);
     setHideBottomNav(false);
     setTab(route);
-  }, [sessionUser?.isOwner]);
+  }, [deepLink, sessionUser?.isOwner]);
 
   const signOut = useCallback(async () => {
     try {
