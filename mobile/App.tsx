@@ -864,7 +864,7 @@ function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: (
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.sheet}>
+      <View style={[styles.sheet, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.sheetHeader}>
           <Text style={styles.sheetTitle}>Create story</Text>
           <Pressable onPress={onClose}><Text style={styles.closeText}>✕</Text></Pressable>
@@ -887,7 +887,7 @@ function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: (
           />
           <PrimaryButton label={busy ? "Publishing…" : "Publish story"} onPress={() => void submit()} disabled={busy || !asset} />
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
