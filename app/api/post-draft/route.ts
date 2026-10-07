@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { postVisibilityEnum } from "@/lib/validation";
+import { z } from "zod";
 
 async function session() {
   return auth.api.getSession({ headers: await headers() });
@@ -27,7 +27,7 @@ export async function PUT(request: Request) {
 
   const content = typeof body?.content === "string" ? body.content.slice(0, 5000) : null;
   const mediaUrl = typeof body?.mediaUrl === "string" ? body.mediaUrl.slice(0, 2000) : null;
-  const visibility = postVisibilityEnum.safeParse(body?.visibility ?? "PUBLIC");
+  const visibility = z.enum(["PUBLIC", "FRIENDS", "PRIVATE"]).safeParse(body?.visibility ?? "PUBLIC");
   if (!visibility.success) return NextResponse.json({ error: "Invalid visibility." }, { status: 400 });
 
   const draft = await prisma.postDraft.upsert({
