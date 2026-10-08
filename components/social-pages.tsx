@@ -3498,3 +3498,93 @@ function SettingsPage() {
              <ShieldOff size={19} className="text-gray-400"/>
            </div>
            <div className="mt-4 space-y-2">
+             {loadingBlockedUsers ? <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">Loading blocked accounts…</div> :
+              blockedUsers.length ? blockedUsers.map((user) => (
+               <div key={user.id} className="flex items-center gap-3 rounded-2xl border border-gray-100 p-3">
+                 {user.image ? <img src={user.image} alt="" className="size-10 shrink-0 rounded-full object-cover"/> : <div className="grid size-10 shrink-0 place-items-center rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{user.name.slice(0, 1).toUpperCase()}</div>}
+                 <div className="min-w-0 flex-1"><p className="flex items-center gap-1.5 truncate text-xs font-black">{user.name}<AccountBadge verified={user.isVerified} owner={user.isOwner}/></p><p className="truncate text-[11px] text-gray-500">@{user.username ?? "member"} · blocked {formatSocialDate(user.blockedAt)}</p></div>
+                 <button type="button" onClick={() => void unblockUser(user.id)} disabled={unblockingUserId === user.id} className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-700 hover:bg-gray-50 disabled:opacity-40">{unblockingUserId === user.id ? "Unblocking…" : "Unblock"}</button>
+               </div>
+              )) : <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">You have not blocked anyone.</div>}
+           </div>
+         </Card>
+
+<Card>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div><h2 className="text-sm font-black">Account verification</h2><p className="mt-2 text-xs leading-5 text-gray-500">Verified accounts receive a blue badge. The owner badge is separate and cannot be requested.</p></div>
+            <AccountBadge verified={verification.isVerified} owner={verification.isOwner} showLabel size="md"/>
+          </div>
+          {verification.isVerified || verification.isOwner ? <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-xs font-bold text-blue-700">Your account already has platform trust status.</div> : verification.status === "PENDING" ? <div className="mt-4 rounded-2xl bg-amber-50 p-4"><p className="text-xs font-black text-amber-800">Verification request pending</p><p className="mt-1 text-xs text-amber-700">Submitted {verification.createdAt ? formatSocialDateTime(verification.createdAt) : "recently"}.</p></div> : <div className="mt-4 space-y-3"><textarea value={verificationReason} onChange={(e)=>setVerificationReason(e.target.value)} rows={4} maxLength={500} placeholder="Explain why your account should be verified (20–500 characters)." className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs outline-none focus:border-[#a79dff] focus:bg-white"/><div className="flex items-center justify-between gap-3"><p className="text-xs text-gray-500">{verificationReason.trim().length}/500 characters</p><button type="button" onClick={()=>void submitVerificationRequest()} disabled={!session?.user || verificationSubmitting || verificationReason.trim().length < 20} className="rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50 disabled:bg-gray-400">{verificationSubmitting?"Submitting…":"Request blue tick"}</button></div>{verification.status==="REJECTED" && verification.adminNote ? <p className="text-xs text-red-600">Previous review: {verification.adminNote}</p> : null}</div>}
+        </Card>
+<Card id="notifications" className={activeSettingsSection === "notifications" ? "block" : "hidden lg:block"}>
+          <p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Notifications</p>
+          <h2 className="mt-1 text-xl font-black">Choose what reaches you</h2>
+          <p className="mt-2 text-xs leading-5 text-gray-500">Choose which activity appears in your notification inbox.</p>
+          <div className="mt-4 divide-y divide-gray-100"><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Likes</p><p className="mt-0.5 text-xs text-gray-500">When someone likes your posts.</p></div><SettingsToggle value={Boolean(preferences.likes)} disabled={!session?.user || savingPreference === "likes"} onChange={(value)=>void updatePreference("likes", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Comments</p><p className="mt-0.5 text-xs text-gray-500">When someone comments on your posts.</p></div><SettingsToggle value={Boolean(preferences.comments)} disabled={!session?.user || savingPreference === "comments"} onChange={(value)=>void updatePreference("comments", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Follows</p><p className="mt-0.5 text-xs text-gray-500">When someone follows you.</p></div><SettingsToggle value={Boolean(preferences.follows)} disabled={!session?.user || savingPreference === "follows"} onChange={(value)=>void updatePreference("follows", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests</p><p className="mt-0.5 text-xs text-gray-500">When someone sends you a friend request.</p></div><SettingsToggle value={Boolean(preferences.friendRequests)} disabled={!session?.user || savingPreference === "friendRequests"} onChange={(value)=>void updatePreference("friendRequests", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Friend requests accepted</p><p className="mt-0.5 text-xs text-gray-500">When a friend request is accepted.</p></div><SettingsToggle value={Boolean(preferences.friendAccepted)} disabled={!session?.user || savingPreference === "friendAccepted"} onChange={(value)=>void updatePreference("friendAccepted", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Messages</p><p className="mt-0.5 text-xs text-gray-500">When you receive a new message notification.</p></div><SettingsToggle value={Boolean(preferences.messages)} disabled={!session?.user || savingPreference === "messages"} onChange={(value)=>void updatePreference("messages", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Mentions</p><p className="mt-0.5 text-xs text-gray-500">When someone mentions you.</p></div><SettingsToggle value={Boolean(preferences.mentions)} disabled={!session?.user || savingPreference === "mentions"} onChange={(value)=>void updatePreference("mentions", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Shares</p><p className="mt-0.5 text-xs text-gray-500">When your content is shared.</p></div><SettingsToggle value={Boolean(preferences.shares)} disabled={!session?.user || savingPreference === "shares"} onChange={(value)=>void updatePreference("shares", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Story replies</p><p className="mt-0.5 text-xs text-gray-500">When someone replies to one of your stories.</p></div><SettingsToggle value={Boolean(preferences.storyReplies)} disabled={!session?.user || savingPreference === "storyReplies"} onChange={(value)=>void updatePreference("storyReplies", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">Story reactions</p><p className="mt-0.5 text-xs text-gray-500">When someone reacts to one of your stories.</p></div><SettingsToggle value={Boolean(preferences.storyReactions)} disabled={!session?.user || savingPreference === "storyReactions"} onChange={(value)=>void updatePreference("storyReactions", value)}/></div><div className="flex items-center gap-4 py-3"><div className="flex-1"><p className="text-xs font-black text-gray-700">System</p><p className="mt-0.5 text-xs text-gray-500">Important account and platform notices.</p></div><SettingsToggle value={Boolean(preferences.system)} disabled={!session?.user || savingPreference === "system"} onChange={(value)=>void updatePreference("system", value)}/></div></div>
+        </Card>
+
+        {session?.user ? (
+          <Card id="security" className={activeSettingsSection === "security" ? "block" : "hidden lg:block"}>
+            <div className="flex items-center justify-between gap-3">
+              <div><p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Security</p><h2 className="mt-1 text-xl font-black">Active sessions</h2><p className="mt-1 text-xs text-gray-500">Review devices signed in to your account.</p></div>
+              <button type="button" onClick={() => void revokeSession()} disabled={sessions.length <= 1} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-700 disabled:cursor-not-allowed disabled:opacity-40">Sign out other devices</button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {loadingSessions ? <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">Loading sessions…</div> :
+               sessions.length ? sessions.map((item) => (
+                <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-gray-100 p-3">
+                  <span className={"grid size-9 place-items-center rounded-xl " + (item.isCurrent ? "bg-[#eeebff] text-[#5a4be8]" : "bg-gray-100 text-gray-500")}><Shield size={16}/></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black">{item.isCurrent ? "Current device" : formatSessionDevice(item.userAgent)}</span><span className="mt-0.5 block truncate text-xs text-gray-500">{item.ipAddress ? item.ipAddress + " · " : ""}{formatSocialDateTime(item.updatedAt)}</span></span>
+                  {!item.isCurrent ? <button type="button" onClick={() => void revokeSession(item.id)} className="rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-xs font-black text-gray-600 hover:bg-gray-50">Revoke</button> : null}
+                </div>
+              )) : <div className="rounded-2xl bg-gray-50 p-4 text-xs text-gray-500">No active sessions were found.</div>}
+            </div>
+            <button type="button" onClick={()=>void signOut()} className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-700 hover:bg-gray-50">Sign out current device</button>
+            <div className="mt-4 rounded-2xl bg-gray-50 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div><p className="text-xs font-black">Download account data</p><p className="mt-1 text-[11px] leading-5 text-gray-500">Export your profile, posts, comments, connections, saves, stories, and notification/privacy settings as JSON.</p></div>
+                <button type="button" onClick={() => void downloadAccountData()} disabled={exportingData} className="shrink-0 rounded-xl bg-gray-950 px-3.5 py-2.5 text-xs font-black text-white disabled:opacity-40">{exportingData ? "Preparing…" : "Download JSON"}</button>
+              </div>
+            </div>
+          </Card>
+        ) : null}
+
+        <Card id="help" className={activeSettingsSection === "help" ? "block" : "hidden lg:block"}>
+          <p className="text-xs font-black uppercase tracking-[.14em] text-[#6d5dfc]">Help</p>
+          <h2 className="mt-1 text-xl font-black">Find the setting you need</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">General</p><p className="mt-1 text-xs text-gray-500">Edit profile details, email, or password.</p></div>
+            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">Privacy</p><p className="mt-1 text-xs text-gray-500">Control who can see lists and contact you.</p></div>
+            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">Notifications</p><p className="mt-1 text-xs text-gray-500">Choose which activity notifications stay enabled.</p></div>
+            <div className="rounded-2xl bg-gray-50 p-4"><p className="text-xs font-black">Security</p><p className="mt-1 text-xs text-gray-500">Manage sessions, verification, and account deletion.</p></div>
+          </div>
+        </Card>
+
+        <div className="rounded-3xl border border-red-100 bg-red-50 p-5">
+          <div className="flex items-center gap-2 text-red-600"><Trash2 size={17}/><h2 className="text-sm font-black">Danger zone</h2></div>
+          <p className="mt-2 text-xs leading-5 text-red-500/75">Deleting your account permanently removes your profile, posts, messages, and social activity.</p>
+          <button onClick={()=>void deleteAccount()} disabled={!session?.user} className="mt-4 rounded-xl border border-red-200 bg-white px-3.5 py-2.5 text-xs font-black text-red-600 disabled:cursor-not-allowed disabled:opacity-50">Delete account</button>
+        </div>
+      </div>
+    </div>
+  </Page>;
+}
+function Admin({ section="overview" }: { section?: string }) {
+  return <AdminWorkspace section={section}/>;
+}
+export function SocialPages({ screen }: { screen: Screen }) {
+  if (screen.kind==="login") return <Auth nextPath={screen.next} />;
+  if (screen.kind==="signup") return <Auth signup nextPath={screen.next} />;
+  if (screen.kind==="admin") return <Admin section={screen.section}/>;
+
+  const content =
+    screen.kind==="profile" ? <Profile username={screen.username}/> :
+    screen.kind==="messages" ? <Messages initialConversationId={screen.search}/> :
+    screen.kind==="discover" ? <Discover initialQuery={screen.search ?? ""}/> :
+    screen.kind==="friends" ? <Friends/> :
+    screen.kind==="notifications" ? <Notifications/> :
+    screen.kind==="settings" ? <SettingsPage/> :
+    <Page eyebrow="Socialhub" title="You're all caught up." subtitle="Use the main navigation to keep exploring the experience."><Card><div className="flex items-start gap-4"><span className="grid size-12 place-items-center rounded-2xl bg-[#eeebff] text-[#5a4be8]"><Sparkles size={20}/></span><div><h2 className="font-black">This route is ready.</h2><p className="mt-2 text-sm text-gray-500">The screen shell is in place so real data can be connected without redesigning the interface.</p></div></div></Card></Page>;
+
+  return <AppShell>{content}</AppShell>;
+}
