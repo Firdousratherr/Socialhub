@@ -34,13 +34,28 @@ export type NativeCall = {
   callee?: User;
 };
 
+type RtcDescriptionType = "offer" | "answer" | "pranswer" | "rollback";
+
+type RtcDescriptionPayload = {
+  type: RtcDescriptionType;
+  sdp: string;
+};
+
+function toRtcSessionDescription(payload: unknown): RTCSessionDescription {
+  const value = payload as Partial<RtcDescriptionPayload>;
+  if (!value.type || typeof value.sdp !== "string") {
+    throw new Error("Invalid call session description.");
+  }
+  return new RTCSessionDescription({ type: value.type, sdp: value.sdp });
+}
+
 function rtcIceServers() {
   const servers: Array<{ urls: string | string[]; username?: string; credential?: string }> = [
     { urls: process.env.EXPO_PUBLIC_STUN_URL ?? "stun:stun.l.google.com:19302" },
   ];
   const turnUrls = (process.env.EXPO_PUBLIC_TURN_URLS ?? "")
     .split(",")
-    .map((item) => item.trim())
+    .map((item: string) => item.trim())
     .filter(Boolean);
   if (turnUrls.length) {
     servers.push({
@@ -147,14 +162,14 @@ export default function CallScreen({
           if (!pc) continue;
 
           if (signal.kind === "OFFER" && incoming) {
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as Record<string, unknown>));
+            await pc.setRemoteDescription(toRtcSessionDescription(signal.payload));
             for (const candidate of pendingCandidates.current.splice(0)) await pc.addIceCandidate(candidate);
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             await sendSignal("ANSWER", answer);
             setStatus("Connecting…");
           } else if (signal.kind === "ANSWER" && !incoming) {
-            await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as Record<string, unknown>));
+            await pc.setRemoteDescription(toRtcSessionDescription(signal.payload));
             for (const candidate of pendingCandidates.current.splice(0)) await pc.addIceCandidate(candidate);
             setStatus("Connecting…");
           } else if (signal.kind === "CANDIDATE") {
@@ -183,10 +198,10 @@ export default function CallScreen({
         peerRef.current = pc;
 
         stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-        pc.onicecandidate = (event) => {
+        pc.onicecandidate = (event: any) => {
           if (event.candidate) void sendSignal("CANDIDATE", event.candidate.toJSON());
         };
-        pc.ontrack = (event) => {
+        pc.ontrack = (event: any) => {
           const stream = event.streams?.[0];
           if (!stream) return;
           remoteRef.current = stream;

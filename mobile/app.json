@@ -2,13 +2,13 @@
   "expo": {
     "name": "SocialHub",
     "slug": "socialhub",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "orientation": "portrait",
     "scheme": "socialhub",
     "userInterfaceStyle": "automatic",
     "android": {
       "package": "com.socialhub.app",
-      "versionCode": 8,
+      "versionCode": 9,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#08080c"
@@ -77,7 +77,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#08080c",
+          "backgroundColor": "#07070B",
           "image": "./assets/icon.png",
           "imageWidth": 180,
           "resizeMode": "contain"

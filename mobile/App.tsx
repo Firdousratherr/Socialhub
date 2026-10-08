@@ -20,7 +20,7 @@ import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import * as Linking from "expo-linking";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
-import { AppHeader, MenuDrawer, type MobileRoute } from "./components/MobileShell";
+import { AppHeader, DetailHeader, MenuDrawer, type MobileRoute } from "./components/MobileShell";
 import FriendsScreen from "./screens/FriendsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import SavedScreen from "./screens/SavedScreen";
@@ -32,6 +32,10 @@ import { Share } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
 import PermissionOnboarding from "./components/PermissionOnboarding";
+import LaunchScreen from "./components/LaunchScreen";
+import { BrandMark } from "./components/BrandMark";
+import { Ionicons } from "@expo/vector-icons";
+import { colors } from "./theme";
 import CallScreen, { IncomingCallPrompt, type NativeCall } from "./components/CallScreen";
 import InCallManager from "react-native-incall-manager";
 import { authClient } from "./lib/auth-client";
@@ -52,21 +56,7 @@ import type {
 
 type Tab = MobileRoute;
 
-const BRAND_ICON = require("./assets/icon.png");
 const PERMISSION_ONBOARDING_KEY = "socialhub:permissions-intro:v2";
-
-const colors = {
-  bg: "#08080c",
-  panel: "#111118",
-  panel2: "#171720",
-  border: "#252531",
-  text: "#f8f8ff",
-  muted: "#8d8d9b",
-  accent: "#725cff",
-  accentSoft: "#251f55",
-  success: "#69d79b",
-  danger: "#ff7474",
-};
 
 SplashScreen.setOptions({ duration: 650 });
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -311,10 +301,8 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
     <View style={[styles.authScreen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.authContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.logo}>
-          <Image source={BRAND_ICON} style={styles.logoImage} resizeMode="contain" />
-        </View>
-        <Text style={styles.authBrand}>SocialHub</Text>
+        <BrandMark size={96} style={styles.authBrandMark} />
+        <Text style={styles.authBrand}>Socialhub</Text>
         <Text style={styles.authSubtitle}>{title}</Text>
 
         {mode === "signup" ? (
@@ -900,7 +888,6 @@ function StoryCreate({ onCreated, onClose }: { onCreated: () => void; onClose: (
     </Modal>
   );
 }
-
 function HomeScreen({
   onMenu,
   initialPostId,
@@ -914,6 +901,7 @@ function HomeScreen({
 }) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
+  const [feedMode, setFeedMode] = useState<"FOR_YOU" | "FOLLOWING" | "FRIENDS" | "LATEST" | "SAVED">("FOR_YOU");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -921,28 +909,32 @@ function HomeScreen({
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
+      const query = new URLSearchParams({ take: "20", mode: feedMode });
       const [postData, storyData] = await Promise.all([
-        apiFetch<{ posts: Post[] }>("/api/posts?take=20&mode=FOR_YOU"),
-        apiFetch<{ stories: Story[] }>("/api/stories"),
+        apiFetch<{ posts?: Post[] }>("/api/" + (feedMode === "FOR_YOU" ? "feed/recommended?take=20" : "posts?" + query.toString())),
+        apiFetch<{ stories?: Story[] }>("/api/stories"),
       ]);
-      setPosts(postData.posts);
-      setStories(storyData.stories);
+      setPosts(postData.posts ?? []);
+      setStories(storyData.stories ?? []);
     } catch (e) {
       Alert.alert("Feed", e instanceof Error ? e.message : "Unable to load your feed.");
+      if (!isRefresh) {
+        setPosts([]);
+        setStories([]);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [feedMode]);
+
+  useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
-    void load();
     const unsubscribe = subscribeRealtime((event) => {
-      if (event.type === "message.created") void load();
+      if (event.type === "message.created" || event.type === "post.created") void load(true);
     });
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [load]);
 
   const [storyIndex, setStoryIndex] = useState<number | null>(null);
@@ -972,6 +964,24 @@ function HomeScreen({
   return (
     <View style={styles.screen}>
       <AppHeader title="Socialhub" subtitle="Your people, your feed." onMenu={onMenu} action="↻" onAction={() => void load(true)} />
+      <View style={styles.feedModeRow}>
+        {[
+          ["FOR_YOU", "For You"],
+          ["FOLLOWING", "Following"],
+          ["FRIENDS", "Friends"],
+          ["LATEST", "Latest"],
+          ["SAVED", "Saved"],
+        ].map(([value, label]) => (
+          <Pressable
+            key={value}
+            onPress={() => setFeedMode(value as typeof feedMode)}
+            style={[styles.feedModeChip, feedMode === value && styles.feedModeChipActive]}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.feedModeText, feedMode === value && styles.feedModeTextActive]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
 
       {loading && !posts.length ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
 
@@ -985,7 +995,7 @@ function HomeScreen({
             <CreatePost onCreated={(post) => setPosts((current) => [post, ...current])} />
           </View>
         }
-        ListEmptyComponent={!loading ? <Text style={styles.empty}>No posts to show yet.</Text> : null}
+        ListEmptyComponent={!loading ? <Text style={styles.empty}>No posts to show here yet.</Text> : null}
         contentContainerStyle={styles.feed}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.accent} />}
       />
@@ -1007,40 +1017,75 @@ function HomeScreen({
     </View>
   );
 }
-
 function DiscoverScreen({
   onMenu,
   initialQuery,
   onDeepLinkHandled,
+  onOpenProfile,
 }: {
   onMenu: () => void;
   initialQuery?: string;
   onDeepLinkHandled: () => void;
+  onOpenProfile: (usernameOrId: string) => void;
 }) {
+  type HashtagResult = { tag: string; count?: number };
+  type Trend = { tag: string; posts: number };
+
   const [query, setQuery] = useState(initialQuery ?? "");
   const [users, setUsers] = useState<SearchUser[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [hashtags, setHashtags] = useState<HashtagResult[]>([]);
+  const [suggestions, setSuggestions] = useState<SearchUser[]>([]);
+  const [trends, setTrends] = useState<Trend[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingHome, setLoadingHome] = useState(true);
+
+  const loadExplore = useCallback(async () => {
+    setLoadingHome(true);
+    try {
+      const [people, trendData] = await Promise.all([
+        apiFetch<{ users?: SearchUser[] }>("/api/users?suggestions=true&take=8"),
+        apiFetch<{ trends?: Trend[] }>("/api/discover/trends"),
+      ]);
+      setSuggestions((people.users ?? []).filter((u) => !u.isFriend && !u.isFollowing && (u.friendRequestStatus ?? "NONE") === "NONE"));
+      setTrends(trendData.trends ?? []);
+    } catch {
+      setSuggestions([]);
+      setTrends([]);
+    } finally {
+      setLoadingHome(false);
+    }
+  }, []);
 
   const search = useCallback(async (value: string) => {
     const term = value.trim();
     if (!term) {
       setUsers([]);
       setPosts([]);
-      setLoading(false);
+      setHashtags([]);
       return;
     }
     setLoading(true);
     try {
-      const data = await apiFetch<{ users: SearchUser[]; posts: Post[] }>(`/api/search?q=${encodeURIComponent(term)}&take=20`);
-      setUsers(data.users);
-      setPosts(data.posts);
+      const data = await apiFetch<{ users?: SearchUser[]; posts?: Post[]; hashtags?: HashtagResult[] }>(
+        `/api/search?q=${encodeURIComponent(term)}&take=20`,
+      );
+      setUsers(data.users ?? []);
+      setPosts(data.posts ?? []);
+      setHashtags(data.hashtags ?? []);
     } catch (e) {
+      setUsers([]);
+      setPosts([]);
+      setHashtags([]);
       Alert.alert("Discover", e instanceof Error ? e.message : "Search failed.");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    void loadExplore();
+  }, [loadExplore]);
 
   useEffect(() => {
     if (initialQuery && initialQuery !== query) {
@@ -1050,7 +1095,7 @@ function DiscoverScreen({
   }, [initialQuery, query, onDeepLinkHandled]);
 
   useEffect(() => {
-    const timeout = query.trim() ? setTimeout(() => void search(query), 250) : null;
+    const timeout = query.trim() ? setTimeout(() => void search(query), 260) : null;
     return () => {
       if (timeout) clearTimeout(timeout);
     };
@@ -1066,73 +1111,136 @@ function DiscoverScreen({
           method: "PATCH",
           body: JSON.stringify({ status: "ACCEPTED" }),
         });
-        Alert.alert("Friends", "Friend request accepted.");
       } else if (user.canSendFriendRequest) {
         await apiFetch("/api/friend-requests", {
           method: "POST",
           body: JSON.stringify({ receiverId: user.id }),
         });
-        Alert.alert("Friends", "Friend request sent.");
       }
       await search(query);
+      await loadExplore();
     } catch (e) {
       Alert.alert("Friends", e instanceof Error ? e.message : "Unable to update friendship.");
     }
   };
 
+  const personCard = (user: SearchUser, suggested = false) => (
+    <Pressable
+      key={user.id}
+      style={styles.userCard}
+      onPress={() => onOpenProfile(user.username ?? user.id)}
+    >
+      <Avatar user={user} size={50} />
+      <View style={styles.flex}>
+        <View style={styles.row}>
+          <Text numberOfLines={1} style={styles.userName}>{user.name}</Text>
+          {user.isVerified ? <Ionicons name="checkmark-circle" size={14} color={colors.accentBright} /> : null}
+        </View>
+        <Text numberOfLines={1} style={styles.userHandle}>
+          @{user.username ?? "socialhub"} · {formatCount(user.displayCounts?.followers ?? 0)} followers
+        </Text>
+        {user.bio ? <Text numberOfLines={1} style={styles.muted}>{user.bio}</Text> : null}
+      </View>
+      {!suggested && user.isFriend ? (
+        <Text style={styles.successText}>Friends</Text>
+      ) : !suggested && user.friendRequestStatus === "OUTGOING_PENDING" ? (
+        <Text style={styles.muted}>Pending</Text>
+      ) : !suggested && user.friendRequestStatus === "INCOMING_PENDING" ? (
+        <Pressable style={styles.miniButton} onPress={(event) => { event.stopPropagation(); void friendRequest(user); }}>
+          <Text style={styles.miniButtonText}>Accept</Text>
+        </Pressable>
+      ) : user.canSendFriendRequest ? (
+        <Pressable style={styles.miniButton} onPress={(event) => { event.stopPropagation(); void friendRequest(user); }}>
+          <Text style={styles.miniButtonText}>Add</Text>
+        </Pressable>
+      ) : null}
+    </Pressable>
+  );
+
   return (
     <View style={styles.screen}>
-      <AppHeader title="Discover" subtitle="Find people and posts." onMenu={onMenu} />
+      <AppHeader title="Discover" subtitle="People, posts, hashtags and trends." onMenu={onMenu} />
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.discoverHero}>
-          <Text style={styles.discoverEyebrow}>DISCOVER</Text>
+          <View style={styles.discoverHeroRow}>
+            <View style={styles.discoverHeroBadge}><Ionicons name="sparkles-outline" size={16} color={colors.accentBright} /></View>
+            <Text style={styles.discoverEyebrow}>DISCOVER</Text>
+          </View>
           <Text style={styles.discoverTitle}>Find your people</Text>
-          <Text style={styles.discoverSubtitle}>Search profiles, usernames, and posts.</Text>
+          <Text style={styles.discoverSubtitle}>Explore creators, conversations and topics worth following.</Text>
         </View>
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search people, usernames or posts…"
-          placeholderTextColor={colors.muted}
-          style={styles.searchInput}
-          autoCapitalize="none"
-        />
-        {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
-        {!query.trim() && !loading ? (
-          <View style={styles.discoverEmptyCard}>
-            <Text style={styles.discoverEmptyIcon}>⌕</Text>
-            <Text style={styles.discoverEmptyTitle}>Start with a search</Text>
-            <Text style={styles.emptySmall}>Try a name, @username, hashtag, or a word from a post.</Text>
-          </View>
-        ) : null}
 
-        {query.trim() ? <SectionHeader title="People" /> : null}
-        {users.length ? users.map((user) => (
-          <View key={user.id} style={styles.userCard}>
-            <Avatar user={user} size={46} />
-            <View style={styles.flex}>
-              <Text style={styles.userName}>{user.name}</Text>
-              <Text style={styles.userHandle}>@{user.username ?? "socialhub"} · {formatCount(user.displayCounts?.followers ?? 0)} followers</Text>
-            </View>
-            {user.isFriend ? (
-              <Text style={styles.successText}>Friends</Text>
-            ) : user.friendRequestStatus === "OUTGOING_PENDING" ? (
-              <Text style={styles.muted}>Pending</Text>
-            ) : user.friendRequestStatus === "INCOMING_PENDING" ? (
-              <Pressable style={styles.miniButton} onPress={() => void friendRequest(user)}><Text style={styles.miniButtonText}>Accept</Text></Pressable>
-            ) : user.canSendFriendRequest ? (
-              <Pressable style={styles.miniButton} onPress={() => void friendRequest(user)}><Text style={styles.miniButtonText}>Add</Text></Pressable>
-            ) : null}
-          </View>
-        )) : query.trim() ? <Text style={styles.emptySmall}>No people found.</Text> : null}
+        <View style={styles.discoverSearchWrap}>
+          <Ionicons name="search" size={19} color={colors.muted} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search people, usernames, posts or #hashtags"
+            placeholderTextColor={colors.muted}
+            style={styles.discoverSearchInput}
+            autoCapitalize="none"
+            returnKeyType="search"
+          />
+          {query ? (
+            <Pressable onPress={() => setQuery("")} style={styles.discoverClear}>
+              <Ionicons name="close" size={18} color={colors.muted} />
+            </Pressable>
+          ) : null}
+        </View>
 
-        {query.trim() ? <SectionHeader title="Posts" /> : null}
-        {query.trim() ? posts.map((post) => <PostCard key={post.id} post={post} onChanged={(next) => setPosts((items) => items.map((item) => item.id === next.id ? next : item))} />) : null}
+        {loading || loadingHome ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
+
+        {!query.trim() ? (
+          <>
+            <SectionHeader title="Suggested for you" action="Refresh" onAction={() => void loadExplore()} />
+            {suggestions.length ? suggestions.slice(0, 6).map((user) => personCard(user, true)) : (
+              <View style={styles.discoverEmptyCard}>
+                <Ionicons name="compass-outline" size={30} color={colors.accent} />
+                <Text style={styles.discoverEmptyTitle}>Your discovery space is ready</Text>
+                <Text style={styles.emptySmall}>Search for a person, post or hashtag to start exploring.</Text>
+              </View>
+            )}
+
+            <SectionHeader title="Trending now" />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trendRow}>
+              {trends.length ? trends.map((trend) => (
+                <Pressable key={trend.tag} style={styles.trendChip} onPress={() => setQuery(trend.tag)}>
+                  <Text style={styles.trendRank}>#{trends.indexOf(trend) + 1}</Text>
+                  <Text style={styles.trendTag}>{trend.tag}</Text>
+                  <Text style={styles.trendCount}>{trend.posts}</Text>
+                </Pressable>
+              )) : (
+                <View style={styles.trendEmpty}><Text style={styles.muted}>No active trends yet.</Text></View>
+              )}
+            </ScrollView>
+          </>
+        ) : (
+          <>
+            <SectionHeader title="People" action={`${users.length} results`} />
+            {users.length ? users.map((user) => personCard(user)) : <Text style={styles.emptySmall}>No people found.</Text>}
+
+            <SectionHeader title="Posts" action={`${posts.length} results`} />
+            {posts.length ? posts.map((post) => (
+              <PostCard key={post.id} post={post} onChanged={(next) => setPosts((items) => items.map((item) => item.id === next.id ? next : item))} />
+            )) : <Text style={styles.emptySmall}>No matching posts found.</Text>}
+
+            <SectionHeader title="Hashtags" action={`${hashtags.length} results`} />
+            {hashtags.length ? hashtags.map((item) => (
+              <Pressable key={item.tag} style={styles.hashtagCard} onPress={() => setQuery(item.tag)}>
+                <View style={styles.hashtagIcon}><Ionicons name="pricetag-outline" size={18} color={colors.accentBright} /></View>
+                <View style={styles.flex}>
+                  <Text style={styles.hashtagTag}>{item.tag}</Text>
+                  <Text style={styles.muted}>{item.count ?? 0} matching posts</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={19} color={colors.muted} />
+              </Pressable>
+            )) : <Text style={styles.emptySmall}>No matching hashtags found.</Text>}
+          </>
+        )}
       </ScrollView>
     </View>
   );
 }
-
 function CallOverlay({ currentUserId }: { currentUserId: string }) {
   const [incoming, setIncoming] = useState<NativeCall | null>(null);
   const [active, setActive] = useState<NativeCall | null>(null);
@@ -1182,7 +1290,7 @@ function CallOverlay({ currentUserId }: { currentUserId: string }) {
       try { InCallManager.stopRingtone(); } catch {}
       return;
     }
-    try { InCallManager.startRingtone("_DEFAULT_"); } catch {}
+    try { InCallManager.startRingtone("_DEFAULT_", [0, 500, 1000, 500], "playback", 2); } catch {}
     return () => {
       try { InCallManager.stopRingtone(); } catch {}
     };
@@ -1197,7 +1305,6 @@ function CallOverlay({ currentUserId }: { currentUserId: string }) {
           call={active}
           currentUserId={currentUserId}
           remoteUser={remoteUser}
-          incoming={false}
           incoming={activeIsIncoming}
           onFinished={() => { setActive(null); setActiveIsIncoming(false); }}
         />
@@ -1433,10 +1540,49 @@ function ChatScreen({
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Array<{ id: string; name: string }>>([]);
   const [activeCall, setActiveCall] = useState<NativeCall | null>(null);
+  const [groupInfoOpen, setGroupInfoOpen] = useState(false);
+  const [groupTitleDraft, setGroupTitleDraft] = useState(conversation.title ?? "");
+  const [groupMembers, setGroupMembers] = useState(conversation.members);
+  const [groupQuery, setGroupQuery] = useState("");
+  const [groupPeople, setGroupPeople] = useState<User[]>([]);
+  const [groupBusy, setGroupBusy] = useState(false);
+  const groupAdmin = Boolean(conversation.members.find((member) => member.userId === currentUserId)?.role === "ADMIN");
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const other = conversation.members.find((member) => member.userId !== currentUserId)?.user;
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Message>>(null);
+  const draftKey = "socialhub:message-draft:" + conversation.id;
+
+  useEffect(() => {
+    let active = true;
+    void SecureStore.getItemAsync(draftKey).then((draft) => {
+      if (active && draft) setText(draft);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [draftKey]);
+
+  const reactToMessage = async (messageId: string, emoji = "❤️") => {
+    const current = messages.find((message) => message.id === messageId);
+    const existing = current?.reactions?.find((reaction) => reaction.userId === currentUserId);
+    try {
+      const data = await apiFetch<{ reaction?: { id: string; emoji: string; userId: string } }>(
+        "/api/messages/" + messageId + "/reaction",
+        existing
+          ? { method: "DELETE" }
+          : { method: "POST", body: JSON.stringify({ emoji }) },
+      );
+      setMessages((items) => items.map((message) => {
+        if (message.id !== messageId) return message;
+        const reactions = message.reactions ?? [];
+        return {
+          ...message,
+          reactions: existing
+            ? reactions.filter((reaction) => reaction.userId !== currentUserId)
+            : [...reactions, data.reaction!],
+        };
+      }));
+    } catch {}
+  };
 
   const load = useCallback(async () => {
     try {
@@ -1487,6 +1633,8 @@ function ChatScreen({
 
   const updateTyping = (value: string) => {
     setText(value);
+    if (value.trim()) void SecureStore.setItemAsync(draftKey, value).catch(() => {});
+    else void SecureStore.deleteItemAsync(draftKey).catch(() => {});
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     if (!value.trim()) {
       void apiFetch("/api/conversations/" + conversation.id + "/typing", { method: "DELETE" }).catch(() => {});
@@ -1512,6 +1660,92 @@ function ChatScreen({
     } catch (error) {
       Alert.alert("Call", error instanceof Error ? error.message : "Unable to start the call.");
     }
+  };
+
+  useEffect(() => {
+    if (!conversation.isGroup) return;
+    const query = groupQuery.trim();
+    if (!query) {
+      setGroupPeople([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void apiFetch<{ users?: User[] }>(`/api/users?q=${encodeURIComponent(query)}&take=8`)
+        .then((data) => {
+          const existingIds = new Set(groupMembers.map((member) => member.userId));
+          setGroupPeople((data.users ?? []).filter((user) => !existingIds.has(user.id)));
+        })
+        .catch(() => setGroupPeople([]));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [conversation.isGroup, groupMembers, groupQuery]);
+
+  const renameGroup = async () => {
+    if (!conversation.isGroup || !groupAdmin || !groupTitleDraft.trim() || groupBusy) return;
+    setGroupBusy(true);
+    try {
+      await apiFetch(`/api/conversations/${conversation.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title: groupTitleDraft.trim() }),
+      });
+      Alert.alert("Group", "Group name updated.");
+    } catch (e) {
+      Alert.alert("Group", e instanceof Error ? e.message : "Unable to rename group.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+
+  const addGroupMember = async (userId: string) => {
+    if (!conversation.isGroup || !groupAdmin || groupBusy) return;
+    setGroupBusy(true);
+    try {
+      const data = await apiFetch<{ membership?: typeof groupMembers[number] }>(`/api/conversations/${conversation.id}`, {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      });
+      if (data.membership) setGroupMembers((current) => [...current, data.membership!]);
+      setGroupPeople((current) => current.filter((person) => person.id !== userId));
+      setGroupQuery("");
+    } catch (e) {
+      Alert.alert("Group", e instanceof Error ? e.message : "Unable to add member.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+
+  const removeGroupMember = async (userId: string) => {
+    if (!conversation.isGroup || !groupAdmin || groupBusy || userId === currentUserId) return;
+    setGroupBusy(true);
+    try {
+      await apiFetch(`/api/conversations/${conversation.id}`, {
+        method: "DELETE",
+        body: JSON.stringify({ userId }),
+      });
+      setGroupMembers((current) => current.filter((member) => member.userId !== userId));
+    } catch (e) {
+      Alert.alert("Group", e instanceof Error ? e.message : "Unable to remove member.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+
+  const leaveGroup = () => {
+    if (!conversation.isGroup || groupBusy) return;
+    Alert.alert("Leave group", "You will leave this conversation.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Leave",
+        style: "destructive",
+        onPress: () => {
+          setGroupBusy(true);
+          void apiFetch(`/api/conversations/${conversation.id}`, { method: "DELETE" })
+            .then(() => onBack())
+            .catch((e) => Alert.alert("Group", e instanceof Error ? e.message : "Unable to leave group."))
+            .finally(() => setGroupBusy(false));
+        },
+      },
+    ]);
   };
 
   useEffect(() => {
@@ -1548,6 +1782,7 @@ function ChatScreen({
         setMessages((current) => current.map((item) => item.id === editing.id ? data.message : item));
         setEditing(null);
         setText("");
+        void SecureStore.deleteItemAsync(draftKey).catch(() => {});
       } catch (e) {
         Alert.alert("Messages", e instanceof Error ? e.message : "Unable to edit.");
       }
@@ -1566,6 +1801,7 @@ function ChatScreen({
       });
       setMessages((current) => [...current, data.message]);
       setText("");
+      void SecureStore.deleteItemAsync(draftKey).catch(() => {});
       void apiFetch("/api/conversations/" + conversation.id + "/typing", { method: "DELETE" }).catch(() => {});
       setReplyingTo(null);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
@@ -1600,6 +1836,7 @@ function ChatScreen({
       });
       setMessages((current) => [...current, data.message]);
       setText("");
+      void SecureStore.deleteItemAsync(draftKey).catch(() => {});
       setReplyingTo(null);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     } catch (e) {
@@ -1653,10 +1890,23 @@ function ChatScreen({
         </Pressable>
         <Avatar user={other} size={46} />
         <View style={styles.flex}>
-          <Text numberOfLines={1} style={styles.chatTitle}>{conversationName(conversation, currentUserId)}</Text>
-          <Text numberOfLines={1} style={styles.chatSubtitle}>{conversation.isGroup ? conversation.members.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
+          <Text numberOfLines={1} style={styles.chatTitle}>{conversation.isGroup ? (conversation.title || "Group conversation") : conversationName(conversation, currentUserId)}</Text>
+          <Text numberOfLines={1} style={styles.chatSubtitle}>{conversation.isGroup ? groupMembers.length + " members" : "@" + (other?.username ?? "socialhub")}</Text>
         </View>
-        <View style={styles.chatStatusPill}><Text style={styles.chatStatusText}>Chat</Text></View>
+        {conversation.isGroup ? (
+          <Pressable onPress={() => setGroupInfoOpen(true)} style={styles.callButton} accessibilityLabel="Open group information">
+            <Ionicons name="people-outline" size={19} color={colors.text} />
+          </Pressable>
+        ) : (
+          <View style={styles.chatHeaderActions}>
+            <Pressable onPress={() => void startCall("AUDIO")} style={styles.callButton} accessibilityLabel="Start voice call">
+              <Ionicons name="call-outline" size={18} color={colors.text} />
+            </Pressable>
+            <Pressable onPress={() => void startCall("VIDEO")} style={styles.callButton} accessibilityLabel="Start video call">
+              <Ionicons name="videocam-outline" size={19} color={colors.text} />
+            </Pressable>
+          </View>
+        )}
       </View>
       <KeyboardAvoidingView
         style={styles.chatKeyboard}
@@ -1687,7 +1937,22 @@ function ChatScreen({
                 <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />
               ))}
               <Text style={styles.messageText}>{item.deletedAt ? "Message deleted" : item.content}</Text>
-              <Text style={styles.messageTime}>{formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}</Text>
+              <Text style={styles.messageTime}>
+                {formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}
+                {item.senderId === currentUserId && !item.deletedAt && conversation.members.some((member) => member.userId !== currentUserId && member.lastReadAt && new Date(member.lastReadAt).getTime() >= new Date(item.createdAt).getTime()) ? " · Seen" : ""}
+              </Text>
+              {!item.deletedAt ? (
+                <View style={styles.messageReactionRow}>
+                  {(item.reactions ?? []).slice(0, 4).map((reaction) => (
+                    <Pressable key={reaction.id} onPress={() => void reactToMessage(item.id, reaction.emoji)} style={styles.messageReactionChip}>
+                      <Text style={styles.messageReactionText}>{reaction.emoji}</Text>
+                    </Pressable>
+                  ))}
+                  <Pressable onPress={() => void reactToMessage(item.id, "❤️")} style={styles.messageReactionAdd}>
+                    <Ionicons name="add" size={14} color={colors.muted} />
+                  </Pressable>
+                </View>
+              ) : null}
             </Pressable>
           )}
           ListEmptyComponent={!loading ? <Text style={styles.emptySmall}>No messages yet. Start the conversation.</Text> : null}
@@ -1724,6 +1989,85 @@ function ChatScreen({
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+
+      <Modal visible={groupInfoOpen} transparent animationType="slide" onRequestClose={() => setGroupInfoOpen(false)}>
+        <View style={styles.groupModalOverlay}>
+          <Pressable style={styles.commentScrim} onPress={() => setGroupInfoOpen(false)} />
+          <View style={styles.groupModal}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.flex}>
+                <Text style={styles.sheetTitle}>Group info</Text>
+                <Text style={styles.subtitle}>{groupMembers.length} members</Text>
+              </View>
+              <Pressable onPress={() => setGroupInfoOpen(false)} accessibilityLabel="Close group information">
+                <Ionicons name="close" size={23} color={colors.text} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={styles.groupContent} keyboardShouldPersistTaps="handled">
+              {groupAdmin ? (
+                <View style={styles.groupRenameRow}>
+                  <TextInput
+                    value={groupTitleDraft}
+                    onChangeText={setGroupTitleDraft}
+                    placeholder="Group name"
+                    placeholderTextColor={colors.muted}
+                    style={styles.groupTitleInput}
+                    maxLength={100}
+                  />
+                  <Pressable disabled={groupBusy || !groupTitleDraft.trim()} onPress={() => void renameGroup()} style={styles.groupActionButton}>
+                    <Text style={styles.groupActionText}>Rename</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              <Text style={styles.groupSectionLabel}>Members</Text>
+              {groupMembers.map((member) => (
+                <View key={member.userId} style={styles.groupMemberRow}>
+                  <Avatar user={member.user} size={42} />
+                  <View style={styles.flex}>
+                    <Text numberOfLines={1} style={styles.userName}>{member.user.name}</Text>
+                    <Text style={styles.userHandle}>{member.role === "ADMIN" ? "Administrator" : "Member"}</Text>
+                  </View>
+                  {groupAdmin && member.userId !== currentUserId && member.role !== "ADMIN" ? (
+                    <Pressable disabled={groupBusy} onPress={() => void removeGroupMember(member.userId)} style={styles.groupRemoveButton}>
+                      <Ionicons name="remove-circle-outline" size={18} color={colors.danger} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+
+              {groupAdmin ? (
+                <>
+                  <Text style={styles.groupSectionLabel}>Add member</Text>
+                  <View style={styles.discoverSearchWrap}>
+                    <Ionicons name="search" size={17} color={colors.muted} />
+                    <TextInput
+                      value={groupQuery}
+                      onChangeText={setGroupQuery}
+                      placeholder="Search people…"
+                      placeholderTextColor={colors.muted}
+                      style={styles.discoverSearchInput}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  {groupPeople.slice(0, 5).map((person) => (
+                    <Pressable key={person.id} onPress={() => void addGroupMember(person.id)} style={styles.groupMemberRow}>
+                      <Avatar user={person} size={40} />
+                      <Text style={[styles.userName, styles.flex]}>{person.name}</Text>
+                      <Ionicons name="add-circle-outline" size={20} color={colors.accentBright} />
+                    </Pressable>
+                  ))}
+                </>
+              ) : null}
+
+              <Pressable disabled={groupBusy} onPress={leaveGroup} style={styles.leaveGroupButton}>
+                <Ionicons name="exit-outline" size={18} color={colors.danger} />
+                <Text style={styles.visitorDangerText}>{groupBusy ? "Working…" : "Leave group"}</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1821,6 +2165,350 @@ function notificationLabel(type: string) {
     case "STORY_REACTION": return "New story reaction";
     default: return "New SocialHub notification";
   }
+}
+
+type VisitorProfileData = Profile & {
+  isFollowing?: boolean;
+  isMuted?: boolean;
+  isFriend?: boolean;
+  friendRequestStatus?: "SELF" | "FRIENDS" | "OUTGOING_PENDING" | "INCOMING_PENDING" | "NONE";
+  friendRequestId?: string | null;
+  canMessage?: boolean;
+  canSendFriendRequest?: boolean;
+  canFollow?: boolean;
+};
+
+type RelationshipPerson = User & { id: string; username?: string | null };
+
+function VisitorProfileScreen({
+  username,
+  onBack,
+  onOpenMessages,
+}: {
+  username: string;
+  onBack: () => void;
+  onOpenMessages: (conversationId: string) => void;
+}) {
+  const [profile, setProfile] = useState<VisitorProfileData | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [action, setAction] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [relationshipView, setRelationshipView] = useState<"followers" | "following" | "mutual" | "friends" | null>(null);
+  const [relationshipPeople, setRelationshipPeople] = useState<RelationshipPerson[]>([]);
+  const [relationshipHidden, setRelationshipHidden] = useState(false);
+  const [relationshipLoading, setRelationshipLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<{ profile: VisitorProfileData }>(
+        "/api/users/" + encodeURIComponent(username),
+      );
+      setProfile(data.profile);
+      const postsData = await apiFetch<{ posts?: Post[] }>(
+        "/api/users/" + encodeURIComponent(data.profile.username ?? username) + "/posts?take=20",
+      );
+      setPosts(postsData.posts ?? []);
+    } catch (e) {
+      setProfile(null);
+      setError(e instanceof Error ? e.message : "Unable to load this profile.");
+    } finally {
+      setLoading(false);
+    }
+  }, [username]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const mutate = async (fn: () => Promise<void>, label: string) => {
+    setAction(label);
+    setError("");
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not update this profile.");
+    } finally {
+      setAction(null);
+    }
+  };
+
+  const toggleFollow = () => {
+    if (!profile || !profile.canFollow) return;
+    void mutate(async () => {
+      const response = await apiFetch<{ following?: boolean }>(
+        "/api/users/" + profile.id + "/follow",
+        { method: profile.isFollowing ? "DELETE" : "POST" },
+      );
+      setProfile((current) => current ? {
+        ...current,
+        isFollowing: Boolean(response.following),
+        visibleCounts: {
+          ...current.visibleCounts,
+          followers: Math.max(0, current.visibleCounts.followers + (response.following ? 1 : -1)),
+        },
+      } : current);
+    }, "follow");
+  };
+
+  const sendFriend = () => {
+    if (!profile || !profile.canSendFriendRequest) return;
+    void mutate(async () => {
+      const data = await apiFetch<{ friendRequest?: { id?: string } }>("/api/friend-requests", {
+        method: "POST",
+        body: JSON.stringify({ receiverId: profile.id }),
+      });
+      setProfile((current) => current ? { ...current, friendRequestStatus: "OUTGOING_PENDING", friendRequestId: data.friendRequest?.id ?? null } : current);
+    }, "friend");
+  };
+
+  const cancelFriend = () => {
+    if (!profile?.friendRequestId) return;
+    void mutate(async () => {
+      await apiFetch("/api/friend-requests/" + encodeURIComponent(profile.friendRequestId as string), { method: "DELETE" });
+      setProfile((current) => current ? { ...current, friendRequestStatus: "NONE", friendRequestId: null } : current);
+    }, "cancel-friend");
+  };
+
+  const acceptFriend = () => {
+    if (!profile?.friendRequestId) return;
+    void mutate(async () => {
+      await apiFetch("/api/friend-requests/" + encodeURIComponent(profile.friendRequestId as string), {
+        method: "PATCH",
+        body: JSON.stringify({ status: "ACCEPTED" }),
+      });
+      setProfile((current) => current ? {
+        ...current,
+        friendRequestStatus: "FRIENDS",
+        friendRequestId: null,
+        isFriend: true,
+        isFollowing: true,
+      } : current);
+    }, "accept-friend");
+  };
+
+  const declineFriend = () => {
+    if (!profile?.friendRequestId) return;
+    void mutate(async () => {
+      await apiFetch("/api/friend-requests/" + encodeURIComponent(profile.friendRequestId as string), {
+        method: "PATCH",
+        body: JSON.stringify({ status: "DECLINED" }),
+      });
+      setProfile((current) => current ? { ...current, friendRequestStatus: "NONE", friendRequestId: null } : current);
+    }, "decline-friend");
+  };
+
+  const unfriend = () => {
+    if (!profile) return;
+    Alert.alert("Unfriend", "Remove this person from your friends?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => void mutate(async () => {
+          await apiFetch("/api/friends/" + encodeURIComponent(profile.id), { method: "DELETE" });
+          setProfile((current) => current ? {
+            ...current,
+            friendRequestStatus: "NONE",
+            isFriend: false,
+            isFollowing: false,
+          } : current);
+        }, "unfriend"),
+      },
+    ]);
+  };
+
+  const openConversation = () => {
+    if (!profile?.canMessage) return;
+    void mutate(async () => {
+      const data = await apiFetch<{ conversation: Conversation }>("/api/conversations", {
+        method: "POST",
+        body: JSON.stringify({ memberIds: [profile.id], isGroup: false }),
+      });
+      onOpenMessages(data.conversation.id);
+    }, "message");
+  };
+
+  const toggleMute = () => {
+    if (!profile) return;
+    void mutate(async () => {
+      const data = await apiFetch<{ muted?: boolean }>("/api/users/" + profile.id + "/mute", {
+        method: profile.isMuted ? "DELETE" : "POST",
+      });
+      setProfile((current) => current ? { ...current, isMuted: Boolean(data.muted) } : current);
+    }, "mute");
+  };
+
+  const report = () => {
+    if (!profile) return;
+    Alert.alert(
+      "Report profile",
+      "Report this profile for spam, abuse, or misleading content?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Submit report",
+          onPress: () => void mutate(async () => {
+            await apiFetch("/api/users/" + profile.id + "/report", {
+              method: "POST",
+              body: JSON.stringify({ reason: "Reported from Android profile actions" }),
+            });
+          }, "report"),
+        },
+      ],
+    );
+  };
+
+  const block = () => {
+    if (!profile) return;
+    Alert.alert("Block profile", "This person's content will stop appearing for you.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Block",
+        style: "destructive",
+        onPress: () => void mutate(async () => {
+          await apiFetch("/api/users/" + profile.id + "/block", { method: "POST" });
+          onBack();
+        }, "block"),
+      },
+    ]);
+  };
+
+  const shareProfile = async () => {
+    if (!profile) return;
+    try {
+      await Share.share({
+        title: "Socialhub profile",
+        message: "https://socialhublive.vercel.app/profile/" + encodeURIComponent(profile.username ?? username),
+      });
+    } catch {}
+  };
+
+  const openRelationships = async (view: "followers" | "following" | "mutual" | "friends") => {
+    if (!profile) return;
+    setRelationshipView(view);
+    setRelationshipLoading(true);
+    setRelationshipHidden(false);
+    try {
+      const endpoint = view === "friends"
+        ? "/api/users/" + profile.id + "/friends"
+        : "/api/users/" + profile.id + "/relationships";
+      const data = await apiFetch<Record<string, unknown>>(endpoint);
+      if (view === "friends") {
+        setRelationshipPeople((data.friends ?? []) as RelationshipPerson[]);
+        setRelationshipHidden(Boolean(data.hidden));
+      } else {
+        setRelationshipPeople((data[view] ?? []) as RelationshipPerson[]);
+      }
+    } catch (e) {
+      setRelationshipPeople([]);
+      setRelationshipHidden(false);
+      Alert.alert("Profile", e instanceof Error ? e.message : "Unable to load this list.");
+    } finally {
+      setRelationshipLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <View style={styles.screen}><DetailHeader title="Profile" subtitle="Loading profile…" onBack={onBack} /><ActivityIndicator color={colors.accent} style={styles.loader} /></View>;
+  }
+
+  if (!profile) {
+    return <View style={styles.screen}><DetailHeader title="Profile" subtitle={error || "Unavailable"} onBack={onBack} /><Text style={styles.empty}>{error || "Profile unavailable."}</Text></View>;
+  }
+
+  const friendState = profile.friendRequestStatus ?? "NONE";
+
+  return (
+    <View style={styles.screen}>
+      <DetailHeader
+        title={profile.name || "Profile"}
+        subtitle={"@" + (profile.username ?? username)}
+        onBack={onBack}
+        action="⋯"
+        onAction={() => Alert.alert("Profile actions", "Choose an action.", [
+          { text: profile.isMuted ? "Unmute" : "Mute", onPress: toggleMute },
+          { text: "Share profile", onPress: () => void shareProfile() },
+          { text: "Report", onPress: report },
+          { text: "Block", style: "destructive", onPress: block },
+          { text: "Cancel", style: "cancel" },
+        ])}
+      />
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.profileVisitorHero}>
+          {profile.coverImage ? <Image source={{ uri: profile.coverImage }} style={styles.profileCoverVisitor} resizeMode="cover" /> : <View style={styles.profileCoverVisitorPlaceholder} />}
+          <View style={styles.profileVisitorIdentity}>
+            <Avatar user={profile} size={92} />
+            <View style={styles.visitorTitleWrap}>
+              <View style={styles.row}>
+                <Text style={styles.profileName}>{profile.name}</Text>
+                {profile.isVerified ? <Ionicons name="checkmark-circle" size={18} color={colors.accentBright} /> : null}
+              </View>
+              <Text style={styles.userHandle}>@{profile.username ?? "socialhub"}</Text>
+            </View>
+          </View>
+          {profile.bio ? <Text style={styles.profileBio}>{profile.bio}</Text> : null}
+        </View>
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        <View style={styles.statsGrid}>
+          <Stat label="Posts" value={profile.visibleCounts.posts} />
+          <Pressable onPress={() => void openRelationships("followers")} style={styles.statCard}><Text style={styles.statValue}>{formatCount(profile.visibleCounts.followers)}</Text><Text style={styles.userHandle}>Followers</Text></Pressable>
+          <Pressable onPress={() => void openRelationships("following")} style={styles.statCard}><Text style={styles.statValue}>{formatCount(profile.visibleCounts.following)}</Text><Text style={styles.userHandle}>Following</Text></Pressable>
+          <Pressable onPress={() => void openRelationships("mutual")} style={styles.statCard}><Text style={styles.statValue}>{formatCount(profile.visibleCounts.profileViews)}</Text><Text style={styles.userHandle}>Views</Text></Pressable>
+        </View>
+
+        <View style={styles.visitorActions}>
+          {profile.canMessage ? <Pressable disabled={Boolean(action)} onPress={openConversation} style={styles.visitorPrimaryAction}><Ionicons name="chatbubble-ellipses-outline" size={17} color="#fff" /><Text style={styles.visitorPrimaryText}>{action === "message" ? "Opening…" : "Message"}</Text></Pressable> : null}
+          {profile.canFollow ? <Pressable disabled={Boolean(action)} onPress={toggleFollow} style={styles.visitorSecondaryAction}><Ionicons name={profile.isFollowing ? "person-remove-outline" : "person-add-outline"} size={17} color={colors.text} /><Text style={styles.visitorSecondaryText}>{action === "follow" ? "Updating…" : profile.isFollowing ? "Following" : "Follow"}</Text></Pressable> : null}
+          {friendState === "FRIENDS" ? <Pressable onPress={unfriend} style={styles.visitorSecondaryAction}><Ionicons name="people-outline" size={17} color={colors.text} /><Text style={styles.visitorSecondaryText}>Friends</Text></Pressable> : null}
+          {friendState === "OUTGOING_PENDING" ? <Pressable onPress={cancelFriend} style={styles.visitorSecondaryAction}><Text style={styles.visitorSecondaryText}>{action === "cancel-friend" ? "Cancelling…" : "Request sent"}</Text></Pressable> : null}
+          {friendState === "INCOMING_PENDING" ? (
+            <>
+              <Pressable onPress={acceptFriend} style={styles.visitorPrimaryAction}><Text style={styles.visitorPrimaryText}>{action === "accept-friend" ? "Accepting…" : "Accept"}</Text></Pressable>
+              <Pressable onPress={declineFriend} style={styles.visitorDangerAction}><Text style={styles.visitorDangerText}>Decline</Text></Pressable>
+            </>
+          ) : null}
+          {friendState === "NONE" && profile.canSendFriendRequest ? <Pressable onPress={sendFriend} style={styles.visitorSecondaryAction}><Ionicons name="person-add-outline" size={17} color={colors.text} /><Text style={styles.visitorSecondaryText}>{action === "friend" ? "Sending…" : "Add friend"}</Text></Pressable> : null}
+        </View>
+
+        <View style={styles.profileInfoRow}>
+          <Pressable onPress={() => void openRelationships("friends")} style={styles.infoChip}><Ionicons name="people-outline" size={15} color={colors.accentBright} /><Text style={styles.infoChipText}>Friends</Text></Pressable>
+          <View style={styles.infoChip}><Ionicons name="shield-checkmark-outline" size={15} color={colors.accentBright} /><Text style={styles.infoChipText}>{profile.isPrivate ? "Private" : "Public"} account</Text></View>
+          {profile.location ? <View style={styles.infoChip}><Ionicons name="location-outline" size={15} color={colors.accentBright} /><Text numberOfLines={1} style={styles.infoChipText}>{profile.location}</Text></View> : null}
+        </View>
+
+        <SectionHeader title="Posts" />
+        {posts.length ? posts.map((post) => <PostCard key={post.id} post={post} onChanged={(next) => setPosts((current) => current.map((item) => item.id === next.id ? next : item))} />) : <View style={styles.discoverEmptyCard}><Ionicons name="images-outline" size={28} color={colors.accent} /><Text style={styles.discoverEmptyTitle}>{profile.isPrivate && friendState !== "FRIENDS" ? "Posts are private" : "No public posts yet"}</Text><Text style={styles.emptySmall}>There are no posts available here.</Text></View>}
+      </ScrollView>
+
+      <Modal visible={relationshipView !== null} transparent animationType="slide" onRequestClose={() => setRelationshipView(null)}>
+        <View style={styles.relationshipOverlay}>
+          <Pressable style={styles.commentScrim} onPress={() => setRelationshipView(null)} />
+          <View style={styles.relationshipSheet}>
+            <View style={styles.sheetHeader}>
+              <View>
+                <Text style={styles.sheetTitle}>{relationshipView === "followers" ? "Followers" : relationshipView === "following" ? "Following" : relationshipView === "mutual" ? "Mutual connections" : "Friends"}</Text>
+                <Text style={styles.subtitle}>Real account relationships</Text>
+              </View>
+              <Pressable onPress={() => setRelationshipView(null)}><Ionicons name="close" size={22} color={colors.text} /></Pressable>
+            </View>
+            {relationshipLoading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : relationshipHidden ? <Text style={styles.emptySmall}>This list is private.</Text> : (
+              <ScrollView contentContainerStyle={styles.relationshipList}>
+                {relationshipPeople.length ? relationshipPeople.map((person) => (
+                  <View key={person.id} style={styles.relationshipRow}>
+                    <Avatar user={person} size={44} />
+                    <View style={styles.flex}><Text style={styles.userName}>{person.name}</Text><Text style={styles.userHandle}>@{person.username ?? "member"}</Text></View>
+                  </View>
+                )) : <Text style={styles.emptySmall}>No accounts to show.</Text>}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
 }
 
 function ProfileScreen({ onSignedOut, onMenu }: { onSignedOut: () => void; onMenu: () => void }) {
@@ -1987,6 +2675,7 @@ function RootContent() {
   const [unread, setUnread] = useState({ messages: 0, notifications: 0, friendRequests: 0 });
   const [deepLink, setDeepLink] = useState<DeepLinkTarget | null>(null);
   const [permissionsReady, setPermissionsReady] = useState(false);
+  const [launching, setLaunching] = useState(true);
   const [showPermissionOnboarding, setShowPermissionOnboarding] = useState(false);
 
   const refreshSession = useCallback(async () => {
@@ -2049,7 +2738,7 @@ function RootContent() {
   useEffect(() => {
     if (!signedIn || !deepLink) return;
     if (deepLink.kind === "message") setTab("Messages");
-    else if (deepLink.kind === "profile") setTab("Discover");
+    else if (deepLink.kind === "profile") setTab("Profile");
     else setTab("Home");
   }, [signedIn, deepLink]);
 
@@ -2100,8 +2789,8 @@ function RootContent() {
   }, []);
 
   useEffect(() => {
-    if (!booting) void SplashScreen.hideAsync().catch(() => {});
-  }, [booting]);
+    if (!booting && permissionsReady) void SplashScreen.hideAsync().catch(() => {});
+  }, [booting, permissionsReady]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -2120,9 +2809,11 @@ function RootContent() {
 
   const navigate = useCallback((route: MobileRoute) => {
     if (route === "Admin" && !sessionUser?.isOwner) return;
+    if (route === "Profile" && deepLink?.kind === "profile") setDeepLink(null);
+    if (route === "Messages" && deepLink?.kind === "message") setDeepLink(null);
     setHideBottomNav(false);
     setTab(route);
-  }, [sessionUser?.isOwner]);
+  }, [deepLink, sessionUser?.isOwner]);
 
   const signOut = useCallback(async () => {
     try {
@@ -2149,6 +2840,10 @@ function RootContent() {
         <View style={styles.centered}><ActivityIndicator size="large" color={colors.accent} /></View>
       </View>
     );
+  }
+
+  if (launching) {
+    return <LaunchScreen onFinished={() => setLaunching(false)} />;
   }
 
   if (!signedIn) {
@@ -2188,6 +2883,7 @@ function RootContent() {
           onMenu={openMenu}
           initialQuery={deepLink?.kind === "profile" ? deepLink.id : undefined}
           onDeepLinkHandled={onDeepLinkHandled}
+          onOpenProfile={(usernameOrId) => { setDeepLink({ kind: "profile", id: usernameOrId }); setTab("Profile"); }}
         />
       ) : null}
       {tab === "Friends" ? <FriendsScreen onMenu={openMenu} /> : null}
@@ -2202,21 +2898,31 @@ function RootContent() {
         />
       ) : null}
       {tab === "Notifications" ? <NotificationsScreen onMenu={openMenu} /> : null}
-      {tab === "Profile" ? <ProfileScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
+      {tab === "Profile" ? (
+        deepLink?.kind === "profile" && deepLink.id !== sessionUser?.username ? (
+          <VisitorProfileScreen
+            username={deepLink.id}
+            onBack={() => { setDeepLink(null); setTab("Discover"); }}
+            onOpenMessages={(conversationId) => { setDeepLink({ kind: "message", id: conversationId }); setTab("Messages"); }}
+          />
+        ) : (
+          <ProfileScreen onMenu={openMenu} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} />
+        )
+      ) : null}
       {tab === "Settings" ? <SettingsScreen onMenu={openMenu} isOwner={Boolean(sessionUser?.isOwner)} onOpenAdmin={() => navigate("Admin")} onSignedOut={() => { setSignedIn(false); setSessionUser(null); }} /> : null}
       {tab === "Saved" ? <SavedScreen onMenu={openMenu} /> : null}
       {tab === "Security" ? <SecurityScreen onMenu={openMenu} /> : null}
       {tab === "Admin" && sessionUser?.isOwner ? <AdminScreen onMenu={openMenu} /> : null}
 
-      <CallOverlay currentUserId={sessionUser.id} />
+      {sessionUser ? <CallOverlay currentUserId={sessionUser.id} /> : null}
 
       {!hideBottomNav ? (
         <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom + 8, 10) }]}>
-          <NavItem icon="⌂" label="Home" active={tab === "Home"} onPress={() => navigate("Home")} />
-          <NavItem icon="♧" label="Friends" active={tab === "Friends"} onPress={() => navigate("Friends")} badge={badge(unread.friendRequests)} />
-          <NavItem icon="✉" label="Messages" active={tab === "Messages"} onPress={() => navigate("Messages")} badge={badge(unread.messages)} />
-          <NavItem icon="♡" label="Alerts" active={tab === "Notifications"} onPress={() => navigate("Notifications")} badge={badge(unread.notifications)} />
-          <NavItem icon="◉" label="Profile" active={tab === "Profile"} onPress={() => navigate("Profile")} />
+          <NavItem icon="home-outline" activeIcon="home" label="Home" active={tab === "Home"} onPress={() => navigate("Home")} />
+          <NavItem icon="people-outline" activeIcon="people" label="Friends" active={tab === "Friends"} onPress={() => navigate("Friends")} badge={badge(unread.friendRequests)} />
+          <NavItem icon="chatbubble-ellipses-outline" activeIcon="chatbubble-ellipses" label="Messages" active={tab === "Messages"} onPress={() => navigate("Messages")} badge={badge(unread.messages)} />
+          <NavItem icon="notifications-outline" activeIcon="notifications" label="Alerts" active={tab === "Notifications"} onPress={() => navigate("Notifications")} badge={badge(unread.notifications)} />
+          <NavItem icon="person-outline" activeIcon="person" label="Profile" active={tab === "Profile"} onPress={() => navigate("Profile")} />
         </View>
       ) : null}
 
@@ -2227,6 +2933,7 @@ function RootContent() {
         onClose={() => setDrawerOpen(false)}
         onNavigate={navigate}
         onSignOut={() => void signOut()}
+        isOwner={Boolean(sessionUser?.isOwner)}
       />
     </View>
   );
@@ -2234,21 +2941,28 @@ function RootContent() {
 
 function NavItem({
   icon,
+  activeIcon,
   label,
   active,
   onPress,
   badge,
 }: {
-  icon: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  activeIcon: keyof typeof Ionicons.glyphMap;
   label: string;
   active: boolean;
   onPress: () => void;
   badge?: React.ReactNode;
 }) {
   return (
-    <Pressable onPress={onPress} style={styles.navItem}>
-      <View>
-        <Text style={[styles.navIcon, active && styles.navActive]}>{icon}</Text>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      style={[styles.navItem, active && styles.navItemActive]}
+    >
+      <View style={styles.navIconWrap}>
+        <Ionicons name={active ? activeIcon : icon} size={22} color={active ? colors.text : colors.muted} />
         {badge ? <View style={styles.navBadge}>{badge}</View> : null}
       </View>
       <Text style={[styles.navLabel, active && styles.navActive]}>{label}</Text>
@@ -2257,7 +2971,21 @@ function NavItem({
 }
 
 const styles = StyleSheet.create({
-  discoverHero: { paddingHorizontal: 2, paddingTop: 6, paddingBottom: 4 },
+  discoverHero: { paddingHorizontal: 2, paddingTop: 8, paddingBottom: 8 },
+  discoverHeroRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  discoverHeroBadge: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.border },
+  discoverSearchWrap: { minHeight: 54, flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 14, borderRadius: 18, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, marginBottom: 4 },
+  discoverSearchInput: { flex: 1, minWidth: 0, color: colors.text, fontSize: 14, paddingVertical: 13 },
+  discoverClear: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2 },
+  trendRow: { gap: 9, paddingBottom: 8 },
+  trendChip: { minWidth: 118, paddingHorizontal: 12, paddingVertical: 12, borderRadius: 16, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
+  trendRank: { color: colors.accentBright, fontSize: 9, fontWeight: "900", letterSpacing: 0.6 },
+  trendTag: { color: colors.text, marginTop: 5, fontSize: 13, fontWeight: "900" },
+  trendCount: { color: colors.muted, marginTop: 3, fontSize: 10 },
+  trendEmpty: { paddingVertical: 18, paddingHorizontal: 12 },
+  hashtagCard: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, marginBottom: 10 },
+  hashtagIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center" },
+  hashtagTag: { color: colors.text, fontWeight: "900", fontSize: 14 },
   discoverEyebrow: { color: colors.accent, fontSize: 10, fontWeight: "900", letterSpacing: 1.6 },
   discoverTitle: { color: colors.text, fontSize: 28, fontWeight: "900", marginTop: 4 },
   discoverSubtitle: { color: colors.muted, marginTop: 4, lineHeight: 18 },
@@ -2278,6 +3006,7 @@ const styles = StyleSheet.create({
   chatSubtitle: { color: colors.muted, fontSize: 11, marginTop: 2 },
   chatStatusPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: colors.accentSoft },
   chatStatusText: { color: colors.accent, fontSize: 10, fontWeight: "900" },
+  chatHeaderActions: { flexDirection: "row", alignItems: "center", gap: 7 },
   callButton: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   callIcon: { color: colors.text, fontSize: 18, fontWeight: "900" },
   root: { flex: 1, backgroundColor: colors.bg },
@@ -2285,15 +3014,14 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
   authScreen: { flex: 1, backgroundColor: colors.bg },
   authContent: { flexGrow: 1, justifyContent: "center", padding: 24, paddingBottom: 40 },
-  logo: { width: 86, height: 86, borderRadius: 28, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", alignSelf: "center", overflow: "hidden" },
-  logoImage: { width: 86, height: 86 },
+  authBrandMark: { alignSelf: "center" },
   logoLetter: { color: "#fff", fontSize: 42, fontWeight: "900" },
-  authBrand: { color: colors.text, fontSize: 34, fontWeight: "900", textAlign: "center", marginTop: 16 },
-  authSubtitle: { color: colors.muted, textAlign: "center", marginTop: 6, marginBottom: 24, fontSize: 15 },
+  authBrand: { color: colors.text, fontSize: 34, fontWeight: "900", textAlign: "center", marginTop: 14, letterSpacing: -0.8 },
+  authSubtitle: { color: colors.muted, textAlign: "center", marginTop: 6, marginBottom: 24, fontSize: 14, fontWeight: "600" },
   authRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 16 },
   authSwitch: { color: colors.muted, textAlign: "center", marginTop: 18 },
-  input: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, color: colors.text, borderRadius: 14, paddingHorizontal: 15, paddingVertical: 14, marginBottom: 12 },
-  primaryButton: { minHeight: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.accent, paddingHorizontal: 16, marginTop: 6 },
+  input: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, color: colors.text, borderRadius: 16, paddingHorizontal: 15, paddingVertical: 15, marginBottom: 12, minHeight: 52 },
+  primaryButton: { minHeight: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.accent, paddingHorizontal: 16, marginTop: 6, shadowColor: colors.accent, shadowOpacity: 0.22, shadowRadius: 12, elevation: 5 },
   secondaryButton: { backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   disabledButton: { opacity: 0.55 },
   primaryButtonText: { color: "#fff", fontWeight: "800", fontSize: 15 },
@@ -2306,8 +3034,8 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.muted, marginTop: 3 },
   refresh: { color: colors.text, fontSize: 30 },
   loader: { marginVertical: 18 },
-  feed: { padding: 12, paddingBottom: 155 },
-  scrollContent: { padding: 14, paddingBottom: 155 },
+  feed: { paddingHorizontal: 12, paddingTop: 4, paddingBottom: 170 },
+  scrollContent: { padding: 14, paddingBottom: 170 },
   empty: { color: colors.muted, textAlign: "center", paddingVertical: 60 },
   emptySmall: { color: colors.muted, textAlign: "center", paddingVertical: 20 },
   flex: { flex: 1 },
@@ -2317,7 +3045,7 @@ const styles = StyleSheet.create({
   userName: { color: colors.text, fontWeight: "800", fontSize: 15 },
   userHandle: { color: colors.muted, marginTop: 3, fontSize: 12 },
   muted: { color: colors.muted, fontSize: 12 },
-  postCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: 14, marginBottom: 12 },
+  postCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 20, padding: 14, marginBottom: 12, shadowColor: colors.black, shadowOpacity: 0.18, shadowRadius: 16, elevation: 3 },
   postText: { color: colors.text, fontSize: 16, lineHeight: 23, marginTop: 12 },
   postMedia: { width: "100%", height: 260, borderRadius: 15, marginTop: 12, backgroundColor: colors.panel2 },
   metricsRow: { flexDirection: "row", gap: 18, paddingTop: 12, paddingBottom: 8 },
@@ -2325,8 +3053,8 @@ const styles = StyleSheet.create({
   actionButton: { flex: 1, paddingVertical: 8, alignItems: "center" },
   actionText: { color: colors.muted, fontWeight: "700", fontSize: 12 },
   activeAction: { color: colors.accent },
-  composer: { backgroundColor: colors.panel, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 12 },
-  composerInput: { minHeight: 80, color: colors.text, textAlignVertical: "top", padding: 4 },
+  composer: { backgroundColor: colors.panel, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 14, shadowColor: colors.black, shadowOpacity: 0.15, shadowRadius: 14, elevation: 2 },
+  composerInput: { minHeight: 96, color: colors.text, textAlignVertical: "top", padding: 5, fontSize: 16, lineHeight: 23 },
   composerActions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
   visibilityRow: { flexDirection: "row", gap: 8, marginTop: 8 },
   visibilityChip: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
@@ -2387,7 +3115,7 @@ const styles = StyleSheet.create({
   userCard: { flexDirection: "row", alignItems: "center", backgroundColor: colors.panel, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
   miniButton: { backgroundColor: colors.accent, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 11 },
   miniButtonText: { color: "#fff", fontWeight: "800", fontSize: 12 },
-  conversationCard: { flexDirection: "row", alignItems: "center", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, marginBottom: 10 },
+  conversationCard: { flexDirection: "row", alignItems: "center", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 19, padding: 13, marginBottom: 10, shadowColor: colors.black, shadowOpacity: 0.16, shadowRadius: 12, elevation: 2 },
   badge: { minWidth: 22, height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", marginLeft: 8 },
   badgeText: { color: "#fff", fontSize: 10, fontWeight: "900" },
   chatScreen: { flex: 1, backgroundColor: colors.bg },
@@ -2411,8 +3139,12 @@ const styles = StyleSheet.create({
   attachButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
   attachButtonText: { color: colors.text, fontSize: 24, fontWeight: "700" },
   typingIndicator: { color: colors.muted, fontSize: 11, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 2, backgroundColor: colors.bg },
-  messageComposer: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.panel, minHeight: 72 },
-  messageInput: { flex: 1, minHeight: 52, maxHeight: 140, color: colors.text, backgroundColor: colors.panel2, borderRadius: 18, paddingHorizontal: 15, paddingVertical: 12, textAlignVertical: "top" },
+  messageReactionRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 7 },
+  messageReactionChip: { minWidth: 28, height: 26, borderRadius: 13, paddingHorizontal: 7, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.10)" },
+  messageReactionText: { fontSize: 13 },
+  messageReactionAdd: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  messageComposer: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.panel, minHeight: 84 },
+  messageInput: { flex: 1, minHeight: 54, maxHeight: 150, color: colors.text, backgroundColor: colors.panel2, borderRadius: 19, paddingHorizontal: 15, paddingVertical: 13, textAlignVertical: "top", fontSize: 15, lineHeight: 21 },
   sendButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
   sendButtonText: { color: "#fff", fontSize: 20, fontWeight: "900" },
   notificationFilters: { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingTop: 10 },
@@ -2432,10 +3164,47 @@ const styles = StyleSheet.create({
   mediaEditButton: { flex: 1, minHeight: 42, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   mediaEditText: { color: colors.text, fontSize: 12, fontWeight: "800" },
   bioInput: { minHeight: 100, textAlignVertical: "top" },
-  bottomNav: { position: "absolute", left: 10, right: 10, height: 72, backgroundColor: "#14141b", borderWidth: 1, borderColor: colors.border, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "space-around", shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 10 },
-  navItem: { minWidth: 55, alignItems: "center", justifyContent: "center" },
+  bottomNav: { position: "absolute", left: 10, right: 10, height: 74, backgroundColor: "rgba(20,20,27,0.97)", borderWidth: 1, borderColor: colors.border, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "space-around", shadowColor: "#000", shadowOpacity: 0.34, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 14 },
+  navItem: { minWidth: 58, minHeight: 58, borderRadius: 17, alignItems: "center", justifyContent: "center", paddingHorizontal: 7 },
+  navItemActive: { backgroundColor: colors.accentSoft },
+  navIconWrap: { position: "relative", alignItems: "center", justifyContent: "center" },
   navIcon: { color: colors.muted, fontSize: 22, marginBottom: 2 },
-  navLabel: { color: colors.muted, fontSize: 10 },
+  navLabel: { color: colors.muted, fontSize: 10, marginTop: 3, fontWeight: "700" },
   navActive: { color: colors.text, fontWeight: "900" },
+  feedModeRow: { flexDirection: "row", paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6, gap: 8 },
+  feedModeChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
+  feedModeChipActive: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
+  feedModeText: { color: colors.muted, fontSize: 11, fontWeight: "800" },
+  feedModeTextActive: { color: colors.text },
+  profileVisitorHero: { backgroundColor: colors.panel, borderRadius: 21, borderWidth: 1, borderColor: colors.border, overflow: "hidden", marginBottom: 12 },
+  profileCoverVisitor: { width: "100%", height: 172, backgroundColor: colors.panel2 },
+  profileCoverVisitorPlaceholder: { width: "100%", height: 120, backgroundColor: colors.accentSoft },
+  profileVisitorIdentity: { flexDirection: "row", alignItems: "center", gap: 12, padding: 15, marginTop: -46 },
+  visitorTitleWrap: { flex: 1, minWidth: 0, paddingTop: 34 },
+  visitorActions: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+  visitorPrimaryAction: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 15, borderRadius: 14, backgroundColor: colors.accent, shadowColor: colors.accent, shadowOpacity: 0.23, shadowRadius: 10, elevation: 4 },
+  visitorPrimaryText: { color: colors.white, fontWeight: "900", fontSize: 12 },
+  visitorSecondaryAction: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  visitorSecondaryText: { color: colors.text, fontWeight: "800", fontSize: 12 },
+  visitorDangerAction: { minHeight: 44, paddingHorizontal: 14, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,119,119,0.08)", borderWidth: 1, borderColor: "#61343B" },
+  visitorDangerText: { color: colors.danger, fontWeight: "900", fontSize: 12 },
+  profileInfoRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 6 },
+  infoChip: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 11, backgroundColor: colors.panel2 },
+  infoChipText: { color: colors.muted, fontSize: 10, fontWeight: "800" },
+  relationshipOverlay: { flex: 1, justifyContent: "flex-end" },
+  relationshipSheet: { height: "72%", backgroundColor: colors.bg, borderTopLeftRadius: 25, borderTopRightRadius: 25, borderWidth: 1, borderColor: colors.border, paddingBottom: 10 },
+  relationshipList: { padding: 14, paddingBottom: 40, gap: 8 },
+  relationshipRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 16, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
+  groupModalOverlay: { flex: 1, justifyContent: "flex-end" },
+  groupModal: { height: "82%", backgroundColor: colors.bg, borderTopLeftRadius: 26, borderTopRightRadius: 26, borderWidth: 1, borderColor: colors.border, paddingBottom: 10 },
+  groupContent: { padding: 14, paddingBottom: 40, gap: 9 },
+  groupRenameRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  groupTitleInput: { flex: 1, minHeight: 48, color: colors.text, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 15, paddingHorizontal: 13, paddingVertical: 10 },
+  groupActionButton: { minHeight: 46, paddingHorizontal: 13, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.accent },
+  groupActionText: { color: colors.white, fontSize: 11, fontWeight: "900" },
+  groupSectionLabel: { color: colors.subtle, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.1, marginTop: 8 },
+  groupMemberRow: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 16, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
+  groupRemoveButton: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,119,119,0.08)" },
+  leaveGroupButton: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 9, borderRadius: 14, backgroundColor: "rgba(255,119,119,0.07)", borderWidth: 1, borderColor: "#61343B" },
   navBadge: { position: "absolute", top: -6, right: -12 },
 });

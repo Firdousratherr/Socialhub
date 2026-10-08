@@ -2241,8 +2241,8 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
               <div className="min-w-0 flex-1"><p className="flex items-center gap-1.5 truncate text-sm font-black">{activeName}<AccountBadge verified={activeMember?.isVerified} owner={activeMember?.isOwner}/></p><p className="text-xs text-gray-500">{active ? (active.isGroup ? `${active.members.length} members` : "Direct message") : "Select a conversation"}</p></div>
               {!active?.isGroup && activeMember ? (
                 <>
-                  <button type="button" onClick={() => void startCall("AUDIO")} disabled={Boolean(activeCall || incomingCall)} className="social-icon-button disabled:opacity-40" aria-label="Start voice call"><Phone size={18}/></button>
-                  <button type="button" onClick={() => void startCall("VIDEO")} disabled={Boolean(activeCall || incomingCall)} className="social-icon-button disabled:opacity-40" aria-label="Start video call"><Video size={18}/></button>
+                  <button type="button" onClick={() => void startCall("AUDIO")} disabled={Boolean(activeCall)} className="social-icon-button disabled:opacity-40" aria-label="Start voice call"><Phone size={18}/></button>
+                  <button type="button" onClick={() => void startCall("VIDEO")} disabled={Boolean(activeCall)} className="social-icon-button disabled:opacity-40" aria-label="Start video call"><Video size={18}/></button>
                 </>
               ) : null}
               <div className="relative"><button type="button" onClick={() => setShowConversationOptions((value) => !value)} disabled={!active} className="social-icon-button disabled:opacity-40" aria-label="Conversation options"><MoreHorizontal size={18}/></button>

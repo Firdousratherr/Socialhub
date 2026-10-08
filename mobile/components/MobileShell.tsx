@@ -1,18 +1,10 @@
 import React from "react";
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { BrandMark } from "./BrandMark";
+import { colors, radius } from "../theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const BRAND_ICON = require("../assets/icon.png");
-
-const colors = {
-  bg: "#08080c",
-  panel: "#111118",
-  panel2: "#171720",
-  border: "#252531",
-  text: "#f8f8ff",
-  muted: "#8d8d9b",
-  accent: "#725cff",
-};
 
 export type MobileRoute = "Home" | "Discover" | "Friends" | "Messages" | "Calls" | "Notifications" | "Profile" | "Saved" | "Settings" | "Security" | "Admin";
 
@@ -32,7 +24,7 @@ export function AppHeader({
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-      <Image source={BRAND_ICON} style={styles.headerBrandIcon} />
+      <BrandMark size={38} style={styles.headerBrandIcon} />
       <View style={styles.headerCopy}>
         <Text numberOfLines={1} style={styles.title}>{title}</Text>
         {subtitle ? <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text> : null}
@@ -49,7 +41,7 @@ export function AppHeader({
         hitSlop={6}
         style={styles.menuButton}
       >
-        <Text style={styles.menuIcon}>☰</Text>
+        <Ionicons name="menu" size={25} color={colors.text} />
       </Pressable>
     </View>
   );
@@ -72,9 +64,9 @@ export function DetailHeader({
   return (
     <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
       <Pressable onPress={onBack} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
-        <Text style={styles.backIcon}>‹</Text>
+        <Ionicons name="chevron-back" size={24} color={colors.text} />
       </Pressable>
-      <Image source={BRAND_ICON} style={styles.headerBrandIcon} />
+      <BrandMark size={38} style={styles.headerBrandIcon} />
       <View style={styles.headerCopy}>
         <Text numberOfLines={1} style={styles.title}>{title}</Text>
         {subtitle ? <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text> : null}
@@ -91,6 +83,7 @@ export function MenuDrawer({
   onClose,
   onNavigate,
   onSignOut,
+  isOwner = false,
 }: {
   visible: boolean;
   route: MobileRoute;
@@ -98,20 +91,22 @@ export function MenuDrawer({
   onClose: () => void;
   onNavigate: (route: MobileRoute) => void;
   onSignOut: () => void;
+  isOwner?: boolean;
 }) {
   const insets = useSafeAreaInsets();
-  const items: Array<{ route: MobileRoute; label: string; icon: string; description: string }> = [
-    { route: "Home", label: "Home", icon: "⌂", description: "Your feed and stories" },
-    { route: "Discover", label: "Discover", icon: "⌕", description: "People, posts and trends" },
-    { route: "Friends", label: "Friends", icon: "♧", description: "Requests and connections" },
-    { route: "Messages", label: "Messages", icon: "✉", description: "Private conversations" },
-    { route: "Calls", label: "Calls", icon: "☎", description: "Voice and video call history" },
-    { route: "Notifications", label: "Notifications", icon: "♡", description: "Activity and requests" },
-    { route: "Profile", label: "Profile", icon: "◉", description: "Your public identity" },
-    { route: "Saved", label: "Saved posts", icon: "▱", description: "Posts you saved for later" },
-    { route: "Settings", label: "Settings", icon: "⚙", description: "Account, privacy and preferences" },
-    { route: "Security", label: "Security", icon: "◈", description: "Sessions and device permissions" },
+  const items: Array<{ route: MobileRoute; label: string; icon: keyof typeof Ionicons.glyphMap; description: string }> = [
+    { route: "Home", label: "Home", icon: "home-outline", description: "Your feed and stories" },
+    { route: "Discover", label: "Discover", icon: "compass-outline", description: "People, posts and trends" },
+    { route: "Friends", label: "Friends", icon: "people-outline", description: "Requests and connections" },
+    { route: "Messages", label: "Messages", icon: "chatbubble-ellipses-outline", description: "Private conversations" },
+    { route: "Calls", label: "Calls", icon: "call-outline", description: "Voice and video call history" },
+    { route: "Notifications", label: "Notifications", icon: "notifications-outline", description: "Activity and requests" },
+    { route: "Profile", label: "Profile", icon: "person-outline", description: "Your public identity" },
+    { route: "Saved", label: "Saved posts", icon: "bookmark-outline", description: "Posts you saved for later" },
+    { route: "Settings", label: "Settings", icon: "settings-outline", description: "Account, privacy and preferences" },
+    { route: "Security", label: "Security", icon: "shield-checkmark-outline", description: "Sessions and device permissions" },
   ];
+  if (isOwner) items.splice(items.length, 0, { route: "Admin", label: "Admin", icon: "construct-outline", description: "Platform controls and moderation" });
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -120,7 +115,7 @@ export function MenuDrawer({
         <View style={[styles.drawer, { paddingTop: insets.top + 12, paddingBottom: Math.max(insets.bottom, 12) }]}>
           <View style={styles.drawerHeader}>
             <View style={styles.drawerBrandRow}>
-              <Image source={BRAND_ICON} style={styles.drawerBrandIcon} />
+              <BrandMark size={48} style={styles.drawerBrandIcon} />
               <View>
                 <Text style={styles.brand}>Socialhub</Text>
                 <Text style={styles.drawerUser}>{userName || "Your account"}</Text>
@@ -141,19 +136,19 @@ export function MenuDrawer({
                   accessibilityRole="button"
                 >
                   <View style={[styles.menuIconBox, active && styles.menuIconBoxActive]}>
-                    <Text style={[styles.menuItemIcon, active && styles.menuItemIconActive]}>{item.icon}</Text>
+                    <Ionicons name={item.icon} size={21} color={active ? "#fff" : colors.muted} />
                   </View>
                   <View style={styles.menuItemCopy}>
                     <Text style={[styles.menuLabel, active && styles.menuLabelActive]}>{item.label}</Text>
                     <Text style={styles.menuDescription}>{item.description}</Text>
                   </View>
-                  <Text style={styles.chevron}>›</Text>
+                  <Ionicons name="chevron-forward" size={20} color={colors.muted} />
                 </Pressable>
               );
             })}
             <View style={styles.menuDivider} />
             <Pressable onPress={onSignOut} style={styles.signOutItem}>
-              <View style={styles.menuIconBox}><Text style={styles.signOutIcon}>⇥</Text></View>
+              <View style={styles.menuIconBox}><Ionicons name="log-out-outline" size={21} color="#ff8b8b" /></View>
               <View style={styles.menuItemCopy}><Text style={styles.signOutText}>Sign out</Text><Text style={styles.menuDescription}>End this device session</Text></View>
             </Pressable>
           </ScrollView>
@@ -165,33 +160,35 @@ export function MenuDrawer({
 
 const styles = StyleSheet.create({
   header: {
-    minHeight: 100,
+    minHeight: 108,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
     paddingBottom: 13,
-    backgroundColor: colors.bg,
+    backgroundColor: "rgba(7,7,11,0.96)",
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     zIndex: 5,
+    shadowColor: colors.black,
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 5,
   },
-  menuButton: { width: 44, height: 44, marginLeft: 10, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
-  menuIcon: { color: colors.text, fontSize: 21, fontWeight: "800", lineHeight: 24 },
-  backButton: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
-  backIcon: { color: colors.text, fontSize: 38, lineHeight: 38, marginTop: -4 },
-  headerBrandIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: colors.panel2 },
+  menuButton: { width: 46, height: 46, marginLeft: 10, borderRadius: radius.md, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  backButton: { width: 46, height: 46, borderRadius: radius.md, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  headerBrandIcon: { marginRight: 1 },
   headerCopy: { flex: 1, minWidth: 0, paddingHorizontal: 10 },
-  title: { color: colors.text, fontSize: 21, fontWeight: "900", letterSpacing: -0.25 },
+  title: { color: colors.text, fontSize: 23, fontWeight: "900", letterSpacing: -0.4 },
   subtitle: { color: colors.muted, marginTop: 2, fontSize: 11 },
   headerAction: { minWidth: 46, minHeight: 42, paddingHorizontal: 8, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   actionText: { color: "#a99cff", fontWeight: "800", fontSize: 13 },
   headerSpacer: { width: 46 },
   overlay: { flex: 1, flexDirection: "row" },
   scrim: { flex: 1, backgroundColor: "rgba(0,0,0,0.68)" },
-  drawer: { width: "84%", maxWidth: 360, backgroundColor: colors.bg, borderRightWidth: 1, borderRightColor: colors.border },
+  drawer: { width: "84%", maxWidth: 370, backgroundColor: colors.bg, borderLeftWidth: 1, borderLeftColor: colors.border, shadowColor: colors.black, shadowOpacity: 0.45, shadowRadius: 28, elevation: 22 },
   drawerHeader: { paddingHorizontal: 16, paddingBottom: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: colors.border },
   drawerBrandRow: { flexDirection: "row", alignItems: "center", minWidth: 0, flex: 1 },
-  drawerBrandIcon: { width: 44, height: 44, borderRadius: 13, marginRight: 11 },
+  drawerBrandIcon: { marginRight: 11 },
   brand: { color: colors.text, fontSize: 23, fontWeight: "900" },
   drawerUser: { color: colors.muted, fontSize: 12, marginTop: 4 },
   closeButton: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2 },
@@ -200,7 +197,7 @@ const styles = StyleSheet.create({
   menuItem: { minHeight: 60, borderRadius: 16, flexDirection: "row", alignItems: "center", padding: 8 },
   menuItemActive: { backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   menuIconBox: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel },
-  menuIconBoxActive: { backgroundColor: colors.accent },
+  menuIconBoxActive: { backgroundColor: colors.accent, shadowColor: colors.accent, shadowOpacity: 0.35, shadowRadius: 9, elevation: 6 },
   menuItemIcon: { color: colors.muted, fontSize: 22 },
   menuItemIconActive: { color: "#fff" },
   menuItemCopy: { flex: 1, minWidth: 0, paddingHorizontal: 10 },
@@ -209,7 +206,7 @@ const styles = StyleSheet.create({
   menuDescription: { color: colors.muted, fontSize: 10, marginTop: 2 },
   chevron: { color: colors.muted, fontSize: 25, paddingHorizontal: 6 },
   menuDivider: { height: 1, backgroundColor: colors.border, marginVertical: 10 },
-  signOutItem: { minHeight: 68, borderRadius: 17, flexDirection: "row", alignItems: "center", padding: 9 },
+  signOutItem: { minHeight: 68, borderRadius: 17, flexDirection: "row", alignItems: "center", padding: 9, backgroundColor: "rgba(255,119,119,0.04)" },
   signOutIcon: { color: "#ff7474", fontSize: 22 },
   signOutText: { color: "#ff8b8b", fontSize: 15, fontWeight: "800" },
 });
