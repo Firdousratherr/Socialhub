@@ -315,7 +315,16 @@ export async function PATCH(request: Request) {
       riskLevel: "HIGH",
     });
 
-    return NextResponse.json({ uploadLimits: { ...after, configured: true } });
+    return NextResponse.json({
+      uploadLimits: {
+        ...after,
+        configured: {
+          maxImageBytes: true,
+          maxVideoBytes: true,
+          maxDailyBytes: true,
+        },
+      },
+    });
   }
 
   if (!isDirectApkUrl(data.value)) {
