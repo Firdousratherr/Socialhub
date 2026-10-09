@@ -16,7 +16,16 @@ async function adminFetch(input: RequestInfo | URL, init?: RequestInit): Promise
 
   const timeoutId = setTimeout(() => controller.abort(), 30_000);
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    const body = await response.text();
+    return new Response(
+      body,
+      {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      },
+    );
   } catch {
     const message = controller.signal.aborted && !callerSignal?.aborted
       ? "The admin request timed out. Please retry."
