@@ -31,7 +31,7 @@ const PLATFORM_CONTROLS = [
   {
     key: "platform.messaging.enabled",
     label: "Direct messages",
-    description: "Allow people to send messages in conversations.",
+    description: "Allow people to access direct-message conversations and send messages.",
     defaultEnabled: true,
   },
   {
@@ -43,7 +43,7 @@ const PLATFORM_CONTROLS = [
   {
     key: "platform.stories.enabled",
     label: "Stories",
-    description: "Allow people to create and view stories.",
+    description: "Allow people to create stories. Existing stories remain available when creation is disabled.",
     defaultEnabled: true,
   },
   {
