@@ -1,5 +1,42 @@
 import { authClient } from "./auth-client";
 
+const API_REQUEST_TIMEOUT_MS = 30_000;
+const UPLOAD_REQUEST_TIMEOUT_MS = 60_000;
+
+async function fetchJsonWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<{ response: Response; data: unknown }> {
+  const controller = new AbortController();
+  const callerSignal = init.signal;
+  const abortFromCaller = () => controller.abort();
+
+  if (callerSignal?.aborted) controller.abort();
+  else callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    let data: unknown = {};
+    try {
+      data = await response.json();
+    } catch (error) {
+      if (controller.signal.aborted) throw error;
+    }
+    return { response, data };
+  } catch (error) {
+    if (controller.signal.aborted && !callerSignal?.aborted) {
+      throw new Error("The request timed out. Check your connection and try again.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    callerSignal?.removeEventListener("abort", abortFromCaller);
+  }
+}
+
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
   "https://socialhublive.vercel.app";
@@ -32,13 +69,11 @@ export async function apiFetch<T>(
   }
   if (cookie) headers.set("Cookie", cookie);
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers,
-    credentials: "omit",
-  });
-
-  const data = await response.json().catch(() => ({}));
+  const { response, data } = await fetchJsonWithTimeout(
+    `${API_BASE_URL}${path}`,
+    { ...init, headers, credentials: "omit" },
+    API_REQUEST_TIMEOUT_MS,
+  );
   if (!response.ok) {
     throw new Error(errorMessage(data, `Request failed (${response.status})`));
   }
@@ -71,14 +106,11 @@ export async function uploadMedia(
   addNativeHeaders(headers);
   if (cookie) headers.set("Cookie", cookie);
 
-  const response = await fetch(`${API_BASE_URL}/api/uploads`, {
-    method: "POST",
-    headers,
-    body: formData,
-    credentials: "omit",
-  });
-
-  const data = await response.json().catch(() => ({}));
+  const { response, data } = await fetchJsonWithTimeout(
+    `${API_BASE_URL}/api/uploads`,
+    { method: "POST", headers, body: formData, credentials: "omit" },
+    UPLOAD_REQUEST_TIMEOUT_MS,
+  );
   if (!response.ok) {
     throw new Error(errorMessage(data, `Upload failed (${response.status})`));
   }
