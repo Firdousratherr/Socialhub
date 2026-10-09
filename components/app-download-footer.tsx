@@ -9,7 +9,7 @@ export function AppDownloadFooter() {
   if (pathname === "/download" || pathname.startsWith("/download/")) return null;
 
   return (
-    <footer className="border-t border-gray-200 bg-white/95">
+    <footer className="border-t border-gray-200 bg-white/95 pb-[calc(var(--mobile-nav-h)+env(safe-area-inset-bottom)+1rem)] sm:pb-0">
       <div className="mx-auto flex max-w-[1440px] flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
         <div className="flex items-start gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#eeebff] text-[#5a4be8]">
@@ -24,7 +24,7 @@ export function AppDownloadFooter() {
         </div>
         <Link
           href="/download"
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white hover:bg-gray-800"
+          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white hover:bg-gray-800 sm:w-auto"
         >
           <Download size={15} aria-hidden="true" />
           Download APK
