@@ -980,9 +980,23 @@ test("web application control exposes only server-enforced platform switches and
   const messagingRoute = read("app/api/conversations/[conversationId]/messages/route.ts");
   const messagePost = messagingRoute.slice(messagingRoute.indexOf("export async function POST"));
   const friendRequestRoute = read("app/api/friend-requests/[requestId]/route.ts");
+  const registrationRoute = read("lib/auth.ts");
+  const postsRoute = read("app/api/posts/route.ts");
+  const commentsRoute = read("app/api/posts/[postId]/comments/route.ts");
+  const storiesRoute = read("app/api/stories/route.ts");
+  const uploadsRoute = read("app/api/uploads/route.ts");
+  const followRoute = read("app/api/users/[userId]/follow/route.ts");
+  const friendRequestCreateRoute = read("app/api/friend-requests/route.ts");
   assert.match(route, /requireAdminPermission\("PLATFORM_SETTINGS"\)/);
   assert.match(messagePost, /platformEnabled\("messaging", true\)/, "messaging control must be enforced on message creation, not only reads");
   assert.match(friendRequestRoute, /parsed\.data\.status === "ACCEPTED"[\s\S]*platformEnabled\("social", true\)/, "social control must block accepting new friend connections");
+  assert.match(registrationRoute, /getBooleanSetting\("registration\.enabled", true\)/, "registration control must be enforced by the auth user-create hook");
+  assert.match(postsRoute.slice(postsRoute.indexOf("export async function POST")), /platformEnabled\("posts", true\)/);
+  assert.match(commentsRoute.slice(commentsRoute.indexOf("export async function POST")), /platformEnabled\("comments", true\)/);
+  assert.match(storiesRoute.slice(storiesRoute.indexOf("export async function POST")), /platformEnabled\("stories", true\)/);
+  assert.match(uploadsRoute.slice(uploadsRoute.indexOf("export async function POST")), /platformEnabled\("uploads", true\)/);
+  assert.match(followRoute.slice(followRoute.indexOf("export async function POST")), /platformEnabled\("social", true\)/);
+  assert.match(friendRequestCreateRoute.slice(friendRequestCreateRoute.indexOf("export async function POST")), /platformEnabled\("social", true\)/);
   for (const key of [
     "registration.enabled",
     "platform.posts.enabled",
