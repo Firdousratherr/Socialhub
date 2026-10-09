@@ -1105,6 +1105,8 @@ test("admin control-center requests surface network errors and timeouts to the U
   assert.match(panel, /The admin request timed out/);
   assert.match(panel, /Could not reach the admin service/);
   assert.equal((panel.match(/\bfetch\(/g) ?? []).length, 1, "admin operations should route through the guarded request helper");
+  assert.match(panel, /const hasNullBodyStatus = \[204, 205, 304\]\.includes\(response\.status\)/);
+  assert.match(panel, /hasNullBodyStatus \? null : body/);
 });
 
 
