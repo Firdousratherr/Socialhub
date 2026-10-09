@@ -977,7 +977,10 @@ test("web application control exposes only server-enforced platform switches and
   const route = read("app/api/admin/application-control/route.ts");
   const component = read("components/admin-application-control.tsx");
   const workspace = read("components/admin-workspace.tsx");
+  const messagingRoute = read("app/api/conversations/[conversationId]/messages/route.ts");
+  const messagePost = messagingRoute.slice(messagingRoute.indexOf("export async function POST"));
   assert.match(route, /requireAdminPermission\("PLATFORM_SETTINGS"\)/);
+  assert.match(messagePost, /platformEnabled\("messaging", true\)/, "messaging control must be enforced on message creation, not only reads");
   for (const key of [
     "registration.enabled",
     "platform.posts.enabled",
