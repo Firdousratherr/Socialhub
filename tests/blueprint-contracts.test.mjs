@@ -1088,3 +1088,21 @@ test("APK fallback points to the latest published release and mobile package ver
   assert.match(download, /releases\/download\/v1\.0\.8\/app-release\.apk/);
   assert.equal(pkg.version, app.expo.version);
 });
+
+
+test("mobile API requests and media uploads use bounded timeouts and release loading states on stalled requests", () => {
+  const api = read("mobile/lib/api.ts");
+  assert.match(api, /API_REQUEST_TIMEOUT_MS\s*=\s*30_000/);
+  assert.match(api, /UPLOAD_REQUEST_TIMEOUT_MS\s*=\s*60_000/);
+  assert.match(api, /fetchJsonWithTimeout/);
+  assert.match(api, /new AbortController\(\)/);
+  assert.match(api, /The request timed out/);
+});
+
+test("admin control-center requests surface network errors and timeouts to the UI", () => {
+  const panel = read("components/admin-control-center.tsx");
+  assert.match(panel, /async function adminFetch/);
+  assert.match(panel, /The admin request timed out/);
+  assert.match(panel, /Could not reach the admin service/);
+  assert.equal((panel.match(/\bfetch\(/g) ?? []).length, 1, "admin operations should route through the guarded request helper");
+});
