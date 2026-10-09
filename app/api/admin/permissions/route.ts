@@ -48,22 +48,24 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "The owner administrator's permissions cannot be changed by another administrator." }, { status: 403 });
   }
 
-  await prisma.adminPermission.deleteMany({ where: { adminId: target.id } });
-  if (target.role === "MODERATOR" && parsed.data.permissions.length) {
-    await prisma.adminPermission.createMany({
-      data: parsed.data.permissions.map((permission) => ({ adminId: target.id, permission })),
-      skipDuplicates: true,
-    });
-  }
+  await prisma.$transaction(async (tx) => {
+    await tx.adminPermission.deleteMany({ where: { adminId: target.id } });
+    if (target.role === "MODERATOR" && parsed.data.permissions.length) {
+      await tx.adminPermission.createMany({
+        data: parsed.data.permissions.map((permission) => ({ adminId: target.id, permission })),
+        skipDuplicates: true,
+      });
+    }
 
-  await prisma.adminAuditLog.create({
-    data: {
-      adminId: access.user.id,
-      action: "UPDATE_ADMIN_PERMISSIONS",
-      targetType: "ADMIN",
-      targetId: target.id,
-      details: JSON.stringify({ permissions: parsed.data.permissions }),
-    },
+    await tx.adminAuditLog.create({
+      data: {
+        adminId: access.user.id,
+        action: "UPDATE_ADMIN_PERMISSIONS",
+        targetType: "ADMIN",
+        targetId: target.id,
+        details: JSON.stringify({ permissions: parsed.data.permissions }),
+      },
+    });
   });
 
   return NextResponse.json({ ok: true });
