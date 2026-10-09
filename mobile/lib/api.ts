@@ -1,7 +1,7 @@
+import { File as ExpoFile } from "expo-file-system";
 import { authClient } from "./auth-client";
 
 const API_REQUEST_TIMEOUT_MS = 30_000;
-const UPLOAD_REQUEST_TIMEOUT_MS = 60_000;
 
 async function fetchJsonWithTimeout(
   url: string,
@@ -89,30 +89,48 @@ export type UploadResult = {
 export async function uploadMedia(
   uri: string,
   mimeType: string,
-  fileName: string,
+  _fileName: string,
 ): Promise<UploadResult> {
-  const cookie = await authClient.getCookie();
-  const formData = new FormData();
-  formData.append(
-    "file",
-    {
-      uri,
-      type: mimeType,
-      name: fileName,
-    } as unknown as Blob,
-  );
-
-  const headers = new Headers({ Accept: "application/json" });
-  addNativeHeaders(headers);
-  if (cookie) headers.set("Cookie", cookie);
-
-  const { response, data } = await fetchJsonWithTimeout(
-    `${API_BASE_URL}/api/uploads`,
-    { method: "POST", headers, body: formData, credentials: "omit" },
-    UPLOAD_REQUEST_TIMEOUT_MS,
-  );
-  if (!response.ok) {
-    throw new Error(errorMessage(data, `Upload failed (${response.status})`));
+  const file = new ExpoFile(uri);
+  const size = file.size;
+  if (!Number.isSafeInteger(size) || size <= 0) {
+    throw new Error("The selected media file could not be read.");
   }
-  return data as UploadResult;
+
+  let reservationId: string | null = null;
+  try {
+    const prepared = await apiFetch<{
+      uploadUrl: string;
+      reservationId: string;
+      pathname: string;
+      mimeType: string;
+      mediaType: "IMAGE" | "VIDEO";
+    }>("/api/uploads/client", {
+      method: "POST",
+      body: JSON.stringify({ operation: "prepare", size, mimeType }),
+    });
+    reservationId = prepared.reservationId;
+
+    const uploadResponse = await file.upload(prepared.uploadUrl, {
+      httpMethod: "PUT",
+      headers: { "Content-Type": prepared.mimeType },
+      mimeType: prepared.mimeType,
+    });
+    if (uploadResponse.status < 200 || uploadResponse.status >= 300) {
+      throw new Error("Storage rejected the upload. Please retry.");
+    }
+
+    return await apiFetch<UploadResult>("/api/uploads/client", {
+      method: "POST",
+      body: JSON.stringify({ operation: "finalize", reservationId }),
+    });
+  } catch (error) {
+    if (reservationId) {
+      await apiFetch("/api/uploads/client", {
+        method: "POST",
+        body: JSON.stringify({ operation: "cancel", reservationId }),
+      }).catch(() => undefined);
+    }
+    throw error instanceof Error ? error : new Error("Could not upload the file.");
+  }
 }
