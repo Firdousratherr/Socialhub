@@ -987,6 +987,13 @@ test("web application control exposes only server-enforced platform switches and
   const uploadsRoute = read("app/api/uploads/route.ts");
   const followRoute = read("app/api/users/[userId]/follow/route.ts");
   const friendRequestCreateRoute = read("app/api/friend-requests/route.ts");
+  const conversationsRoute = read("app/api/conversations/route.ts");
+  const conversationGet = conversationsRoute.slice(conversationsRoute.indexOf("export async function GET"));
+  const conversationPost = conversationsRoute.slice(conversationsRoute.indexOf("export async function POST"));
+  const typingRoute = read("app/api/conversations/[conversationId]/typing/route.ts");
+  const typingGet = typingRoute.slice(typingRoute.indexOf("export async function GET"));
+  const typingPost = typingRoute.slice(typingRoute.indexOf("export async function POST"));
+  const callsRoute = read("app/api/conversations/[id]/calls/route.ts");
   assert.match(route, /requireAdminPermission\("PLATFORM_SETTINGS"\)/);
   assert.match(messagePost, /platformEnabled\("messaging", true\)/, "messaging control must be enforced on message creation, not only reads");
   assert.match(friendRequestRoute, /parsed\.data\.status === "ACCEPTED"[\s\S]*platformEnabled\("social", true\)/, "social control must block accepting new friend connections");
@@ -997,6 +1004,11 @@ test("web application control exposes only server-enforced platform switches and
   assert.match(uploadsRoute.slice(uploadsRoute.indexOf("export async function POST")), /platformEnabled\("uploads", true\)/);
   assert.match(followRoute.slice(followRoute.indexOf("export async function POST")), /platformEnabled\("social",\s*true\)/);
   assert.match(friendRequestCreateRoute.slice(friendRequestCreateRoute.indexOf("export async function POST")), /platformEnabled\("social",\s*true\)/);
+  assert.match(conversationGet, /platformEnabled\("messaging", true\)/, "disabled messaging must not reveal conversation previews");
+  assert.match(conversationPost, /platformEnabled\("messaging", true\)/, "disabled messaging must prevent new conversations");
+  assert.match(typingGet, /platformEnabled\("messaging", true\)/, "typing data must stop when messaging is disabled");
+  assert.match(typingPost, /platformEnabled\("messaging", true\)/, "typing indicators must not be created while messaging is disabled");
+  assert.match(callsRoute.slice(callsRoute.indexOf("export async function POST")), /platformEnabled\("messaging", true\)/, "audio/video calls must follow the messaging control");
   for (const key of [
     "registration.enabled",
     "platform.posts.enabled",
