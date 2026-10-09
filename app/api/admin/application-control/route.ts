@@ -125,15 +125,16 @@ export async function PATCH(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid application-control change." }, { status: 400 });
   }
+  const data = parsed.data;
 
-  if (parsed.data.kind === "platform") {
-    const definition = PLATFORM_CONTROLS.find((item) => item.key === parsed.data.key);
+  if (data.kind === "platform") {
+    const definition = PLATFORM_CONTROLS.find((item) => item.key === data.key);
     if (!definition) {
       return NextResponse.json({ error: "Unknown platform control." }, { status: 400 });
     }
 
-    const value = String(parsed.data.enabled);
-    const reason = parsed.data.reason || `Application control: ${definition.label}`;
+    const value = String(data.enabled);
+    const reason = data.reason || `Application control: ${definition.label}`;
     const { setting, beforeValue } = await prisma.$transaction(async (tx) => {
       const before = await tx.systemSetting.findUnique({
         where: { key: definition.key },
@@ -186,26 +187,26 @@ export async function PATCH(request: Request) {
       before: beforeValue ?? String(definition.defaultEnabled),
       after: value,
       reason,
-      riskLevel: parsed.data.enabled ? "MEDIUM" : "HIGH",
+      riskLevel: data.enabled ? "MEDIUM" : "HIGH",
     });
 
     return NextResponse.json({
       feature: {
         ...definition,
-        enabled: parsed.data.enabled,
+        enabled: data.enabled,
         updatedAt: setting.updatedAt,
         configured: true,
       },
     });
   }
 
-  if (!isDirectApkUrl(parsed.data.value)) {
+  if (!isDirectApkUrl(data.value)) {
     return NextResponse.json({
       error: "Enter a direct HTTPS download URL whose path ends in .apk.",
     }, { status: 400 });
   }
 
-  const reason = parsed.data.reason || "Updated Android APK download URL.";
+  const reason = data.reason || "Updated Android APK download URL.";
   const { setting, beforeValue } = await prisma.$transaction(async (tx) => {
     const before = await tx.systemSetting.findUnique({
       where: { key: APP_DOWNLOAD_SETTING_KEY },
@@ -215,12 +216,12 @@ export async function PATCH(request: Request) {
       where: { key: APP_DOWNLOAD_SETTING_KEY },
       create: {
         key: APP_DOWNLOAD_SETTING_KEY,
-        value: parsed.data.value,
+        value: data.value,
         description: "Direct Android APK download URL controlled by Socialhub administrators.",
         updatedById: access.user.id,
       },
       update: {
-        value: parsed.data.value,
+        value: data.value,
         description: "Direct Android APK download URL controlled by Socialhub administrators.",
         updatedById: access.user.id,
       },
