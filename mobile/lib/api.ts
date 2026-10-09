@@ -2,6 +2,7 @@ import { File as ExpoFile } from "expo-file-system";
 import { authClient } from "./auth-client";
 
 const API_REQUEST_TIMEOUT_MS = 30_000;
+const UPLOAD_REQUEST_TIMEOUT_MS = 60_000;
 
 async function fetchJsonWithTimeout(
   url: string,
@@ -111,11 +112,24 @@ export async function uploadMedia(
     });
     reservationId = prepared.reservationId;
 
-    const uploadResponse = await file.upload(prepared.uploadUrl, {
-      httpMethod: "PUT",
-      headers: { "Content-Type": prepared.mimeType },
-      mimeType: prepared.mimeType,
-    });
+    const uploadController = new AbortController();
+    const uploadTimeout = setTimeout(() => uploadController.abort(), UPLOAD_REQUEST_TIMEOUT_MS);
+    let uploadResponse: Awaited<ReturnType<typeof file.upload>>;
+    try {
+      uploadResponse = await file.upload(prepared.uploadUrl, {
+        httpMethod: "PUT",
+        headers: { "Content-Type": prepared.mimeType },
+        mimeType: prepared.mimeType,
+        signal: uploadController.signal,
+      });
+    } catch (uploadError) {
+      if (uploadController.signal.aborted) {
+        throw new Error("The upload timed out. Check your connection and try again.");
+      }
+      throw uploadError;
+    } finally {
+      clearTimeout(uploadTimeout);
+    }
     if (uploadResponse.status < 200 || uploadResponse.status >= 300) {
       throw new Error("Storage rejected the upload. Please retry.");
     }
