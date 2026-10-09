@@ -1,7 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Download, Smartphone } from "lucide-react";
 
 export function AppDownloadFooter() {
+  const pathname = usePathname();
+  if (pathname === "/download" || pathname.startsWith("/download/")) return null;
+
   return (
     <footer className="border-t border-gray-200 bg-white/95">
       <div className="mx-auto flex max-w-[1440px] flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
