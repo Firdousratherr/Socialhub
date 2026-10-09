@@ -13,6 +13,11 @@ test("download page exposes one direct APK button and safe mobile spacing", () =
   assert.doesNotMatch(page, /release information|admin-configurable|CheckCircle2|ShieldCheck/i);
 });
 
+test("download page is publicly accessible without a session", () => {
+  const routePolicy = read("lib/route-policy.ts");
+  assert.match(routePolicy, /"\/download"/);
+});
+
 test("download links reject insecure and non-APK configured URLs", () => {
   const helper = read("lib/app-download.ts");
   assert.match(helper, /url\.protocol === "https:"/);
