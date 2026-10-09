@@ -995,8 +995,8 @@ test("web application control exposes only server-enforced platform switches and
   assert.match(commentsRoute.slice(commentsRoute.indexOf("export async function POST")), /platformEnabled\("comments", true\)/);
   assert.match(storiesRoute.slice(storiesRoute.indexOf("export async function POST")), /platformEnabled\("stories", true\)/);
   assert.match(uploadsRoute.slice(uploadsRoute.indexOf("export async function POST")), /platformEnabled\("uploads", true\)/);
-  assert.match(followRoute.slice(followRoute.indexOf("export async function POST")), /platformEnabled\("social", true\)/);
-  assert.match(friendRequestCreateRoute.slice(friendRequestCreateRoute.indexOf("export async function POST")), /platformEnabled\("social", true\)/);
+  assert.match(followRoute.slice(followRoute.indexOf("export async function POST")), /platformEnabled\("social",\s*true\)/);
+  assert.match(friendRequestCreateRoute.slice(friendRequestCreateRoute.indexOf("export async function POST")), /platformEnabled\("social",\s*true\)/);
   for (const key of [
     "registration.enabled",
     "platform.posts.enabled",
