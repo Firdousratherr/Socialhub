@@ -4,6 +4,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
+import { uploadMediaFile } from "@/lib/direct-media-upload";
 import { AppShell } from "@/components/app-shell";
 import { emitPostSyncEvent, subscribePostSync } from "@/lib/post-sync";
 import { emitLiveSync, subscribeLiveSync } from "@/lib/live-sync";
@@ -991,12 +992,8 @@ export default function HomeFeed() {
     setFeedError("");
     setMediaPreview(URL.createObjectURL(file));
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await fetch("/api/uploads", { method: "POST", body: formData });
-      const json = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(json.error ?? "Could not upload the image.");
-      setMediaUrl(json.url);
+      const uploaded = await uploadMediaFile(file);
+      setMediaUrl(uploaded.url);
     } catch (uploadError) {
       setMediaPreview(null);
       setMediaUrl(null);
