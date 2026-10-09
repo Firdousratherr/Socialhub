@@ -1106,3 +1106,14 @@ test("admin control-center requests surface network errors and timeouts to the U
   assert.match(panel, /Could not reach the admin service/);
   assert.equal((panel.match(/\bfetch\(/g) ?? []).length, 1, "admin operations should route through the guarded request helper");
 });
+
+
+test("Better Auth trusts Socialhub domains and the current deployment rather than every Vercel tenant", () => {
+  const auth = read("lib/auth.ts");
+  assert.match(auth, /normalizeDeploymentHost\(process\.env\.VERCEL_URL\)/);
+  assert.match(auth, /normalizeDeploymentHost\(process\.env\.VERCEL_BRANCH_URL\)/);
+  assert.match(auth, /socialhublive\.vercel\.app/);
+  assert.match(auth, /trustedOrigins:\s*\[\s*\.\.\.SOCIALHUB_DEPLOYMENT_HOSTS\.map/);
+  assert.doesNotMatch(auth, /["']https:\/\/\*\.vercel\.app["']/);
+  assert.doesNotMatch(auth, /["']\*\.vercel\.app["']/);
+});
