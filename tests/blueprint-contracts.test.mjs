@@ -1101,9 +1101,15 @@ test("mobile API requests and media uploads use bounded timeouts and release loa
 
 test("all admin screens use a shared bounded fetch helper and keep transport failures visible", () => {
   const helper = read("lib/client-fetch.ts");
-  const controlCenter = read("components/admin-control-center.tsx");
-  const workspace = read("components/admin-workspace.tsx");
-  const legacyPanel = read("components/admin-panel.tsx");
+  const adminScreens = [
+    ["control center", read("components/admin-control-center.tsx")],
+    ["workspace", read("components/admin-workspace.tsx")],
+    ["legacy panel", read("components/admin-panel.tsx")],
+    ["admin intelligence", read("components/admin-4-0-panel.tsx")],
+    ["application controls", read("components/admin-application-control.tsx")],
+    ["conversation inspection", read("components/admin-inspection.tsx")],
+    ["APK download settings", read("components/admin-app-download-settings.tsx")],
+  ];
 
   assert.match(helper, /timeoutMs = 30_000/);
   assert.match(helper, /new AbortController\(\)/);
@@ -1112,11 +1118,7 @@ test("all admin screens use a shared bounded fetch helper and keep transport fai
   assert.match(helper, /const hasNullBodyStatus = \[204, 205, 304\]\.includes\(response\.status\)/);
   assert.match(helper, /hasNullBodyStatus \? null : body/);
 
-  for (const [name, source] of [
-    ["control center", controlCenter],
-    ["workspace", workspace],
-    ["legacy panel", legacyPanel],
-  ]) {
+  for (const [name, source] of adminScreens) {
     assert.match(source, /fetchWithTimeout\(/, name + " should use the bounded fetch helper");
     assert.equal((source.match(/\bfetch\(/g) ?? []).length, 0, name + " should not call raw fetch directly");
   }
