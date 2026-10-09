@@ -979,8 +979,10 @@ test("web application control exposes only server-enforced platform switches and
   const workspace = read("components/admin-workspace.tsx");
   const messagingRoute = read("app/api/conversations/[conversationId]/messages/route.ts");
   const messagePost = messagingRoute.slice(messagingRoute.indexOf("export async function POST"));
+  const friendRequestRoute = read("app/api/friend-requests/[requestId]/route.ts");
   assert.match(route, /requireAdminPermission\("PLATFORM_SETTINGS"\)/);
   assert.match(messagePost, /platformEnabled\("messaging", true\)/, "messaging control must be enforced on message creation, not only reads");
+  assert.match(friendRequestRoute, /parsed\.data\.status === "ACCEPTED"[\s\S]*platformEnabled\("social", true\)/, "social control must block accepting new friend connections");
   for (const key of [
     "registration.enabled",
     "platform.posts.enabled",
