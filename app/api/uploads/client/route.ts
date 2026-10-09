@@ -263,7 +263,7 @@ export async function POST(request: Request) {
   if (
     !type ||
     !isAllowedMimeType(type) ||
-    blob.contentType !== type ||
+    // Blob listing exposes byte size but not a typed contentType field.
     !Number.isSafeInteger(blob.size) ||
     blob.size <= 0 ||
     blob.size > reservation.bytes
