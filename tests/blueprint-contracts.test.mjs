@@ -1155,3 +1155,26 @@ test("bulk administration prevents moderators from mutating privileged accounts 
   assert.match(route, /access\.user\.role !== "ADMIN" && user\.role !== "USER"/);
   assert.match(route, /skippedPrivilegedIds/);
 });
+
+
+test("admin upload limits are bounded, persisted, audited, and enforced by the upload API", () => {
+  const limits = read("lib/upload-limits.ts");
+  const adminApi = read("app/api/admin/application-control/route.ts");
+  const adminUi = read("components/admin-application-control.tsx");
+  const uploadApi = read("app/api/uploads/route.ts");
+
+  assert.match(limits, /uploads\.maxImageBytes/);
+  assert.match(limits, /uploads\.maxVideoBytes/);
+  assert.match(limits, /uploads\.maxDailyBytes/);
+  assert.match(limits, /maxImageBytes: \{ min: 512 \* 1024, max: 4 \* MiB \}/);
+  assert.match(limits, /maxVideoBytes: \{ min: 1 \* MiB, max: 20 \* MiB \}/);
+  assert.match(adminApi, /kind: z\.literal\("upload-limits"\)/);
+  assert.match(adminApi, /UPDATE_UPLOAD_LIMITS/);
+  assert.match(adminApi, /tx\.adminSettingChange\.create/);
+  assert.match(adminUi, /Media upload limits/);
+  assert.match(adminUi, /Save upload limits/);
+  assert.match(uploadApi, /parseUploadLimits/);
+  assert.match(uploadApi, /uploadLimits\.maxImageBytes/);
+  assert.match(uploadApi, /uploadLimits\.maxVideoBytes/);
+  assert.match(uploadApi, /uploadLimits\.maxDailyBytes/);
+});
