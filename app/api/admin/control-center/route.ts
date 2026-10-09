@@ -160,8 +160,24 @@ export async function DELETE(request: Request) {
   const access = await requireAdminPermission(permission);
   if (access.response) return access.response;
   if (type === "session" && id) {
-    const target = await prisma.session.findUnique({where:{id},select:{id:true,userId:true}});
-    if (!target) return NextResponse.json({error:"Session not found."},{status:404});
+    const target = await prisma.session.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        user: { select: { role: true, isOwner: true } },
+      },
+    });
+    if (!target) return NextResponse.json({ error: "Session not found." }, { status: 404 });
+    if (target.userId === access.user.id) {
+      return NextResponse.json({ error: "Use your own Security screen to manage your current account sessions." }, { status: 400 });
+    }
+    if (target.user.isOwner) {
+      return NextResponse.json({ error: "The owner account's sessions cannot be revoked by another administrator." }, { status: 403 });
+    }
+    if (target.user.role === "ADMIN" && access.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Only an administrator can revoke another administrator's session." }, { status: 403 });
+    }
     await prisma.session.delete({where:{id}});
     await prisma.adminAuditLog.create({data:{adminId:access.user.id,action:"REVOKE_ADMIN_SESSION",targetType:"SESSION",targetId:id,details:JSON.stringify({userId:target.userId})}});
     return NextResponse.json({ok:true});
