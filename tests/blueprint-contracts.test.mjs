@@ -1132,3 +1132,14 @@ test("Better Auth trusts Socialhub domains and the current deployment rather tha
   assert.doesNotMatch(auth, /["']https:\/\/\*\.vercel\.app["']/);
   assert.doesNotMatch(auth, /["']\*\.vercel\.app["']/);
 });
+
+
+test("admin session revocation protects the owner and prevents moderators from revoking admin sessions", () => {
+  const securityRoute = read("app/api/admin/security/sessions/route.ts");
+  const controlCenterRoute = read("app/api/admin/control-center/route.ts");
+  for (const route of [securityRoute, controlCenterRoute]) {
+    assert.match(route, /session\.user\.isOwner|target\.user\.isOwner/);
+    assert.match(route, /Only an administrator can revoke another administrator's session/);
+    assert.match(route, /Use your own Security screen to manage your current account sessions/);
+  }
+});
