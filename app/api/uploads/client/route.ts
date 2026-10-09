@@ -13,14 +13,14 @@ import {
 } from "@/lib/upload-limits";
 
 const MiB = 1024 * 1024;
-const MIME_TO_EXTENSION: Record<string, string> = {
+const MIME_TO_EXTENSION = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
   "video/mp4": "mp4",
   "video/webm": "webm",
-};
+} as const;
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const VIDEO_TYPES = new Set(["video/mp4", "video/webm"]);
 
@@ -104,7 +104,7 @@ async function getCurrentUploadLimits() {
   );
 }
 
-async function reserveUpload(userId: string, size: number, mimeType: string, maxDailyBytes: number) {
+async function reserveUpload(userId: string, size: number, mimeType: AllowedMimeType, maxDailyBytes: number) {
   const staleBefore = new Date(Date.now() - 30 * 60 * 1000);
   const staleReservations = await prisma.uploadUsage.findMany({
     where: { userId, url: null, createdAt: { lt: staleBefore } },
