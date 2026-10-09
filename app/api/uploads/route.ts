@@ -87,34 +87,68 @@ export async function POST(request: Request) {
     }, { status: 413 });
   }
 
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-  const usage = await prisma.uploadUsage.aggregate({
-    where: { userId: session.user.id, createdAt: { gte: dayStart } },
-    _sum: { bytes: true },
-  });
-  const usedBytes = usage._sum.bytes ?? 0;
-  if (usedBytes + file.size > uploadLimits.maxDailyBytes) {
-    return NextResponse.json({ error: "Your daily upload limit has been reached. Try again tomorrow." }, { status: 429 });
-  }
-
   const bytes = new Uint8Array(await file.arrayBuffer());
   const detectedType = isImage ? detectImageType(bytes) : detectVideoType(bytes);
   if (!detectedType || detectedType !== file.type) {
     return NextResponse.json({ error: "The file contents do not match the declared media type." }, { status: 415 });
   }
 
-  const path = `uploads/${session.user.id}/${crypto.randomUUID()}.${extensionFor(file.type)}`;
-  const blob = await put(path, file, {
-    access: "public",
-    addRandomSuffix: false,
-    contentType: file.type,
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const reservation = await prisma.$transaction(async (tx) => {
+    // Serialize quota reservations per account so parallel uploads cannot all
+    // pass the same aggregate check before any of them is recorded.
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${session.user.id} FOR UPDATE`;
+
+    // Remove abandoned reservations left by interrupted requests; only rows
+    // without a blob URL can be pending reservations.
+    await tx.uploadUsage.deleteMany({
+      where: {
+        userId: session.user.id,
+        url: null,
+        createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) },
+      },
+    });
+
+    const usage = await tx.uploadUsage.aggregate({
+      where: { userId: session.user.id, createdAt: { gte: dayStart } },
+      _sum: { bytes: true },
+    });
+    const usedBytes = usage._sum.bytes ?? 0;
+    if (usedBytes + file.size > uploadLimits.maxDailyBytes) return null;
+
+    return tx.uploadUsage.create({
+      data: {
+        userId: session.user.id,
+        bytes: file.size,
+        mimeType: file.type,
+      },
+      select: { id: true },
+    });
   });
+
+  if (!reservation) {
+    return NextResponse.json({ error: "Your daily upload limit has been reached. Try again tomorrow." }, { status: 429 });
+  }
+
+  const path = `uploads/${session.user.id}/${crypto.randomUUID()}.${extensionFor(file.type)}`;
+  let blob: Awaited<ReturnType<typeof put>>;
+  try {
+    blob = await put(path, file, {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: file.type,
+    });
+  } catch (uploadError) {
+    await prisma.uploadUsage.deleteMany({ where: { id: reservation.id } });
+    throw uploadError;
+  }
 
   try {
     await prisma.$transaction([
-      prisma.uploadUsage.create({
-        data: { userId: session.user.id, bytes: file.size, url: blob.url, pathname: blob.pathname, mimeType: file.type },
+      prisma.uploadUsage.update({
+        where: { id: reservation.id },
+        data: { url: blob.url, pathname: blob.pathname, mimeType: file.type },
       }),
       prisma.mediaAsset.create({
         data: {
@@ -129,6 +163,7 @@ export async function POST(request: Request) {
     ]);
   } catch (trackingError) {
     await safeDeleteBlob(blob.url);
+    await prisma.uploadUsage.deleteMany({ where: { id: reservation.id } });
     console.error("Could not record upload usage; the uploaded blob was removed.", trackingError);
     return NextResponse.json({ error: "Could not finish recording the upload. Please try again." }, { status: 500 });
   }
