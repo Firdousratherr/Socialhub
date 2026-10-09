@@ -38,6 +38,26 @@ async function createAvailableUsername(email: string) {
   throw new Error("Could not generate an available username.");
 }
 
+function normalizeDeploymentHost(value: string | undefined): string | null {
+  if (!value) return null;
+  const candidate = value.trim().replace(/^https?:\\/\\//i, "").split(/[/?#]/, 1)[0]?.toLowerCase();
+  return candidate && /^[a-z0-9.-]+(?::[0-9]{1,5})?$/.test(candidate) ? candidate : null;
+}
+
+const SOCIALHUB_DEPLOYMENT_HOSTS = [
+  "socialhub-ruby.vercel.app",
+  "socialhub-firdousratherr.vercel.app",
+  "socialhublive.vercel.app",
+  "socialhubzone.vercel.app",
+  "socialhubspace.vercel.app",
+  "socialhubconnect.vercel.app",
+  "socialhub-git-main-firdousratherr.vercel.app",
+  normalizeDeploymentHost(process.env.VERCEL_URL),
+  normalizeDeploymentHost(process.env.VERCEL_BRANCH_URL),
+].filter((host): host is string => Boolean(host));
+
+const isDevelopment = process.env.NODE_ENV === "development";
+
 export const auth = betterAuth({
   appName: "Socialhub",
   database: prismaAdapter(prisma, {
@@ -158,17 +178,15 @@ export const auth = betterAuth({
   },
   baseURL: {
     allowedHosts: [
-      "socialhub-ruby.vercel.app",
-      "socialhub-firdousratherr.vercel.app",
-      "*.vercel.app",
+      ...SOCIALHUB_DEPLOYMENT_HOSTS,
+      ...(isDevelopment ? ["localhost:*", "127.0.0.1:*"] : []),
     ],
     protocol: process.env.NODE_ENV === "development" ? "http" : "https",
     fallback: "https://socialhub-ruby.vercel.app",
   },
   trustedOrigins: [
-    "https://socialhub-ruby.vercel.app",
-    "https://socialhub-firdousratherr.vercel.app",
-    "https://*.vercel.app",
+    ...SOCIALHUB_DEPLOYMENT_HOSTS.map((host) => `https://${host}`),
+    ...(isDevelopment ? ["http://localhost:3000", "http://127.0.0.1:3000"] : []),
     "socialhub://",
     "socialhub://*",
   ],
