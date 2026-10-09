@@ -4,6 +4,7 @@ export const PUBLIC_PAGE_PATHS = new Set([
   "/signup",
   "/admin/login",
   "/two-factor",
+  "/download",
 ]);
 
 export function isPublicPagePath(pathname: string) {
