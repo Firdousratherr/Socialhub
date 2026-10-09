@@ -29,6 +29,13 @@ test("download links reject insecure and non-APK configured URLs", () => {
   assert.match(helper, /DEFAULT_ANDROID_APK_URL/);
 });
 
+test("the global APK footer stays above the fixed mobile navigation", () => {
+  const footer = read("components/app-download-footer.tsx");
+  assert.match(footer, /pb-\[calc\(var\(--mobile-nav-h\)\+env\(safe-area-inset-bottom\)\+1rem\)\]\s+sm:pb-0/);
+  assert.match(footer, /w-full[^"]*sm:w-auto/);
+  assert.match(footer, /href="\/download"/);
+});
+
 test("the global footer is suppressed on the dedicated APK page", () => {
   const footer = read("components/app-download-footer.tsx");
   assert.match(footer, /usePathname/);
