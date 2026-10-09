@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { canStartConversationWith } from "@/lib/conversation-access";
 import { publishUserEvent } from "@/lib/realtime";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { platformEnabled } from "@/lib/platform-controls";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -16,6 +17,9 @@ export async function POST(
 ) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
+  const messagingEnabled = await platformEnabled("messaging", true);
+  if (!messagingEnabled) return NextResponse.json({ error: "Messaging and calls are temporarily disabled by the platform administrator." }, { status: 503 });
 
   const { id: conversationId } = await params;
   const rl = await consumeRateLimit(rateLimitKey("call-start", request, session.user.id), 12, 60);
