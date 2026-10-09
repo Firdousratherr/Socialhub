@@ -104,7 +104,7 @@ async function getCurrentUploadLimits() {
   );
 }
 
-async function reserveUpload(userId: string, size: number, mimeType: string) {
+async function reserveUpload(userId: string, size: number, mimeType: string, maxDailyBytes: number) {
   const dayStart = new Date();
   dayStart.setHours(0, 0, 0, 0);
   return prisma.$transaction(async (tx) => {
@@ -124,7 +124,7 @@ async function reserveUpload(userId: string, size: number, mimeType: string) {
       where: { userId, createdAt: { gte: dayStart } },
       _sum: { bytes: true },
     });
-    if ((usage._sum.bytes ?? 0) + size > (await getCurrentUploadLimits()).maxDailyBytes) {
+    if ((usage._sum.bytes ?? 0) + size > maxDailyBytes) {
       return null;
     }
 
@@ -174,7 +174,7 @@ export async function POST(request: Request) {
       }, { status: 413 });
     }
 
-    const reservation = await reserveUpload(session.user.id, size, mimeType);
+    const reservation = await reserveUpload(session.user.id, size, mimeType, limits.maxDailyBytes);
     if (!reservation) {
       return NextResponse.json({ error: "Your daily upload limit has been reached. Try again tomorrow." }, { status: 429 });
     }
