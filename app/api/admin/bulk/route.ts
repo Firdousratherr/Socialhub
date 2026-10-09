@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   const skippedPrivilegedIds =
     access.user.role === "ADMIN"
       ? []
-      : selectedUsers.filter((user) => user.role !== "USER").map((user) => user.id);
+      : selectedUsers.filter((user) => !user.isOwner && user.role !== "USER").map((user) => user.id);
   const eligibleUsers = selectedUsers.filter((user) => {
     if (action !== "VERIFY" && user.isOwner) return false;
     if (access.user.role !== "ADMIN" && user.role !== "USER") return false;
