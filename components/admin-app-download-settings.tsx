@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Download, ExternalLink } from "lucide-react";
-import { APP_DOWNLOAD_SETTING_KEY, DEFAULT_ANDROID_APK_URL } from "@/lib/app-download";
+import { APP_DOWNLOAD_SETTING_KEY, DEFAULT_ANDROID_APK_URL, isDirectApkUrl } from "@/lib/app-download";
 
 type Props = { refreshKey?: number };
 
@@ -34,12 +34,8 @@ export function AdminAppDownloadSettings({ refreshKey = 0 }: Props) {
 
   async function save() {
     const next = url.trim();
-    if (!next) {
-      setNotice("Enter a direct APK URL.");
-      return;
-    }
-    if (!/^https:\/\//i.test(next)) {
-      setNotice("Use an HTTPS URL.");
+    if (!isDirectApkUrl(next)) {
+      setNotice("Use a direct HTTPS URL whose path ends in .apk.");
       return;
     }
     setSaving(true);

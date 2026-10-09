@@ -23,7 +23,6 @@ export async function GET() {
   for (const row of stories) referenced.add(row.mediaUrl);
   for (const row of attachments) referenced.add(row.url);
   for (const row of mediaAssets) referenced.add(row.url);
-  for (const row of mediaAssets) referenced.add(row.url);
 
   const recentUploads = await prisma.uploadUsage.findMany({
     orderBy: { bytes: "desc" },
@@ -64,6 +63,7 @@ export async function DELETE(request: Request) {
   for (const row of posts) if (row.mediaUrl) referenced.add(row.mediaUrl);
   for (const row of stories) referenced.add(row.mediaUrl);
   for (const row of attachments) referenced.add(row.url);
+  for (const row of mediaAssets) referenced.add(row.url);
 
   const deletable = rows.filter((row) => row.url && !referenced.has(row.url));
   await Promise.all(deletable.map((row) => safeDeleteBlob(row.url)));

@@ -77,6 +77,10 @@ export async function POST(
 ) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
+  const messagingEnabled = await platformEnabled("messaging", true);
+  if (!messagingEnabled) return NextResponse.json({ error: "Messaging is temporarily disabled by the platform administrator." }, { status: 503 });
+
   const rl = await consumeRateLimit(rateLimitKey("messages", request, session.user.id), 60, 60);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
 

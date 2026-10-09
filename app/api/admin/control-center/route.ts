@@ -1,27 +1,95 @@
 import { NextResponse } from "next/server";
 import * as z from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdminPermission } from "@/lib/admin-permissions";
+import { hasAdminPermission, requireAdminPermission } from "@/lib/admin-permissions";
+import { requireAdmin } from "@/app/api/admin/_auth";
 import { recordAdminEvent } from "@/lib/admin-operations";
+import { APP_DOWNLOAD_SETTING_KEY, isDirectApkUrl } from "@/lib/app-download";
 
 const settingSchema = z.object({ key: z.string().trim().regex(/^[A-Za-z0-9_.-]{2,80}$/), value: z.string().max(10000), description: z.string().max(300).nullable().optional() });
 const flagSchema = z.object({ key: z.string().trim().regex(/^[A-Za-z0-9_.-]{2,80}$/), enabled: z.boolean(), description: z.string().max(300).nullable().optional() });
 const announcementSchema = z.object({ title: z.string().trim().min(2).max(120), body: z.string().trim().min(2).max(5000), audience: z.string().trim().max(40).default("ALL"), status: z.enum(["DRAFT","PUBLISHED","ARCHIVED"]).default("DRAFT"), startsAt: z.string().datetime().nullable().optional(), endsAt: z.string().datetime().nullable().optional() });
 
 export async function GET() {
-  const access = await requireAdminPermission("SECURITY_MANAGE");
+  const access = await requireAdmin();
   if (access.response) return access.response;
-  const [settings, flags, announcements, adminSessions, failedAttempts, admins, flagChanges, settingChanges] = await Promise.all([
-    prisma.systemSetting.findMany({ orderBy: { key: "asc" } }),
-    prisma.featureFlag.findMany({ orderBy: { key: "asc" } }),
-    prisma.announcement.findMany({ orderBy: { createdAt: "desc" }, take: 20, select: { id:true,title:true,body:true,audience:true,status:true,startsAt:true,endsAt:true,createdAt:true,updatedAt:true,createdBy:{select:{id:true,name:true,username:true}} } }),
-    prisma.session.findMany({ where: { user: { role: { in: ["ADMIN","MODERATOR"] }, isActive: true } }, orderBy: { updatedAt: "desc" }, take: 50, select: { id:true,userId:true,createdAt:true,updatedAt:true,expiresAt:true,ipAddress:true,userAgent:true,user:{select:{id:true,name:true,username:true,role:true}} } }),
-    prisma.adminLoginAttempt.findMany({ orderBy: { updatedAt: "desc" }, take: 50 }),
-    prisma.user.findMany({ where: { role: { in: ["ADMIN","MODERATOR"] } }, orderBy: { createdAt: "asc" }, select: { id:true,name:true,username:true,email:true,role:true,isActive:true,isOwner:true,twoFactorEnabled:true } }),
-    prisma.adminFlagChange.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
-    prisma.adminSettingChange.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
+
+  const [canReadSettings, canReadFlags, canReadAnnouncements, canReadSecurity] = await Promise.all([
+    hasAdminPermission(access.user.id, access.user.role, "PLATFORM_SETTINGS"),
+    hasAdminPermission(access.user.id, access.user.role, "FEATURE_FLAGS"),
+    hasAdminPermission(access.user.id, access.user.role, "ANNOUNCEMENTS"),
+    hasAdminPermission(access.user.id, access.user.role, "SECURITY_MANAGE"),
   ]);
-  return NextResponse.json({ settings, flags, announcements, adminSessions, failedAttempts, admins, flagChanges, settingChanges, currentAdminId: access.user.id });
+
+  const [
+    settings,
+    flags,
+    announcements,
+    adminSessions,
+    failedAttempts,
+    admins,
+    flagChanges,
+    settingChanges,
+  ] = await Promise.all([
+    canReadSettings ? prisma.systemSetting.findMany({ orderBy: { key: "asc" } }) : Promise.resolve([]),
+    canReadFlags ? prisma.featureFlag.findMany({ orderBy: { key: "asc" } }) : Promise.resolve([]),
+    canReadAnnouncements
+      ? prisma.announcement.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          select: {
+            id: true, title: true, body: true, audience: true, status: true,
+            startsAt: true, endsAt: true, createdAt: true, updatedAt: true,
+            createdBy: { select: { id: true, name: true, username: true } },
+          },
+        })
+      : Promise.resolve([]),
+    canReadSecurity
+      ? prisma.session.findMany({
+          where: { user: { role: { in: ["ADMIN", "MODERATOR"] }, isActive: true } },
+          orderBy: { updatedAt: "desc" },
+          take: 50,
+          select: {
+            id: true, userId: true, createdAt: true, updatedAt: true, expiresAt: true,
+            ipAddress: true, userAgent: true,
+            user: { select: { id: true, name: true, username: true, role: true } },
+          },
+        })
+      : Promise.resolve([]),
+    canReadSecurity
+      ? prisma.adminLoginAttempt.findMany({ orderBy: { updatedAt: "desc" }, take: 50 })
+      : Promise.resolve([]),
+    canReadSecurity
+      ? prisma.user.findMany({
+          where: { role: { in: ["ADMIN", "MODERATOR"] } },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true, name: true, username: true, email: true, role: true,
+            isActive: true, isOwner: true, twoFactorEnabled: true,
+          },
+        })
+      : Promise.resolve([]),
+    canReadFlags ? prisma.adminFlagChange.findMany({ orderBy: { createdAt: "desc" }, take: 50 }) : Promise.resolve([]),
+    canReadSettings ? prisma.adminSettingChange.findMany({ orderBy: { createdAt: "desc" }, take: 50 }) : Promise.resolve([]),
+  ]);
+
+  return NextResponse.json({
+    settings,
+    flags,
+    announcements,
+    adminSessions,
+    failedAttempts,
+    admins,
+    flagChanges,
+    settingChanges,
+    currentAdminId: access.user.id,
+    capabilities: {
+      settings: canReadSettings,
+      featureFlags: canReadFlags,
+      announcements: canReadAnnouncements,
+      security: canReadSecurity,
+    },
+  });
 }
 
 export async function PATCH(request: Request) {
@@ -33,6 +101,9 @@ export async function PATCH(request: Request) {
   if (kind === "setting") {
     const parsed = settingSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error:"Invalid setting." }, { status:400 });
+    if (parsed.data.key === APP_DOWNLOAD_SETTING_KEY && !isDirectApkUrl(parsed.data.value)) {
+      return NextResponse.json({ error: "Enter a direct HTTPS download URL whose path ends in .apk." }, { status: 400 });
+    }
     const before = await prisma.systemSetting.findUnique({ where:{key:parsed.data.key} });
     const setting = await prisma.systemSetting.upsert({ where:{key:parsed.data.key}, create:{...parsed.data,updatedById:access.user.id}, update:{value:parsed.data.value,description:parsed.data.description,updatedById:access.user.id} });
     await prisma.adminSettingChange.create({

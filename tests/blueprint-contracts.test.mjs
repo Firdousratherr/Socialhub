@@ -972,3 +972,119 @@ test("active-status privacy is exposed consistently on web and Android", () => {
   assert.match(android, /Show active status/);
   assert.match(presence, /showActiveStatus/);
 });
+
+test("web application control exposes only server-enforced platform switches and validates APK URLs", () => {
+  const route = read("app/api/admin/application-control/route.ts");
+  const component = read("components/admin-application-control.tsx");
+  const workspace = read("components/admin-workspace.tsx");
+  const messagingRoute = read("app/api/conversations/[conversationId]/messages/route.ts");
+  const messagePost = messagingRoute.slice(messagingRoute.indexOf("export async function POST"));
+  const friendRequestRoute = read("app/api/friend-requests/[requestId]/route.ts");
+  const registrationRoute = read("lib/auth.ts");
+  const postsRoute = read("app/api/posts/route.ts");
+  const commentsRoute = read("app/api/posts/[postId]/comments/route.ts");
+  const storiesRoute = read("app/api/stories/route.ts");
+  const uploadsRoute = read("app/api/uploads/route.ts");
+  const followRoute = read("app/api/users/[userId]/follow/route.ts");
+  const friendRequestCreateRoute = read("app/api/friend-requests/route.ts");
+  const conversationsRoute = read("app/api/conversations/route.ts");
+  const conversationGet = conversationsRoute.slice(conversationsRoute.indexOf("export async function GET"));
+  const conversationPost = conversationsRoute.slice(conversationsRoute.indexOf("export async function POST"));
+  const typingRoute = read("app/api/conversations/[conversationId]/typing/route.ts");
+  const typingGet = typingRoute.slice(typingRoute.indexOf("export async function GET"));
+  const typingPost = typingRoute.slice(typingRoute.indexOf("export async function POST"));
+  const callsRoute = read("app/api/conversations/[id]/calls/route.ts");
+  const callActionRoute = read("app/api/calls/[id]/route.ts");
+  const callSignalsRoute = read("app/api/calls/[id]/signals/route.ts");
+  const callSignalsGet = callSignalsRoute.slice(callSignalsRoute.indexOf("export async function GET"));
+  const callSignalsPost = callSignalsRoute.slice(callSignalsRoute.indexOf("export async function POST"));
+  assert.match(route, /requireAdminPermission\("PLATFORM_SETTINGS"\)/);
+  assert.match(messagePost, /platformEnabled\("messaging", true\)/, "messaging control must be enforced on message creation, not only reads");
+  assert.match(friendRequestRoute, /parsed\.data\.status === "ACCEPTED"[\s\S]*platformEnabled\("social", true\)/, "social control must block accepting new friend connections");
+  assert.match(registrationRoute, /getBooleanSetting\("registration\.enabled", true\)/, "registration control must be enforced by the auth user-create hook");
+  assert.match(postsRoute.slice(postsRoute.indexOf("export async function POST")), /platformEnabled\("posts", true\)/);
+  assert.match(commentsRoute.slice(commentsRoute.indexOf("export async function POST")), /platformEnabled\("comments", true\)/);
+  assert.match(storiesRoute.slice(storiesRoute.indexOf("export async function POST")), /platformEnabled\("stories", true\)/);
+  assert.match(uploadsRoute.slice(uploadsRoute.indexOf("export async function POST")), /platformEnabled\("uploads", true\)/);
+  assert.match(followRoute.slice(followRoute.indexOf("export async function POST")), /platformEnabled\("social",\s*true\)/);
+  assert.match(friendRequestCreateRoute.slice(friendRequestCreateRoute.indexOf("export async function POST")), /platformEnabled\("social",\s*true\)/);
+  assert.match(conversationGet, /platformEnabled\("messaging", true\)/, "disabled messaging must not reveal conversation previews");
+  assert.match(conversationPost, /platformEnabled\("messaging", true\)/, "disabled messaging must prevent new conversations");
+  assert.match(typingGet, /platformEnabled\("messaging", true\)/, "typing data must stop when messaging is disabled");
+  assert.match(typingPost, /platformEnabled\("messaging", true\)/, "typing indicators must not be created while messaging is disabled");
+  assert.match(callsRoute.slice(callsRoute.indexOf("export async function POST")), /platformEnabled\("messaging", true\)/, "audio/video calls must follow the messaging control");
+  assert.match(callActionRoute, /if \(action === "accept"\)[\s\S]*platformEnabled\("messaging", true\)/, "calls must not be accepted after messaging is disabled");
+  assert.match(callSignalsGet, /platformEnabled\("messaging", true\)/, "WebRTC signals must not be read while calls are disabled");
+  assert.match(callSignalsPost, /platformEnabled\("messaging", true\)/, "WebRTC signals must not be created while calls are disabled");
+  for (const key of [
+    "registration.enabled",
+    "platform.posts.enabled",
+    "platform.comments.enabled",
+    "platform.messaging.enabled",
+    "platform.uploads.enabled",
+    "platform.stories.enabled",
+    "platform.social.enabled",
+  ]) {
+    assert.ok(route.includes('key: "' + key + '"') || route.includes('"' + key + '"'));
+  }
+  assert.match(route, /isDirectApkUrl\(data\.value\)/);
+  assert.match(route, /recordAdminEvent/);
+  assert.match(component, /role="switch"/);
+  assert.match(component, /aria-checked=\{feature\.enabled\}/);
+  assert.match(workspace, /label: "App control"/);
+});
+
+test("mobile admin navigation reaches every workspace section through a More menu", () => {
+  const workspace = read("components/admin-workspace.tsx");
+  assert.match(workspace, /aria-label="Admin navigation"/);
+  assert.match(workspace, /aria-label="More admin sections"/);
+  assert.match(workspace, /NAV\.filter\(\(item\) => !item\.mobile\)/);
+  assert.match(workspace, /setMobileMoreOpen/);
+  assert.ok(workspace.includes("bottom-[calc(5.75rem_+_env(safe-area-inset-bottom))]"));
+});
+
+test("storage cleanup protects URLs referenced by media-asset records", () => {
+  const route = read("app/api/admin/storage/route.ts");
+  const deletion = route.slice(route.indexOf("export async function DELETE"));
+  assert.match(deletion, /prisma\.mediaAsset\.findMany/);
+  assert.match(deletion, /for \(const row of mediaAssets\) referenced\.add\(row\.url\);/);
+  const get = route.slice(0, route.indexOf("export async function DELETE"));
+  assert.equal((get.match(/for \(const row of mediaAssets\) referenced\.add\(row\.url\);/g) ?? []).length, 1);
+});
+
+test("admin audit CSV exports use real line separators", () => {
+  const route = read("app/api/admin/audit/route.ts");
+  assert.ok(route.includes('.join("\\r\\n")'), "CSV rows should be separated by CRLF, not literal backslash characters");
+});
+
+test("operations center reads are filtered by the viewer's individual permissions", () => {
+  const route = read("app/api/admin/control-center/route.ts");
+  assert.match(route, /const access = await requireAdmin\(\)/);
+  assert.match(route, /hasAdminPermission\(access\.user\.id, access\.user\.role, "PLATFORM_SETTINGS"\)/);
+  assert.match(route, /hasAdminPermission\(access\.user\.id, access\.user\.role, "FEATURE_FLAGS"\)/);
+  assert.match(route, /hasAdminPermission\(access\.user\.id, access\.user\.role, "SECURITY_MANAGE"\)/);
+  assert.match(route, /capabilities:/);
+});
+
+test("moderator permission replacement and its audit record are atomic", () => {
+  const route = read("app/api/admin/permissions/route.ts");
+  assert.match(route, /prisma\.\$transaction\(async \(tx\) =>/);
+  assert.match(route, /tx\.adminPermission\.deleteMany/);
+  assert.match(route, /tx\.adminPermission\.createMany/);
+  assert.match(route, /tx\.adminAuditLog\.create/);
+});
+
+test("APK settings validate a direct asset URL in both new and legacy admin surfaces", () => {
+  const route = read("app/api/admin/control-center/route.ts");
+  const component = read("components/admin-app-download-settings.tsx");
+  assert.match(route, /parsed\.data\.key === APP_DOWNLOAD_SETTING_KEY && !isDirectApkUrl\(parsed\.data\.value\)/);
+  assert.match(component, /isDirectApkUrl\(next\)/);
+});
+
+test("APK fallback points to the latest published release and mobile package version matches the manifest", () => {
+  const download = read("lib/app-download.ts");
+  const app = JSON.parse(read("mobile/app.json"));
+  const pkg = JSON.parse(read("mobile/package.json"));
+  assert.match(download, /releases\/download\/v1\.0\.8\/app-release\.apk/);
+  assert.equal(pkg.version, app.expo.version);
+});

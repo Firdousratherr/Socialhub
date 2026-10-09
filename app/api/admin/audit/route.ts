@@ -99,7 +99,7 @@ export async function GET(request: Request) {
 
   if (isCsv) {
     const escape = (value: string | null | undefined) => "\"" + String(value ?? "").replace(/\"/g, "\"\"") + "\"";
-    const csv = ["createdAt,adminId,action,targetType,targetId,details", ...page.map((log) => [log.createdAt.toISOString(), log.adminId, log.action, log.targetType, log.targetId, log.details].map(escape).join(","))].join("\\n");
+    const csv = ["createdAt,adminId,action,targetType,targetId,details", ...page.map((log) => [log.createdAt.toISOString(), log.adminId, log.action, log.targetType, log.targetId, log.details].map(escape).join(","))].join("\r\n");
     return new NextResponse(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": "attachment; filename=admin-audit.csv" } });
   }
 

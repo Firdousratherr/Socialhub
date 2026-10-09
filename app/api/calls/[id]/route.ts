@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { publishUserEvent } from "@/lib/realtime";
+import { platformEnabled } from "@/lib/platform-controls";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -81,6 +82,10 @@ export async function PATCH(
     | null = null;
 
   if (action === "accept") {
+    const messagingEnabled = await platformEnabled("messaging", true);
+    if (!messagingEnabled) {
+      return NextResponse.json({ error: "Messaging and calls are temporarily disabled by the platform administrator." }, { status: 503 });
+    }
     if (current.calleeId !== session.user.id || current.status !== "RINGING") {
       return NextResponse.json({ error: "This call cannot be accepted." }, { status: 409 });
     }

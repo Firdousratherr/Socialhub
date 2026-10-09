@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { platformEnabled } from "@/lib/platform-controls";
 import * as z from "zod";
 
 const actionSchema = z.object({
@@ -18,6 +19,17 @@ export async function PATCH(
   const { requestId } = await params;
   const parsed = actionSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request action." }, { status: 400 });
+
+  // Disallow creating new social connections while preserving the ability to decline requests.
+  if (parsed.data.status === "ACCEPTED") {
+    const socialEnabled = await platformEnabled("social", true);
+    if (!socialEnabled) {
+      return NextResponse.json(
+        { error: "Friend requests are temporarily disabled by the platform administrator." },
+        { status: 503 },
+      );
+    }
+  }
 
   const updated = await prisma.$transaction(async (tx) => {
     const friendRequest = await tx.friendRequest.findFirst({

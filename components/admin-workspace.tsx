@@ -12,9 +12,11 @@ import {
   History,
   Layers3,
   MessageSquare,
+  MoreHorizontal,
   RefreshCw,
   Search,
   Settings2,
+  Smartphone,
   Shield,
   ShieldCheck,
   UserCog,
@@ -24,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { AdminControlCenter } from "@/components/admin-control-center";
+import { AdminApplicationControl } from "@/components/admin-application-control";
 import { AdminIntelligencePanel } from "@/components/admin-4-0-panel";
 import { AdminPanel as LegacyAdminPanel } from "@/components/admin-panel";
 import { AccountBadge } from "@/components/account-badge";
@@ -35,6 +38,7 @@ type Section =
   | "content"
   | "messaging"
   | "insights"
+  | "application"
   | "operations"
   | "security"
   | "audit"
@@ -215,6 +219,7 @@ const NAV: Array<{
   { id: "overview", label: "Overview", icon: Gauge, group: "Workspace", mobile: true },
   { id: "people", label: "People", icon: Users, group: "Workspace", mobile: true },
   { id: "safety", label: "Safety", icon: Shield, group: "Trust & Safety", mobile: true },
+  { id: "application", label: "App control", icon: Smartphone, group: "Platform", mobile: true },
   { id: "content", label: "Content", icon: FileText, group: "Trust & Safety" },
   { id: "messaging", label: "Messaging", icon: MessageSquare, group: "Trust & Safety" },
   { id: "insights", label: "Insights", icon: BarChart3, group: "Platform" },
@@ -234,6 +239,9 @@ function normalizeSection(value?: string): Section {
     verification: "safety",
     content: "content",
     analytics: "insights",
+    application: "application",
+    app: "application",
+    "app-control": "application",
     audit: "audit",
     security: "security",
     operations: "operations",
@@ -253,6 +261,7 @@ export function AdminWorkspace({ section = "overview" }: { section?: string }) {
   const [searchResults, setSearchResults] = useState<any>(null);
   const [notice, setNotice] = useState("");
   const [searching, setSearching] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
 
   useEffect(() => setActive(normalizeSection(section)), [section]);
 
@@ -307,6 +316,7 @@ export function AdminWorkspace({ section = "overview" }: { section?: string }) {
     setActive(next);
     setNotice("");
     setSearchResults(null);
+    setMobileMoreOpen(false);
   };
 
   const s = dashboard?.stats ?? {};
@@ -441,6 +451,17 @@ export function AdminWorkspace({ section = "overview" }: { section?: string }) {
             {active === "insights" ? (
               <InsightsWorkspace dashboard={dashboard} onRefresh={loadDashboard} />
             ) : null}
+            {active === "application" ? (
+              <>
+                <SectionHeader
+                  eyebrow="Website & Android"
+                  title="Application control"
+                  icon={Smartphone}
+                  description="Manage server-enforced platform switches and the direct Android APK download URL. Changes are permission-checked and audited."
+                />
+                <AdminApplicationControl />
+              </>
+            ) : null}
             {active === "operations" ? (
               <>
                 <SectionHeader
@@ -489,7 +510,49 @@ export function AdminWorkspace({ section = "overview" }: { section?: string }) {
         </div>
       </div>
 
-      <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 gap-1 rounded-2xl border border-white/70 bg-white/95 p-1.5 shadow-[0_18px_50px_rgba(18,18,30,0.16)] backdrop-blur lg:hidden">
+      {mobileMoreOpen ? (
+        <section
+          id="admin-mobile-more"
+          aria-label="More admin sections"
+          className="fixed inset-x-3 bottom-[calc(5.75rem_+_env(safe-area-inset-bottom))] z-40 max-h-[65vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-3 shadow-[0_18px_50px_rgba(18,18,30,0.18)] lg:hidden"
+        >
+          <div className="mb-2 flex items-center justify-between gap-3 px-1">
+            <div>
+              <p className="text-xs font-black text-gray-950">More admin tools</p>
+              <p className="text-[10px] text-gray-400">All workspace sections</p>
+            </div>
+            <button type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Close more admin sections" className="grid size-10 shrink-0 place-items-center rounded-xl text-gray-500 hover:bg-gray-100">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {NAV.filter((item) => !item.mobile).map((item) => {
+              const Icon = item.icon;
+              const selected = active === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => go(item.id)}
+                  className={"flex min-h-12 min-w-0 items-center gap-2 rounded-xl px-3 text-left text-[11px] font-bold " + (selected ? "bg-[#eeebff] text-[#5a4be8]" : "bg-gray-50 text-gray-600 hover:bg-gray-100")}
+                >
+                  <Icon size={15} className="shrink-0" />
+                  <span className="min-w-0 break-words">{item.label}</span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => go("legacy")}
+              className={"flex min-h-12 items-center gap-2 rounded-xl px-3 text-left text-[11px] font-bold " + (active === "legacy" ? "bg-gray-950 text-white" : "bg-gray-50 text-gray-600 hover:bg-gray-100")}
+            >
+              <Settings2 size={15} /> Legacy tools
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      <nav aria-label="Admin navigation" className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 gap-1 rounded-2xl border border-white/70 bg-white/95 p-1.5 shadow-[0_18px_50px_rgba(18,18,30,0.16)] backdrop-blur lg:hidden">
         {NAV.filter((item) => item.mobile).map((item) => {
           const Icon = item.icon;
           const selected = active === item.id;
@@ -498,16 +561,28 @@ export function AdminWorkspace({ section = "overview" }: { section?: string }) {
               key={item.id}
               type="button"
               onClick={() => go(item.id)}
+              aria-current={selected ? "page" : undefined}
               className={
-                "flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[8px] font-black " +
+                "flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[8px] font-black " +
                 (selected ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-400")
               }
             >
               <Icon size={16} />
-              {item.label}
+              <span className="max-w-full truncate">{item.label}</span>
             </button>
           );
         })}
+        <button
+          type="button"
+          aria-expanded={mobileMoreOpen}
+          aria-controls="admin-mobile-more"
+          aria-label="More admin sections"
+          onClick={() => setMobileMoreOpen((open) => !open)}
+          className={"flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[8px] font-black " + (mobileMoreOpen ? "bg-[#eeebff] text-[#5a4be8]" : "text-gray-400")}
+        >
+          <MoreHorizontal size={16} />
+          <span>More</span>
+        </button>
       </nav>
     </main>
   );

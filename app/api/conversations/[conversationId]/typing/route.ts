@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { platformEnabled } from "@/lib/platform-controls";
 
 const TYPING_TTL_MS = 5_000;
 
@@ -23,6 +24,9 @@ export async function GET(
 ) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
+  const messagingEnabled = await platformEnabled("messaging", true);
+  if (!messagingEnabled) return NextResponse.json({ error: "Messaging is temporarily disabled by the platform administrator." }, { status: 503 });
 
   const { conversationId } = await params;
   if (!(await isMember(conversationId, session.user.id))) {
@@ -60,6 +64,9 @@ export async function POST(
 ) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
+  const messagingEnabled = await platformEnabled("messaging", true);
+  if (!messagingEnabled) return NextResponse.json({ error: "Messaging is temporarily disabled by the platform administrator." }, { status: 503 });
 
   const rl = await consumeRateLimit(rateLimitKey("typing", request, session.user.id), 90, 60);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
