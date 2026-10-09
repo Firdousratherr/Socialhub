@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
+import { uploadMediaFile } from "@/lib/direct-media-upload";
 import { createPortal } from "react-dom";
 import { AdminWorkspace } from "@/components/admin-workspace";
 import { AccountBadge } from "@/components/account-badge";
@@ -895,15 +896,7 @@ function Profile({ username = "firdous" }: { username?: string }) {
     setError("");
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const uploadResponse = await fetch("/api/uploads", {
-        method: "POST",
-        body: formData,
-      });
-      const uploadJson = await uploadResponse.json().catch(() => ({}));
-      if (!uploadResponse.ok) throw new Error(uploadJson.error ?? "Could not upload image.");
+      const uploadJson = await uploadMediaFile(file);
 
       const field = target === "avatar" ? "image" : "coverImage";
       const profileResponse = await fetch("/api/profile", {
@@ -1739,11 +1732,7 @@ function Messages({ initialConversationId }: { initialConversationId?: string })
     try {
       for (const file of files.slice(0, available)) {
         try {
-          const formData = new FormData();
-          formData.append("file", file);
-          const response = await fetch("/api/uploads", { method: "POST", body: formData });
-          const json = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(json.error ?? "Could not upload attachment.");
+          const json = await uploadMediaFile(file);
           if (typeof json.url === "string") uploaded.push(json.url);
         } catch (requestError) {
           uploadError = requestError instanceof Error ? requestError.message : "Could not upload attachment.";
