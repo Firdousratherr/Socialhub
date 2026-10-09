@@ -4,12 +4,16 @@ import test from "node:test";
 
 const read = (path) => fs.readFileSync(new URL("../" + path, import.meta.url), "utf8");
 
-test("download page exposes one direct APK button and safe mobile spacing", () => {
+test("download page exposes one direct APK button and reserves bottom-nav space", () => {
   const page = read("app/download/page.tsx");
+  const css = read("app/globals.css");
   assert.match(page, /href={downloadUrl}/);
   assert.match(page, /download="Socialhub\.apk"/);
   assert.match(page, /Download APK/);
   assert.match(page, /safe-area-inset-bottom/);
+  assert.match(page, /pb-\[calc\(11rem\+env\(safe-area-inset-bottom\)\)\]/);
+  assert.match(page, /relative z-\[70\]/);
+  assert.match(css, /body:has\(\.download-page-root\) \.social-bottom-nav\s*\{\s*display:\s*none !important;/);
   assert.doesNotMatch(page, /release information|admin-configurable|CheckCircle2|ShieldCheck/i);
 });
 
