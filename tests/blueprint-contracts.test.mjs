@@ -989,7 +989,7 @@ test("web application control exposes only server-enforced platform switches and
   ]) {
     assert.ok(route.includes('key: "' + key + '"') || route.includes('"' + key + '"'));
   }
-  assert.match(route, /isDirectApkUrl\(parsed\.data\.value\)/);
+  assert.match(route, /isDirectApkUrl\(data\.value\)/);
   assert.match(route, /recordAdminEvent/);
   assert.match(component, /role="switch"/);
   assert.match(component, /aria-checked=\{feature\.enabled\}/);
