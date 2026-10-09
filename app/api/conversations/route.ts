@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { conversationInputSchema } from "@/lib/validation";
 import { canCreateGroupWith, canStartConversationWith } from "@/lib/conversation-access";
+import { platformEnabled } from "@/lib/platform-controls";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -21,6 +22,9 @@ const memberSelect = {
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
+  const messagingEnabled = await platformEnabled("messaging", true);
+  if (!messagingEnabled) return NextResponse.json({ error: "Messaging is temporarily disabled by the platform administrator." }, { status: 503 });
 
   const includeArchived = new URL(request.url).searchParams.get("includeArchived") === "true";
   const conversations = await prisma.conversation.findMany({
@@ -66,6 +70,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+
+  const messagingEnabled = await platformEnabled("messaging", true);
+  if (!messagingEnabled) return NextResponse.json({ error: "Messaging is temporarily disabled by the platform administrator." }, { status: 503 });
 
   const parsed = conversationInputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
