@@ -140,7 +140,8 @@ export async function POST(request: Request) {
       contentType: file.type,
     });
   } catch (uploadError) {
-    await prisma.uploadUsage.deleteMany({ where: { id: reservation.id } });
+    // Quota cleanup is best-effort; never mask the original storage failure.
+    await prisma.uploadUsage.deleteMany({ where: { id: reservation.id } }).catch(() => {});
     throw uploadError;
   }
 
@@ -163,7 +164,8 @@ export async function POST(request: Request) {
     ]);
   } catch (trackingError) {
     await safeDeleteBlob(blob.url);
-    await prisma.uploadUsage.deleteMany({ where: { id: reservation.id } });
+    // Preserve the intended error response even if reservation cleanup also fails.
+    await prisma.uploadUsage.deleteMany({ where: { id: reservation.id } }).catch(() => {});
     console.error("Could not record upload usage; the uploaded blob was removed.", trackingError);
     return NextResponse.json({ error: "Could not finish recording the upload. Please try again." }, { status: 500 });
   }
