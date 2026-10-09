@@ -6,10 +6,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { safeDeleteBlob } from "@/lib/blob-cleanup";
 import { platformEnabled } from "@/lib/platform-controls";
+import {
+  getDailyUploadFallback,
+  parseUploadLimits,
+  UPLOAD_LIMIT_SETTING_KEYS,
+} from "@/lib/upload-limits";
 
-const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
-const MAX_DAILY_UPLOAD_BYTES = Number(process.env.MAX_DAILY_UPLOAD_BYTES ?? 25 * 1024 * 1024);
+const MiB = 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/webm"]);
 
@@ -65,10 +68,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Only JPG, PNG, WebP, GIF images or MP4/WebM videos are supported." }, { status: 415 });
   }
 
-  const maxBytes = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+  const uploadSettingRows = await prisma.systemSetting.findMany({
+    where: { key: { in: Object.values(UPLOAD_LIMIT_SETTING_KEYS) } },
+    select: { key: true, value: true },
+  });
+  const uploadSettingValues = Object.fromEntries(uploadSettingRows.map((setting) => [setting.key, setting.value]));
+  const uploadLimits = parseUploadLimits(
+    uploadSettingValues,
+    getDailyUploadFallback(process.env.MAX_DAILY_UPLOAD_BYTES),
+  );
+
+  const maxBytes = isVideo ? uploadLimits.maxVideoBytes : uploadLimits.maxImageBytes;
   if (file.size > maxBytes) {
+    const maxMegabytes = maxBytes / MiB;
+    const sizeLabel = Number.isInteger(maxMegabytes) ? String(maxMegabytes) : maxMegabytes.toFixed(1);
     return NextResponse.json({
-      error: isVideo ? "Video must be 20 MB or smaller." : "Image must be 4 MB or smaller.",
+      error: `${isVideo ? "Video" : "Image"} must be ${sizeLabel} MB or smaller.`,
     }, { status: 413 });
   }
 
@@ -79,7 +94,7 @@ export async function POST(request: Request) {
     _sum: { bytes: true },
   });
   const usedBytes = usage._sum.bytes ?? 0;
-  if (usedBytes + file.size > MAX_DAILY_UPLOAD_BYTES) {
+  if (usedBytes + file.size > uploadLimits.maxDailyBytes) {
     return NextResponse.json({ error: "Your daily upload limit has been reached. Try again tomorrow." }, { status: 429 });
   }
 
