@@ -31,7 +31,7 @@ const PLATFORM_CONTROLS = [
   {
     key: "platform.messaging.enabled",
     label: "Direct messages",
-    description: "Allow people to access direct-message conversations and send messages.",
+    description: "Allow access to direct-message conversations, message sending, typing indicators and audio/video calls.",
     defaultEnabled: true,
   },
   {
