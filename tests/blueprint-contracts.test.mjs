@@ -1209,6 +1209,8 @@ test("web and Android media uploads bypass the Vercel Function body limit with o
   assert.match(webHelper, /fetch\(prepared\.uploadUrl,\s*\{\s*method: "PUT"/);
   assert.match(webHelper, /operation: "finalize"/);
   assert.match(webScreens, /uploadMediaFile\(file\)/);
+  assert.match(homeFeed, /uploadMediaFile\(file\)/);
+  assert.doesNotMatch(homeFeed, /fetch\("\/api\/uploads"/);
   assert.match(mobileApi, /new ExpoFile\(uri\)/);
   assert.match(mobileApi, /file\.upload\(prepared\.uploadUrl/);
   assert.match(mobileApi, /operation: "finalize"/);
