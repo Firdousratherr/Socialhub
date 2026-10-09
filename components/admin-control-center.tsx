@@ -18,8 +18,9 @@ async function adminFetch(input: RequestInfo | URL, init?: RequestInit): Promise
   try {
     const response = await fetch(input, { ...init, signal: controller.signal });
     const body = await response.text();
+    const hasNullBodyStatus = [204, 205, 304].includes(response.status);
     return new Response(
-      body,
+      hasNullBodyStatus ? null : body,
       {
         status: response.status,
         statusText: response.statusText,
