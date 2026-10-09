@@ -105,6 +105,20 @@ async function getCurrentUploadLimits() {
 }
 
 async function reserveUpload(userId: string, size: number, mimeType: string, maxDailyBytes: number) {
+  const staleBefore = new Date(Date.now() - 30 * 60 * 1000);
+  const staleReservations = await prisma.uploadUsage.findMany({
+    where: { userId, url: null, createdAt: { lt: staleBefore } },
+    select: { pathname: true },
+  });
+  // Expired reservations may already have a completed blob if the client closed
+  // before finalizing; remove such orphaned objects before dropping reservations.
+  await Promise.all(staleReservations.map(async (stale) => {
+    if (!stale.pathname) return;
+    const stored = await list({ prefix: stale.pathname }).catch(() => ({ blobs: [] }));
+    const orphan = stored.blobs.find((blob) => blob.pathname === stale.pathname);
+    if (orphan) await safeDeleteBlob(orphan.url);
+  }));
+
   const dayStart = new Date();
   dayStart.setHours(0, 0, 0, 0);
   return prisma.$transaction(async (tx) => {
@@ -116,7 +130,7 @@ async function reserveUpload(userId: string, size: number, mimeType: string, max
       where: {
         userId,
         url: null,
-        createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) },
+        createdAt: { lt: staleBefore },
       },
     });
 
@@ -151,7 +165,7 @@ export async function POST(request: Request) {
 
   const operation = input.data.operation;
   const rateLimit = await consumeRateLimit(
-    rateLimitKey("upload", request, session.user.id),
+    rateLimitKey("upload-client-" + operation, request, session.user.id),
     operation === "finalize" ? 40 : 20,
     60,
   );
