@@ -40,7 +40,10 @@ async function createAvailableUsername(email: string) {
 
 function normalizeDeploymentHost(value: string | undefined): string | null {
   if (!value) return null;
-  const candidate = value.trim().replace(/^https?:\\/\\//i, "").split(/[/?#]/, 1)[0]?.toLowerCase();
+  const trimmed = value.trim();
+  const protocolEnd = trimmed.indexOf("://");
+  const withoutProtocol = protocolEnd >= 0 ? trimmed.slice(protocolEnd + 3) : trimmed;
+  const candidate = withoutProtocol.split("/")[0]?.split("?")[0]?.split("#")[0]?.toLowerCase();
   return candidate && /^[a-z0-9.-]+(?::[0-9]{1,5})?$/.test(candidate) ? candidate : null;
 }
 
