@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchWithTimeout } from "@/lib/client-fetch";
+
 import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
@@ -64,7 +66,7 @@ export function AdminApplicationControl() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/admin/application-control", { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/application-control", { cache: "no-store" });
       const json = (await responseJson(response)) as ControlResponse;
       setData(json);
       setApkUrl(json.apk.url);
@@ -89,7 +91,7 @@ export function AdminApplicationControl() {
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/admin/application-control", {
+      const response = await fetchWithTimeout("/api/admin/application-control", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -123,7 +125,7 @@ export function AdminApplicationControl() {
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/admin/application-control", {
+      const response = await fetchWithTimeout("/api/admin/application-control", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
