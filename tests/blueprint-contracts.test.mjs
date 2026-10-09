@@ -1180,4 +1180,8 @@ test("admin upload limits are bounded, persisted, audited, and enforced by the u
   assert.match(uploadApi, /uploadLimits\.maxImageBytes/);
   assert.match(uploadApi, /uploadLimits\.maxVideoBytes/);
   assert.match(uploadApi, /uploadLimits\.maxDailyBytes/);
+  assert.match(uploadApi, /FOR UPDATE/);
+  assert.match(uploadApi, /const reservation = await prisma\.\$transaction/);
+  assert.match(uploadApi, /url: null/);
+  assert.match(uploadApi, /deleteMany\(\{ where: \{ id: reservation\.id \} \}\)\.catch\(\(\) => \{\}\)/);
 });
