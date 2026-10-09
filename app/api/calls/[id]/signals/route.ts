@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { publishUserEvent } from "@/lib/realtime";
 import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { platformEnabled } from "@/lib/platform-controls";
 
 async function getSession() {
   return auth.api.getSession({ headers: await headers() });
@@ -31,6 +32,8 @@ export async function GET(
 ) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const messagingEnabled = await platformEnabled("messaging", true);
+  if (!messagingEnabled) return NextResponse.json({ error: "Messaging and calls are temporarily disabled by the platform administrator." }, { status: 503 });
   const { id } = await params;
   const call = await getCall(id, session.user.id);
   if (!call) return NextResponse.json({ error: "Call not found." }, { status: 404 });
@@ -62,6 +65,8 @@ export async function POST(
 ) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const messagingEnabled = await platformEnabled("messaging", true);
+  if (!messagingEnabled) return NextResponse.json({ error: "Messaging and calls are temporarily disabled by the platform administrator." }, { status: 503 });
   const { id } = await params;
 
   const rl = await consumeRateLimit(rateLimitKey("call-signal", request, session.user.id), 240, 60);

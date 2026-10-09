@@ -994,6 +994,10 @@ test("web application control exposes only server-enforced platform switches and
   const typingGet = typingRoute.slice(typingRoute.indexOf("export async function GET"));
   const typingPost = typingRoute.slice(typingRoute.indexOf("export async function POST"));
   const callsRoute = read("app/api/conversations/[id]/calls/route.ts");
+  const callActionRoute = read("app/api/calls/[id]/route.ts");
+  const callSignalsRoute = read("app/api/calls/[id]/signals/route.ts");
+  const callSignalsGet = callSignalsRoute.slice(callSignalsRoute.indexOf("export async function GET"));
+  const callSignalsPost = callSignalsRoute.slice(callSignalsRoute.indexOf("export async function POST"));
   assert.match(route, /requireAdminPermission\("PLATFORM_SETTINGS"\)/);
   assert.match(messagePost, /platformEnabled\("messaging", true\)/, "messaging control must be enforced on message creation, not only reads");
   assert.match(friendRequestRoute, /parsed\.data\.status === "ACCEPTED"[\s\S]*platformEnabled\("social", true\)/, "social control must block accepting new friend connections");
@@ -1009,6 +1013,9 @@ test("web application control exposes only server-enforced platform switches and
   assert.match(typingGet, /platformEnabled\("messaging", true\)/, "typing data must stop when messaging is disabled");
   assert.match(typingPost, /platformEnabled\("messaging", true\)/, "typing indicators must not be created while messaging is disabled");
   assert.match(callsRoute.slice(callsRoute.indexOf("export async function POST")), /platformEnabled\("messaging", true\)/, "audio/video calls must follow the messaging control");
+  assert.match(callActionRoute, /if \(action === "accept"\)[\s\S]*platformEnabled\("messaging", true\)/, "calls must not be accepted after messaging is disabled");
+  assert.match(callSignalsGet, /platformEnabled\("messaging", true\)/, "WebRTC signals must not be read while calls are disabled");
+  assert.match(callSignalsPost, /platformEnabled\("messaging", true\)/, "WebRTC signals must not be created while calls are disabled");
   for (const key of [
     "registration.enabled",
     "platform.posts.enabled",
