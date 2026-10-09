@@ -1143,3 +1143,13 @@ test("admin session revocation protects the owner and prevents moderators from r
     assert.match(route, /Use your own Security screen to manage your current account sessions/);
   }
 });
+
+
+test("bulk administration prevents moderators from mutating privileged accounts or changing verification", () => {
+  const route = read("app/api/admin/bulk/route.ts");
+  assert.match(route, /Only administrators can change verification status through bulk actions/);
+  assert.match(route, /userIds\.includes\(access\.user\.id\).*REVOKE_SESSIONS/s);
+  assert.match(route, /select: \{ id: true, role: true, isOwner: true \}/);
+  assert.match(route, /access\.user\.role !== "ADMIN" && user\.role !== "USER"/);
+  assert.match(route, /skippedPrivilegedIds/);
+});
