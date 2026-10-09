@@ -478,3 +478,9 @@ html[data-theme="dark"] .border-\[\#d9d4ff\] {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+
+/* Keep the standalone APK CTA unobstructed on mobile layouts that retain the app shell. */
+body:has(.download-page-root) .social-bottom-nav {
+  display: none !important;
+}
