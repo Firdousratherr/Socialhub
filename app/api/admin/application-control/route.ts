@@ -113,9 +113,11 @@ export async function GET() {
     uploadSettingValues,
     getDailyUploadFallback(process.env.MAX_DAILY_UPLOAD_BYTES),
   );
-  const configuredUploadLimits = Object.fromEntries(
-    Object.values(UPLOAD_LIMIT_SETTING_KEYS).map((key) => [key, Boolean(byKey.get(key))]),
-  );
+  const configuredUploadLimits = {
+    maxImageBytes: Boolean(byKey.get(UPLOAD_LIMIT_SETTING_KEYS.maxImageBytes)),
+    maxVideoBytes: Boolean(byKey.get(UPLOAD_LIMIT_SETTING_KEYS.maxVideoBytes)),
+    maxDailyBytes: Boolean(byKey.get(UPLOAD_LIMIT_SETTING_KEYS.maxDailyBytes)),
+  };
 
   const features = PLATFORM_CONTROLS.map((item) => {
     const setting = byKey.get(item.key);
