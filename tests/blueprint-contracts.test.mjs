@@ -1185,3 +1185,31 @@ test("admin upload limits are bounded, persisted, audited, and enforced by the u
   assert.match(uploadApi, /url: null/);
   assert.match(uploadApi, /deleteMany\(\{ where: \{ id: reservation\.id \} \}\)\.catch\(\(\) => \{\}\)/);
 });
+
+
+test("web and Android media uploads bypass the Vercel Function body limit with owner-bound signed URLs", () => {
+  const route = read("app/api/uploads/client/route.ts");
+  const webHelper = read("lib/direct-media-upload.ts");
+  const webScreens = read("components/social-pages.tsx");
+  const mobileApi = read("mobile/lib/api.ts");
+  const mobilePackage = JSON.parse(read("mobile/package.json"));
+
+  assert.match(route, /issueSignedToken/);
+  assert.match(route, /presignUrl/);
+  assert.match(route, /operations: \["put"\]/);
+  assert.match(route, /maximumSizeInBytes: size/);
+  assert.match(route, /allowedContentTypes: \[mimeType\]/);
+  assert.match(route, /FOR UPDATE/);
+  assert.match(route, /blobSignatureMatches/);
+  assert.match(route, /operation: z\.literal\("prepare"\)/);
+  assert.match(route, /operation: z\.literal\("finalize"\)/);
+  assert.match(route, /operation: z\.literal\("cancel"\)/);
+  assert.match(route, /tx\.mediaAsset\.create/);
+  assert.match(webHelper, /fetch\(prepared\.uploadUrl,\s*\{\s*method: "PUT"/);
+  assert.match(webHelper, /operation: "finalize"/);
+  assert.match(webScreens, /uploadMediaFile\(file\)/);
+  assert.match(mobileApi, /new ExpoFile\(uri\)/);
+  assert.match(mobileApi, /file\.upload\(prepared\.uploadUrl/);
+  assert.match(mobileApi, /operation: "finalize"/);
+  assert.equal(mobilePackage.dependencies["expo-file-system"], "~57.0.7");
+});
