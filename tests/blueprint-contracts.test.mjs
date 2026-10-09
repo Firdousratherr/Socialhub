@@ -1171,6 +1171,9 @@ test("admin upload limits are bounded, persisted, audited, and enforced by the u
   assert.match(adminApi, /kind: z\.literal\("upload-limits"\)/);
   assert.match(adminApi, /UPDATE_UPLOAD_LIMITS/);
   assert.match(adminApi, /tx\.adminSettingChange\.create/);
+  assert.match(adminApi, /maxImageBytes: Boolean\(byKey\.get\(UPLOAD_LIMIT_SETTING_KEYS\.maxImageBytes\)\)/);
+  assert.match(adminApi, /maxVideoBytes: Boolean\(byKey\.get\(UPLOAD_LIMIT_SETTING_KEYS\.maxVideoBytes\)\)/);
+  assert.match(adminApi, /maxDailyBytes: Boolean\(byKey\.get\(UPLOAD_LIMIT_SETTING_KEYS\.maxDailyBytes\)\)/);
   assert.match(adminUi, /Media upload limits/);
   assert.match(adminUi, /Save upload limits/);
   assert.match(uploadApi, /parseUploadLimits/);
