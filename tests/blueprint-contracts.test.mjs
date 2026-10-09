@@ -1191,6 +1191,7 @@ test("web and Android media uploads bypass the Vercel Function body limit with o
   const route = read("app/api/uploads/client/route.ts");
   const webHelper = read("lib/direct-media-upload.ts");
   const webScreens = read("components/social-pages.tsx");
+  const homeFeed = read("components/home-feed.tsx");
   const mobileApi = read("mobile/lib/api.ts");
   const mobilePackage = JSON.parse(read("mobile/package.json"));
 
