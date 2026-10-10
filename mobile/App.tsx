@@ -1936,7 +1936,7 @@ function ChatScreen({
               {item.attachments?.map((attachment) => (
                 <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />
               ))}
-              <Text style={styles.messageText}>{item.deletedAt ? "Message deleted" : item.content}</Text>
+              <Text style={[styles.messageText, item.senderId === currentUserId && styles.myMessageText]}>{item.deletedAt ? "Message deleted" : item.content}</Text>
               <Text style={[styles.messageTime, item.senderId === currentUserId && styles.myMessageTime]}>
                 {formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}
                 {item.senderId === currentUserId && !item.deletedAt && conversation.members.some((member) => member.userId !== currentUserId && member.lastReadAt && new Date(member.lastReadAt).getTime() >= new Date(item.createdAt).getTime()) ? " · Seen" : ""}
@@ -3183,13 +3183,14 @@ const styles = StyleSheet.create({
   messageBubble: { maxWidth: "84%", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 11, marginVertical: 2 },
   myBubble: { alignSelf: "flex-end", backgroundColor: colors.accent, borderBottomRightRadius: 7 },
   theirBubble: { alignSelf: "flex-start", backgroundColor: colors.panel2, borderBottomLeftRadius: 7 },
-  messageText: { color: "#fff", lineHeight: 20 },
+  messageText: { color: colors.text, lineHeight: 20 },
+  myMessageText: { color: "#FFFFFF" },
   messageTime: { color: colors.muted, fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
   myMessageTime: { color: "rgba(255,255,255,0.78)" },
   messageAttachment: { width: 190, height: 150, borderRadius: 13, marginBottom: 7, backgroundColor: colors.panel },
   replyPreview: { borderLeftWidth: 3, borderLeftColor: colors.accent, paddingLeft: 8, marginBottom: 7 },
-  replyPreviewTitle: { color: "#c5bcff", fontSize: 10, fontWeight: "900" },
-  replyPreviewText: { color: "rgba(255,255,255,0.7)", fontSize: 11, marginTop: 2 },
+  replyPreviewTitle: { color: colors.accent, fontSize: 10, fontWeight: "900" },
+  replyPreviewText: { color: colors.muted, fontSize: 11, marginTop: 2 },
   composeContext: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.panel2, borderTopWidth: 1, borderTopColor: colors.border },
   composeContextTitle: { color: colors.accent, fontSize: 11, fontWeight: "900" },
   composeContextText: { color: colors.text, fontSize: 12, marginTop: 2 },
@@ -3206,7 +3207,7 @@ const styles = StyleSheet.create({
   sendButtonText: { color: "#fff", fontSize: 20, fontWeight: "900" },
   notificationFilters: { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingTop: 10 },
   notificationCard: { flexDirection: "row", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, marginBottom: 10 },
-  unreadCard: { borderColor: colors.accent, backgroundColor: "#151122" },
+  unreadCard: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
   notificationTitle: { color: colors.text, fontWeight: "800" },
   notificationBody: { color: colors.muted, marginTop: 4, lineHeight: 18 },
   profileHero: { alignItems: "center", paddingVertical: 18 },
@@ -3251,7 +3252,7 @@ const styles = StyleSheet.create({
   visitorPrimaryText: { color: colors.white, fontWeight: "900", fontSize: 12 },
   visitorSecondaryAction: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   visitorSecondaryText: { color: colors.text, fontWeight: "800", fontSize: 12 },
-  visitorDangerAction: { minHeight: 44, paddingHorizontal: 14, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,119,119,0.08)", borderWidth: 1, borderColor: "#61343B" },
+  visitorDangerAction: { minHeight: 44, paddingHorizontal: 14, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },
   visitorDangerText: { color: colors.danger, fontWeight: "900", fontSize: 12 },
   profileInfoRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 6 },
   infoChip: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 11, backgroundColor: colors.panel2 },
@@ -3269,7 +3270,7 @@ const styles = StyleSheet.create({
   groupActionText: { color: colors.white, fontSize: 11, fontWeight: "900" },
   groupSectionLabel: { color: colors.subtle, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.1, marginTop: 8 },
   groupMemberRow: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 16, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
-  groupRemoveButton: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,119,119,0.08)" },
-  leaveGroupButton: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 9, borderRadius: 14, backgroundColor: "rgba(255,119,119,0.07)", borderWidth: 1, borderColor: "#61343B" },
+  groupRemoveButton: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#FEF2F2" },
+  leaveGroupButton: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 9, borderRadius: 14, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },
   navBadge: { position: "absolute", top: -6, right: -12 },
 });
