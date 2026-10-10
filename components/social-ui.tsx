@@ -66,9 +66,9 @@ export function PostActions({ liked, saved, likeCount, commentCount, shareCount,
   </div>;
 }
 
-export function PostComposer({ userId, name, image, value, visibility, mediaPreview, uploading, publishing, disabled, canSubmit, onChange, onVisibilityChange, onMediaClick, onRemoveMedia, onEmoji, onSubmit }: {
+export function PostComposer({ userId, name, image, value, visibility, mediaPreview, uploading, publishing, disabled, canSubmit, onChange, onVisibilityChange, onMediaClick, onRemoveMedia, onEmoji, onSubmit, textareaRef }: {
   userId?: string; name: string; image?: string | null; value: string; visibility: AudienceValue; mediaPreview?: string | null; uploading: boolean; publishing: boolean; disabled?: boolean; canSubmit: boolean;
-  onChange: (value: string) => void; onVisibilityChange: (value: AudienceValue) => void; onMediaClick: () => void; onRemoveMedia: () => void; onEmoji: () => void; onSubmit: () => void;
+  onChange: (value: string) => void; onVisibilityChange: (value: AudienceValue) => void; onMediaClick: () => void; onRemoveMedia: () => void; onEmoji: () => void; onSubmit: () => void; textareaRef?: { current: HTMLTextAreaElement | null };
 }) {
   const [audienceOpen, setAudienceOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -85,7 +85,7 @@ export function PostComposer({ userId, name, image, value, visibility, mediaPrev
     <div className="flex items-start gap-3">
       <Avatar id={userId} name={name} image={image} size="md" />
       <div className="min-w-0 flex-1">
-        <textarea value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled || uploading || publishing} rows={1} maxLength={5000} className="social-composer-input w-full resize-none" placeholder={disabled ? "Sign in to share a post…" : "What’s on your mind?"} aria-label="Create a post" />
+        <textarea ref={textareaRef} value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled || uploading || publishing} rows={1} maxLength={5000} className="social-composer-input w-full resize-none" placeholder={disabled ? "Sign in to share a post…" : "What’s on your mind?"} aria-label="Create a post" />
         {mediaPreview ? <div className="relative mt-3 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)]">
           <img src={mediaPreview} alt="Selected media preview" className="max-h-80 w-full object-cover" />
           {uploading ? <div className="absolute inset-0 grid place-items-center bg-black/25 text-white"><span className="animate-pulse text-xs font-black">Uploading…</span></div> : null}
