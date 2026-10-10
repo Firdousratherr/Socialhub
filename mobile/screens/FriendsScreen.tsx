@@ -3,8 +3,8 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { AppHeader } from "../components/MobileShell";
 import { apiFetch } from "../lib/api";
 import type { User } from "../types";
+import { colors } from "../theme";
 
-const colors = { bg:"#08080c", panel:"#111118", panel2:"#171720", border:"#252531", text:"#f8f8ff", muted:"#8d8d9b", accent:"#725cff", success:"#69d79b", danger:"#ff7474" };
 
 type FriendRequest = { id:string; sender:User; receiver?:User };
 type FriendUser = User & { isFriend?: boolean; isFollowing?: boolean; friendRequestStatus?: string };
