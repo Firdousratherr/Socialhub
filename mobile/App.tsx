@@ -299,7 +299,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
 
   return (
     <View style={[styles.authScreen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.authContent} keyboardShouldPersistTaps="handled">
         <BrandMark size={96} style={styles.authBrandMark} />
         <Text style={styles.authBrand}>Socialhub</Text>
@@ -669,12 +669,12 @@ function StoryViewer({
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.storyModal}>
         <View style={[styles.storyTop, { paddingTop: insets.top + 10 }]}>
-          <Pressable onPress={onClose}><Text style={styles.closeText}>✕</Text></Pressable>
+          <Pressable onPress={onClose}><Text style={styles.storyViewerCloseText}>✕</Text></Pressable>
           <View style={styles.flex}>
             <Text style={styles.storyViewerName}>{current.author.name}</Text>
-            <Text style={styles.muted}>{formatTime(current.createdAt)}</Text>
+            <Text style={styles.storyTimestamp}>{formatTime(current.createdAt)}</Text>
           </View>
-          <Text style={styles.muted}>{(detail[current.id]?.viewCount ?? current.viewCount)} views</Text>
+          <Text style={styles.storyTimestamp}>{(detail[current.id]?.viewCount ?? current.viewCount)} views</Text>
         </View>
 
         <View style={styles.storyMediaArea}>
@@ -688,7 +688,7 @@ function StoryViewer({
         </View>
 
         <View style={[styles.storyBottom, { paddingBottom: Math.max(insets.bottom, 14) }]}>
-          {current.caption ? <Text style={styles.storyCaption}>{current.caption}</Text> : null}
+          {current.caption ? <Text style={styles.storyViewerCaption}>{current.caption}</Text> : null}
           <View style={styles.reactionsRow}>
             {["❤️", "😂", "😮", "😢", "🔥", "👍"].map((emoji) => (
               <Pressable key={emoji} onPress={() => void doReaction(emoji)} style={styles.reactionChip}>
@@ -706,9 +706,9 @@ function StoryViewer({
             returnKeyType="send"
           />
           <View style={styles.storyStats}>
-            <Text style={styles.muted}>{detail[current.id]?.replyCount ?? current.replyCount} replies</Text>
-            <Text style={styles.muted}>{current.reactionCount} reactions</Text>
-            <Text style={styles.muted}>Swipe-like taps: left / right</Text>
+            <Text style={styles.storyTimestamp}>{detail[current.id]?.replyCount ?? current.replyCount} replies</Text>
+            <Text style={styles.storyTimestamp}>{current.reactionCount} reactions</Text>
+            <Text style={styles.storyTimestamp}>Swipe-like taps: left / right</Text>
           </View>
         </View>
       </View>
@@ -1936,8 +1936,8 @@ function ChatScreen({
               {item.attachments?.map((attachment) => (
                 <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />
               ))}
-              <Text style={styles.messageText}>{item.deletedAt ? "Message deleted" : item.content}</Text>
-              <Text style={styles.messageTime}>
+              <Text style={[styles.messageText, item.senderId === currentUserId && styles.myMessageText]}>{item.deletedAt ? "Message deleted" : item.content}</Text>
+              <Text style={[styles.messageTime, item.senderId === currentUserId && styles.myMessageTime]}>
                 {formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}
                 {item.senderId === currentUserId && !item.deletedAt && conversation.members.some((member) => member.userId !== currentUserId && member.lastReadAt && new Date(member.lastReadAt).getTime() >= new Date(item.createdAt).getTime()) ? " · Seen" : ""}
               </Text>
@@ -2670,6 +2670,8 @@ function RootContent() {
   const [signedIn, setSignedIn] = useState(false);
   const [sessionUser, setSessionUser] = useState<User | null>(null);
   const [tab, setTab] = useState<Tab>("Home");
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [feedRefreshToken, setFeedRefreshToken] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [hideBottomNav, setHideBottomNav] = useState(false);
   const [unread, setUnread] = useState({ messages: 0, notifications: 0, friendRequests: 0 });
@@ -2836,7 +2838,7 @@ function RootContent() {
   if (booting || !permissionsReady) {
     return (
       <View style={styles.root}>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <View style={styles.centered}><ActivityIndicator size="large" color={colors.accent} /></View>
       </View>
     );
@@ -2869,9 +2871,10 @@ function RootContent() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       {tab === "Home" ? (
         <HomeScreen
+          key={feedRefreshToken}
           onMenu={openMenu}
           initialPostId={deepLink?.kind === "post" ? deepLink.id : undefined}
           initialStoryId={deepLink?.kind === "story" ? deepLink.id : undefined}
@@ -2916,12 +2919,62 @@ function RootContent() {
 
       {sessionUser ? <CallOverlay currentUserId={sessionUser.id} /> : null}
 
+      {createModalOpen ? (
+        <Modal
+          visible={createModalOpen}
+          transparent
+          animationType="slide"
+          statusBarTranslucent
+          onRequestClose={() => setCreateModalOpen(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.createModalOverlay}
+          >
+            <Pressable
+              style={styles.createModalScrim}
+              onPress={() => setCreateModalOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close create post"
+            />
+            <View style={[styles.createModalSheet, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+              <View style={styles.createModalHeader}>
+                <View style={styles.flex}>
+                  <Text style={styles.createModalTitle}>Create a post</Text>
+                  <Text style={styles.createModalSubtitle}>Share an update with your people.</Text>
+                </View>
+                <Pressable
+                  onPress={() => setCreateModalOpen(false)}
+                  style={styles.createModalClose}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close create post"
+                >
+                  <Ionicons name="close" size={22} color={colors.text} />
+                </Pressable>
+              </View>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.createModalContent}
+              >
+                <CreatePost
+                  onCreated={() => {
+                    setCreateModalOpen(false);
+                    setTab("Home");
+                    setFeedRefreshToken((current) => current + 1);
+                  }}
+                />
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      ) : null}
+
       {!hideBottomNav ? (
         <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom + 8, 10) }]}>
           <NavItem icon="home-outline" activeIcon="home" label="Home" active={tab === "Home"} onPress={() => navigate("Home")} />
-          <NavItem icon="people-outline" activeIcon="people" label="Friends" active={tab === "Friends"} onPress={() => navigate("Friends")} badge={badge(unread.friendRequests)} />
+          <NavItem icon="compass-outline" activeIcon="compass" label="Discover" active={tab === "Discover"} onPress={() => navigate("Discover")} />
+          <NavItem icon="add-circle-outline" activeIcon="add-circle" label="Create" active={createModalOpen} onPress={() => setCreateModalOpen(true)} />
           <NavItem icon="chatbubble-ellipses-outline" activeIcon="chatbubble-ellipses" label="Messages" active={tab === "Messages"} onPress={() => navigate("Messages")} badge={badge(unread.messages)} />
-          <NavItem icon="notifications-outline" activeIcon="notifications" label="Alerts" active={tab === "Notifications"} onPress={() => navigate("Notifications")} badge={badge(unread.notifications)} />
           <NavItem icon="person-outline" activeIcon="person" label="Profile" active={tab === "Profile"} onPress={() => navigate("Profile")} />
         </View>
       ) : null}
@@ -3028,7 +3081,7 @@ const styles = StyleSheet.create({
   successText: { color: colors.success, marginBottom: 10 },
   errorText: { color: colors.danger, marginBottom: 10 },
   dangerText: { color: colors.danger },
-  linkText: { color: "#a99cff", fontWeight: "700" },
+  linkText: { color: colors.accent, fontWeight: "700" },
   header: { flexDirection: "row", alignItems: "center", minHeight: 104, paddingHorizontal: 14, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.bg },
   title: { color: colors.text, fontSize: 24, fontWeight: "900" },
   subtitle: { color: colors.muted, marginTop: 3 },
@@ -3040,8 +3093,8 @@ const styles = StyleSheet.create({
   emptySmall: { color: colors.muted, textAlign: "center", paddingVertical: 20 },
   flex: { flex: 1 },
   row: { flexDirection: "row", alignItems: "center" },
-  avatarFallback: { backgroundColor: "#2a2937", alignItems: "center", justifyContent: "center", marginRight: 10 },
-  avatarInitial: { color: "#fff", fontSize: 18, fontWeight: "900" },
+  avatarFallback: { backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center", marginRight: 10 },
+  avatarInitial: { color: colors.accent, fontSize: 18, fontWeight: "900" },
   userName: { color: colors.text, fontWeight: "800", fontSize: 15 },
   userHandle: { color: colors.muted, marginTop: 3, fontSize: 12 },
   muted: { color: colors.muted, fontSize: 12 },
@@ -3067,22 +3120,25 @@ const styles = StyleSheet.create({
   storyItem: { width: 76, alignItems: "center", marginRight: 8 },
   storyCreate: { width: 64, height: 64, borderRadius: 32, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
   storyCreateText: { color: colors.text, fontSize: 30, lineHeight: 32 },
-  storyRing: { width: 68, height: 68, borderRadius: 34, padding: 3, alignItems: "center", justifyContent: "center", backgroundColor: "#32323e" },
+  storyRing: { width: 68, height: 68, borderRadius: 34, padding: 3, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel3 },
   storyRingUnread: { backgroundColor: colors.accent },
   storyLabel: { color: colors.muted, fontSize: 11, marginTop: 5, maxWidth: 70 },
   storyModal: { flex: 1, backgroundColor: "#050507" },
   storyTop: { flexDirection: "row", alignItems: "center", padding: 16, gap: 10 },
   closeText: { color: colors.text, fontSize: 22, fontWeight: "700", padding: 6 },
-  storyViewerName: { color: colors.text, fontWeight: "800", fontSize: 15 },
+  storyViewerCloseText: { color: colors.onDark, fontSize: 22, fontWeight: "700", padding: 6 },
+  storyViewerName: { color: colors.onDark, fontWeight: "800", fontSize: 15 },
+  storyTimestamp: { color: colors.mutedOnDark, fontSize: 11, marginTop: 2 },
   storyMediaArea: { flex: 1, position: "relative", alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
   storyMedia: { width: "100%", height: "68%" },
   storyTapLeft: { position: "absolute", top: 0, bottom: 0, left: 0, width: "35%" },
   storyTapRight: { position: "absolute", top: 0, bottom: 0, right: 0, width: "35%" },
   videoPlaceholder: { alignItems: "center", justifyContent: "center", gap: 8, padding: 30 },
-  videoIcon: { color: colors.text, fontSize: 54 },
-  videoText: { color: colors.text, fontSize: 20, fontWeight: "800" },
+  videoIcon: { color: colors.accent, fontSize: 54 },
+  videoText: { color: colors.onDark, fontSize: 20, fontWeight: "800" },
   storyBottom: { padding: 14, borderTopWidth: 1, borderTopColor: colors.border },
   storyCaption: { color: colors.text, marginBottom: 10, lineHeight: 20 },
+  storyViewerCaption: { color: colors.onDark, marginBottom: 10, lineHeight: 20 },
   reactionsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
   reactionChip: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
   reactionText: { fontSize: 19 },
@@ -3127,12 +3183,14 @@ const styles = StyleSheet.create({
   messageBubble: { maxWidth: "84%", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 11, marginVertical: 2 },
   myBubble: { alignSelf: "flex-end", backgroundColor: colors.accent, borderBottomRightRadius: 7 },
   theirBubble: { alignSelf: "flex-start", backgroundColor: colors.panel2, borderBottomLeftRadius: 7 },
-  messageText: { color: "#fff", lineHeight: 20 },
-  messageTime: { color: "rgba(255,255,255,0.58)", fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
+  messageText: { color: colors.text, lineHeight: 20 },
+  myMessageText: { color: "#FFFFFF" },
+  messageTime: { color: colors.muted, fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
+  myMessageTime: { color: "rgba(255,255,255,0.78)" },
   messageAttachment: { width: 190, height: 150, borderRadius: 13, marginBottom: 7, backgroundColor: colors.panel },
   replyPreview: { borderLeftWidth: 3, borderLeftColor: colors.accent, paddingLeft: 8, marginBottom: 7 },
-  replyPreviewTitle: { color: "#c5bcff", fontSize: 10, fontWeight: "900" },
-  replyPreviewText: { color: "rgba(255,255,255,0.7)", fontSize: 11, marginTop: 2 },
+  replyPreviewTitle: { color: colors.accent, fontSize: 10, fontWeight: "900" },
+  replyPreviewText: { color: colors.muted, fontSize: 11, marginTop: 2 },
   composeContext: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.panel2, borderTopWidth: 1, borderTopColor: colors.border },
   composeContextTitle: { color: colors.accent, fontSize: 11, fontWeight: "900" },
   composeContextText: { color: colors.text, fontSize: 12, marginTop: 2 },
@@ -3149,7 +3207,7 @@ const styles = StyleSheet.create({
   sendButtonText: { color: "#fff", fontSize: 20, fontWeight: "900" },
   notificationFilters: { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingTop: 10 },
   notificationCard: { flexDirection: "row", backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 12, marginBottom: 10 },
-  unreadCard: { borderColor: colors.accent, backgroundColor: "#151122" },
+  unreadCard: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
   notificationTitle: { color: colors.text, fontWeight: "800" },
   notificationBody: { color: colors.muted, marginTop: 4, lineHeight: 18 },
   profileHero: { alignItems: "center", paddingVertical: 18 },
@@ -3164,13 +3222,21 @@ const styles = StyleSheet.create({
   mediaEditButton: { flex: 1, minHeight: 42, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   mediaEditText: { color: colors.text, fontSize: 12, fontWeight: "800" },
   bioInput: { minHeight: 100, textAlignVertical: "top" },
-  bottomNav: { position: "absolute", left: 10, right: 10, height: 74, backgroundColor: "rgba(20,20,27,0.97)", borderWidth: 1, borderColor: colors.border, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "space-around", shadowColor: "#000", shadowOpacity: 0.34, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 14 },
+  createModalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(17,24,39,0.42)" },
+  createModalScrim: { ...StyleSheet.absoluteFill },
+  createModalSheet: { maxHeight: "94%", minHeight: "55%", overflow: "hidden", backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: colors.border, paddingTop: 8, shadowColor: colors.black, shadowOpacity: 0.16, shadowRadius: 24, elevation: 20 },
+  createModalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  createModalTitle: { color: colors.text, fontSize: 20, fontWeight: "900" },
+  createModalSubtitle: { color: colors.muted, fontSize: 12, marginTop: 3 },
+  createModalClose: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  createModalContent: { padding: 14, paddingBottom: 24 },
+  bottomNav: { position: "absolute", left: 10, right: 10, height: 74, backgroundColor: "rgba(255,255,255,0.97)", borderWidth: 1, borderColor: colors.border, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "space-around", shadowColor: colors.black, shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
   navItem: { minWidth: 58, minHeight: 58, borderRadius: 17, alignItems: "center", justifyContent: "center", paddingHorizontal: 7 },
   navItemActive: { backgroundColor: colors.accentSoft },
   navIconWrap: { position: "relative", alignItems: "center", justifyContent: "center" },
   navIcon: { color: colors.muted, fontSize: 22, marginBottom: 2 },
   navLabel: { color: colors.muted, fontSize: 10, marginTop: 3, fontWeight: "700" },
-  navActive: { color: colors.text, fontWeight: "900" },
+  navActive: { color: colors.accent, fontWeight: "900" },
   feedModeRow: { flexDirection: "row", paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6, gap: 8 },
   feedModeChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
   feedModeChipActive: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
@@ -3186,7 +3252,7 @@ const styles = StyleSheet.create({
   visitorPrimaryText: { color: colors.white, fontWeight: "900", fontSize: 12 },
   visitorSecondaryAction: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   visitorSecondaryText: { color: colors.text, fontWeight: "800", fontSize: 12 },
-  visitorDangerAction: { minHeight: 44, paddingHorizontal: 14, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,119,119,0.08)", borderWidth: 1, borderColor: "#61343B" },
+  visitorDangerAction: { minHeight: 44, paddingHorizontal: 14, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },
   visitorDangerText: { color: colors.danger, fontWeight: "900", fontSize: 12 },
   profileInfoRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 6 },
   infoChip: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 11, backgroundColor: colors.panel2 },
@@ -3204,7 +3270,7 @@ const styles = StyleSheet.create({
   groupActionText: { color: colors.white, fontSize: 11, fontWeight: "900" },
   groupSectionLabel: { color: colors.subtle, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.1, marginTop: 8 },
   groupMemberRow: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 16, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
-  groupRemoveButton: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,119,119,0.08)" },
-  leaveGroupButton: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 9, borderRadius: 14, backgroundColor: "rgba(255,119,119,0.07)", borderWidth: 1, borderColor: "#61343B" },
+  groupRemoveButton: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#FEF2F2" },
+  leaveGroupButton: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 9, borderRadius: 14, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },
   navBadge: { position: "absolute", top: -6, right: -12 },
 });

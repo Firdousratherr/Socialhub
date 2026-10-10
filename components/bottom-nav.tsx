@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Home, MessageCircle, Users, UserRound } from "lucide-react";
+import { Compass, Home, MessageCircle, PlusCircle, UserRound } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useUnreadSummary } from "@/hooks/use-unread-summary";
 
 const items = [
   { href: "/home", label: "Home", Icon: Home },
-  { href: "/friends", label: "Friends", Icon: Users },
+  { href: "/discover", label: "Discover", Icon: Compass },
+  { href: "/home?create=1", label: "Create", Icon: PlusCircle, primaryAction: true },
   { href: "/messages", label: "Messages", Icon: MessageCircle },
-  { href: "/notifications", label: "Notifications", Icon: Bell },
   { href: "/profile/me", label: "Profile", Icon: UserRound },
 ];
 
@@ -26,8 +26,8 @@ export function BottomNav() {
       aria-label="Primary navigation"
     >
       <div className="grid grid-cols-5 gap-1">
-        {items.map(({ href, label, Icon }) => {
-          const active = href === "/home"
+        {items.map(({ href, label, Icon, primaryAction }) => {
+          const active = primaryAction ? false : href === "/home"
             ? pathname === "/home"
             : href === "/profile/me"
               ? pathname.startsWith("/profile")
@@ -36,8 +36,18 @@ export function BottomNav() {
             <Link
               key={href}
               href={href}
+              onClick={(event) => {
+                if (!primaryAction) return;
+                if (pathname !== "/home") return;
+                event.preventDefault();
+                const composer = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Create a post"]');
+                composer?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+                composer?.focus({ preventScroll: true });
+              }}
+              data-create-action={primaryAction ? "true" : undefined}
               aria-current={active ? "page" : undefined}
-              className={"social-bottom-link relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-black transition " + (active ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-muted)]")}
+              aria-label={primaryAction ? "Create a post" : label}
+              className={"social-bottom-link relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-black transition " + (primaryAction ? "px-1" : active ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-muted)]")}
             >
               <Icon size={19} strokeWidth={active ? 2.5 : 2} />
               <span>{label}</span>

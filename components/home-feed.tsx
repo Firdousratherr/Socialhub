@@ -778,6 +778,24 @@ export default function HomeFeed() {
     feedPostsRef.current = feedPosts;
   }, [feedPosts]);
   useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("create") !== "1") return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const composer = composerRef.current;
+      if (!composer) return;
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      composer.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "center" });
+      composer.focus({ preventScroll: true });
+      url.searchParams.delete("create");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+
+  useEffect(() => {
     const storyId = new URLSearchParams(window.location.search).get("story");
     if (!storyId) return;
     setInitialStoryId(storyId);
@@ -1171,6 +1189,7 @@ export default function HomeFeed() {
           {feedError ? <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600"><span>{feedError}</span><button onClick={() => setFeedError("")} aria-label="Dismiss"><X size={14}/></button></div> : null}
 
           <PostComposer
+            textareaRef={composerRef}
             userId={session?.user?.id}
             name={session?.user?.name ?? "You"}
             image={session?.user?.image}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Image, Modal, Pressable, StatusBar, StyleSheet, Text, View } from "react-native";
 import { getDevicePermissionState, requestDevicePermission, type DevicePermissionState } from "../lib/device-permissions";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors } from "../theme";
 
 const BRAND_ICON = require("../assets/icon.png");
 const permissionMeta: Array<{ key: keyof DevicePermissionState; title: string; body: string; icon: string }> = [
@@ -39,7 +40,7 @@ export default function PermissionOnboarding({ visible, onDone }: { visible: boo
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDone} statusBarTranslucent>
       <View style={[styles.safe, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        <StatusBar barStyle="light-content" backgroundColor="#08080c" />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
         <View style={styles.scrim} />
         <View style={styles.card}>
           <Image source={BRAND_ICON} style={styles.logo} />
@@ -76,27 +77,27 @@ export default function PermissionOnboarding({ visible, onDone }: { visible: boo
 }
 
 const styles = StyleSheet.create({
-  safe:{flex:1,backgroundColor:"#08080c",justifyContent:"flex-end"},
+  safe:{flex:1,backgroundColor:colors.bg,justifyContent:"flex-end"},
   scrim:{...StyleSheet.absoluteFill,backgroundColor:"rgba(0,0,0,0.72)"},
-  card:{margin:14,padding:18,borderRadius:28,backgroundColor:"#111118",borderWidth:1,borderColor:"#2c2c39",maxHeight:"92%"},
+  card:{margin:14,padding:18,borderRadius:28,backgroundColor:colors.panel,borderWidth:1,borderColor:colors.border,maxHeight:"92%"},
   logo:{width:64,height:64,borderRadius:19,alignSelf:"center",marginBottom:12},
-  eyebrow:{color:"#a99cff",fontSize:10,fontWeight:"900",letterSpacing:1.3,textAlign:"center"},
-  title:{color:"#f8f8ff",fontSize:24,lineHeight:29,fontWeight:"900",textAlign:"center",marginTop:6},
-  body:{color:"#a6a6b3",fontSize:12,lineHeight:18,textAlign:"center",marginTop:9},
+  eyebrow:{color:colors.accent,fontSize:10,fontWeight:"900",letterSpacing:1.3,textAlign:"center"},
+  title:{color:colors.text,fontSize:24,lineHeight:29,fontWeight:"900",textAlign:"center",marginTop:6},
+  body:{color:colors.muted,fontSize:12,lineHeight:18,textAlign:"center",marginTop:9},
   list:{marginTop:12},
-  permissionRow:{padding:10,borderRadius:15,backgroundColor:"#171720",borderWidth:1,borderColor:"#292936",flexDirection:"row",alignItems:"center",marginTop:7},
-  permissionIcon:{width:38,height:38,borderRadius:12,backgroundColor:"#251f55",alignItems:"center",justifyContent:"center"},
-  iconText:{color:"#b9afff",fontSize:18,fontWeight:"900"},
+  permissionRow:{padding:10,borderRadius:15,backgroundColor:colors.panel2,borderWidth:1,borderColor:colors.border,flexDirection:"row",alignItems:"center",marginTop:7},
+  permissionIcon:{width:38,height:38,borderRadius:12,backgroundColor:colors.accentSoft,alignItems:"center",justifyContent:"center"},
+  iconText:{color:colors.accent,fontSize:18,fontWeight:"900"},
   copy:{flex:1,minWidth:0,marginLeft:10},
-  permissionTitle:{color:"#f8f8ff",fontSize:12,fontWeight:"900"},
-  permissionBody:{color:"#8d8d9b",fontSize:10,lineHeight:14,marginTop:2},
+  permissionTitle:{color:colors.text,fontSize:12,fontWeight:"900"},
+  permissionBody:{color:colors.muted,fontSize:10,lineHeight:14,marginTop:2},
   status:{fontSize:9,fontWeight:"900",marginLeft:7},
-  granted:{color:"#69d79b"},pending:{color:"#c1bdca"},
-  notice:{marginTop:9,padding:11,borderRadius:15,backgroundColor:"#161126",borderWidth:1,borderColor:"#352c68"},
-  noticeTitle:{color:"#d1caff",fontSize:11,fontWeight:"900"},
-  noticeBody:{color:"#9c98ad",fontSize:10,lineHeight:15,marginTop:3},
-  primary:{minHeight:48,borderRadius:15,backgroundColor:"#725cff",alignItems:"center",justifyContent:"center",marginTop:11},
+  granted:{color:colors.success},pending:{color:colors.muted},
+  notice:{marginTop:9,padding:11,borderRadius:15,backgroundColor:colors.accentSoft,borderWidth:1,borderColor:colors.accentSoft},
+  noticeTitle:{color:colors.accent,fontSize:11,fontWeight:"900"},
+  noticeBody:{color:colors.muted,fontSize:10,lineHeight:15,marginTop:3},
+  primary:{minHeight:48,borderRadius:15,backgroundColor:colors.accent,alignItems:"center",justifyContent:"center",marginTop:11},
   primaryText:{color:"#fff",fontWeight:"900",fontSize:13},
   secondary:{minHeight:42,alignItems:"center",justifyContent:"center",marginTop:2},
-  secondaryText:{color:"#a99cff",fontWeight:"800",fontSize:12},
+  secondaryText:{color:colors.accent,fontWeight:"800",fontSize:12},
 });
