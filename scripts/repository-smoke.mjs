@@ -9,6 +9,7 @@ const requiredFiles = [
   "app/api/admin/reports/route.ts",
   "app/api/conversations/route.ts",
   "app/api/conversations/[conversationId]/messages/route.ts",
+  "app/api/conversations/[conversationId]/calls/route.ts",
   "app/api/friend-requests/route.ts",
   "app/api/friends/[friendId]/route.ts",
   "app/api/notifications/route.ts",
@@ -22,9 +23,14 @@ const requiredFiles = [
   "app/api/stories/[storyId]/route.ts",
   "app/api/uploads/route.ts",
   "app/api/users/route.ts",
-  "app/api/users/[username]/route.ts",
-  "app/api/users/[username]/posts/route.ts",
-  "app/api/users/[userId]/relationships/route.ts",
+  "app/api/users/[userRef]/route.ts",
+  "app/api/users/[userRef]/posts/route.ts",
+  "app/api/users/[userRef]/relationships/route.ts",
+  "app/api/users/[userRef]/block/route.ts",
+  "app/api/users/[userRef]/follow/route.ts",
+  "app/api/users/[userRef]/friends/route.ts",
+  "app/api/users/[userRef]/mute/route.ts",
+  "app/api/users/[userRef]/report/route.ts",
   "app/api/security/sessions/route.ts",
   "app/api/admin/permissions/route.ts",
   "app/api/admin/analytics/route.ts",
@@ -40,6 +46,32 @@ const requiredFiles = [
   "lib/realtime.ts",
   "prisma/schema.prisma",
 ];
+
+
+function findDynamicRouteConflicts(directory) {
+  const conflicts = [];
+  const visit = (current) => {
+    const directories = fs.readdirSync(current, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory());
+    const dynamicChildren = directories
+      .map((entry) => entry.name)
+      .filter((name) => /^\\[.*\\]$/.test(name));
+    const normalized = dynamicChildren.map((name) => name.replace(/^\\[+/, "").replace(/\\]+$/, "").replace(/^\\.\\.\\./, ""));
+    if (new Set(normalized).size > 1) {
+      conflicts.push(`${path.relative(root, current)}: ${dynamicChildren.join(", ")}`);
+    }
+    for (const entry of directories) visit(path.join(current, entry.name));
+  };
+  visit(directory);
+  return conflicts;
+}
+
+const dynamicRouteConflicts = findDynamicRouteConflicts(path.join(root, "app"));
+if (dynamicRouteConflicts.length) {
+  console.error("Conflicting Next.js dynamic route parameter names:");
+  for (const conflict of dynamicRouteConflicts) console.error(`- ${conflict}`);
+  process.exit(1);
+}
 
 const missing = requiredFiles.filter((file) => !fs.existsSync(path.join(root, file)));
 if (missing.length) {
