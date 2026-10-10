@@ -49,7 +49,7 @@ test("group management endpoint exposes rename, membership and leave operations"
 
 
 test("paginated relationship lists still honor list-level privacy", () => {
-  const route = read("app/api/users/[userId]/relationships/route.ts");
+  const route = read("app/api/users/[userRef]/relationships/route.ts");
   assert.match(route, /showFollowersList/);
   assert.match(route, /showFollowingList/);
   assert.match(route, /listIsHidden/);
@@ -76,7 +76,7 @@ test("admin profile metric controls validate, audit, and reset overrides", () =>
 });
 
 test("public profiles resolve admin-controlled visible metrics without replacing real records", () => {
-  const route = read("app/api/users/[username]/route.ts");
+  const route = read("app/api/users/[userRef]/route.ts");
   assert.match(route, /visibleCounts/);
   assert.match(route, /override\?\.followers \?\? user\._count\.followers/);
   assert.match(route, /override\?\.likesReceived \?\? actualLikesReceived/);
@@ -119,7 +119,7 @@ test("suspended or deleted users cannot create new Better Auth sessions", () => 
 });
 
 test("profile views are persisted and exposed as real metrics", () => {
-  const profile = read("app/api/users/[username]/route.ts");
+  const profile = read("app/api/users/[userRef]/route.ts");
   const schema = read("prisma/schema.prisma");
   assert.match(profile, /profileView.create/);
   assert.match(profile, /actualProfileViews/);
@@ -241,7 +241,7 @@ test("post metric overrides have a dedicated model, migration and permission bou
 test("public post surfaces consume display metric overrides", () => {
   const feed = read("app/api/posts/route.ts");
   const detail = read("app/api/posts/[postId]/route.ts");
-  const profilePosts = read("app/api/users/[username]/posts/route.ts");
+  const profilePosts = read("app/api/users/[userRef]/posts/route.ts");
   const home = read("components/home-feed.tsx");
   const pages = read("components/social-pages.tsx");
   assert.match(feed, /displayCounts/);
@@ -271,7 +271,7 @@ test("admin global search does not expose messages without the dedicated permiss
 
 test("search and profile post pagination expose display post metrics", () => {
   const search = read("app/api/search/route.ts");
-  const userPosts = read("app/api/users/[username]/posts/route.ts");
+  const userPosts = read("app/api/users/[userRef]/posts/route.ts");
   const discover = read("components/social-pages.tsx");
   assert.match(search, /getPostDisplayCountsMap/);
   assert.match(userPosts, /getPostDisplayCountsMap/);
@@ -296,7 +296,7 @@ test("post lifecycle changes synchronize feed and profile surfaces", () => {
 });
 
 test("profile post pagination cursor preserves pinned ordering", () => {
-  const route = read("app/api/users/[username]/posts/route.ts");
+  const route = read("app/api/users/[userRef]/posts/route.ts");
   assert.match(route, /isPinned\?: boolean/);
   assert.match(route, /isPinned: false/);
   assert.match(route, /isPinned: true/);
@@ -327,7 +327,7 @@ test("admin post deletion cleans media and broadcasts feed invalidation", () => 
 
 
 test("profile metadata endpoints do not duplicate the dedicated post feed query", () => {
-  const publicProfile = read("app/api/users/[username]/route.ts");
+  const publicProfile = read("app/api/users/[userRef]/route.ts");
   const ownProfile = read("app/api/profile/route.ts");
   const page = read("components/social-pages.tsx");
   assert.doesNotMatch(publicProfile, /const posts = await prisma\.post\.findMany/);
@@ -759,7 +759,7 @@ test("Admin enforcement actions are actually enforced by user-facing APIs", () =
   assert.match(read("app/api/posts/route.ts"), /postingRestrictedUntil/);
   assert.match(read("app/api/posts/[postId]/comments/route.ts"), /commentingRestrictedUntil/);
   assert.match(read("app/api/conversations/[conversationId]/messages/route.ts"), /messagingRestrictedUntil/);
-  assert.match(read("app/api/users/[userId]/follow/route.ts"), /socialRestrictedUntil/);
+  assert.match(read("app/api/users/[userRef]/follow/route.ts"), /socialRestrictedUntil/);
   assert.match(read("app/api/friend-requests/route.ts"), /socialRestrictedUntil/);
   assert.match(read("app/api/stories/route.ts"), /postingRestrictedUntil/);
 });
@@ -770,7 +770,7 @@ test("Emergency platform controls are enforced at runtime", () => {
   assert.match(read("app/api/conversations/[conversationId]/messages/route.ts"), /platformEnabled\("messaging", true\)/);
   assert.match(read("app/api/uploads/route.ts"), /platformEnabled\("uploads", true\)/);
   assert.match(read("app/api/stories/route.ts"), /platformEnabled\("stories", true\)/);
-  assert.match(read("app/api/users/[userId]/follow/route.ts"), /platformEnabled\("social",?\s*true\)/);
+  assert.match(read("app/api/users/[userRef]/follow/route.ts"), /platformEnabled\("social",?\s*true\)/);
   assert.match(read("app/api/friend-requests/route.ts"), /platformEnabled\("social",?\s*true\)/);
 });
 
@@ -806,10 +806,10 @@ test("unread notification badges honor muted actors", () => {
 test("account mutes have durable schema, management APIs, and feed/notification enforcement", () => {
   const schema = read("prisma/schema.prisma");
   const migration = read("prisma/migrations/20261005200000_account_mutes/migration.sql");
-  const profile = read("app/api/users/[username]/route.ts");
+  const profile = read("app/api/users/[userRef]/route.ts");
   const feed = read("app/api/posts/route.ts");
   const notifications = read("app/api/notifications/route.ts");
-  const muteRoute = read("app/api/users/[userId]/mute/route.ts");
+  const muteRoute = read("app/api/users/[userRef]/mute/route.ts");
   const mutes = read("app/api/mutes/route.ts");
   assert.match(schema, /model Mute/);
   assert.match(schema, /mutesGiven/);
@@ -985,7 +985,7 @@ test("web application control exposes only server-enforced platform switches and
   const commentsRoute = read("app/api/posts/[postId]/comments/route.ts");
   const storiesRoute = read("app/api/stories/route.ts");
   const uploadsRoute = read("app/api/uploads/route.ts");
-  const followRoute = read("app/api/users/[userId]/follow/route.ts");
+  const followRoute = read("app/api/users/[userRef]/follow/route.ts");
   const friendRequestCreateRoute = read("app/api/friend-requests/route.ts");
   const conversationsRoute = read("app/api/conversations/route.ts");
   const conversationGet = conversationsRoute.slice(conversationsRoute.indexOf("export async function GET"));
