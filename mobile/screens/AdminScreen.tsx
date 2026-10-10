@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { AppHeader } from "../components/MobileShell";
 import { apiFetch } from "../lib/api";
+import { colors } from "../theme";
 
 type Flag = { id: string; key: string; enabled: boolean; description?: string | null };
 type Dashboard = {
@@ -127,9 +128,9 @@ export default function AdminScreen({ onMenu }: { onMenu: () => void }) {
       <AppHeader title="Owner console" subtitle="Owner-only audited platform operations." onMenu={onMenu} action="↻" onAction={() => void load(true)} />
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor="#725cff" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor=colors.accent />}
       >
-        {loading ? <ActivityIndicator color="#725cff" /> : null}
+        {loading ? <ActivityIndicator color=colors.accent /> : null}
         <View style={styles.notice}>
           <Text style={styles.noticeTitle}>Owner/admin controls only</Text>
           <Text style={styles.noticeBody}>
@@ -288,35 +289,35 @@ export default function AdminScreen({ onMenu }: { onMenu: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#08080c" },
+  screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, paddingBottom: 140, gap: 12 },
-  notice: { padding: 15, borderRadius: 18, backgroundColor: "#161126", borderWidth: 1, borderColor: "#352c68" },
+  notice: { padding: 15, borderRadius: 18, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentSoft },
   noticeTitle: { color: "#fff", fontSize: 16, fontWeight: "900" },
-  noticeBody: { color: "#aaa5bb", lineHeight: 19, marginTop: 7 },
-  sectionTitle: { color: "#f8f8ff", fontSize: 18, fontWeight: "900", marginTop: 4 },
+  noticeBody: { color: colors.muted, lineHeight: 19, marginTop: 7 },
+  sectionTitle: { color: colors.text, fontSize: 18, fontWeight: "900", marginTop: 4 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  statCard: { flexGrow: 1, flexBasis: "22%", minWidth: 90, padding: 13, borderRadius: 15, backgroundColor: "#111118", borderWidth: 1, borderColor: "#252531" },
-  statValue: { color: "#f8f8ff", fontSize: 20, fontWeight: "900" },
-  statLabel: { color: "#8d8d9b", fontSize: 11, marginTop: 4 },
-  card: { padding: 14, borderRadius: 17, backgroundColor: "#111118", borderWidth: 1, borderColor: "#252531" },
+  statCard: { flexGrow: 1, flexBasis: "22%", minWidth: 90, padding: 13, borderRadius: 15, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
+  statValue: { color: colors.text, fontSize: 20, fontWeight: "900" },
+  statLabel: { color: colors.muted, fontSize: 11, marginTop: 4 },
+  card: { padding: 14, borderRadius: 17, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
   row: { flexDirection: "row", alignItems: "center", gap: 12 },
   copy: { flex: 1, minWidth: 0 },
-  cardTitle: { color: "#f8f8ff", fontSize: 14, fontWeight: "900" },
-  meta: { color: "#8d8d9b", fontSize: 12, lineHeight: 18, marginTop: 4 },
+  cardTitle: { color: colors.text, fontSize: 14, fontWeight: "900" },
+  meta: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 },
   riskBadge: { fontSize: 10, fontWeight: "900", marginLeft: 8 },
   riskCritical: { color: "#ff7474" },
   riskHigh: { color: "#ffae63" },
   riskMedium: { color: "#e6cf66" },
-  auditRow: { paddingVertical: 9, borderTopWidth: 1, borderTopColor: "#252531" },
-  auditAction: { color: "#f8f8ff", fontSize: 12, fontWeight: "800" },
-  webAdminButton: { minHeight: 50, borderRadius: 16, backgroundColor: "#725cff", alignItems: "center", justifyContent: "center", marginTop: 2 },
+  auditRow: { paddingVertical: 9, borderTopWidth: 1, borderTopColor: colors.border },
+  auditAction: { color: colors.text, fontSize: 12, fontWeight: "800" },
+  webAdminButton: { minHeight: 50, borderRadius: 16, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", marginTop: 2 },
   webAdminText: { color: "#fff", fontSize: 13, fontWeight: "900" },
   state: { fontSize: 10, fontWeight: "900", marginTop: 9 },
-  on: { color: "#69d79b" },
+  on: { color: colors.success },
   off: { color: "#ff8b8b" },
-  switch: { width: 54, height: 31, borderRadius: 16, padding: 3, justifyContent: "center", backgroundColor: "#2a2a35" },
-  switchOn: { backgroundColor: "#725cff" },
-  revokeButton: { minHeight: 40, borderRadius: 12, borderWidth: 1, borderColor: "#5d3038", backgroundColor: "#211216", alignItems: "center", justifyContent: "center", marginTop: 10 },
+  switch: { width: 54, height: 31, borderRadius: 16, padding: 3, justifyContent: "center", backgroundColor: colors.panel2 },
+  switchOn: { backgroundColor: colors.accent },
+  revokeButton: { minHeight: 40, borderRadius: 12, borderWidth: 1, borderColor: #FECACA, backgroundColor: #FEF2F2, alignItems: "center", justifyContent: "center", marginTop: 10 },
   revokeText: { color: "#ff9b9b", fontSize: 12, fontWeight: "900" },
   knob: { width: 25, height: 25, borderRadius: 13, backgroundColor: "#ddd" },
   knobOn: { alignSelf: "flex-end", backgroundColor: "#fff" },
