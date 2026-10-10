@@ -3222,7 +3222,7 @@ const styles = StyleSheet.create({
   mediaEditText: { color: colors.text, fontSize: 12, fontWeight: "800" },
   bioInput: { minHeight: 100, textAlignVertical: "top" },
   createModalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(17,24,39,0.42)" },
-  createModalScrim: { ...StyleSheet.absoluteFillObject },
+  createModalScrim: { ...StyleSheet.absoluteFill },
   createModalSheet: { maxHeight: "94%", minHeight: "55%", overflow: "hidden", backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: colors.border, paddingTop: 8, shadowColor: colors.black, shadowOpacity: 0.16, shadowRadius: 24, elevation: 20 },
   createModalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
   createModalTitle: { color: colors.text, fontSize: 20, fontWeight: "900" },
