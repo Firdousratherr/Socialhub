@@ -40,7 +40,7 @@ export default function PermissionOnboarding({ visible, onDone }: { visible: boo
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDone} statusBarTranslucent>
       <View style={[styles.safe, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        <StatusBar barStyle="dark-content" backgroundColor=colors.bg />
+        <StatusBar barStyle="dark-content" backgroundColor={colors.bg} />
         <View style={styles.scrim} />
         <View style={styles.card}>
           <Image source={BRAND_ICON} style={styles.logo} />
