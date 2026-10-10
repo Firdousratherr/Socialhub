@@ -39,7 +39,7 @@ export default function CallsScreen({ onMenu }: { onMenu: () => void }) {
   return (
     <View style={styles.screen}>
       <AppHeader title="Calls" subtitle="Recent voice and video calls." onMenu={onMenu} action="Refresh" onAction={() => void load()} />
-      {loading ? <ActivityIndicator color=colors.accent style={styles.loader} /> : null}
+      {loading ? <ActivityIndicator color={colors.accent} style={styles.loader} /> : null}
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
