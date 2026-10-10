@@ -3,8 +3,8 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 import { AppHeader } from "../components/MobileShell";
 import { apiFetch } from "../lib/api";
 import type { Post } from "../types";
+import { colors } from "../theme";
 
-const colors={bg:"#08080c",panel:"#111118",panel2:"#171720",border:"#252531",text:"#f8f8ff",muted:"#8d8d9b",accent:"#725cff"};
 
 export default function SavedScreen({onMenu}:{onMenu:()=>void}){
  const [posts,setPosts]=useState<Post[]>([]);
