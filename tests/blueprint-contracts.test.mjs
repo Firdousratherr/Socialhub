@@ -1085,7 +1085,7 @@ test("APK fallback points to the latest published release and mobile package ver
   const download = read("lib/app-download.ts");
   const app = JSON.parse(read("mobile/app.json"));
   const pkg = JSON.parse(read("mobile/package.json"));
-  assert.match(download, /releases\/download\/v1\.0\.9\/app-release\.apk/);
+  assert.match(download, /releases\/download\/v1\.1\.0\/app-release\.apk/);
   assert.equal(pkg.version, app.expo.version);
 });
 
@@ -1220,7 +1220,7 @@ test("web and Android media uploads bypass the Vercel Function body limit with o
 
 test("public APK download follows the latest official release while preserving custom APK URLs", () => {
   const source = read("lib/app-download.ts");
-  assert.match(source, /releases\/download\/v1\.0\.9\/app-release\.apk/);
+  assert.match(source, /releases\/download\/v1\.1\.0\/app-release\.apk/);
   assert.match(source, /isOfficialSocialhubReleaseApkUrl/);
   assert.match(source, /if \(isOfficialSocialhubReleaseApkUrl\(configured\)\) return DEFAULT_ANDROID_APK_URL/);
   assert.match(source, /if \(!configured \|\| !isDirectApkUrl\(configured\)\) return DEFAULT_ANDROID_APK_URL/);
