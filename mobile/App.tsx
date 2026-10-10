@@ -299,7 +299,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: () => void }) {
 
   return (
     <View style={[styles.authScreen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.authContent} keyboardShouldPersistTaps="handled">
         <BrandMark size={96} style={styles.authBrandMark} />
         <Text style={styles.authBrand}>Socialhub</Text>
@@ -672,7 +672,7 @@ function StoryViewer({
           <Pressable onPress={onClose}><Text style={styles.closeText}>✕</Text></Pressable>
           <View style={styles.flex}>
             <Text style={styles.storyViewerName}>{current.author.name}</Text>
-            <Text style={styles.muted}>{formatTime(current.createdAt)}</Text>
+            <Text style={styles.storyTimestamp}>{formatTime(current.createdAt)}</Text>
           </View>
           <Text style={styles.muted}>{(detail[current.id]?.viewCount ?? current.viewCount)} views</Text>
         </View>
@@ -1937,7 +1937,7 @@ function ChatScreen({
                 <Image key={attachment.id} source={{ uri: attachment.url }} style={styles.messageAttachment} resizeMode="cover" />
               ))}
               <Text style={styles.messageText}>{item.deletedAt ? "Message deleted" : item.content}</Text>
-              <Text style={styles.messageTime}>
+              <Text style={[styles.messageTime, item.senderId === currentUserId && styles.myMessageTime]}>
                 {formatTime(item.createdAt)}{item.editedAt && !item.deletedAt ? " · edited" : ""}
                 {item.senderId === currentUserId && !item.deletedAt && conversation.members.some((member) => member.userId !== currentUserId && member.lastReadAt && new Date(member.lastReadAt).getTime() >= new Date(item.createdAt).getTime()) ? " · Seen" : ""}
               </Text>
@@ -2836,7 +2836,7 @@ function RootContent() {
   if (booting || !permissionsReady) {
     return (
       <View style={styles.root}>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <View style={styles.centered}><ActivityIndicator size="large" color={colors.accent} /></View>
       </View>
     );
@@ -2869,7 +2869,7 @@ function RootContent() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       {tab === "Home" ? (
         <HomeScreen
           onMenu={openMenu}
@@ -3028,7 +3028,7 @@ const styles = StyleSheet.create({
   successText: { color: colors.success, marginBottom: 10 },
   errorText: { color: colors.danger, marginBottom: 10 },
   dangerText: { color: colors.danger },
-  linkText: { color: "#a99cff", fontWeight: "700" },
+  linkText: { color: colors.accent, fontWeight: "700" },
   header: { flexDirection: "row", alignItems: "center", minHeight: 104, paddingHorizontal: 14, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.bg },
   title: { color: colors.text, fontSize: 24, fontWeight: "900" },
   subtitle: { color: colors.muted, marginTop: 3 },
@@ -3040,8 +3040,8 @@ const styles = StyleSheet.create({
   emptySmall: { color: colors.muted, textAlign: "center", paddingVertical: 20 },
   flex: { flex: 1 },
   row: { flexDirection: "row", alignItems: "center" },
-  avatarFallback: { backgroundColor: "#2a2937", alignItems: "center", justifyContent: "center", marginRight: 10 },
-  avatarInitial: { color: "#fff", fontSize: 18, fontWeight: "900" },
+  avatarFallback: { backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center", marginRight: 10 },
+  avatarInitial: { color: colors.accent, fontSize: 18, fontWeight: "900" },
   userName: { color: colors.text, fontWeight: "800", fontSize: 15 },
   userHandle: { color: colors.muted, marginTop: 3, fontSize: 12 },
   muted: { color: colors.muted, fontSize: 12 },
@@ -3067,22 +3067,23 @@ const styles = StyleSheet.create({
   storyItem: { width: 76, alignItems: "center", marginRight: 8 },
   storyCreate: { width: 64, height: 64, borderRadius: 32, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
   storyCreateText: { color: colors.text, fontSize: 30, lineHeight: 32 },
-  storyRing: { width: 68, height: 68, borderRadius: 34, padding: 3, alignItems: "center", justifyContent: "center", backgroundColor: "#32323e" },
+  storyRing: { width: 68, height: 68, borderRadius: 34, padding: 3, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel3 },
   storyRingUnread: { backgroundColor: colors.accent },
   storyLabel: { color: colors.muted, fontSize: 11, marginTop: 5, maxWidth: 70 },
   storyModal: { flex: 1, backgroundColor: "#050507" },
   storyTop: { flexDirection: "row", alignItems: "center", padding: 16, gap: 10 },
-  closeText: { color: colors.text, fontSize: 22, fontWeight: "700", padding: 6 },
-  storyViewerName: { color: colors.text, fontWeight: "800", fontSize: 15 },
+  closeText: { color: colors.onDark, fontSize: 22, fontWeight: "700", padding: 6 },
+  storyViewerName: { color: colors.onDark, fontWeight: "800", fontSize: 15 },
+  storyTimestamp: { color: colors.mutedOnDark, fontSize: 11, marginTop: 2 },
   storyMediaArea: { flex: 1, position: "relative", alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
   storyMedia: { width: "100%", height: "68%" },
   storyTapLeft: { position: "absolute", top: 0, bottom: 0, left: 0, width: "35%" },
   storyTapRight: { position: "absolute", top: 0, bottom: 0, right: 0, width: "35%" },
   videoPlaceholder: { alignItems: "center", justifyContent: "center", gap: 8, padding: 30 },
-  videoIcon: { color: colors.text, fontSize: 54 },
-  videoText: { color: colors.text, fontSize: 20, fontWeight: "800" },
+  videoIcon: { color: colors.onDark, fontSize: 54 },
+  videoText: { color: colors.onDark, fontSize: 20, fontWeight: "800" },
   storyBottom: { padding: 14, borderTopWidth: 1, borderTopColor: colors.border },
-  storyCaption: { color: colors.text, marginBottom: 10, lineHeight: 20 },
+  storyCaption: { color: colors.onDark, marginBottom: 10, lineHeight: 20 },
   reactionsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
   reactionChip: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
   reactionText: { fontSize: 19 },
@@ -3128,7 +3129,8 @@ const styles = StyleSheet.create({
   myBubble: { alignSelf: "flex-end", backgroundColor: colors.accent, borderBottomRightRadius: 7 },
   theirBubble: { alignSelf: "flex-start", backgroundColor: colors.panel2, borderBottomLeftRadius: 7 },
   messageText: { color: "#fff", lineHeight: 20 },
-  messageTime: { color: "rgba(255,255,255,0.58)", fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
+  messageTime: { color: colors.muted, fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
+  myMessageTime: { color: "rgba(255,255,255,0.78)" },
   messageAttachment: { width: 190, height: 150, borderRadius: 13, marginBottom: 7, backgroundColor: colors.panel },
   replyPreview: { borderLeftWidth: 3, borderLeftColor: colors.accent, paddingLeft: 8, marginBottom: 7 },
   replyPreviewTitle: { color: "#c5bcff", fontSize: 10, fontWeight: "900" },
@@ -3164,13 +3166,13 @@ const styles = StyleSheet.create({
   mediaEditButton: { flex: 1, minHeight: 42, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   mediaEditText: { color: colors.text, fontSize: 12, fontWeight: "800" },
   bioInput: { minHeight: 100, textAlignVertical: "top" },
-  bottomNav: { position: "absolute", left: 10, right: 10, height: 74, backgroundColor: "rgba(20,20,27,0.97)", borderWidth: 1, borderColor: colors.border, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "space-around", shadowColor: "#000", shadowOpacity: 0.34, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 14 },
+  bottomNav: { position: "absolute", left: 10, right: 10, height: 74, backgroundColor: "rgba(255,255,255,0.97)", borderWidth: 1, borderColor: colors.border, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "space-around", shadowColor: colors.black, shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
   navItem: { minWidth: 58, minHeight: 58, borderRadius: 17, alignItems: "center", justifyContent: "center", paddingHorizontal: 7 },
   navItemActive: { backgroundColor: colors.accentSoft },
   navIconWrap: { position: "relative", alignItems: "center", justifyContent: "center" },
   navIcon: { color: colors.muted, fontSize: 22, marginBottom: 2 },
   navLabel: { color: colors.muted, fontSize: 10, marginTop: 3, fontWeight: "700" },
-  navActive: { color: colors.text, fontWeight: "900" },
+  navActive: { color: colors.accent, fontWeight: "900" },
   feedModeRow: { flexDirection: "row", paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6, gap: 8 },
   feedModeChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
   feedModeChipActive: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
