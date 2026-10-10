@@ -1,20 +1,27 @@
+/**
+ * Shared native design tokens aligned with the Socialhub website.
+ * Keep screen-specific colors here so the Android app stays visually consistent.
+ */
 export const colors = {
-  bg: "#07070B",
-  panel: "#101017",
-  panel2: "#171721",
-  panel3: "#1D1D29",
-  border: "#292936",
-  text: "#F8F8FF",
-  muted: "#9898A8",
-  subtle: "#6F7080",
-  accent: "#765CFF",
-  accentBright: "#9A89FF",
-  accentSoft: "#292155",
-  success: "#69D79B",
-  danger: "#FF7777",
-  warning: "#F4C86B",
-  black: "#000000",
+  bg: "#F6F7FB",
+  panel: "#FFFFFF",
+  panel2: "#F0F2F7",
+  panel3: "#E8EAF2",
+  border: "#E5E7EB",
+  text: "#111827",
+  muted: "#6B7280",
+  subtle: "#9CA3AF",
+  accent: "#5A4BE8",
+  accentBright: "#4C3FD0",
+  accentSoft: "#EEEBFF",
+  success: "#15803D",
+  danger: "#DC2626",
+  warning: "#B45309",
+  black: "#111827",
   white: "#FFFFFF",
+  // Reserved for full-screen media viewers that intentionally use a dark canvas.
+  onDark: "#F8FAFC",
+  mutedOnDark: "#D1D5DB",
 } as const;
 
 export const radius = {
