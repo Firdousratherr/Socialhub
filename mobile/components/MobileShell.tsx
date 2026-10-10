@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 23, fontWeight: "900", letterSpacing: -0.4 },
   subtitle: { color: colors.muted, marginTop: 2, fontSize: 11 },
   headerAction: { minWidth: 46, minHeight: 42, paddingHorizontal: 8, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
-  actionText: { color: "#a99cff", fontWeight: "800", fontSize: 13 },
+  actionText: { color: colors.accent, fontWeight: "800", fontSize: 13 },
   headerSpacer: { width: 46 },
   overlay: { flex: 1, flexDirection: "row" },
   scrim: { flex: 1, backgroundColor: "rgba(17,24,39,0.48)" },
@@ -207,6 +207,6 @@ const styles = StyleSheet.create({
   chevron: { color: colors.muted, fontSize: 25, paddingHorizontal: 6 },
   menuDivider: { height: 1, backgroundColor: colors.border, marginVertical: 10 },
   signOutItem: { minHeight: 68, borderRadius: 17, flexDirection: "row", alignItems: "center", padding: 9, backgroundColor: "rgba(255,119,119,0.04)" },
-  signOutIcon: { color: "#ff7474", fontSize: 22 },
-  signOutText: { color: "#ff8b8b", fontSize: 15, fontWeight: "800" },
+  signOutIcon: { color: colors.danger, fontSize: 22 },
+  signOutText: { color: colors.danger, fontSize: 15, fontWeight: "800" },
 });
