@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, paddingBottom: 140, gap: 12 },
   notice: { padding: 15, borderRadius: 18, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentSoft },
-  noticeTitle: { color: "#fff", fontSize: 16, fontWeight: "900" },
+  noticeTitle: { color: colors.accent, fontSize: 16, fontWeight: "900" },
   noticeBody: { color: colors.muted, lineHeight: 19, marginTop: 7 },
   sectionTitle: { color: colors.text, fontSize: 18, fontWeight: "900" },
   sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
@@ -154,6 +154,6 @@ const styles = StyleSheet.create({
   current: { color: colors.success, fontSize: 11, fontWeight: "900" },
   button: { alignSelf: "flex-start", marginTop: 12, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.accent },
   buttonText: { color: "#fff", fontWeight: "800", fontSize: 12 },
-  dangerButton: { minHeight: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: #FEE2E2, backgroundColor: #FEF2F2 },
-  dangerText: { color: "#ff8b8b", fontWeight: "900" },
+  dangerButton: { minHeight: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#FEE2E2", backgroundColor: "#FEF2F2" },
+  dangerText: { color: colors.danger, fontWeight: "900" },
 });
