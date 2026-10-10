@@ -2670,6 +2670,8 @@ function RootContent() {
   const [signedIn, setSignedIn] = useState(false);
   const [sessionUser, setSessionUser] = useState<User | null>(null);
   const [tab, setTab] = useState<Tab>("Home");
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [feedRefreshToken, setFeedRefreshToken] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [hideBottomNav, setHideBottomNav] = useState(false);
   const [unread, setUnread] = useState({ messages: 0, notifications: 0, friendRequests: 0 });
@@ -2872,6 +2874,7 @@ function RootContent() {
       <StatusBar style="dark" />
       {tab === "Home" ? (
         <HomeScreen
+          key={feedRefreshToken}
           onMenu={openMenu}
           initialPostId={deepLink?.kind === "post" ? deepLink.id : undefined}
           initialStoryId={deepLink?.kind === "story" ? deepLink.id : undefined}
@@ -2916,12 +2919,62 @@ function RootContent() {
 
       {sessionUser ? <CallOverlay currentUserId={sessionUser.id} /> : null}
 
+      {createModalOpen ? (
+        <Modal
+          visible={createModalOpen}
+          transparent
+          animationType="slide"
+          statusBarTranslucent
+          onRequestClose={() => setCreateModalOpen(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.createModalOverlay}
+          >
+            <Pressable
+              style={styles.createModalScrim}
+              onPress={() => setCreateModalOpen(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close create post"
+            />
+            <View style={[styles.createModalSheet, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+              <View style={styles.createModalHeader}>
+                <View style={styles.flex}>
+                  <Text style={styles.createModalTitle}>Create a post</Text>
+                  <Text style={styles.createModalSubtitle}>Share an update with your people.</Text>
+                </View>
+                <Pressable
+                  onPress={() => setCreateModalOpen(false)}
+                  style={styles.createModalClose}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close create post"
+                >
+                  <Ionicons name="close" size={22} color={colors.text} />
+                </Pressable>
+              </View>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.createModalContent}
+              >
+                <CreatePost
+                  onCreated={() => {
+                    setCreateModalOpen(false);
+                    setTab("Home");
+                    setFeedRefreshToken((current) => current + 1);
+                  }}
+                />
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      ) : null}
+
       {!hideBottomNav ? (
         <View style={[styles.bottomNav, { bottom: Math.max(insets.bottom + 8, 10) }]}>
           <NavItem icon="home-outline" activeIcon="home" label="Home" active={tab === "Home"} onPress={() => navigate("Home")} />
-          <NavItem icon="people-outline" activeIcon="people" label="Friends" active={tab === "Friends"} onPress={() => navigate("Friends")} badge={badge(unread.friendRequests)} />
+          <NavItem icon="compass-outline" activeIcon="compass" label="Discover" active={tab === "Discover"} onPress={() => navigate("Discover")} />
+          <NavItem icon="add-circle-outline" activeIcon="add-circle" label="Create" active={createModalOpen} onPress={() => setCreateModalOpen(true)} />
           <NavItem icon="chatbubble-ellipses-outline" activeIcon="chatbubble-ellipses" label="Messages" active={tab === "Messages"} onPress={() => navigate("Messages")} badge={badge(unread.messages)} />
-          <NavItem icon="notifications-outline" activeIcon="notifications" label="Alerts" active={tab === "Notifications"} onPress={() => navigate("Notifications")} badge={badge(unread.notifications)} />
           <NavItem icon="person-outline" activeIcon="person" label="Profile" active={tab === "Profile"} onPress={() => navigate("Profile")} />
         </View>
       ) : null}
@@ -3166,6 +3219,14 @@ const styles = StyleSheet.create({
   mediaEditButton: { flex: 1, minHeight: 42, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
   mediaEditText: { color: colors.text, fontSize: 12, fontWeight: "800" },
   bioInput: { minHeight: 100, textAlignVertical: "top" },
+  createModalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(17,24,39,0.42)" },
+  createModalScrim: { ...StyleSheet.absoluteFillObject },
+  createModalSheet: { maxHeight: "94%", minHeight: "55%", overflow: "hidden", backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: colors.border, paddingTop: 8, shadowColor: colors.black, shadowOpacity: 0.16, shadowRadius: 24, elevation: 20 },
+  createModalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  createModalTitle: { color: colors.text, fontSize: 20, fontWeight: "900" },
+  createModalSubtitle: { color: colors.muted, fontSize: 12, marginTop: 3 },
+  createModalClose: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.border },
+  createModalContent: { padding: 14, paddingBottom: 24 },
   bottomNav: { position: "absolute", left: 10, right: 10, height: 74, backgroundColor: "rgba(255,255,255,0.97)", borderWidth: 1, borderColor: colors.border, borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "space-around", shadowColor: colors.black, shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
   navItem: { minWidth: 58, minHeight: 58, borderRadius: 17, alignItems: "center", justifyContent: "center", paddingHorizontal: 7 },
   navItemActive: { backgroundColor: colors.accentSoft },
