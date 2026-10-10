@@ -51,14 +51,9 @@ export function BottomNav() {
             >
               <Icon size={19} strokeWidth={active ? 2.5 : 2} />
               <span>{label}</span>
-              {(
-                label === "Messages" ? summary.messages :
-                label === "Notifications" ? summary.notifications :
-                label === "Friends" ? summary.friendRequests :
-                0
-              ) > 0 ? (
+              {label === "Messages" && summary.messages > 0 ? (
                 <span className="absolute right-2 top-1 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[8px] font-black leading-4 text-white">
-                  {Math.min(99, label === "Messages" ? summary.messages : label === "Notifications" ? summary.notifications : summary.friendRequests)}
+                  {Math.min(99, summary.messages)}
                 </span>
               ) : null}
               {active ? <span className="absolute bottom-1 size-1 rounded-full bg-[#8b7dff]" aria-hidden="true" /> : null}
