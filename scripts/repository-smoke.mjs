@@ -55,8 +55,12 @@ function findDynamicRouteConflicts(directory) {
       .filter((entry) => entry.isDirectory());
     const dynamicChildren = directories
       .map((entry) => entry.name)
-      .filter((name) => /^\\[.*\\]$/.test(name));
-    const normalized = dynamicChildren.map((name) => name.replace(/^\\[+/, "").replace(/\\]+$/, "").replace(/^\\.\\.\\./, ""));
+      .filter((name) => name.startsWith("[") && name.endsWith("]"));
+    const normalized = dynamicChildren.map((name) => {
+      let value = name.slice(1, -1);
+      if (value.startsWith("...")) value = value.slice(3);
+      return value;
+    });
     if (new Set(normalized).size > 1) {
       conflicts.push(`${path.relative(root, current)}: ${dynamicChildren.join(", ")}`);
     }
