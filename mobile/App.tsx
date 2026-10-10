@@ -669,12 +669,12 @@ function StoryViewer({
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.storyModal}>
         <View style={[styles.storyTop, { paddingTop: insets.top + 10 }]}>
-          <Pressable onPress={onClose}><Text style={styles.closeText}>✕</Text></Pressable>
+          <Pressable onPress={onClose}><Text style={styles.storyViewerCloseText}>✕</Text></Pressable>
           <View style={styles.flex}>
             <Text style={styles.storyViewerName}>{current.author.name}</Text>
             <Text style={styles.storyTimestamp}>{formatTime(current.createdAt)}</Text>
           </View>
-          <Text style={styles.muted}>{(detail[current.id]?.viewCount ?? current.viewCount)} views</Text>
+          <Text style={styles.storyTimestamp}>{(detail[current.id]?.viewCount ?? current.viewCount)} views</Text>
         </View>
 
         <View style={styles.storyMediaArea}>
@@ -688,7 +688,7 @@ function StoryViewer({
         </View>
 
         <View style={[styles.storyBottom, { paddingBottom: Math.max(insets.bottom, 14) }]}>
-          {current.caption ? <Text style={styles.storyCaption}>{current.caption}</Text> : null}
+          {current.caption ? <Text style={styles.storyViewerCaption}>{current.caption}</Text> : null}
           <View style={styles.reactionsRow}>
             {["❤️", "😂", "😮", "😢", "🔥", "👍"].map((emoji) => (
               <Pressable key={emoji} onPress={() => void doReaction(emoji)} style={styles.reactionChip}>
@@ -706,9 +706,9 @@ function StoryViewer({
             returnKeyType="send"
           />
           <View style={styles.storyStats}>
-            <Text style={styles.muted}>{detail[current.id]?.replyCount ?? current.replyCount} replies</Text>
-            <Text style={styles.muted}>{current.reactionCount} reactions</Text>
-            <Text style={styles.muted}>Swipe-like taps: left / right</Text>
+            <Text style={styles.storyTimestamp}>{detail[current.id]?.replyCount ?? current.replyCount} replies</Text>
+            <Text style={styles.storyTimestamp}>{current.reactionCount} reactions</Text>
+            <Text style={styles.storyTimestamp}>Swipe-like taps: left / right</Text>
           </View>
         </View>
       </View>
@@ -3125,7 +3125,8 @@ const styles = StyleSheet.create({
   storyLabel: { color: colors.muted, fontSize: 11, marginTop: 5, maxWidth: 70 },
   storyModal: { flex: 1, backgroundColor: "#050507" },
   storyTop: { flexDirection: "row", alignItems: "center", padding: 16, gap: 10 },
-  closeText: { color: colors.onDark, fontSize: 22, fontWeight: "700", padding: 6 },
+  closeText: { color: colors.text, fontSize: 22, fontWeight: "700", padding: 6 },
+  storyViewerCloseText: { color: colors.onDark, fontSize: 22, fontWeight: "700", padding: 6 },
   storyViewerName: { color: colors.onDark, fontWeight: "800", fontSize: 15 },
   storyTimestamp: { color: colors.mutedOnDark, fontSize: 11, marginTop: 2 },
   storyMediaArea: { flex: 1, position: "relative", alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
@@ -3133,10 +3134,11 @@ const styles = StyleSheet.create({
   storyTapLeft: { position: "absolute", top: 0, bottom: 0, left: 0, width: "35%" },
   storyTapRight: { position: "absolute", top: 0, bottom: 0, right: 0, width: "35%" },
   videoPlaceholder: { alignItems: "center", justifyContent: "center", gap: 8, padding: 30 },
-  videoIcon: { color: colors.onDark, fontSize: 54 },
+  videoIcon: { color: colors.accent, fontSize: 54 },
   videoText: { color: colors.onDark, fontSize: 20, fontWeight: "800" },
   storyBottom: { padding: 14, borderTopWidth: 1, borderTopColor: colors.border },
-  storyCaption: { color: colors.onDark, marginBottom: 10, lineHeight: 20 },
+  storyCaption: { color: colors.text, marginBottom: 10, lineHeight: 20 },
+  storyViewerCaption: { color: colors.onDark, marginBottom: 10, lineHeight: 20 },
   reactionsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
   reactionChip: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.panel2, alignItems: "center", justifyContent: "center" },
   reactionText: { fontSize: 19 },
