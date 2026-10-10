@@ -1085,7 +1085,7 @@ test("APK fallback points to the latest published release and mobile package ver
   const download = read("lib/app-download.ts");
   const app = JSON.parse(read("mobile/app.json"));
   const pkg = JSON.parse(read("mobile/package.json"));
-  assert.match(download, /releases\/download\/v1\.0\.8\/app-release\.apk/);
+  assert.match(download, /releases\/download\/v1\.0\.9\/app-release\.apk/);
   assert.equal(pkg.version, app.expo.version);
 });
 
