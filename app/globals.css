@@ -389,6 +389,9 @@ html[data-theme="dark"] { color-scheme: dark; }
   outline-offset: 2px;
 }
 .social-bottom-link[data-active="true"] { color: var(--accent-strong); background: var(--accent-soft); }
+.social-bottom-link[data-create-action="true"] { color: #fff; background: var(--accent); box-shadow: 0 9px 22px color-mix(in srgb, var(--accent) 25%, transparent); }
+.social-bottom-link[data-create-action="true"]:hover { color: #fff; background: var(--accent-strong); }
+.social-bottom-link[data-create-action="true"] svg { width: 22px; height: 22px; }
 .social-composer-input {
   display: block; min-height: 46px; max-height: 196px; border: 0; border-radius: 18px;
   background: var(--surface-muted); color: var(--foreground); padding: 12px 14px; line-height: 1.55; outline: none;
