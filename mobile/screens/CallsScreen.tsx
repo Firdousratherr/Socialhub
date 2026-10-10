@@ -64,7 +64,7 @@ const styles=StyleSheet.create({
   list:{padding:12,paddingBottom:150},
   row:{flexDirection:"row",alignItems:"center",padding:14,marginBottom:10,borderRadius:18,backgroundColor:colors.panel,borderWidth:1,borderColor:colors.border},
   icon:{width:46,height:46,borderRadius:14,alignItems:"center",justifyContent:"center",backgroundColor:colors.accentSoft,marginRight:12},
-  iconText:{color:"#fff",fontSize:20,fontWeight:"900"},
+  iconText:{color:colors.accent,fontSize:20,fontWeight:"900"},
   copy:{flex:1},
   name:{color:colors.text,fontSize:15,fontWeight:"900"},
   meta:{color:colors.muted,fontSize:11,marginTop:4},
