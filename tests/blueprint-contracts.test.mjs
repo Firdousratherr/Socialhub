@@ -1216,3 +1216,12 @@ test("web and Android media uploads bypass the Vercel Function body limit with o
   assert.match(mobileApi, /operation: "finalize"/);
   assert.equal(mobilePackage.dependencies["expo-file-system"], "~57.0.7");
 });
+
+
+test("public APK download follows the latest official release while preserving custom APK URLs", () => {
+  const source = read("lib/app-download.ts");
+  assert.match(source, /releases\/download\/v1\.0\.9\/app-release\.apk/);
+  assert.match(source, /isOfficialSocialhubReleaseApkUrl/);
+  assert.match(source, /if \(isOfficialSocialhubReleaseApkUrl\(configured\)\) return DEFAULT_ANDROID_APK_URL/);
+  assert.match(source, /if \(!configured \|\| !isDirectApkUrl\(configured\)\) return DEFAULT_ANDROID_APK_URL/);
+});

@@ -18,11 +18,31 @@ export function isDirectApkUrl(value: string): boolean {
   }
 }
 
+/**
+ * The official Socialhub release URL is versioned. If an older official release
+ * URL was persisted in system settings, follow the latest release default
+ * instead of leaving the public download page stuck on an obsolete APK.
+ * Custom APK hosts remain administrator-controlled.
+ */
+export function isOfficialSocialhubReleaseApkUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "github.com" &&
+      url.pathname.toLowerCase().startsWith("/firdousratherr/socialhub/releases/download/") &&
+      /^\/firdousratherr\/socialhub\/releases\/download\/v\d+\.\d+\.\d+\/app-release\.apk$/i.test(url.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function getAndroidApkUrl(
   getSetting: (key: string) => Promise<string | null>,
 ): Promise<string> {
   const configured = (await getSetting(APP_DOWNLOAD_SETTING_KEY))?.trim();
-  return configured && isDirectApkUrl(configured)
-    ? configured
-    : DEFAULT_ANDROID_APK_URL;
+  if (!configured || !isDirectApkUrl(configured)) return DEFAULT_ANDROID_APK_URL;
+  if (isOfficialSocialhubReleaseApkUrl(configured)) return DEFAULT_ANDROID_APK_URL;
+  return configured;
 }
