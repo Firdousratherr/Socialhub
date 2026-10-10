@@ -13,7 +13,7 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#F6F7FB"
       },
-      "backgroundColor": "#08080c",
+      "backgroundColor": "#F6F7FB",
       "icon": "./assets/icon.png",
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
@@ -94,7 +94,7 @@
     "extra": {
       "apiBaseUrl": "https://socialhublive.vercel.app"
     },
-    "backgroundColor": "#08080c",
+    "backgroundColor": "#F6F7FB",
     "icon": "./assets/icon.png"
   }
 }
