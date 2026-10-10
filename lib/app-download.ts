@@ -1,5 +1,5 @@
 export const DEFAULT_ANDROID_APK_URL =
-  "https://github.com/Firdousratherr/Socialhub/releases/download/v1.0.9/app-release.apk";
+  "https://github.com/Firdousratherr/Socialhub/releases/download/v1.1.0/app-release.apk";
 
 export const APP_DOWNLOAD_SETTING_KEY = "app.download.url";
 
