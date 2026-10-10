@@ -114,7 +114,7 @@ export default function SecurityScreen({ onMenu }: { onMenu: () => void }) {
           <Text style={styles.count}>{sessions.length}</Text>
         </View>
 
-        {loading ? <ActivityIndicator color=colors.accent /> : null}
+        {loading ? <ActivityIndicator color={colors.accent} /> : null}
         {sessions.map((session) => (
           <View key={session.id} style={[styles.card, session.isCurrent && styles.currentCard]}>
             <View style={styles.sectionRow}>
