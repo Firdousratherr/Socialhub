@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, 
 import * as ImagePicker from "expo-image-picker";
 import { AppHeader } from "../components/MobileShell";
 import { apiFetch } from "../lib/api";
+import { colors } from "../theme";
 
 type Session = {
   id: string;
@@ -113,7 +114,7 @@ export default function SecurityScreen({ onMenu }: { onMenu: () => void }) {
           <Text style={styles.count}>{sessions.length}</Text>
         </View>
 
-        {loading ? <ActivityIndicator color="#725cff" /> : null}
+        {loading ? <ActivityIndicator color=colors.accent /> : null}
         {sessions.map((session) => (
           <View key={session.id} style={[styles.card, session.isCurrent && styles.currentCard]}>
             <View style={styles.sectionRow}>
@@ -138,21 +139,21 @@ export default function SecurityScreen({ onMenu }: { onMenu: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#08080c" },
+  screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, paddingBottom: 140, gap: 12 },
-  notice: { padding: 15, borderRadius: 18, backgroundColor: "#161126", borderWidth: 1, borderColor: "#352c68" },
+  notice: { padding: 15, borderRadius: 18, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentSoft },
   noticeTitle: { color: "#fff", fontSize: 16, fontWeight: "900" },
-  noticeBody: { color: "#aaa5bb", lineHeight: 19, marginTop: 7 },
-  sectionTitle: { color: "#f8f8ff", fontSize: 18, fontWeight: "900" },
+  noticeBody: { color: colors.muted, lineHeight: 19, marginTop: 7 },
+  sectionTitle: { color: colors.text, fontSize: 18, fontWeight: "900" },
   sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  count: { color: "#9d91ff", fontWeight: "900" },
-  card: { padding: 15, borderRadius: 18, backgroundColor: "#111118", borderWidth: 1, borderColor: "#252531" },
-  currentCard: { borderColor: "#725cff" },
-  cardTitle: { color: "#f8f8ff", fontWeight: "900", fontSize: 15 },
-  meta: { color: "#8d8d9b", lineHeight: 18, marginTop: 5 },
-  current: { color: "#69d79b", fontSize: 11, fontWeight: "900" },
-  button: { alignSelf: "flex-start", marginTop: 12, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 12, backgroundColor: "#725cff" },
+  count: { color: colors.accent, fontWeight: "900" },
+  card: { padding: 15, borderRadius: 18, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
+  currentCard: { borderColor: colors.accent },
+  cardTitle: { color: colors.text, fontWeight: "900", fontSize: 15 },
+  meta: { color: colors.muted, lineHeight: 18, marginTop: 5 },
+  current: { color: colors.success, fontSize: 11, fontWeight: "900" },
+  button: { alignSelf: "flex-start", marginTop: 12, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.accent },
   buttonText: { color: "#fff", fontWeight: "800", fontSize: 12 },
-  dangerButton: { minHeight: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#6d3238", backgroundColor: "#241115" },
+  dangerButton: { minHeight: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: #FEE2E2, backgroundColor: #FEF2F2 },
   dangerText: { color: "#ff8b8b", fontWeight: "900" },
 });
