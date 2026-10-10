@@ -993,7 +993,7 @@ test("web application control exposes only server-enforced platform switches and
   const typingRoute = read("app/api/conversations/[conversationId]/typing/route.ts");
   const typingGet = typingRoute.slice(typingRoute.indexOf("export async function GET"));
   const typingPost = typingRoute.slice(typingRoute.indexOf("export async function POST"));
-  const callsRoute = read("app/api/conversations/[id]/calls/route.ts");
+  const callsRoute = read("app/api/conversations/[conversationId]/calls/route.ts");
   const callActionRoute = read("app/api/calls/[id]/route.ts");
   const callSignalsRoute = read("app/api/calls/[id]/signals/route.ts");
   const callSignalsGet = callSignalsRoute.slice(callSignalsRoute.indexOf("export async function GET"));
