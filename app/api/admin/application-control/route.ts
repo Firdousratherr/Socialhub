@@ -8,6 +8,13 @@ import {
   DEFAULT_ANDROID_APK_URL,
   isDirectApkUrl,
 } from "@/lib/app-download";
+import {
+  DEFAULT_UPLOAD_LIMITS,
+  getDailyUploadFallback,
+  parseUploadLimits,
+  UPLOAD_LIMIT_BOUNDS,
+  UPLOAD_LIMIT_SETTING_KEYS,
+} from "@/lib/upload-limits";
 
 const PLATFORM_CONTROLS = [
   {
@@ -76,6 +83,13 @@ const patchSchema = z.discriminatedUnion("kind", [
     value: z.string().trim().min(1).max(1000),
     reason: z.string().trim().max(240).optional(),
   }),
+  z.object({
+    kind: z.literal("upload-limits"),
+    maxImageBytes: z.number().int().min(UPLOAD_LIMIT_BOUNDS.maxImageBytes.min).max(UPLOAD_LIMIT_BOUNDS.maxImageBytes.max),
+    maxVideoBytes: z.number().int().min(UPLOAD_LIMIT_BOUNDS.maxVideoBytes.min).max(UPLOAD_LIMIT_BOUNDS.maxVideoBytes.max),
+    maxDailyBytes: z.number().int().min(UPLOAD_LIMIT_BOUNDS.maxDailyBytes.min).max(UPLOAD_LIMIT_BOUNDS.maxDailyBytes.max),
+    reason: z.string().trim().max(240).optional(),
+  }),
 ]);
 
 export async function GET() {
@@ -85,12 +99,25 @@ export async function GET() {
   const keys = [
     ...PLATFORM_CONTROLS.map((item) => item.key),
     APP_DOWNLOAD_SETTING_KEY,
+    ...Object.values(UPLOAD_LIMIT_SETTING_KEYS),
   ];
   const settings = await prisma.systemSetting.findMany({
     where: { key: { in: keys } },
     select: { key: true, value: true, updatedAt: true },
   });
   const byKey = new Map(settings.map((setting) => [setting.key, setting]));
+  const uploadSettingValues = Object.fromEntries(
+    Object.values(UPLOAD_LIMIT_SETTING_KEYS).map((key) => [key, byKey.get(key)?.value]),
+  );
+  const uploadLimits = parseUploadLimits(
+    uploadSettingValues,
+    getDailyUploadFallback(process.env.MAX_DAILY_UPLOAD_BYTES),
+  );
+  const configuredUploadLimits = {
+    maxImageBytes: Boolean(byKey.get(UPLOAD_LIMIT_SETTING_KEYS.maxImageBytes)),
+    maxVideoBytes: Boolean(byKey.get(UPLOAD_LIMIT_SETTING_KEYS.maxVideoBytes)),
+    maxDailyBytes: Boolean(byKey.get(UPLOAD_LIMIT_SETTING_KEYS.maxDailyBytes)),
+  };
 
   const features = PLATFORM_CONTROLS.map((item) => {
     const setting = byKey.get(item.key);
@@ -112,6 +139,10 @@ export async function GET() {
     apk: {
       url: apkUrl,
       configured: Boolean(savedApk && isDirectApkUrl(savedApk)),
+    },
+    uploadLimits: {
+      ...uploadLimits,
+      configured: configuredUploadLimits,
     },
     currentAdmin: { id: access.user.id, role: access.user.role },
   });
@@ -196,6 +227,104 @@ export async function PATCH(request: Request) {
         enabled: data.enabled,
         updatedAt: setting.updatedAt,
         configured: true,
+      },
+    });
+  }
+
+  if (data.kind === "upload-limits") {
+    const entries = [
+      {
+        key: UPLOAD_LIMIT_SETTING_KEYS.maxImageBytes,
+        value: String(data.maxImageBytes),
+        description: "Maximum accepted image upload size in bytes (hard-capped at 4 MiB).",
+      },
+      {
+        key: UPLOAD_LIMIT_SETTING_KEYS.maxVideoBytes,
+        value: String(data.maxVideoBytes),
+        description: "Maximum accepted video upload size in bytes (hard-capped at 20 MiB).",
+      },
+      {
+        key: UPLOAD_LIMIT_SETTING_KEYS.maxDailyBytes,
+        value: String(data.maxDailyBytes),
+        description: "Maximum daily upload quota per user in bytes.",
+      },
+    ];
+    const beforeSettings = await prisma.systemSetting.findMany({
+      where: { key: { in: entries.map((entry) => entry.key) } },
+      select: { key: true, value: true },
+    });
+    const beforeMap = new Map(beforeSettings.map((setting) => [setting.key, setting.value]));
+    const before = {
+      maxImageBytes: Number(beforeMap.get(UPLOAD_LIMIT_SETTING_KEYS.maxImageBytes) ?? DEFAULT_UPLOAD_LIMITS.maxImageBytes),
+      maxVideoBytes: Number(beforeMap.get(UPLOAD_LIMIT_SETTING_KEYS.maxVideoBytes) ?? DEFAULT_UPLOAD_LIMITS.maxVideoBytes),
+      maxDailyBytes: Number(beforeMap.get(UPLOAD_LIMIT_SETTING_KEYS.maxDailyBytes) ?? getDailyUploadFallback(process.env.MAX_DAILY_UPLOAD_BYTES)),
+    };
+    const after = {
+      maxImageBytes: data.maxImageBytes,
+      maxVideoBytes: data.maxVideoBytes,
+      maxDailyBytes: data.maxDailyBytes,
+    };
+    const reason = data.reason || "Updated upload size limits.";
+
+    await prisma.$transaction(async (tx) => {
+      for (const entry of entries) {
+        const previousValue = beforeMap.get(entry.key) ?? null;
+        await tx.systemSetting.upsert({
+          where: { key: entry.key },
+          create: {
+            key: entry.key,
+            value: entry.value,
+            description: entry.description,
+            updatedById: access.user.id,
+          },
+          update: {
+            value: entry.value,
+            description: entry.description,
+            updatedById: access.user.id,
+          },
+        });
+        await tx.adminSettingChange.create({
+          data: {
+            settingKey: entry.key,
+            actorId: access.user.id,
+            before: previousValue,
+            after: entry.value,
+            reason,
+          },
+        });
+        await tx.adminAuditLog.create({
+          data: {
+            adminId: access.user.id,
+            action: "UPDATE_UPLOAD_LIMIT",
+            targetType: "PLATFORM_SETTING",
+            targetId: entry.key,
+            details: JSON.stringify({ before: previousValue, after: entry.value, reason }),
+          },
+        });
+      }
+    });
+
+    await recordAdminEvent({
+      access,
+      request,
+      action: "UPDATE_UPLOAD_LIMITS",
+      resource: "UPLOAD_LIMITS",
+      resourceId: "uploads",
+      permission: "PLATFORM_SETTINGS",
+      before,
+      after,
+      reason,
+      riskLevel: "HIGH",
+    });
+
+    return NextResponse.json({
+      uploadLimits: {
+        ...after,
+        configured: {
+          maxImageBytes: true,
+          maxVideoBytes: true,
+          maxDailyBytes: true,
+        },
       },
     });
   }

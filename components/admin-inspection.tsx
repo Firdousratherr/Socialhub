@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchWithTimeout } from "@/lib/client-fetch";
+
 import { useEffect, useState } from "react";
 import { Activity, ChevronLeft, MessageSquare, Search, Shield, UserRound } from "lucide-react";
 
@@ -32,7 +34,7 @@ export function AdminInspection() {
   async function loadConversations(){
     setLoading(true);setError("");
     try{
-      const r=await fetch("/api/admin/messages?q="+encodeURIComponent(query),{cache:"no-store"});
+      const r=await fetchWithTimeout("/api/admin/messages?q="+encodeURIComponent(query),{cache:"no-store"});
       const j=await r.json(); if(!r.ok) throw new Error(j.error??"Could not load conversations.");
       setConversations(j.conversations??[]);
     }catch(e){setError(e instanceof Error?e.message:"Could not load conversations.");}
@@ -44,7 +46,7 @@ export function AdminInspection() {
   async function openConversation(id:string){
     setLoading(true);setError("");
     try{
-      const r=await fetch("/api/admin/messages?conversationId="+encodeURIComponent(id),{cache:"no-store"});
+      const r=await fetchWithTimeout("/api/admin/messages?conversationId="+encodeURIComponent(id),{cache:"no-store"});
       const j=await r.json(); if(!r.ok) throw new Error(j.error??"Could not load messages.");
       setSelected(j.conversation);setMessages(j.messages??[]);
     }catch(e){setError(e instanceof Error?e.message:"Could not load messages.");}
@@ -56,7 +58,7 @@ export function AdminInspection() {
     if(query.length<2){setUserResults([]);return;}
     setError("");
     try{
-      const r=await fetch("/api/admin/users?take=8&q="+encodeURIComponent(query),{cache:"no-store"});
+      const r=await fetchWithTimeout("/api/admin/users?take=8&q="+encodeURIComponent(query),{cache:"no-store"});
       const j=await r.json();
       if(!r.ok) throw new Error(j.error??"Could not search users.");
       setUserResults(j.users??[]);
@@ -67,7 +69,7 @@ export function AdminInspection() {
     if(!userId.trim()) return;
     setLoading(true);setError("");
     try{
-      const r=await fetch("/api/admin/activity?userId="+encodeURIComponent(userId.trim()),{cache:"no-store"});
+      const r=await fetchWithTimeout("/api/admin/activity?userId="+encodeURIComponent(userId.trim()),{cache:"no-store"});
       const j=await r.json(); if(!r.ok) throw new Error(j.error??"Could not load activity.");
       setActivity(j);
     }catch(e){setError(e instanceof Error?e.message:"Could not load activity.");}

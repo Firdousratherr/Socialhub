@@ -5,6 +5,7 @@ import { Activity, Bell, Database, Flag, Search, Shield, Trash2, UserCog, Users,
 import { MODERATOR_PERMISSION_PRESETS } from "@/lib/admin-permission-presets";
 import { AdminAppDownloadSettings } from "@/components/admin-app-download-settings";
 import { AdminPriorityCenter } from "@/components/admin-priority-center";
+import { fetchWithTimeout } from "@/lib/client-fetch";
 
 type Tab="security"|"search"|"platform"|"moderation"|"analytics"|"storage"|"permissions"|"health"|"priorities";
 const tabs: {id:Tab;label:string}[]=[
@@ -17,31 +18,31 @@ function Button({children,onClick,danger=false,disabled=false}:{children:React.R
 export function AdminControlCenter({ initialTab = "security" }: { initialTab?: Tab }){
  const [tab,setTab]=useState<Tab>(initialTab); const [data,setData]=useState<any>(null); const [q,setQ]=useState(""); const [results,setResults]=useState<any>(null); const [health,setHealth]=useState<any>(null); const [analytics,setAnalytics]=useState<any>(null); const [storage,setStorage]=useState<any>(null); const [permissionData,setPermissionData]=useState<any>(null); const [notice,setNotice]=useState("");
  const [selected,setSelected]=useState<string[]>([]); const [flagKey,setFlagKey]=useState(""); const [flagEnabled,setFlagEnabled]=useState(false); const [settingKey,setSettingKey]=useState(""); const [settingValue,setSettingValue]=useState(""); const [announcementTitle,setAnnouncementTitle]=useState(""); const [announcementBody,setAnnouncementBody]=useState(""); const [announcementAudience,setAnnouncementAudience]=useState("ALL"); const [announcementStatus,setAnnouncementStatus]=useState<"DRAFT"|"PUBLISHED">("DRAFT"); const [announcementStartsAt,setAnnouncementStartsAt]=useState(""); const [announcementEndsAt,setAnnouncementEndsAt]=useState("");
- async function load(){setNotice(""); const r=await fetch("/api/admin/control-center",{cache:"no-store"}); const j=await r.json(); if(!r.ok){setNotice(j.error??"Could not load control center.");return;} setData(j);}
+ async function load(){setNotice(""); const r=await fetchWithTimeout("/api/admin/control-center",{cache:"no-store"}); const j=await r.json(); if(!r.ok){setNotice(j.error??"Could not load control center.");return;} setData(j);}
  useEffect(()=>{void load()},[]);
- async function search(){if(q.trim().length<2)return; const r=await fetch("/api/admin/search?q="+encodeURIComponent(q),{cache:"no-store"}); const j=await r.json(); if(!r.ok){setNotice(j.error??"Search failed.");return;} setResults(j);}
- async function revoke(id:string){const r=await fetch("/api/admin/control-center?type=session&id="+encodeURIComponent(id),{method:"DELETE"}); const j=await r.json(); setNotice(r.ok?"Session revoked.":j.error??"Could not revoke session."); if(r.ok)void load();}
+ async function search(){if(q.trim().length<2)return; const r=await fetchWithTimeout("/api/admin/search?q="+encodeURIComponent(q),{cache:"no-store"}); const j=await r.json(); if(!r.ok){setNotice(j.error??"Search failed.");return;} setResults(j);}
+ async function revoke(id:string){const r=await fetchWithTimeout("/api/admin/control-center?type=session&id="+encodeURIComponent(id),{method:"DELETE"}); const j=await r.json(); setNotice(r.ok?"Session revoked.":j.error??"Could not revoke session."); if(r.ok)void load();}
  async function save(kind:"flag"|"setting"|"announcement",overrides?:any){
   const body=kind==="flag"?{kind,key:overrides?.key??flagKey,enabled:overrides?.enabled??flagEnabled}:kind==="setting"?{kind,key:overrides?.key??settingKey,value:overrides?.value??settingValue}:{kind,title:overrides?.title??announcementTitle,body:overrides?.body??announcementBody,audience:overrides?.audience??announcementAudience,status:overrides?.status??announcementStatus,startsAt:overrides?.startsAt??(announcementStartsAt?new Date(announcementStartsAt).toISOString():null),endsAt:overrides?.endsAt??(announcementEndsAt?new Date(announcementEndsAt).toISOString():null)};
-  const r=await fetch("/api/admin/control-center",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const r=await fetchWithTimeout("/api/admin/control-center",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   const j=await r.json();
   setNotice(r.ok?"Saved and audited.":j.error??"Could not save.");
   if(r.ok){if(kind==="announcement"){setAnnouncementTitle("");setAnnouncementBody("");setAnnouncementStartsAt("");setAnnouncementEndsAt("");setAnnouncementStatus("DRAFT");} void load();}
  }
- async function bulk(action:"ENABLE"|"DISABLE"|"VERIFY"|"UNVERIFY"|"REVOKE_SESSIONS"){if(!selected.length)return; const r=await fetch("/api/admin/bulk",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userIds:selected,action})}); const j=await r.json(); setNotice(r.ok?j.count+" users updated.":j.error??"Bulk action failed."); if(r.ok){setSelected([]);void search();}}
- async function loadHealth(){const r=await fetch("/api/admin/health",{cache:"no-store"});const j=await r.json();if(r.ok)setHealth(j);else setNotice(j.error??"Health check failed.");}
- async function loadAnalytics(){const r=await fetch("/api/admin/analytics",{cache:"no-store"});const j=await r.json();if(r.ok)setAnalytics(j);else setNotice(j.error??"Analytics load failed.");}
- async function loadStorage(){const r=await fetch("/api/admin/storage",{cache:"no-store"});const j=await r.json();if(r.ok)setStorage(j);else setNotice(j.error??"Storage load failed.");}
- async function loadPermissions(){const r=await fetch("/api/admin/permissions",{cache:"no-store"});const j=await r.json();if(r.ok)setPermissionData(j);else setNotice(j.error??"Permission management is restricted.");}
+ async function bulk(action:"ENABLE"|"DISABLE"|"VERIFY"|"UNVERIFY"|"REVOKE_SESSIONS"){if(!selected.length)return; const r=await fetchWithTimeout("/api/admin/bulk",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userIds:selected,action})}); const j=await r.json(); setNotice(r.ok?j.count+" users updated.":j.error??"Bulk action failed."); if(r.ok){setSelected([]);void search();}}
+ async function loadHealth(){const r=await fetchWithTimeout("/api/admin/health",{cache:"no-store"});const j=await r.json();if(r.ok)setHealth(j);else setNotice(j.error??"Health check failed.");}
+ async function loadAnalytics(){const r=await fetchWithTimeout("/api/admin/analytics",{cache:"no-store"});const j=await r.json();if(r.ok)setAnalytics(j);else setNotice(j.error??"Analytics load failed.");}
+ async function loadStorage(){const r=await fetchWithTimeout("/api/admin/storage",{cache:"no-store"});const j=await r.json();if(r.ok)setStorage(j);else setNotice(j.error??"Storage load failed.");}
+ async function loadPermissions(){const r=await fetchWithTimeout("/api/admin/permissions",{cache:"no-store"});const j=await r.json();if(r.ok)setPermissionData(j);else setNotice(j.error??"Permission management is restricted.");}
  async function updateAnnouncement(id:string,patch:Record<string,unknown>){
-  const r=await fetch("/api/admin/control-center",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"announcement.update",id,...patch})});
+  const r=await fetchWithTimeout("/api/admin/control-center",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:"announcement.update",id,...patch})});
   const j=await r.json();
   setNotice(r.ok?"Announcement updated and audited.":j.error??"Could not update announcement.");
   if(r.ok)void load();
  }
  async function deleteAnnouncement(id:string){
   if(!window.confirm("Delete this announcement permanently?"))return;
-  const r=await fetch("/api/admin/control-center?type=announcement&id="+encodeURIComponent(id),{method:"DELETE"});
+  const r=await fetchWithTimeout("/api/admin/control-center?type=announcement&id="+encodeURIComponent(id),{method:"DELETE"});
   const j=await r.json();
   setNotice(r.ok?"Announcement deleted and audited.":j.error??"Could not delete announcement.");
   if(r.ok)void load();
@@ -131,7 +132,7 @@ function PermissionPanel({data,setData}:{data:any;setData:(v:any)=>void}){
  useEffect(()=>{const first=data?.admins?.[0];if(first){setSelected(first.id);setValues(first.permissions??[])}},[data]);
  function choose(id:string){const admin=(data?.admins??[]).find((x:any)=>x.id===id);setSelected(id);setValues(admin?.permissions??[]);}
  function applyPreset(permissions:string[]){setValues(permissions);}
- async function save(){const r=await fetch("/api/admin/permissions",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({adminId:selected,permissions:values})});const j=await r.json();if(!r.ok){window.alert(j.error??"Could not save permissions.");return;}const next=(data?.admins??[]).map((a:any)=>a.id===selected?{...a,permissions:values}:a);setData({...data,admins:next});}
+ async function save(){const r=await fetchWithTimeout("/api/admin/permissions",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({adminId:selected,permissions:values})});const j=await r.json();if(!r.ok){window.alert(j.error??"Could not save permissions.");return;}const next=(data?.admins??[]).map((a:any)=>a.id===selected?{...a,permissions:values}:a);setData({...data,admins:next});}
  const current=(data?.admins??[]).find((a:any)=>a.id===selected);
  return <div className="grid gap-5 xl:grid-cols-[280px_1fr]">
   <Card><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-black">Privileged accounts</h3><p className="mt-1 text-[10px] text-gray-400">Choose a moderator to configure.</p></div><span className="rounded-full bg-gray-50 px-2 py-1 text-[9px] font-black text-gray-400">{(data?.admins??[]).length}</span></div><div className="mt-4 space-y-2">{(data?.admins??[]).map((a:any)=><button key={a.id} onClick={()=>choose(a.id)} className={"w-full rounded-2xl p-3 text-left "+(a.id===selected?"bg-[#eeebff] text-[#5a4be8]":"bg-gray-50 text-gray-700")}><div className="flex items-center justify-between gap-2"><p className="truncate text-xs font-black">{a.name}</p><span className="text-[9px] font-black">{a.role}</span></div><p className="mt-1 truncate text-[10px] text-gray-400">@{a.username??"member"}</p></button>)}</div></Card>

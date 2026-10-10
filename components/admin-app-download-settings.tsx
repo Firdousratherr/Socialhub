@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchWithTimeout } from "@/lib/client-fetch";
+
 import { useEffect, useState } from "react";
 import { Download, ExternalLink } from "lucide-react";
 import { APP_DOWNLOAD_SETTING_KEY, DEFAULT_ANDROID_APK_URL, isDirectApkUrl } from "@/lib/app-download";
@@ -16,7 +18,7 @@ export function AdminAppDownloadSettings({ refreshKey = 0 }: Props) {
     setLoading(true);
     setNotice("");
     try {
-      const response = await fetch("/api/admin/control-center", { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/control-center", { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load application settings.");
       const value = (json.settings ?? []).find((item: { key: string; value: string }) => item.key === APP_DOWNLOAD_SETTING_KEY)?.value;
@@ -41,7 +43,7 @@ export function AdminAppDownloadSettings({ refreshKey = 0 }: Props) {
     setSaving(true);
     setNotice("");
     try {
-      const response = await fetch("/api/admin/control-center", {
+      const response = await fetchWithTimeout("/api/admin/control-center", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

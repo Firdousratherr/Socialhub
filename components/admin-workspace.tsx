@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchWithTimeout } from "@/lib/client-fetch";
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -274,7 +276,7 @@ export function AdminWorkspace({ section = "overview" }: { section?: string }) {
     setSearching(true);
     setNotice("");
     try {
-      const response = await fetch("/api/admin/search?q=" + encodeURIComponent(q), {
+      const response = await fetchWithTimeout("/api/admin/search?q=" + encodeURIComponent(q), {
         cache: "no-store",
       });
       const json = await response.json();
@@ -290,7 +292,7 @@ export function AdminWorkspace({ section = "overview" }: { section?: string }) {
   async function loadDashboard() {
     setNotice("");
     try {
-      const response = await fetch("/api/admin/dashboard", { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/dashboard", { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load dashboard.");
       setDashboard(json);
@@ -798,7 +800,7 @@ function PeopleWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
         "&trust=" +
         encodeURIComponent(trust) +
         (!reset && before ? "&before=" + encodeURIComponent(before) : "");
-      const response = await fetch(url, { cache: "no-store" });
+      const response = await fetchWithTimeout(url, { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load users.");
       setUsers(reset ? json.users ?? [] : [...users, ...(json.users ?? [])]);
@@ -818,7 +820,7 @@ function PeopleWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
   async function openUser(id: string) {
     setBusy(true);
     try {
-      const response = await fetch("/api/admin/users/" + id, { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/users/" + id, { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load user.");
       setDetails(json);
@@ -834,7 +836,7 @@ function PeopleWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
     if (!selected.length || busy) return;
     setBusy(true);
     try {
-      const response = await fetch("/api/admin/bulk", {
+      const response = await fetchWithTimeout("/api/admin/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userIds: selected, action }),
@@ -855,7 +857,7 @@ function PeopleWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
     if (!selected.length || busy) return;
     setBusy(true);
     try {
-      const response = await fetch("/api/admin/bulk", {
+      const response = await fetchWithTimeout("/api/admin/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userIds: selected, action: bulkAction, dryRun: true }),
@@ -1134,7 +1136,7 @@ function User360({
   async function save(patch: Record<string, unknown>) {
     setSaving(true);
     try {
-      const response = await fetch("/api/admin/users/" + user.id, {
+      const response = await fetchWithTimeout("/api/admin/users/" + user.id, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
@@ -1448,7 +1450,7 @@ function ReportsPanel({ onNotice }: { onNotice: (value: string) => void }) {
     setLoading(true);
     try {
       const url = "/api/admin/reports?take=100" + (status ? "&status=" + status : "") + (query ? "&q=" + encodeURIComponent(query) : "");
-      const response = await fetch(url, { cache: "no-store" });
+      const response = await fetchWithTimeout(url, { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load reports.");
       setReports(json.reports ?? []);
@@ -1469,7 +1471,7 @@ function ReportsPanel({ onNotice }: { onNotice: (value: string) => void }) {
   async function updateReport(id: string, patch: Record<string, unknown>) {
     setBusy(id);
     try {
-      const response = await fetch("/api/admin/reports", {
+      const response = await fetchWithTimeout("/api/admin/reports", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, ...patch }),
@@ -1488,7 +1490,7 @@ function ReportsPanel({ onNotice }: { onNotice: (value: string) => void }) {
   async function enforce(id: string, action: "DELETE_POST" | "DELETE_COMMENT" | "DISABLE_USER") {
     setBusy(id);
     try {
-      const response = await fetch("/api/admin/reports", {
+      const response = await fetchWithTimeout("/api/admin/reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, action }),
@@ -1633,7 +1635,7 @@ function VerificationPanel({ onNotice }: { onNotice: (value: string) => void }) 
   async function load() {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/verification-requests?status=" + status + "&take=100", { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/verification-requests?status=" + status + "&take=100", { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load verification requests.");
       setItems(json.requests ?? []);
@@ -1650,7 +1652,7 @@ function VerificationPanel({ onNotice }: { onNotice: (value: string) => void }) 
 
   async function review(requestId: string, action: "APPROVED" | "REJECTED", note?: string) {
     try {
-      const response = await fetch("/api/admin/verification-requests", {
+      const response = await fetchWithTimeout("/api/admin/verification-requests", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1781,7 +1783,7 @@ function PostsPanel({ onNotice }: { onNotice: (value: string) => void }) {
   async function load() {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/posts?take=100&q=" + encodeURIComponent(query), { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/posts?take=100&q=" + encodeURIComponent(query), { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load posts.");
       setPosts(json.posts ?? []);
@@ -1809,7 +1811,7 @@ function PostsPanel({ onNotice }: { onNotice: (value: string) => void }) {
   async function update(id: string, patch: Record<string, unknown>) {
     setBusy(id);
     try {
-      const response = await fetch("/api/admin/posts", {
+      const response = await fetchWithTimeout("/api/admin/posts", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, ...patch }),
@@ -1843,7 +1845,7 @@ function PostsPanel({ onNotice }: { onNotice: (value: string) => void }) {
   async function remove(id: string) {
     setBusy(id);
     try {
-      const response = await fetch("/api/admin/posts", {
+      const response = await fetchWithTimeout("/api/admin/posts", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
@@ -1947,7 +1949,7 @@ function CommentsPanel({ onNotice }: { onNotice: (value: string) => void }) {
   async function load() {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/comments?q=" + encodeURIComponent(query), { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/comments?q=" + encodeURIComponent(query), { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load comments.");
       setComments(json.comments ?? []);
@@ -1964,7 +1966,7 @@ function CommentsPanel({ onNotice }: { onNotice: (value: string) => void }) {
 
   async function remove(id: string) {
     try {
-      const response = await fetch("/api/admin/comments", {
+      const response = await fetchWithTimeout("/api/admin/comments", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
@@ -2009,7 +2011,7 @@ function StoriesPanel({ onNotice }: { onNotice: (value: string) => void }) {
   async function load() {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/stories?q=" + encodeURIComponent(query), { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/stories?q=" + encodeURIComponent(query), { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load stories.");
       setStories(json.stories ?? []);
@@ -2026,7 +2028,7 @@ function StoriesPanel({ onNotice }: { onNotice: (value: string) => void }) {
 
   async function remove(storyId: string) {
     try {
-      const response = await fetch("/api/admin/stories", {
+      const response = await fetchWithTimeout("/api/admin/stories", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storyId }),
@@ -2097,7 +2099,7 @@ function ConversationsPanel({ onNotice }: { onNotice: (value: string) => void })
   async function load() {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/messages?q=" + encodeURIComponent(query), { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/messages?q=" + encodeURIComponent(query), { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load conversations.");
       setConversations(json.conversations ?? []);
@@ -2115,7 +2117,7 @@ function ConversationsPanel({ onNotice }: { onNotice: (value: string) => void })
   async function openConversation(id: string) {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/messages?conversationId=" + encodeURIComponent(id), { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/messages?conversationId=" + encodeURIComponent(id), { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not open conversation.");
       setSelected(json.conversation);
@@ -2194,7 +2196,7 @@ function ActivityPanel({ onNotice }: { onNotice: (value: string) => void }) {
       return;
     }
     try {
-      const response = await fetch("/api/admin/users?take=8&q=" + encodeURIComponent(query), { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/users?take=8&q=" + encodeURIComponent(query), { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not search users.");
       setResults(json.users ?? []);
@@ -2205,7 +2207,7 @@ function ActivityPanel({ onNotice }: { onNotice: (value: string) => void }) {
 
   async function loadActivity(userId: string) {
     try {
-      const response = await fetch("/api/admin/activity?userId=" + encodeURIComponent(userId), { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/activity?userId=" + encodeURIComponent(userId), { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load user activity.");
       setActivity(json);
@@ -2282,7 +2284,7 @@ function InsightsWorkspace({ dashboard, onRefresh }: { dashboard: any; onRefresh
   async function load() {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/analytics", { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/analytics", { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load analytics.");
       setAnalytics(json);
@@ -2394,7 +2396,7 @@ function AuditWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
       if (targetType) params.set("targetType", targetType);
       if (action) params.set("action", action);
       if (nextBefore) params.set("before", nextBefore);
-      const response = await fetch("/api/admin/audit?" + params.toString(), { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/audit?" + params.toString(), { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load audit logs.");
       const combined = [...(json.logs ?? []), ...(json.events ?? [])].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

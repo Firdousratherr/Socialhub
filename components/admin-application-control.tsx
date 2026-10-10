@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchWithTimeout } from "@/lib/client-fetch";
+
 import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
@@ -30,8 +32,31 @@ type Feature = {
 type ControlResponse = {
   features: Feature[];
   apk: { url: string; configured: boolean };
+  uploadLimits: {
+    maxImageBytes: number;
+    maxVideoBytes: number;
+    maxDailyBytes: number;
+    configured: {
+      maxImageBytes: boolean;
+      maxVideoBytes: boolean;
+      maxDailyBytes: boolean;
+    };
+  };
   currentAdmin: { id: string; role: "ADMIN" | "MODERATOR" };
 };
+
+type UploadLimitDraft = {
+  imageMb: string;
+  videoMb: string;
+  dailyMb: string;
+};
+
+const MEBIBYTE = 1024 * 1024;
+
+function toMb(value: number) {
+  const rounded = value / MEBIBYTE;
+  return Number.isInteger(rounded) ? String(rounded) : String(Number(rounded.toFixed(2)));
+}
 
 const ICONS: Record<string, typeof Users> = {
   "registration.enabled": UserPlus,
@@ -54,8 +79,14 @@ async function responseJson(response: Response) {
 export function AdminApplicationControl() {
   const [data, setData] = useState<ControlResponse | null>(null);
   const [apkUrl, setApkUrl] = useState("");
+  const [uploadLimitDraft, setUploadLimitDraft] = useState<UploadLimitDraft>({
+    imageMb: "4",
+    videoMb: "20",
+    dailyMb: "25",
+  });
   const [loading, setLoading] = useState(true);
   const [savingApk, setSavingApk] = useState(false);
+  const [savingUploadLimits, setSavingUploadLimits] = useState(false);
   const [busyFeature, setBusyFeature] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -64,10 +95,15 @@ export function AdminApplicationControl() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/admin/application-control", { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/application-control", { cache: "no-store" });
       const json = (await responseJson(response)) as ControlResponse;
       setData(json);
       setApkUrl(json.apk.url);
+      setUploadLimitDraft({
+        imageMb: toMb(json.uploadLimits.maxImageBytes),
+        videoMb: toMb(json.uploadLimits.maxVideoBytes),
+        dailyMb: toMb(json.uploadLimits.maxDailyBytes),
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not load application controls.");
     } finally {
@@ -89,7 +125,7 @@ export function AdminApplicationControl() {
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/admin/application-control", {
+      const response = await fetchWithTimeout("/api/admin/application-control", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -111,6 +147,50 @@ export function AdminApplicationControl() {
     }
   }
 
+  async function saveUploadLimits() {
+    const imageMb = Number(uploadLimitDraft.imageMb);
+    const videoMb = Number(uploadLimitDraft.videoMb);
+    const dailyMb = Number(uploadLimitDraft.dailyMb);
+    if (
+      !Number.isFinite(imageMb) || imageMb < 0.5 || imageMb > 4 ||
+      !Number.isFinite(videoMb) || videoMb < 1 || videoMb > 20 ||
+      !Number.isFinite(dailyMb) || dailyMb < 1 || dailyMb > 500
+    ) {
+      setError("Image size must be 0.5–4 MB, video size 1–20 MB, and daily quota 1–500 MB.");
+      setNotice("");
+      return;
+    }
+
+    setSavingUploadLimits(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetchWithTimeout("/api/admin/application-control", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "upload-limits",
+          maxImageBytes: Math.round(imageMb * MEBIBYTE),
+          maxVideoBytes: Math.round(videoMb * MEBIBYTE),
+          maxDailyBytes: Math.round(dailyMb * MEBIBYTE),
+          reason: "Changed in the Socialhub web application-control panel.",
+        }),
+      });
+      const json = await responseJson(response) as { uploadLimits: ControlResponse["uploadLimits"] };
+      setData((current) => current ? { ...current, uploadLimits: json.uploadLimits } : current);
+      setUploadLimitDraft({
+        imageMb: toMb(json.uploadLimits.maxImageBytes),
+        videoMb: toMb(json.uploadLimits.maxVideoBytes),
+        dailyMb: toMb(json.uploadLimits.maxDailyBytes),
+      });
+      setNotice("Upload limits saved and audited. New limits apply to subsequent uploads.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save upload limits.");
+    } finally {
+      setSavingUploadLimits(false);
+    }
+  }
+
   async function saveApk() {
     const value = apkUrl.trim();
     if (!isDirectApkUrl(value)) {
@@ -123,7 +203,7 @@ export function AdminApplicationControl() {
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/admin/application-control", {
+      const response = await fetchWithTimeout("/api/admin/application-control", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -255,6 +335,82 @@ export function AdminApplicationControl() {
               </div>
             </>
           ) : null}
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-gray-200 bg-white p-4 shadow-[0_12px_35px_rgba(31,26,64,0.05)] sm:p-6">
+        <div className="flex items-start gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-700">
+            <Upload size={18} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-black text-gray-950">Media upload limits</h3>
+            <p className="mt-1 text-xs leading-5 text-gray-500">
+              Set server-enforced per-file and per-account daily caps. Image/video limits cannot exceed the existing service maximums.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <label className="min-w-0">
+            <span className="mb-1.5 block text-[11px] font-bold text-gray-600">Maximum image (MB)</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0.5}
+              max={4}
+              step={0.5}
+              value={uploadLimitDraft.imageMb}
+              onChange={(event) => setUploadLimitDraft((current) => ({ ...current, imageMb: event.target.value }))}
+              disabled={loading || savingUploadLimits}
+              aria-label="Maximum image upload size in megabytes"
+              className="min-h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 disabled:opacity-60"
+            />
+            <span className="mt-1 block text-[10px] text-gray-400">{data?.uploadLimits.configured.maxImageBytes ? "Custom setting" : "Default limit"}</span>
+          </label>
+          <label className="min-w-0">
+            <span className="mb-1.5 block text-[11px] font-bold text-gray-600">Maximum video (MB)</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={1}
+              max={20}
+              step={1}
+              value={uploadLimitDraft.videoMb}
+              onChange={(event) => setUploadLimitDraft((current) => ({ ...current, videoMb: event.target.value }))}
+              disabled={loading || savingUploadLimits}
+              aria-label="Maximum video upload size in megabytes"
+              className="min-h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 disabled:opacity-60"
+            />
+            <span className="mt-1 block text-[10px] text-gray-400">{data?.uploadLimits.configured.maxVideoBytes ? "Custom setting" : "Default limit"}</span>
+          </label>
+          <label className="min-w-0">
+            <span className="mb-1.5 block text-[11px] font-bold text-gray-600">Daily per-account quota (MB)</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={500}
+              step={1}
+              value={uploadLimitDraft.dailyMb}
+              onChange={(event) => setUploadLimitDraft((current) => ({ ...current, dailyMb: event.target.value }))}
+              disabled={loading || savingUploadLimits}
+              aria-label="Daily per-account upload quota in megabytes"
+              className="min-h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 disabled:opacity-60"
+            />
+            <span className="mt-1 block text-[10px] text-gray-400">{data?.uploadLimits.configured.maxDailyBytes ? "Custom setting" : "Default or environment fallback"}</span>
+          </label>
+        </div>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[10px] leading-5 text-gray-400">Image: 0.5–4 MB · Video: 1–20 MB · Daily quota: 1–500 MB. Values are validated by the server and every change is audited.</p>
+          <button
+            type="button"
+            onClick={() => void saveUploadLimits()}
+            disabled={loading || savingUploadLimits || !uploadLimitDraft.imageMb.trim() || !uploadLimitDraft.videoMb.trim() || !uploadLimitDraft.dailyMb.trim()}
+            className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 self-start rounded-xl bg-gray-950 px-4 text-xs font-black text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 sm:self-auto"
+          >
+            {savingUploadLimits ? <RefreshCw size={14} className="animate-spin" /> : null}
+            {savingUploadLimits ? "Saving…" : "Save upload limits"}
+          </button>
         </div>
       </section>
 

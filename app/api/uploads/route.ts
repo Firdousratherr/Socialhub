@@ -6,10 +6,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { safeDeleteBlob } from "@/lib/blob-cleanup";
 import { platformEnabled } from "@/lib/platform-controls";
+import {
+  getDailyUploadFallback,
+  parseUploadLimits,
+  UPLOAD_LIMIT_SETTING_KEYS,
+} from "@/lib/upload-limits";
 
-const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
-const MAX_DAILY_UPLOAD_BYTES = Number(process.env.MAX_DAILY_UPLOAD_BYTES ?? 25 * 1024 * 1024);
+const MiB = 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/webm"]);
 
@@ -65,22 +68,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Only JPG, PNG, WebP, GIF images or MP4/WebM videos are supported." }, { status: 415 });
   }
 
-  const maxBytes = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
-  if (file.size > maxBytes) {
-    return NextResponse.json({
-      error: isVideo ? "Video must be 20 MB or smaller." : "Image must be 4 MB or smaller.",
-    }, { status: 413 });
-  }
-
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-  const usage = await prisma.uploadUsage.aggregate({
-    where: { userId: session.user.id, createdAt: { gte: dayStart } },
-    _sum: { bytes: true },
+  const uploadSettingRows = await prisma.systemSetting.findMany({
+    where: { key: { in: Object.values(UPLOAD_LIMIT_SETTING_KEYS) } },
+    select: { key: true, value: true },
   });
-  const usedBytes = usage._sum.bytes ?? 0;
-  if (usedBytes + file.size > MAX_DAILY_UPLOAD_BYTES) {
-    return NextResponse.json({ error: "Your daily upload limit has been reached. Try again tomorrow." }, { status: 429 });
+  const uploadSettingValues = Object.fromEntries(uploadSettingRows.map((setting) => [setting.key, setting.value]));
+  const uploadLimits = parseUploadLimits(
+    uploadSettingValues,
+    getDailyUploadFallback(process.env.MAX_DAILY_UPLOAD_BYTES),
+  );
+
+  const maxBytes = isVideo ? uploadLimits.maxVideoBytes : uploadLimits.maxImageBytes;
+  if (file.size > maxBytes) {
+    const maxMegabytes = maxBytes / MiB;
+    const sizeLabel = Number.isInteger(maxMegabytes) ? String(maxMegabytes) : maxMegabytes.toFixed(1);
+    return NextResponse.json({
+      error: `${isVideo ? "Video" : "Image"} must be ${sizeLabel} MB or smaller.`,
+    }, { status: 413 });
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -89,17 +93,63 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "The file contents do not match the declared media type." }, { status: 415 });
   }
 
-  const path = `uploads/${session.user.id}/${crypto.randomUUID()}.${extensionFor(file.type)}`;
-  const blob = await put(path, file, {
-    access: "public",
-    addRandomSuffix: false,
-    contentType: file.type,
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const reservation = await prisma.$transaction(async (tx) => {
+    // Serialize quota reservations per account so parallel uploads cannot all
+    // pass the same aggregate check before any of them is recorded.
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${session.user.id} FOR UPDATE`;
+
+    // Remove abandoned reservations left by interrupted requests; only rows
+    // without a blob URL can be pending reservations.
+    await tx.uploadUsage.deleteMany({
+      where: {
+        userId: session.user.id,
+        url: null,
+        createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) },
+      },
+    });
+
+    const usage = await tx.uploadUsage.aggregate({
+      where: { userId: session.user.id, createdAt: { gte: dayStart } },
+      _sum: { bytes: true },
+    });
+    const usedBytes = usage._sum.bytes ?? 0;
+    if (usedBytes + file.size > uploadLimits.maxDailyBytes) return null;
+
+    return tx.uploadUsage.create({
+      data: {
+        userId: session.user.id,
+        bytes: file.size,
+        mimeType: file.type,
+      },
+      select: { id: true },
+    });
   });
+
+  if (!reservation) {
+    return NextResponse.json({ error: "Your daily upload limit has been reached. Try again tomorrow." }, { status: 429 });
+  }
+
+  const path = `uploads/${session.user.id}/${crypto.randomUUID()}.${extensionFor(file.type)}`;
+  let blob: Awaited<ReturnType<typeof put>>;
+  try {
+    blob = await put(path, file, {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: file.type,
+    });
+  } catch (uploadError) {
+    // Quota cleanup is best-effort; never mask the original storage failure.
+    await prisma.uploadUsage.deleteMany({ where: { id: reservation.id } }).catch(() => {});
+    throw uploadError;
+  }
 
   try {
     await prisma.$transaction([
-      prisma.uploadUsage.create({
-        data: { userId: session.user.id, bytes: file.size, url: blob.url, pathname: blob.pathname, mimeType: file.type },
+      prisma.uploadUsage.update({
+        where: { id: reservation.id },
+        data: { url: blob.url, pathname: blob.pathname, mimeType: file.type },
       }),
       prisma.mediaAsset.create({
         data: {
@@ -114,6 +164,8 @@ export async function POST(request: Request) {
     ]);
   } catch (trackingError) {
     await safeDeleteBlob(blob.url);
+    // Preserve the intended error response even if reservation cleanup also fails.
+    await prisma.uploadUsage.deleteMany({ where: { id: reservation.id } }).catch(() => {});
     console.error("Could not record upload usage; the uploaded blob was removed.", trackingError);
     return NextResponse.json({ error: "Could not finish recording the upload. Please try again." }, { status: 500 });
   }

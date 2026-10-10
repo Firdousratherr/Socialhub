@@ -1,4 +1,42 @@
+import { File as ExpoFile } from "expo-file-system";
 import { authClient } from "./auth-client";
+
+const API_REQUEST_TIMEOUT_MS = 30_000;
+const UPLOAD_REQUEST_TIMEOUT_MS = 60_000;
+
+async function fetchJsonWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<{ response: Response; data: unknown }> {
+  const controller = new AbortController();
+  const callerSignal = init.signal;
+  const abortFromCaller = () => controller.abort();
+
+  if (callerSignal?.aborted) controller.abort();
+  else callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    let data: unknown = {};
+    try {
+      data = await response.json();
+    } catch (error) {
+      if (controller.signal.aborted) throw error;
+    }
+    return { response, data };
+  } catch (error) {
+    if (controller.signal.aborted && !callerSignal?.aborted) {
+      throw new Error("The request timed out. Check your connection and try again.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    callerSignal?.removeEventListener("abort", abortFromCaller);
+  }
+}
 
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
@@ -32,13 +70,11 @@ export async function apiFetch<T>(
   }
   if (cookie) headers.set("Cookie", cookie);
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers,
-    credentials: "omit",
-  });
-
-  const data = await response.json().catch(() => ({}));
+  const { response, data } = await fetchJsonWithTimeout(
+    `${API_BASE_URL}${path}`,
+    { ...init, headers, credentials: "omit" },
+    API_REQUEST_TIMEOUT_MS,
+  );
   if (!response.ok) {
     throw new Error(errorMessage(data, `Request failed (${response.status})`));
   }
@@ -54,33 +90,61 @@ export type UploadResult = {
 export async function uploadMedia(
   uri: string,
   mimeType: string,
-  fileName: string,
+  _fileName: string,
 ): Promise<UploadResult> {
-  const cookie = await authClient.getCookie();
-  const formData = new FormData();
-  formData.append(
-    "file",
-    {
-      uri,
-      type: mimeType,
-      name: fileName,
-    } as unknown as Blob,
-  );
-
-  const headers = new Headers({ Accept: "application/json" });
-  addNativeHeaders(headers);
-  if (cookie) headers.set("Cookie", cookie);
-
-  const response = await fetch(`${API_BASE_URL}/api/uploads`, {
-    method: "POST",
-    headers,
-    body: formData,
-    credentials: "omit",
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(errorMessage(data, `Upload failed (${response.status})`));
+  const file = new ExpoFile(uri);
+  const size = file.size;
+  if (!Number.isSafeInteger(size) || size <= 0) {
+    throw new Error("The selected media file could not be read.");
   }
-  return data as UploadResult;
+
+  let reservationId: string | null = null;
+  try {
+    const prepared = await apiFetch<{
+      uploadUrl: string;
+      reservationId: string;
+      pathname: string;
+      mimeType: string;
+      mediaType: "IMAGE" | "VIDEO";
+    }>("/api/uploads/client", {
+      method: "POST",
+      body: JSON.stringify({ operation: "prepare", size, mimeType }),
+    });
+    reservationId = prepared.reservationId;
+
+    const uploadController = new AbortController();
+    const uploadTimeout = setTimeout(() => uploadController.abort(), UPLOAD_REQUEST_TIMEOUT_MS);
+    let uploadResponse: Awaited<ReturnType<typeof file.upload>>;
+    try {
+      uploadResponse = await file.upload(prepared.uploadUrl, {
+        httpMethod: "PUT",
+        headers: { "Content-Type": prepared.mimeType },
+        mimeType: prepared.mimeType,
+        signal: uploadController.signal,
+      });
+    } catch (uploadError) {
+      if (uploadController.signal.aborted) {
+        throw new Error("The upload timed out. Check your connection and try again.");
+      }
+      throw uploadError;
+    } finally {
+      clearTimeout(uploadTimeout);
+    }
+    if (uploadResponse.status < 200 || uploadResponse.status >= 300) {
+      throw new Error("Storage rejected the upload. Please retry.");
+    }
+
+    return await apiFetch<UploadResult>("/api/uploads/client", {
+      method: "POST",
+      body: JSON.stringify({ operation: "finalize", reservationId }),
+    });
+  } catch (error) {
+    if (reservationId) {
+      await apiFetch("/api/uploads/client", {
+        method: "POST",
+        body: JSON.stringify({ operation: "cancel", reservationId }),
+      }).catch(() => undefined);
+    }
+    throw error instanceof Error ? error : new Error("Could not upload the file.");
+  }
 }

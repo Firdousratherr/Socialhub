@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchWithTimeout } from "@/lib/client-fetch";
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity, BarChart3, Check, Eye, FileText, Gauge, History, Search, Shield,
@@ -67,12 +69,12 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
       setLoading(true); setMessage("");
       try {
         if (active === "overview" || active === "analytics" || active === "audit") {
-          const response = await fetch("/api/admin/dashboard", { cache: "no-store" });
+          const response = await fetchWithTimeout("/api/admin/dashboard", { cache: "no-store" });
           const json = await response.json(); if (!response.ok) throw new Error(json.error ?? "Could not load admin dashboard.");
           if (!cancelled) setDashboard(json);
         }
         if (active === "users") {
-          const response = await fetch("/api/admin/users?take=50&q=" + encodeURIComponent(query) + "&trust=" + trustFilter, { cache: "no-store" });
+          const response = await fetchWithTimeout("/api/admin/users?take=50&q=" + encodeURIComponent(query) + "&trust=" + trustFilter, { cache: "no-store" });
           const json = await response.json(); if (!response.ok) throw new Error(json.error ?? "Could not load users.");
           if (!cancelled) { setUsers(json.users ?? []); setUsersBefore(json.nextBefore ?? null); }
         }
@@ -86,7 +88,7 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
     if (!usersBefore || loadingMoreUsers) return;
     setLoadingMoreUsers(true);
     try {
-      const response = await fetch("/api/admin/users?take=50&q=" + encodeURIComponent(query) + "&trust=" + trustFilter + "&before=" + encodeURIComponent(usersBefore), { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/users?take=50&q=" + encodeURIComponent(query) + "&trust=" + trustFilter + "&before=" + encodeURIComponent(usersBefore), { cache: "no-store" });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Could not load more users.");
       setUsers((items) => [...items, ...(json.users ?? [])]);
@@ -101,7 +103,7 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
   async function openUser(id: string) {
     setSelectedId(id); setMessage("");
     try {
-      const response = await fetch("/api/admin/users/" + id, { cache: "no-store" });
+      const response = await fetchWithTimeout("/api/admin/users/" + id, { cache: "no-store" });
       const json = await response.json(); if (!response.ok) throw new Error(json.error ?? "Could not load user.");
       setSelected(json.user as UserRow);
       setSelectedDetails(json);
@@ -111,7 +113,7 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
   async function saveUser(patch: Record<string, unknown>) {
     if (!selectedId) return;
     setMessage("");
-    const response = await fetch("/api/admin/users/" + selectedId, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+    const response = await fetchWithTimeout("/api/admin/users/" + selectedId, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
     const json = await response.json();
     if (!response.ok) { setMessage(json.error ?? "Could not update user."); return; }
     setSelected((current) => current ? { ...current, ...json.user } : current);
@@ -256,7 +258,7 @@ function VerificationQueue({onMessage}:{onMessage:(value:string)=>void}) {
   async function load() {
     setLoading(true);
     try {
-      const response=await fetch("/api/admin/verification-requests?status="+status,{cache:"no-store"});
+      const response=await fetchWithTimeout("/api/admin/verification-requests?status="+status,{cache:"no-store"});
       const json=await response.json();
       if(!response.ok) throw new Error(json.error??"Could not load verification requests.");
       setRequests(json.requests??[]);
@@ -272,7 +274,7 @@ function VerificationQueue({onMessage}:{onMessage:(value:string)=>void}) {
     if(nextStatus==="APPROVED" && !window.confirm("Approve this verification request and give the blue tick?")) return;
     setBusy(requestId);
     try {
-      const response=await fetch("/api/admin/verification-requests",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({requestId,status:nextStatus,note:note.trim()||undefined})});
+      const response=await fetchWithTimeout("/api/admin/verification-requests",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({requestId,status:nextStatus,note:note.trim()||undefined})});
       const json=await response.json();
       if(!response.ok) throw new Error(json.error??"Could not review verification request.");
       setRequests((items)=>items.filter((item)=>item.id!==requestId));
@@ -302,7 +304,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
     try {
       const params=new URLSearchParams({status});
       if(query.trim()) params.set("q",query.trim());
-      const response=await fetch("/api/admin/reports?"+params.toString(),{cache:"no-store"});
+      const response=await fetchWithTimeout("/api/admin/reports?"+params.toString(),{cache:"no-store"});
       const json=await response.json();
       if(!response.ok) throw new Error(json.error??"Could not load moderation queue.");
       setReports(json.reports??[]);setCounts(json.counts??{});setNextBefore(json.nextBefore??null);setCurrentAdminId(json.currentAdminId??null);
@@ -318,7 +320,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
     try {
       const params=new URLSearchParams({status,before:nextBefore});
       if(query.trim()) params.set("q",query.trim());
-      const response=await fetch("/api/admin/reports?"+params.toString(),{cache:"no-store"});
+      const response=await fetchWithTimeout("/api/admin/reports?"+params.toString(),{cache:"no-store"});
       const json=await response.json();
       if(!response.ok) throw new Error(json.error??"Could not load more reports.");
       setReports(items=>[...items,...(json.reports??[])]);setCurrentAdminId(json.currentAdminId??currentAdminId);
@@ -330,7 +332,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
   async function updateReport(id:string,next:ReportRow["status"]) {
     setBusy(id);
     try {
-      const response=await fetch("/api/admin/reports",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status:next})});
+      const response=await fetchWithTimeout("/api/admin/reports",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status:next})});
       const json=await response.json();if(!response.ok)throw new Error(json.error??"Could not update report.");
       setReports(items=>items.filter(item=>item.id!==id));
       setCounts(current=>({...current,[next.toLowerCase()]:Math.max(0,(current[next.toLowerCase()]??0)+1)}));
@@ -341,7 +343,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
   async function updateMetadata(reportId:string, patch:Record<string,unknown>) {
     setBusy(reportId);
     try {
-      const response=await fetch("/api/admin/reports",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:reportId,...patch})});
+      const response=await fetchWithTimeout("/api/admin/reports",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:reportId,...patch})});
       const json=await response.json(); if(!response.ok) throw new Error(json.error??"Could not update report.");
       setReports(items=>items.map(item=>item.id===reportId?{...item,...json.report}:item));
       onMessage("Report workflow metadata updated.");
@@ -354,7 +356,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
     if(!window.confirm("Are you sure you want to "+labels[action]+"? The action will be permanent/audited."))return;
     setBusy(report.id);
     try{
-      const response=await fetch("/api/admin/reports",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:report.id,action})});
+      const response=await fetchWithTimeout("/api/admin/reports",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:report.id,action})});
       const json=await response.json();if(!response.ok)throw new Error(json.error??"Could not apply moderation action.");
       setReports(items=>items.filter(item=>item.id!==report.id));
       onMessage("Moderation action completed and audit record created.");
@@ -405,7 +407,7 @@ function ContentManager({onMessage}:{onMessage:(value:string)=>void}) {
     if(query.trim()) params.set("q",query.trim());
     if(before) params.set("before",before);
     try {
-      const response=await fetch("/api/admin/posts?"+params.toString(),{cache:"no-store"});
+      const response=await fetchWithTimeout("/api/admin/posts?"+params.toString(),{cache:"no-store"});
       const json=await response.json();
       if(!response.ok) throw new Error(json.error??"Could not load content.");
       setPosts(current=>append?[...current,...(json.posts??[])]:json.posts??[]);
@@ -442,7 +444,7 @@ function ContentManager({onMessage}:{onMessage:(value:string)=>void}) {
           shares: metricsDraft.shares === "" ? null : Number(metricsDraft.shares),
         };
     try {
-      const response=await fetch("/api/admin/posts",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,metrics})});
+      const response=await fetchWithTimeout("/api/admin/posts",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,metrics})});
       const json=await response.json();
       if(!response.ok) throw new Error(json.error??"Could not update post metrics.");
       setPosts(items=>items.map(item=>item.id===id?{...item,postMetricOverride:json.override??undefined}:item));
@@ -454,7 +456,7 @@ function ContentManager({onMessage}:{onMessage:(value:string)=>void}) {
   }
 
   async function updateVisibility(id:string,visibility:PostRow["visibility"]){
-    const response=await fetch("/api/admin/posts",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,visibility})});
+    const response=await fetchWithTimeout("/api/admin/posts",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,visibility})});
     const json=await response.json();
     if(!response.ok){onMessage(json.error??"Could not update post.");return}
     setPosts(items=>items.map(item=>item.id===id?{...item,visibility}:item));
@@ -463,7 +465,7 @@ function ContentManager({onMessage}:{onMessage:(value:string)=>void}) {
 
   async function deletePost(id:string){
     if(!window.confirm("Delete this post and its related comments permanently?"))return;
-    const response=await fetch("/api/admin/posts",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+    const response=await fetchWithTimeout("/api/admin/posts",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
     const json=await response.json();
     if(!response.ok){onMessage(json.error??"Could not delete post.");return}
     setPosts(items=>items.filter(item=>item.id!==id));
@@ -503,7 +505,7 @@ function Audit(){
   const [loadingMore,setLoadingMore]=useState(false);
   useEffect(()=>{const timer=window.setTimeout(()=>{void (async()=>{setLoading(true);setError("");try{
     const params=new URLSearchParams(); if(query.trim()) params.set("q",query.trim()); if(action) params.set("action",action); if(targetType) params.set("targetType",targetType);
-    const response=await fetch("/api/admin/audit?"+params.toString(),{cache:"no-store"}); const json=await response.json(); if(!response.ok) throw new Error(json.error??"Could not load audit log."); setLogs(json.logs??[]); setNextBefore(json.nextBefore??null);
+    const response=await fetchWithTimeout("/api/admin/audit?"+params.toString(),{cache:"no-store"}); const json=await response.json(); if(!response.ok) throw new Error(json.error??"Could not load audit log."); setLogs(json.logs??[]); setNextBefore(json.nextBefore??null);
   }catch(e){setError(e instanceof Error?e.message:"Could not load audit log.");}finally{setLoading(false)}})()},200);return()=>window.clearTimeout(timer)},[query,action,targetType]);
   async function loadMore() {
     if (!nextBefore || loadingMore) return;
@@ -511,7 +513,7 @@ function Audit(){
     try {
       const params=new URLSearchParams({before:nextBefore});
       if(query.trim()) params.set("q",query.trim()); if(action) params.set("action",action); if(targetType) params.set("targetType",targetType);
-      const response=await fetch("/api/admin/audit?"+params.toString(),{cache:"no-store"});
+      const response=await fetchWithTimeout("/api/admin/audit?"+params.toString(),{cache:"no-store"});
       const json=await response.json(); if(!response.ok) throw new Error(json.error??"Could not load more audit entries.");
       setLogs((items)=>[...items,...(json.logs??[])]); setNextBefore(json.nextBefore??null);
     }catch(e){setError(e instanceof Error?e.message:"Could not load more audit entries.");}

@@ -40,11 +40,21 @@ export async function DELETE(request: Request) {
 
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
-    select: { id: true, userId: true, user: { select: { name: true, username: true } } },
+    select: {
+      id: true,
+      userId: true,
+      user: { select: { name: true, username: true, role: true, isOwner: true } },
+    },
   });
   if (!session) return NextResponse.json({ error: "Session not found." }, { status: 404 });
   if (session.userId === access.user.id) {
     return NextResponse.json({ error: "Use your own Security screen to manage your current account sessions." }, { status: 400 });
+  }
+  if (session.user.isOwner) {
+    return NextResponse.json({ error: "The owner account's sessions cannot be revoked by another administrator." }, { status: 403 });
+  }
+  if (session.user.role === "ADMIN" && access.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Only an administrator can revoke another administrator's session." }, { status: 403 });
   }
 
   await prisma.session.delete({ where: { id: sessionId } });

@@ -1088,3 +1088,131 @@ test("APK fallback points to the latest published release and mobile package ver
   assert.match(download, /releases\/download\/v1\.0\.8\/app-release\.apk/);
   assert.equal(pkg.version, app.expo.version);
 });
+
+
+test("mobile API requests and media uploads use bounded timeouts and release loading states on stalled requests", () => {
+  const api = read("mobile/lib/api.ts");
+  assert.match(api, /API_REQUEST_TIMEOUT_MS\s*=\s*30_000/);
+  assert.match(api, /UPLOAD_REQUEST_TIMEOUT_MS\s*=\s*60_000/);
+  assert.match(api, /fetchJsonWithTimeout/);
+  assert.match(api, /new AbortController\(\)/);
+  assert.match(api, /The request timed out/);
+});
+
+test("all admin screens use a shared bounded fetch helper and keep transport failures visible", () => {
+  const helper = read("lib/client-fetch.ts");
+  const adminScreens = [
+    ["control center", read("components/admin-control-center.tsx")],
+    ["workspace", read("components/admin-workspace.tsx")],
+    ["legacy panel", read("components/admin-panel.tsx")],
+    ["admin intelligence", read("components/admin-4-0-panel.tsx")],
+    ["application controls", read("components/admin-application-control.tsx")],
+    ["conversation inspection", read("components/admin-inspection.tsx")],
+    ["APK download settings", read("components/admin-app-download-settings.tsx")],
+  ];
+
+  assert.match(helper, /timeoutMs = 30_000/);
+  assert.match(helper, /new AbortController\(\)/);
+  assert.match(helper, /The request timed out/);
+  assert.match(helper, /Could not reach the service/);
+  assert.match(helper, /const hasNullBodyStatus = \[204, 205, 304\]\.includes\(response\.status\)/);
+  assert.match(helper, /hasNullBodyStatus \? null : body/);
+
+  for (const [name, source] of adminScreens) {
+    assert.match(source, /fetchWithTimeout\(/, name + " should use the bounded fetch helper");
+    assert.equal((source.match(/\bfetch\(/g) ?? []).length, 0, name + " should not call raw fetch directly");
+  }
+});
+
+
+test("Better Auth trusts Socialhub domains and the current deployment rather than every Vercel tenant", () => {
+  const auth = read("lib/auth.ts");
+  assert.match(auth, /normalizeDeploymentHost\(process\.env\.VERCEL_URL\)/);
+  assert.match(auth, /normalizeDeploymentHost\(process\.env\.VERCEL_BRANCH_URL\)/);
+  assert.match(auth, /socialhublive\.vercel\.app/);
+  assert.match(auth, /trustedOrigins:\s*\[\s*\.\.\.SOCIALHUB_DEPLOYMENT_HOSTS\.map/);
+  assert.doesNotMatch(auth, /["']https:\/\/\*\.vercel\.app["']/);
+  assert.doesNotMatch(auth, /["']\*\.vercel\.app["']/);
+});
+
+
+test("admin session revocation protects the owner and prevents moderators from revoking admin sessions", () => {
+  const securityRoute = read("app/api/admin/security/sessions/route.ts");
+  const controlCenterRoute = read("app/api/admin/control-center/route.ts");
+  for (const route of [securityRoute, controlCenterRoute]) {
+    assert.match(route, /session\.user\.isOwner|target\.user\.isOwner/);
+    assert.match(route, /Only an administrator can revoke another administrator's session/);
+    assert.match(route, /Use your own Security screen to manage your current account sessions/);
+  }
+});
+
+
+test("bulk administration prevents moderators from mutating privileged accounts or changing verification", () => {
+  const route = read("app/api/admin/bulk/route.ts");
+  assert.match(route, /Only administrators can change verification status through bulk actions/);
+  assert.match(route, /userIds\.includes\(access\.user\.id\).*REVOKE_SESSIONS/s);
+  assert.match(route, /select: \{ id: true, role: true, isOwner: true \}/);
+  assert.match(route, /access\.user\.role !== "ADMIN" && user\.role !== "USER"/);
+  assert.match(route, /skippedPrivilegedIds/);
+});
+
+
+test("admin upload limits are bounded, persisted, audited, and enforced by the upload API", () => {
+  const limits = read("lib/upload-limits.ts");
+  const adminApi = read("app/api/admin/application-control/route.ts");
+  const adminUi = read("components/admin-application-control.tsx");
+  const uploadApi = read("app/api/uploads/route.ts");
+
+  assert.match(limits, /uploads\.maxImageBytes/);
+  assert.match(limits, /uploads\.maxVideoBytes/);
+  assert.match(limits, /uploads\.maxDailyBytes/);
+  assert.match(limits, /maxImageBytes: \{ min: 512 \* 1024, max: 4 \* MiB \}/);
+  assert.match(limits, /maxVideoBytes: \{ min: 1 \* MiB, max: 20 \* MiB \}/);
+  assert.match(adminApi, /kind: z\.literal\("upload-limits"\)/);
+  assert.match(adminApi, /UPDATE_UPLOAD_LIMITS/);
+  assert.match(adminApi, /tx\.adminSettingChange\.create/);
+  assert.match(adminApi, /maxImageBytes: Boolean\(byKey\.get\(UPLOAD_LIMIT_SETTING_KEYS\.maxImageBytes\)\)/);
+  assert.match(adminApi, /maxVideoBytes: Boolean\(byKey\.get\(UPLOAD_LIMIT_SETTING_KEYS\.maxVideoBytes\)\)/);
+  assert.match(adminApi, /maxDailyBytes: Boolean\(byKey\.get\(UPLOAD_LIMIT_SETTING_KEYS\.maxDailyBytes\)\)/);
+  assert.match(adminUi, /Media upload limits/);
+  assert.match(adminUi, /Save upload limits/);
+  assert.match(uploadApi, /parseUploadLimits/);
+  assert.match(uploadApi, /uploadLimits\.maxImageBytes/);
+  assert.match(uploadApi, /uploadLimits\.maxVideoBytes/);
+  assert.match(uploadApi, /uploadLimits\.maxDailyBytes/);
+  assert.match(uploadApi, /FOR UPDATE/);
+  assert.match(uploadApi, /const reservation = await prisma\.\$transaction/);
+  assert.match(uploadApi, /url: null/);
+  assert.match(uploadApi, /deleteMany\(\{ where: \{ id: reservation\.id \} \}\)\.catch\(\(\) => \{\}\)/);
+});
+
+
+test("web and Android media uploads bypass the Vercel Function body limit with owner-bound signed URLs", () => {
+  const route = read("app/api/uploads/client/route.ts");
+  const webHelper = read("lib/direct-media-upload.ts");
+  const webScreens = read("components/social-pages.tsx");
+  const homeFeed = read("components/home-feed.tsx");
+  const mobileApi = read("mobile/lib/api.ts");
+  const mobilePackage = JSON.parse(read("mobile/package.json"));
+
+  assert.match(route, /issueSignedToken/);
+  assert.match(route, /presignUrl/);
+  assert.match(route, /operations: \["put"\]/);
+  assert.match(route, /maximumSizeInBytes: size/);
+  assert.match(route, /allowedContentTypes: \[mimeType\]/);
+  assert.match(route, /FOR UPDATE/);
+  assert.match(route, /blobSignatureMatches/);
+  assert.match(route, /operation: z\.literal\("prepare"\)/);
+  assert.match(route, /operation: z\.literal\("finalize"\)/);
+  assert.match(route, /operation: z\.literal\("cancel"\)/);
+  assert.match(route, /tx\.mediaAsset\.create/);
+  assert.match(webHelper, /fetch\(prepared\.uploadUrl,\s*\{\s*method: "PUT"/);
+  assert.match(webHelper, /operation: "finalize"/);
+  assert.match(webScreens, /uploadMediaFile\(file\)/);
+  assert.match(homeFeed, /uploadMediaFile\(file\)/);
+  assert.doesNotMatch(homeFeed, /fetch\("\/api\/uploads"/);
+  assert.match(mobileApi, /new ExpoFile\(uri\)/);
+  assert.match(mobileApi, /file\.upload\(prepared\.uploadUrl/);
+  assert.match(mobileApi, /operation: "finalize"/);
+  assert.equal(mobilePackage.dependencies["expo-file-system"], "~57.0.7");
+});
