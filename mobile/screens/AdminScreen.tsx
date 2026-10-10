@@ -128,9 +128,9 @@ export default function AdminScreen({ onMenu }: { onMenu: () => void }) {
       <AppHeader title="Owner console" subtitle="Owner-only audited platform operations." onMenu={onMenu} action="↻" onAction={() => void load(true)} />
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor=colors.accent />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.accent} />}
       >
-        {loading ? <ActivityIndicator color=colors.accent /> : null}
+        {loading ? <ActivityIndicator color={colors.accent} /> : null}
         <View style={styles.notice}>
           <Text style={styles.noticeTitle}>Owner/admin controls only</Text>
           <Text style={styles.noticeBody}>
