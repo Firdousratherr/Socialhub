@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Home, Search } from "lucide-react";
 
 export default function NotFound() {
+  const router = useRouter();
   return (
     <main className="min-h-screen bg-[#f7f6ff] px-4 py-10 sm:px-6">
       <div className="mx-auto flex min-h-[80vh] max-w-2xl items-center justify-center">
@@ -21,19 +23,6 @@ export default function NotFound() {
                 if (window.history.length > 1 && document.referrer.startsWith(window.location.origin)) {
                   window.history.back();
                 } else {
-                  window.location.assign("/home");
+                  router.push("/home");
                 }
-              }}
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50"
-            >
-              <ArrowLeft size={16} /> Back
-            </button>
-            <Link href="/home" className="inline-flex h-11 items-center gap-2 rounded-xl bg-gray-950 px-4 text-xs font-black text-white">
-              <Home size={16} /> Home
-            </Link>
-          </div>
-        </section>
-      </div>
-    </main>
-  );
-}
+              }}¶»§q«^
