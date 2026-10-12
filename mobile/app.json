@@ -2,13 +2,13 @@
   "expo": {
     "name": "SocialHub",
     "slug": "socialhub",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "scheme": "socialhub",
     "userInterfaceStyle": "automatic",
     "android": {
       "package": "com.socialhub.app",
-      "versionCode": 11,
+      "versionCode": 12,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#F6F7FB"

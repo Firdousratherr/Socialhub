@@ -1,5 +1,7 @@
 "use client";
 
+
+import NextImage from "next/image";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Bookmark, Check, ChevronDown, Globe2, Heart, Image as ImageIcon, Lock, MessageCircle, Moon, Share2, Smile, Sun, UserPlus, Users, X } from "lucide-react";
@@ -87,7 +89,7 @@ export function PostComposer({ userId, name, image, value, visibility, mediaPrev
       <div className="min-w-0 flex-1">
         <textarea ref={textareaRef} value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled || uploading || publishing} rows={1} maxLength={5000} className="social-composer-input w-full resize-none" placeholder={disabled ? "Sign in to share a post…" : "What’s on your mind?"} aria-label="Create a post" />
         {mediaPreview ? <div className="relative mt-3 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)]">
-          <img src={mediaPreview} alt="Selected media preview" className="max-h-80 w-full object-cover" />
+          <NextImage unoptimized src={mediaPreview} alt="Selected media preview" className="max-h-80 w-full object-cover"  width={600} height={600}/>
           {uploading ? <div className="absolute inset-0 grid place-items-center bg-black/25 text-white"><span className="animate-pulse text-xs font-black">Uploading…</span></div> : null}
           <button type="button" onClick={onRemoveMedia} className="social-icon-button absolute right-2 top-2 bg-black/60 text-white hover:bg-black/75" aria-label="Remove selected media"><X size={15} aria-hidden="true" /></button>
         </div> : null}
@@ -195,8 +197,8 @@ export function ThemeToggle({ variant = "menu" }: { variant?: "menu" | "setting"
       type="button"
       onClick={toggle}
       className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-black text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
-      role="menuitem"
-      aria-pressed={theme === "dark"}
+      role="menuitemcheckbox"
+      aria-checked={theme === "dark"}
     >
       {theme === "dark" ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
       {theme === "dark" ? "Light mode" : "Dark mode"}

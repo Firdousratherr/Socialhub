@@ -1,5 +1,7 @@
 "use client";
 
+
+import NextImage from "next/image";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -106,11 +108,11 @@ function Avatar({
     .toUpperCase();
 
   return image ? (
-    <img
+    <NextImage unoptimized
       src={image}
       alt={name}
       className={large ? "size-12 rounded-full object-cover shadow-sm" : "size-9 rounded-full object-cover shadow-sm"}
-    />
+     width={600} height={600}/>
   ) : (
     <div
       className={[
@@ -190,7 +192,7 @@ function CommentThread({
   const [editingCommentText, setEditingCommentText] = useState("");
   const [savingComment, setSavingComment] = useState(false);
 
-  async function loadComments(before?: string, live = false) {
+  const loadComments = useCallback(async (before?: string, live = false) => {
     const query = before ? `?before=${encodeURIComponent(before)}` : "";
     const response = await fetch(`/api/posts/${postId}/comments${query}`, { cache: "no-store" });
     const json = await response.json();
@@ -209,7 +211,7 @@ function CommentThread({
     }
     if (typeof json.commentCount === "number") onCountChange(json.commentCount);
     setNextBefore(json.nextBefore ?? null);
-  }
+  }, [onCountChange, postId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -221,10 +223,10 @@ function CommentThread({
       } finally {
         if (!cancelled) setLoading(false);
       }
-    }
+    };
     void load();
     return () => { cancelled = true; };
-  }, [postId]);
+  }, [postId, loadComments]);
 
   useLivePoll(
     () => loadComments(undefined, true).catch((loadError) => {
@@ -712,7 +714,7 @@ function PostCard({
         )}
 
         {post.mediaUrl ? (
-          <img src={post.mediaUrl} alt={"Photo shared by " + post.name} className="mt-4 aspect-[4/3] max-h-[520px] w-full rounded-2xl object-cover" />
+          <NextImage unoptimized src={post.mediaUrl} alt={"Photo shared by " + post.name} className="mt-4 aspect-[4/3] max-h-[520px] w-full rounded-2xl object-cover"  width={600} height={600}/>
         ) : null}
 
         {error ? (
@@ -831,7 +833,7 @@ export default function HomeFeed() {
     return () => window.clearTimeout(timer);
   }, [session?.user?.id, newPost]);
 
-  async function fetchFeed(before?: string | null, append = false) {
+  const fetchFeed = useCallback(async (before?: string | null, append = false) => {
     const query = new URLSearchParams({ take: "20", mode: feedMode });
     if (before) query.set("before", before);
     const feedUrl = feedMode === "FOR_YOU"
@@ -844,7 +846,7 @@ export default function HomeFeed() {
 
     setNextBefore(json.nextBefore ?? null);
     setFeedPosts((current) => (append ? [...current, ...mapped] : mapped));
-  }
+  }, [feedMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -882,14 +884,14 @@ export default function HomeFeed() {
       } finally {
         if (!cancelled) setLoadingFeed(false);
       }
-    }
+    };
     void load();
     return () => {
       cancelled = true;
     };
   }, [session?.user?.id, feedMode]);
 
-  async function refreshLiveFeed() {
+  const refreshLiveFeed = useCallback(async () => {
     const query = new URLSearchParams({ take: "20", mode: feedMode });
     try {
       const response = await fetch(
@@ -928,9 +930,9 @@ export default function HomeFeed() {
     } catch (loadError) {
       setFeedError(loadError instanceof Error ? loadError.message : "Could not refresh your feed.");
     }
-  }
+  }, [feedMode, pendingLivePosts]);
 
-  async function refreshSuggestedUsers() {
+  const refreshSuggestedUsers = useCallback(async () => {
     if (!session?.user?.id) return;
     try {
       const response = await fetch("/api/users?suggestions=true&take=3", { cache: "no-store" });
@@ -939,7 +941,7 @@ export default function HomeFeed() {
     } catch {
       // Suggestions are secondary content; keep the existing list on transient failures.
     }
-  }
+  }, [session?.user?.id]);
 
   async function followSuggestedUser(userId: string) {
     const target = suggestedUsers.find((user) => user.id === userId);
@@ -1000,7 +1002,7 @@ export default function HomeFeed() {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pageshow", onPageShow);
     };
-  }, [feedMode]);
+  }, [feedMode, fetchFeed, refreshLiveFeed, refreshSuggestedUsers]);
 
   async function uploadPhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];

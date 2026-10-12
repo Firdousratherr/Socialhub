@@ -1,7 +1,9 @@
 "use client";
 
+
+import NextImage from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Bookmark, Heart, MessageCircle, Share2, Trash2 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { compactCount, fullCount } from "@/lib/compact-count";
@@ -26,7 +28,7 @@ export default function SavedPosts() {
   const [error, setError] = useState("");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
-  async function load(cursor?: string | null) {
+  const load = useCallback(async (cursor?: string | null) => {
     if (!session?.user) { setLoading(false); return; }
     setLoading(true);
     try {
@@ -39,9 +41,9 @@ export default function SavedPosts() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load saved posts.");
     } finally { setLoading(false); }
-  }
+  }, [session?.user]);
 
-  useEffect(() => { void load(); }, [session?.user?.id]);
+  useEffect(() => { void load(); }, [session?.user?.id, load]);
 
   async function remove(postId: string) {
     const response = await fetch("/api/saved", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId }) });
@@ -61,10 +63,10 @@ export default function SavedPosts() {
       <div className="mt-5 space-y-4">
         {loading && !posts.length ? [1,2,3].map((i)=><div key={i} className="h-40 animate-pulse rounded-3xl bg-white"/>)
         : posts.length ? posts.map((post)=><article key={post.id} className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-          <div className="p-4"><div className="flex items-center gap-3"><Link href={"/profile/"+encodeURIComponent(post.author.username ?? post.author.id)} className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{post.author.image ? <img src={post.author.image} alt="" className="size-full object-cover"/> : post.author.name.slice(0,1).toUpperCase()}</Link><div className="min-w-0 flex-1"><Link href={"/profile/"+encodeURIComponent(post.author.username ?? post.author.id)} className="block truncate text-xs font-black">{post.author.name}</Link><p className="text-xs text-gray-500">@{post.author.username ?? "member"} · {formatSocialDate(post.createdAt)}</p></div><button type="button" onClick={()=>void remove(post.id)} className="grid size-9 place-items-center rounded-xl bg-gray-50 text-gray-500 hover:bg-red-50 hover:text-red-600" title="Remove from saved"><Trash2 size={15}/></button></div>
+          <div className="p-4"><div className="flex items-center gap-3"><Link href={"/profile/"+encodeURIComponent(post.author.username ?? post.author.id)} className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[#eeebff] text-xs font-black text-[#5a4be8]">{post.author.image ? <NextImage unoptimized src={post.author.image} alt="" className="size-full object-cover" width={600} height={600}/> : post.author.name.slice(0,1).toUpperCase()}</Link><div className="min-w-0 flex-1"><Link href={"/profile/"+encodeURIComponent(post.author.username ?? post.author.id)} className="block truncate text-xs font-black">{post.author.name}</Link><p className="text-xs text-gray-500">@{post.author.username ?? "member"} · {formatSocialDate(post.createdAt)}</p></div><button type="button" onClick={()=>void remove(post.id)} className="grid size-9 place-items-center rounded-xl bg-gray-50 text-gray-500 hover:bg-red-50 hover:text-red-600" title="Remove from saved"><Trash2 size={15}/></button></div>
             {post.content ? <PostContent content={post.content} className="mt-4 whitespace-pre-wrap text-sm leading-6 text-gray-700"/> : null}
           </div>
-          {post.mediaUrl ? <img src={post.mediaUrl} alt="" className="max-h-[520px] w-full object-cover"/> : null}
+          {post.mediaUrl ? <NextImage unoptimized src={post.mediaUrl} alt="" className="max-h-[520px] w-full object-cover" width={600} height={600}/> : null}
           <div className="flex items-center gap-4 border-t border-gray-100 px-4 py-3 text-xs font-black text-gray-500"><span title={fullCount(post.displayCounts.likes)+" likes"} className="inline-flex items-center gap-1"><Heart size={14}/>{compactCount(post.displayCounts.likes)}</span><span title={fullCount(post.displayCounts.comments)+" comments"} className="inline-flex items-center gap-1"><MessageCircle size={14}/>{compactCount(post.displayCounts.comments)}</span><span title={fullCount(post.displayCounts.shares)+" shares"} className="inline-flex items-center gap-1"><Share2 size={14}/>{compactCount(post.displayCounts.shares)}</span></div>
         </article>)
         : <div className="rounded-3xl border border-dashed border-gray-200 bg-white p-12 text-center"><Bookmark className="mx-auto text-gray-300" size={26}/><p className="mt-3 text-sm font-black">Nothing saved yet</p><p className="mt-1 text-xs text-gray-500">Tap Save on a post and it will appear here.</p></div>}

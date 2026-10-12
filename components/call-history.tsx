@@ -1,5 +1,7 @@
 "use client";
 
+
+import NextImage from "next/image";
 import { useEffect, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, Phone, Video } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
@@ -56,7 +58,7 @@ export default function CallHistory() {
                 return (
                   <div key={call.id} className="flex items-center gap-3 p-4 sm:p-5">
                     {call.peer?.image ? (
-                      <img src={call.peer.image} alt="" className="size-11 rounded-full object-cover" />
+                      <NextImage unoptimized src={call.peer.image} alt="" className="size-11 rounded-full object-cover"  width={600} height={600}/>
                     ) : (
                       <div className="grid size-11 place-items-center rounded-full bg-[#eeebff] text-sm font-black text-[#5a4be8]">{call.peer?.name?.slice(0, 1).toUpperCase() ?? "S"}</div>
                     )}

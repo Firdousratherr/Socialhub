@@ -13,7 +13,7 @@ async function getSession() {
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ conversationId: string }> },
 ) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
@@ -21,7 +21,7 @@ export async function POST(
   const messagingEnabled = await platformEnabled("messaging", true);
   if (!messagingEnabled) return NextResponse.json({ error: "Messaging and calls are temporarily disabled by the platform administrator." }, { status: 503 });
 
-  const { id: conversationId } = await params;
+  const { conversationId } = await params;
   const rl = await consumeRateLimit(rateLimitKey("call-start", request, session.user.id), 12, 60);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfter);
 

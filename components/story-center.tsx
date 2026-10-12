@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+
+import NextImage from "next/image";
+import { useEffect, useMemo, useRef, useState, type TouchEvent, useCallback } from "react";
 import {
   Camera,
   ChevronLeft,
@@ -153,9 +155,12 @@ export function StoryCenter({
   const ownGroup = currentUserId
     ? groups.find((group) => group.author.id === currentUserId)
     : undefined;
-  const displayGroups = ownGroup
-    ? [ownGroup, ...groups.filter((group) => group.author.id !== currentUserId)]
-    : groups;
+  const displayGroups = useMemo(
+    () => ownGroup
+      ? [ownGroup, ...groups.filter((group) => group.author.id !== currentUserId)]
+      : groups,
+    [currentUserId, groups, ownGroup],
+  );
 
   const activeGroup = viewer ? displayGroups.find((group) => group.author.id === viewer.authorId) : null;
   const active = activeGroup?.stories[viewer?.index ?? 0] ?? null;
@@ -167,17 +172,17 @@ export function StoryCenter({
       (viewer.index < activeGroup.stories.length - 1 || activeGroupIndex < displayGroups.length - 1),
   );
 
-  function updateStory(storyId: string, patch: Partial<Story>) {
+  const updateStory = useCallback((storyId: string, patch: Partial<Story>) => {
     onStoriesChange(stories.map((item) => item.id === storyId ? { ...item, ...patch } : item));
-  }
+  }, [onStoriesChange, stories]);
 
-  function openStoryById(storyId: string) {
+  const openStoryById = useCallback((storyId: string) => {
     const group = displayGroups.find((item) => item.stories.some((story) => story.id === storyId));
     if (!group) return;
     const index = group.stories.findIndex((story) => story.id === storyId);
     setShowViewers(false);
     setViewer({ authorId: group.author.id, index: Math.max(0, index) });
-  }
+  }, [displayGroups]);
 
   function openStoryGroup(group: { author: Story["author"]; stories: Story[] }) {
     const firstUnviewed = group.stories.findIndex((story) => !story.hasViewed);
@@ -194,7 +199,7 @@ export function StoryCenter({
     if (!target) return;
     openStoryById(initialStoryId);
     onInitialStoryHandled?.();
-  }, [initialStoryId, stories.length]);
+  }, [initialStoryId, stories.length, onInitialStoryHandled, openStoryById, stories]);
 
   useEffect(() => {
     if (!active?.id || !session?.user) {
@@ -238,7 +243,7 @@ export function StoryCenter({
     return () => {
       cancelled = true;
     };
-  }, [active?.id, active?.viewCount, active?.replyCount, active?.reactionCount, session?.user?.id]);
+  }, [active?.id, active?.viewCount, active?.replyCount, active?.reactionCount, session?.user?.id, session?.user]);
 
   useEffect(() => {
     if (!active?.id || !session?.user || active.hasViewed) return;
@@ -253,7 +258,7 @@ export function StoryCenter({
       .catch((requestError) => {
         setError(requestError instanceof Error ? requestError.message : "Could not record story view.");
       });
-  }, [active?.id, active?.hasViewed, session?.user?.id]);
+  }, [active?.id, active?.hasViewed, session?.user?.id, session?.user, storyViewCount, updateStory]);
 
   useEffect(() => {
     setReplyText("");
@@ -420,7 +425,7 @@ export function StoryCenter({
     }
   }
 
-  function moveStory(direction: -1 | 1) {
+  const moveStory = useCallback((direction: -1 | 1) => {
     if (!viewer || !activeGroup) return;
     if (direction < 0 && viewer.index > 0) {
       setViewer({ authorId: activeGroup.author.id, index: viewer.index - 1 });
@@ -443,7 +448,7 @@ export function StoryCenter({
         ? Math.max(0, nextGroup.stories.findIndex((story) => !story.hasViewed))
         : nextGroup.stories.length - 1,
     });
-  }
+  }, [activeGroup, activeGroupIndex, displayGroups, viewer]);
 
   const totalReactions = storyReactionCount;
   const latestReplies = storyReplies.slice(-3);
@@ -453,7 +458,7 @@ export function StoryCenter({
     if (!viewer || !active?.id || active.mediaType === "VIDEO") return;
     const timer = window.setTimeout(() => moveStory(1), STORY_IMAGE_DURATION_MS);
     return () => window.clearTimeout(timer);
-  }, [viewer?.authorId, viewer?.index, active?.id, active?.mediaType]);
+  }, [viewer?.authorId, viewer?.index, active?.id, active?.mediaType, moveStory, viewer]);
 
   useEffect(() => {
     if (!viewer) return;
@@ -473,7 +478,7 @@ export function StoryCenter({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [viewer, canGoPrevious, canGoNext]);
+  }, [viewer, canGoPrevious, canGoNext, moveStory]);
 
   return (
     <>
@@ -518,7 +523,7 @@ export function StoryCenter({
               >
                 <span className="grid size-full place-items-center overflow-hidden rounded-full bg-[var(--surface)] p-[2px]">
                   {ownGroup?.author.image ? (
-                    <img src={ownGroup.author.image} alt="" className="size-full rounded-full object-cover" />
+                    <NextImage unoptimized src={ownGroup.author.image} alt="" className="size-full rounded-full object-cover"  width={600} height={600}/>
                   ) : (
                     <span className="grid size-full place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-sm font-black text-white">
                       {session.user.name ? initials(session.user.name) : "SH"}
@@ -554,7 +559,7 @@ export function StoryCenter({
                   >
                     <span className="grid size-full place-items-center overflow-hidden rounded-full bg-[var(--surface)] p-[2px]">
                       {group.author.image ? (
-                        <img src={group.author.image} alt="" className="size-full rounded-full object-cover" />
+                        <NextImage unoptimized src={group.author.image} alt="" className="size-full rounded-full object-cover"  width={600} height={600}/>
                       ) : (
                         <span className="grid size-full place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-sm font-black text-white">
                           {initials(group.author.name)}
@@ -612,7 +617,7 @@ export function StoryCenter({
                     {previewMediaType === "VIDEO" ? (
                       <video src={preview} className="size-full object-contain" controls muted playsInline preload="metadata" />
                     ) : (
-                      <img src={preview} alt="Story preview" className="size-full object-contain"/>
+                      <NextImage unoptimized src={preview} alt="Story preview" className="size-full object-contain" width={600} height={600}/>
                     )}
                   </div>
                   <button type="button" onClick={() => { setPreview(null); setPreviewMediaType("IMAGE"); }} className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-black/60 text-white"><X size={16}/></button>
@@ -657,7 +662,7 @@ export function StoryCenter({
               </div>
 
               <div className="absolute inset-x-4 top-7 z-20 flex items-center gap-3">
-                {active.author.image ? <img src={active.author.image} alt="" className="size-9 rounded-full border border-white/30 object-cover"/> : <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-[11px] font-black text-white">{initials(active.author.name)}</span>}
+                {active.author.image ? <NextImage unoptimized src={active.author.image} alt="" className="size-9 rounded-full border border-white/30 object-cover" width={600} height={600}/> : <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-[11px] font-black text-white">{initials(active.author.name)}</span>}
                 <div className="min-w-0 flex-1 text-white">
                   <p className="flex items-center gap-1 truncate text-sm font-black">{active.author.name}<AccountBadge verified={active.author.isVerified} owner={active.author.isOwner}/></p>
                   <p className="mt-0.5 flex items-center gap-1.5 text-[10px] text-white/65"><Clock3 size={11}/> {timeRemaining(active.expiresAt)} · {active.createdAt ? formatSocialDate(active.createdAt) : ""}</p>
@@ -684,7 +689,7 @@ export function StoryCenter({
                     aria-label={active.caption ?? "Story video"}
                   />
                 ) : (
-                  <img src={active.mediaUrl} alt={active.caption ?? "Story image"} className="size-full object-contain" />
+                  <NextImage unoptimized src={active.mediaUrl} alt={active.caption ?? "Story image"} className="size-full object-contain"  width={600} height={600}/>
                 )}
 
                 <button
@@ -866,7 +871,7 @@ export function StoryCenter({
                     <div className="mt-2 space-y-1">
                       {storyViewers.length ? storyViewers.map((view) => (
                         <div key={view.id} className="flex items-center gap-3 rounded-2xl px-2.5 py-2 hover:bg-white/5">
-                          {view.viewer.image ? <img src={view.viewer.image} alt="" className="size-9 rounded-full object-cover"/> : <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-[10px] font-black">{initials(view.viewer.name)}</span>}
+                          {view.viewer.image ? <NextImage unoptimized src={view.viewer.image} alt="" className="size-9 rounded-full object-cover" width={600} height={600}/> : <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-[10px] font-black">{initials(view.viewer.name)}</span>}
                           <div className="min-w-0 flex-1">
                             <p className="flex items-center gap-1 text-xs font-black">{view.viewer.name}<AccountBadge verified={view.viewer.isVerified} owner={view.viewer.isOwner}/></p>
                             <p className="mt-0.5 truncate text-[9px] text-white/45">@{view.viewer.username ?? "member"} · {formatSocialDateTime(view.viewedAt)}</p>

@@ -2,7 +2,7 @@
 
 import { fetchWithTimeout } from "@/lib/client-fetch";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Activity,
   ArrowLeft,
@@ -791,7 +791,7 @@ function PeopleWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
   const [bulkAction, setBulkAction] = useState<"ENABLE" | "DISABLE" | "VERIFY" | "UNVERIFY" | "REVOKE_SESSIONS">("DISABLE");
   const [bulkPreview, setBulkPreview] = useState<{ action: string; requestedCount: number; count: number; skippedOwnerCount: number; missingCount: number } | null>(null);
 
-  async function loadUsers(reset = true) {
+  const loadUsers = useCallback(async (reset = true) => {
     setLoading(true);
     try {
       const url =
@@ -810,12 +810,12 @@ function PeopleWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [before, onNotice, query, trust, users]);
 
   useEffect(() => {
     setSelected([]);
     void loadUsers(true);
-  }, [query, trust]);
+  }, [query, trust, loadUsers]);
 
   async function openUser(id: string) {
     setBusy(true);
@@ -1446,7 +1446,7 @@ function ReportsPanel({ onNotice }: { onNotice: (value: string) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const url = "/api/admin/reports?take=100" + (status ? "&status=" + status : "") + (query ? "&q=" + encodeURIComponent(query) : "");
@@ -1462,11 +1462,11 @@ function ReportsPanel({ onNotice }: { onNotice: (value: string) => void }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [onNotice, query, status]);
 
   useEffect(() => {
     void load();
-  }, [status, query]);
+  }, [status, query, load]);
 
   async function updateReport(id: string, patch: Record<string, unknown>) {
     setBusy(id);
@@ -1632,7 +1632,7 @@ function VerificationPanel({ onNotice }: { onNotice: (value: string) => void }) 
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetchWithTimeout("/api/admin/verification-requests?status=" + status + "&take=100", { cache: "no-store" });
@@ -1644,11 +1644,11 @@ function VerificationPanel({ onNotice }: { onNotice: (value: string) => void }) 
     } finally {
       setLoading(false);
     }
-  }
+  }, [onNotice, status]);
 
   useEffect(() => {
     void load();
-  }, [status]);
+  }, [status, load]);
 
   async function review(requestId: string, action: "APPROVED" | "REJECTED", note?: string) {
     try {
@@ -1780,7 +1780,7 @@ function PostsPanel({ onNotice }: { onNotice: (value: string) => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ likes: "", comments: "", shares: "" });
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetchWithTimeout("/api/admin/posts?take=100&q=" + encodeURIComponent(query), { cache: "no-store" });
@@ -1792,11 +1792,11 @@ function PostsPanel({ onNotice }: { onNotice: (value: string) => void }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [onNotice, query]);
 
   useEffect(() => {
     void load();
-  }, [query]);
+  }, [query, load]);
 
   function beginMetrics(post: any) {
     const override = post.postMetricOverride;
@@ -1946,7 +1946,7 @@ function CommentsPanel({ onNotice }: { onNotice: (value: string) => void }) {
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetchWithTimeout("/api/admin/comments?q=" + encodeURIComponent(query), { cache: "no-store" });
@@ -1958,11 +1958,11 @@ function CommentsPanel({ onNotice }: { onNotice: (value: string) => void }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [onNotice, query]);
 
   useEffect(() => {
     void load();
-  }, [query]);
+  }, [query, load]);
 
   async function remove(id: string) {
     try {
@@ -2008,7 +2008,7 @@ function StoriesPanel({ onNotice }: { onNotice: (value: string) => void }) {
   const [stories, setStories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetchWithTimeout("/api/admin/stories?q=" + encodeURIComponent(query), { cache: "no-store" });
@@ -2020,11 +2020,11 @@ function StoriesPanel({ onNotice }: { onNotice: (value: string) => void }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [onNotice, query]);
 
   useEffect(() => {
     void load();
-  }, [query]);
+  }, [query, load]);
 
   async function remove(storyId: string) {
     try {
@@ -2096,7 +2096,7 @@ function ConversationsPanel({ onNotice }: { onNotice: (value: string) => void })
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetchWithTimeout("/api/admin/messages?q=" + encodeURIComponent(query), { cache: "no-store" });
@@ -2108,11 +2108,11 @@ function ConversationsPanel({ onNotice }: { onNotice: (value: string) => void })
     } finally {
       setLoading(false);
     }
-  }
+  }, [onNotice, query]);
 
   useEffect(() => {
     void load();
-  }, [query]);
+  }, [query, load]);
 
   async function openConversation(id: string) {
     setLoading(true);
@@ -2281,7 +2281,7 @@ function InsightsWorkspace({ dashboard, onRefresh }: { dashboard: any; onRefresh
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetchWithTimeout("/api/admin/analytics", { cache: "no-store" });
@@ -2293,11 +2293,11 @@ function InsightsWorkspace({ dashboard, onRefresh }: { dashboard: any; onRefresh
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const series = analytics?.series ?? {};
   const totals = Object.fromEntries(
@@ -2388,7 +2388,7 @@ function AuditWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
   const [before, setBefore] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function load(nextBefore?: string | null) {
+  const load = useCallback(async (nextBefore?: string | null) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ take: "60" });
@@ -2407,11 +2407,11 @@ function AuditWorkspace({ onNotice }: { onNotice: (value: string) => void }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [action, logs, onNotice, query, targetType]);
 
   useEffect(() => {
     void load(null);
-  }, [query, targetType, action]);
+  }, [query, targetType, action, load]);
 
   function exportCsv() {
     const params = new URLSearchParams({ format: "csv", take: "1000" });

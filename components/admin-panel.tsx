@@ -1,8 +1,10 @@
 "use client";
 
+
+import NextImage from "next/image";
 import { fetchWithTimeout } from "@/lib/client-fetch";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Activity, BarChart3, Check, Eye, FileText, Gauge, History, Search, Shield,
   ShieldCheck, Trash2, UserRound, Users, X,
@@ -80,7 +82,7 @@ export function AdminPanel({ section = "overview" }: { section?: string }) {
         }
       } catch (error) { if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not load admin data."); }
       finally { if (!cancelled) setLoading(false); }
-    }
+    };
     void load(); return () => { cancelled = true; };
   }, [active, query, trustFilter]);
 
@@ -207,19 +209,19 @@ function UserEditor({ user, details, onBack, onSaveUser }: { user: UserRow; deta
 }
 function MetricControlCard({details,saving,onSave}:{details:any;saving:boolean;onSave:(metrics:Record<string,number|null>)=>void}) {
   const actual=details?.actualMetrics ?? {};
-  const override=details?.override ?? {};
+  const override=useMemo(() => details?.override ?? {}, [details?.override]);
   const canEditMetrics=details?.canEditMetrics !== false;
-  const fields=[
+  const fields=useMemo(() => [
     ["posts","Posts"],["followers","Followers"],["following","Following"],
     ["likesReceived","Likes received"],["commentsReceived","Comments received"],
     ["shares","Shares"],["profileViews","Profile views"],
-  ] as const;
+  ] as const, []);
   const [draft,setDraft]=useState<Record<string,string>>({});
   useEffect(()=>{
     const next:Record<string,string>={};
     for(const [key] of fields) next[key]=override[key] == null ? "" : String(override[key]);
     setDraft(next);
-  },[details?.override?.id, details?.override?.updatedAt]);
+  },[details?.override?.id, details?.override?.updatedAt, fields, override]);
   function update(key:string,value:string){setDraft(current=>({...current,[key]:value.replace(/[^0-9]/g,"").slice(0,10)}))}
   function save(){
     const metrics:Record<string,number|null>={};
@@ -255,7 +257,7 @@ function VerificationQueue({onMessage}:{onMessage:(value:string)=>void}) {
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const response=await fetchWithTimeout("/api/admin/verification-requests?status="+status,{cache:"no-store"});
@@ -264,9 +266,9 @@ function VerificationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       setRequests(json.requests??[]);
     } catch(error) { onMessage(error instanceof Error?error.message:"Could not load verification requests."); }
     finally { setLoading(false); }
-  }
+  }, [onMessage, status]);
 
-  useEffect(()=>{void load()},[status]);
+  useEffect(()=>{void load()},[status, load]);
 
   async function review(requestId:string, nextStatus:"APPROVED"|"REJECTED") {
     if(busy) return;
@@ -299,7 +301,7 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
   const [loadingMore,setLoadingMore]=useState(false);
   const [currentAdminId,setCurrentAdminId]=useState<string|null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params=new URLSearchParams({status});
@@ -310,9 +312,9 @@ function ModerationQueue({onMessage}:{onMessage:(value:string)=>void}) {
       setReports(json.reports??[]);setCounts(json.counts??{});setNextBefore(json.nextBefore??null);setCurrentAdminId(json.currentAdminId??null);
     } catch(e){onMessage(e instanceof Error?e.message:"Could not load moderation queue.");}
     finally{setLoading(false)}
-  }
+  }, [onMessage, query, status]);
 
-  useEffect(()=>{const timer=window.setTimeout(()=>void load(),250);return()=>window.clearTimeout(timer)},[status,query]);
+  useEffect(()=>{const timer=window.setTimeout(()=>void load(),250);return()=>window.clearTimeout(timer)},[status,query, load]);
 
   async function loadMore() {
     if (!nextBefore || loadingMore) return;
@@ -401,7 +403,7 @@ function ContentManager({onMessage}:{onMessage:(value:string)=>void}) {
   const [metricsPostId,setMetricsPostId]=useState<string|null>(null);
   const [metricsDraft,setMetricsDraft]=useState({likes:"",comments:"",shares:""});
 
-  async function load(before?:string|null, append=false) {
+  const load = useCallback(async (before?:string|null, append=false) => {
     if (append) setLoadingMore(true); else setLoading(true);
     const params=new URLSearchParams({take:"50"});
     if(query.trim()) params.set("q",query.trim());
@@ -418,9 +420,9 @@ function ContentManager({onMessage}:{onMessage:(value:string)=>void}) {
       setLoading(false);
       setLoadingMore(false);
     }
-  }
+  }, [onMessage, query]);
 
-  useEffect(()=>{const timer=window.setTimeout(()=>void load(),250);return()=>window.clearTimeout(timer)},[query]);
+  useEffect(()=>{const timer=window.setTimeout(()=>void load(),250);return()=>window.clearTimeout(timer)},[query, load]);
 
   function openMetrics(post:PostRow) {
     setMetricsPostId(post.id);
@@ -486,7 +488,7 @@ function ContentManager({onMessage}:{onMessage:(value:string)=>void}) {
       const displayShares=post.postMetricOverride?.shares ?? post.shareCount ?? 0;
       const editingMetrics=metricsPostId===post.id;
       return <article key={post.id} className="p-5">
-        <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-violet-100 text-xs font-black text-violet-600">{initials(post.author.name)}</span><div className="min-w-0 flex-1"><p className="text-xs font-black">{post.author.name} <span className="text-[10px] font-bold text-gray-400">@{post.author.username??"member"}</span></p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">{post.content??"Media post"}</p>{post.mediaUrl?<img src={post.mediaUrl} alt="" className="mt-3 max-h-72 w-full rounded-2xl object-cover"/>:null}<p className="mt-2 text-[10px] text-gray-400">Live: {post._count.likes} likes · {post._count.comments} comments · {post.shareCount??0} shares · {post._count.reports} reports</p><p className="mt-1 text-[10px] font-black text-[#5a4be8]">Public display: {displayLikes} likes · {displayComments} comments · {displayShares} shares</p></div></div>
+        <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-violet-100 text-xs font-black text-violet-600">{initials(post.author.name)}</span><div className="min-w-0 flex-1"><p className="text-xs font-black">{post.author.name} <span className="text-[10px] font-bold text-gray-400">@{post.author.username??"member"}</span></p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">{post.content??"Media post"}</p>{post.mediaUrl?<NextImage unoptimized src={post.mediaUrl} alt="" className="mt-3 max-h-72 w-full rounded-2xl object-cover" width={600} height={600}/>:null}<p className="mt-2 text-[10px] text-gray-400">Live: {post._count.likes} likes · {post._count.comments} comments · {post.shareCount??0} shares · {post._count.reports} reports</p><p className="mt-1 text-[10px] font-black text-[#5a4be8]">Public display: {displayLikes} likes · {displayComments} comments · {displayShares} shares</p></div></div>
         <div className="mt-4 flex flex-wrap items-center gap-2"><select value={post.visibility} onChange={e=>void updateVisibility(post.id,e.target.value as PostRow["visibility"])} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[10px] font-black"><option value="PUBLIC">PUBLIC</option><option value="FRIENDS">FRIENDS</option><option value="PRIVATE">PRIVATE</option></select><button type="button" onClick={()=>editingMetrics?setMetricsPostId(null):openMetrics(post)} className="rounded-xl bg-[#eeebff] px-3 py-2 text-[10px] font-black text-[#5a4be8]">{editingMetrics?"Close metrics":"Edit metrics"}</button><button type="button" onClick={()=>void deletePost(post.id)} className="inline-flex items-center gap-1 rounded-xl bg-red-50 px-3 py-2 text-[10px] font-black text-red-700"><Trash2 size={13}/> Delete</button></div>
         {editingMetrics?<div className="mt-4 rounded-2xl border border-[#ddd8ff] bg-[#faf9ff] p-4"><div><p className="text-xs font-black">Post display metrics</p><p className="mt-1 text-[10px] text-gray-500">Changes public counters only; real likes/comments/shares remain unchanged.</p></div><div className="mt-3 grid gap-3 sm:grid-cols-3">{([["likes","Likes"],["comments","Comments"],["shares","Shares"]] as const).map(([key,label])=><label key={key} className="text-[10px] font-black text-gray-500">{label}<input value={metricsDraft[key]} onChange={e=>setMetricsDraft(current=>({...current,[key]:cleanNumber(e.target.value)}))} inputMode="numeric" placeholder="Live" className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-xs font-bold outline-none focus:border-[#a79dff]"/></label>)}</div><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={()=>void saveMetrics(post.id)} className="rounded-xl bg-gray-950 px-3.5 py-2 text-[10px] font-black text-white">Save metrics</button><button type="button" onClick={()=>void saveMetrics(post.id,true)} className="rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-[10px] font-black text-gray-700">Reset to live</button></div></div>:null}
       </article>
@@ -522,7 +524,12 @@ function Audit(){
   function downloadCsv() {
     const params=new URLSearchParams({format:"csv"});
     if(query.trim()) params.set("q",query.trim()); if(action) params.set("action",action); if(targetType) params.set("targetType",targetType);
-    window.location.href="/api/admin/audit?"+params.toString();
+    const downloadLink = document.createElement("a");
+    downloadLink.href = "/api/admin/audit?" + params.toString();
+    downloadLink.download = "socialhub-audit.csv";
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
   }
 
   return <Card><div className="flex flex-col gap-4 lg:flex-row lg:items-center"><div><div className="flex items-center gap-2"><History size={17}/><h2 className="text-sm font-black">Admin audit log</h2></div><p className="mt-1 text-xs text-gray-400">Searchable record of administrative and moderation actions.</p></div><div className="flex flex-col gap-2 sm:flex-row lg:ml-auto"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search action, target or details" className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-[#a79dff] sm:w-64"/><input value={action} onChange={e=>setAction(e.target.value)} placeholder="Action filter" className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-[#a79dff] sm:w-36"/><button type="button" onClick={downloadCsv} className="rounded-xl bg-gray-950 px-3 py-2 text-xs font-black text-white">Export CSV</button><select value={targetType} onChange={e=>setTargetType(e.target.value)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold"><option value="">All targets</option><option value="USER">USER</option><option value="POST">POST</option><option value="COMMENT">COMMENT</option><option value="REPORT">REPORT</option><option value="CONVERSATION">CONVERSATION</option></select></div></div>

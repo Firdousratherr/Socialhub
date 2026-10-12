@@ -7,12 +7,12 @@ import { consumeMutationRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const paramsSchema = z.object({ userId: z.string().min(1).max(100) });
 
-async function parseUserId(params: Promise<{ userId: string }>) {
-  const parsed = paramsSchema.safeParse(await params);
+async function parseUserId(params: Promise<{ userRef: string }>) {
+  const parsed = paramsSchema.safeParse({ userId: (await params).userRef });
   return parsed.success ? parsed.data.userId : null;
 }
 
-export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ userRef: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
@@ -41,7 +41,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   return NextResponse.json({ muted: true }, { status: 201 });
 }
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ userId: string }> }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ userRef: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 

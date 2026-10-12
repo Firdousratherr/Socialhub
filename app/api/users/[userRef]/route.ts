@@ -6,9 +6,9 @@ import { areFriends, isBlocked } from "@/lib/social-access";
 
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ username: string }> },
+  { params }: { params: Promise<{ userRef: string }> },
 ) {
-  const { username } = await params;
+  const { userRef: username } = await params;
   const session = await auth.api.getSession({ headers: await headers() });
 
   const user = await prisma.user.findUnique({

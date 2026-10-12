@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isBlocked } from "@/lib/social-access";
 
-export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ userRef: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
@@ -13,7 +13,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
 
   if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
 
-  const { userId } = await params;
+  const { userRef: userId } = await params;
   if (userId === session.user.id || await isBlocked(session.user.id, userId)) {
     return NextResponse.json({ error: "User not found." }, { status: 404 });
   }

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
 export default function TwoFactorPage() {
+  const router = useRouter();
   const [code,setCode]=useState("");
   const [error,setError]=useState("");
   const [busy,setBusy]=useState(false);
@@ -13,7 +15,7 @@ export default function TwoFactorPage() {
     setBusy(true);setError("");
     const result=await authClient.twoFactor.verifyTotp({code,trustDevice:true});
     if(result.error){setError(result.error.message??"Invalid authentication code.");setBusy(false);return;}
-    window.location.href="/home";
+    router.replace("/home");
   }
 
   return <main className="grid min-h-screen place-items-center bg-gray-50 px-4">

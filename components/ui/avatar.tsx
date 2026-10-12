@@ -1,3 +1,4 @@
+import NextImage from "next/image";
 import type { ImgHTMLAttributes } from "react";
 
 const gradients = [
@@ -42,7 +43,7 @@ export function Avatar({
     .toUpperCase();
 
   if (image) {
-    return <img {...props} src={image} alt={props.alt ?? name} className={["rounded-full object-cover", sizes[size], className].join(" ")} />;
+    return <NextImage unoptimized {...props} src={image} alt={props.alt ?? name} className={["rounded-full object-cover", sizes[size], className].join(" ")}  width={600} height={600}/>;
   }
 
   return (

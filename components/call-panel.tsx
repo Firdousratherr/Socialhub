@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Camera,
   CameraOff,
@@ -78,15 +78,15 @@ export default function CallPanel({
     [remoteUser.name],
   );
 
-  async function signal(kind: "OFFER" | "ANSWER" | "CANDIDATE", payload: unknown) {
+  const signal = useCallback(async (kind: "OFFER" | "ANSWER" | "CANDIDATE", payload: unknown) => {
     await fetch(`/api/calls/${call.id}/signals`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ kind, payload }),
     });
-  }
+  }, [call.id]);
 
-  async function finish(action: "end" | "decline" | "cancel") {
+  const finish = useCallback(async (action: "end" | "decline" | "cancel") => {
     if (finishedRef.current) return;
     finishedRef.current = true;
     await fetch(`/api/calls/${call.id}`, {
@@ -97,7 +97,7 @@ export default function CallPanel({
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     pcRef.current?.close();
     onClosed();
-  }
+  }, [call.id, onClosed]);
 
   async function acceptIncoming() {
     try {
@@ -217,7 +217,7 @@ export default function CallPanel({
       pcRef.current?.close();
       pcRef.current = null;
     };
-  }, [joined, call.id, call.type, incoming]);
+  }, [joined, call.id, call.type, incoming, finish, signal]);
 
   useEffect(() => {
     if (status !== "Connected") return;

@@ -6,7 +6,7 @@ import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-li
 
 export async function POST(
   _request: Request,
-  { params }: { params: Promise<{ userId: string }> },
+  { params }: { params: Promise<{ userRef: string }> },
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
@@ -14,7 +14,7 @@ export async function POST(
   const limit = await consumeRateLimit(rateLimitKey("user-block", _request, session.user.id), 30, 3600);
   if (!limit.allowed) return rateLimitResponse(limit.retryAfter);
 
-  const { userId } = await params;
+  const { userRef: userId } = await params;
   if (userId === session.user.id) return NextResponse.json({ error: "You cannot block yourself." }, { status: 400 });
 
   const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, isActive: true } });
@@ -50,12 +50,12 @@ export async function POST(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: Promise<{ userId: string }> },
+  { params }: { params: Promise<{ userRef: string }> },
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
-  const { userId } = await params;
+  const { userRef: userId } = await params;
   await prisma.block.deleteMany({
     where: { blockerId: session.user.id, blockedId: userId },
   });

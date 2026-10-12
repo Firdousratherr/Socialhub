@@ -23,9 +23,9 @@ function encodeCursor(isPinned: boolean, createdAt: Date, id: string) {
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ username: string }> },
+  { params }: { params: Promise<{ userRef: string }> },
 ) {
-  const { username } = await params;
+  const { userRef: username } = await params;
   const url = new URL(request.url);
   const take = Math.min(Math.max(Number(url.searchParams.get("take") ?? 20), 1), 50);
   const cursor = decodeCursor(url.searchParams.get("before"));

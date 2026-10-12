@@ -32,9 +32,9 @@ const personSelect = {
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ userId: string }> },
+  { params }: { params: Promise<{ userRef: string }> },
 ) {
-  const { userId } = await params;
+  const { userRef: userId } = await params;
   const url = new URL(request.url);
   const list = url.searchParams.get("list");
   const take = Math.min(Math.max(Number(url.searchParams.get("take") ?? 50), 1), 100);

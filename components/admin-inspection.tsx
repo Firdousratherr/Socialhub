@@ -2,7 +2,7 @@
 
 import { fetchWithTimeout } from "@/lib/client-fetch";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Activity, ChevronLeft, MessageSquare, Search, Shield, UserRound } from "lucide-react";
 
 type Conversation = {
@@ -31,7 +31,7 @@ export function AdminInspection() {
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
 
-  async function loadConversations(){
+  const loadConversations = useCallback(async () => {
     setLoading(true);setError("");
     try{
       const r=await fetchWithTimeout("/api/admin/messages?q="+encodeURIComponent(query),{cache:"no-store"});
@@ -39,9 +39,9 @@ export function AdminInspection() {
       setConversations(j.conversations??[]);
     }catch(e){setError(e instanceof Error?e.message:"Could not load conversations.");}
     finally{setLoading(false)}
-  }
+  }, [query]);
 
-  useEffect(()=>{ if(tab==="messages") void loadConversations(); },[tab,query]);
+  useEffect(()=>{ if(tab==="messages") void loadConversations(); },[tab,query, loadConversations]);
 
   async function openConversation(id:string){
     setLoading(true);setError("");

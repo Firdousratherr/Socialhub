@@ -7,12 +7,12 @@ import { consumeRateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-li
 import { getActiveUserRestriction } from "@/lib/user-restrictions";
 import { platformEnabled } from "@/lib/platform-controls";
 async function getSession(){return auth.api.getSession({headers:await headers()});}
-export async function POST(_request:Request,{params}:{params:Promise<{userId:string}>}){
+export async function POST(_request:Request,{params}:{params:Promise<{userRef:string}>}){
  const session=await getSession();if(!session?.user)return NextResponse.json({error:"Authentication required."},{status:401});
  const socialEnabled=await platformEnabled("social",true);
  if(!socialEnabled)return NextResponse.json({error:"Following is temporarily disabled by the platform administrator."},{status:503});
  const rl=await consumeRateLimit(rateLimitKey("follow",_request,session.user.id),30,60);if(!rl.allowed)return rateLimitResponse(rl.retryAfter);
- const {userId}=await params;if(userId===session.user.id)return NextResponse.json({error:"You cannot follow yourself."},{status:400});
+ const {userRef:userId}=await params;if(userId===session.user.id)return NextResponse.json({error:"You cannot follow yourself."},{status:400});
  const socialRestriction=await getActiveUserRestriction(session.user.id,"socialRestrictedUntil");
  if(socialRestriction)return NextResponse.json({error:"Following is temporarily restricted.",restrictedUntil:socialRestriction.toISOString()},{status:403});
  if(await isBlocked(session.user.id,userId))return NextResponse.json({error:"You cannot follow this user while a block is active."},{status:403});
@@ -33,9 +33,9 @@ export async function POST(_request:Request,{params}:{params:Promise<{userId:str
    throw error;
  }
 }
-export async function DELETE(_request:Request,{params}:{params:Promise<{userId:string}>}){
+export async function DELETE(_request:Request,{params}:{params:Promise<{userRef:string}>}){
  const session=await getSession();if(!session?.user)return NextResponse.json({error:"Authentication required."},{status:401});
  const rl=await consumeRateLimit(rateLimitKey("unfollow",_request,session.user.id),60,60);if(!rl.allowed)return rateLimitResponse(rl.retryAfter);
- const {userId}=await params;await prisma.follow.deleteMany({where:{followerId:session.user.id,followingId:userId}});
+ const {userRef:userId}=await params;await prisma.follow.deleteMany({where:{followerId:session.user.id,followingId:userId}});
  return NextResponse.json({following:false});
 }
