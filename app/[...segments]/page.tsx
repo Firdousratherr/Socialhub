@@ -12,8 +12,6 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { segments } = await params;
   const titles: Record<string, string> = {
-    login: "Sign in",
-    signup: "Create account",
     discover: "Discover",
     friends: "Friends",
     messages: "Messages",
@@ -37,12 +35,6 @@ export default async function CatchAllPage({
   const search = Array.isArray(queryParams.q) ? queryParams.q[0] : queryParams.q;
   const nextParam = Array.isArray(queryParams.next) ? queryParams.next[0] : queryParams.next;
   const first = segments[0] ?? "";
-
-  if (first === "login" || first === "signup") {
-    const session = await getCurrentSession();
-    if (session?.user) redirect("/home");
-    return <SocialPages screen={{ kind: first, next: sanitizeNextPath(nextParam, "/home") }} />;
-  }
 
   const pathname = "/" + segments.map((segment) => encodeURIComponent(segment)).join("/");
   const nextPath = sanitizeNextPath(pathname + (search ? "?q=" + encodeURIComponent(search) : ""), "/home");
