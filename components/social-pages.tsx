@@ -25,7 +25,7 @@ import { ThemeToggle } from "@/components/social-ui";
 import type { WebCall } from "@/components/call-panel";
 import {
   ArrowLeft, AtSign, Bell, Bookmark, Camera, Check, ChevronRight, Compass,
-  Globe2, Heart, KeyRound, Lock, Mail, MessageCircle, MoreHorizontal, Pencil,
+  Globe2, Heart, KeyRound, Lock, LogIn, Mail, MessageCircle, MoreHorizontal, Pencil,
   Plus, Paperclip, Phone, Search, Send, Settings, Shield, ShieldOff, Share2,
   Sparkles, Trash2, UserPlus, Users, Video, VolumeX, X
 } from "lucide-react";
