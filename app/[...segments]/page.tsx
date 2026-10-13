@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { SocialPages } from "@/components/social-pages";
-import { getCurrentSession, requireUser } from "@/lib/route-access";
+import { requireUser } from "@/lib/route-access";
 import { sanitizeNextPath } from "@/lib/route-policy";
 
 export async function generateMetadata({
@@ -28,12 +28,11 @@ export default async function CatchAllPage({
   searchParams,
 }: {
   params: Promise<{ segments: string[] }>;
-  searchParams: Promise<{ q?: string | string[]; next?: string | string[] }>;
+  searchParams: Promise<{ q?: string | string[] }>;
 }) {
   const { segments } = await params;
   const queryParams = await searchParams;
   const search = Array.isArray(queryParams.q) ? queryParams.q[0] : queryParams.q;
-  const nextParam = Array.isArray(queryParams.next) ? queryParams.next[0] : queryParams.next;
   const first = segments[0] ?? "";
 
   const pathname = "/" + segments.map((segment) => encodeURIComponent(segment)).join("/");
