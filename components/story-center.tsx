@@ -2,6 +2,7 @@
 
 
 import NextImage from "next/image";
+import { canOptimizeSocialImage } from "@/lib/social-image";
 import { useEffect, useMemo, useRef, useState, type TouchEvent, useCallback } from "react";
 import {
   Camera,
@@ -523,7 +524,7 @@ export function StoryCenter({
               >
                 <span className="grid size-full place-items-center overflow-hidden rounded-full bg-[var(--surface)] p-[2px]">
                   {ownGroup?.author.image ? (
-                    <NextImage unoptimized src={ownGroup.author.image} alt="" className="size-full rounded-full object-cover"  width={600} height={600}/>
+                    <NextImage unoptimized={!canOptimizeSocialImage(ownGroup.author.image)} src={ownGroup.author.image} alt="" className="size-full rounded-full object-cover"  width={600} height={600} sizes="72px"/>
                   ) : (
                     <span className="grid size-full place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-sm font-black text-white">
                       {session.user.name ? initials(session.user.name) : "SH"}
@@ -559,7 +560,7 @@ export function StoryCenter({
                   >
                     <span className="grid size-full place-items-center overflow-hidden rounded-full bg-[var(--surface)] p-[2px]">
                       {group.author.image ? (
-                        <NextImage unoptimized src={group.author.image} alt="" className="size-full rounded-full object-cover"  width={600} height={600}/>
+                        <NextImage unoptimized={!canOptimizeSocialImage(group.author.image)} src={group.author.image} alt="" className="size-full rounded-full object-cover"  width={600} height={600} sizes="72px"/>
                       ) : (
                         <span className="grid size-full place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-sm font-black text-white">
                           {initials(group.author.name)}
@@ -617,7 +618,7 @@ export function StoryCenter({
                     {previewMediaType === "VIDEO" ? (
                       <video src={preview} className="size-full object-contain" controls muted playsInline preload="metadata" />
                     ) : (
-                      <NextImage unoptimized src={preview} alt="Story preview" className="size-full object-contain" width={600} height={600}/>
+                      <NextImage unoptimized={!canOptimizeSocialImage(preview)} src={preview} alt="Story preview" className="size-full object-contain" width={600} height={600} sizes="100vw"/>
                     )}
                   </div>
                   <button type="button" onClick={() => { setPreview(null); setPreviewMediaType("IMAGE"); }} className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-black/60 text-white"><X size={16}/></button>
@@ -662,7 +663,7 @@ export function StoryCenter({
               </div>
 
               <div className="absolute inset-x-4 top-7 z-20 flex items-center gap-3">
-                {active.author.image ? <NextImage unoptimized src={active.author.image} alt="" className="size-9 rounded-full border border-white/30 object-cover" width={600} height={600}/> : <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-[11px] font-black text-white">{initials(active.author.name)}</span>}
+                {active.author.image ? <NextImage unoptimized={!canOptimizeSocialImage(active.author.image)} src={active.author.image} alt="" className="size-9 rounded-full border border-white/30 object-cover" width={600} height={600} sizes="36px"/> : <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-[11px] font-black text-white">{initials(active.author.name)}</span>}
                 <div className="min-w-0 flex-1 text-white">
                   <p className="flex items-center gap-1 truncate text-sm font-black">{active.author.name}<AccountBadge verified={active.author.isVerified} owner={active.author.isOwner}/></p>
                   <p className="mt-0.5 flex items-center gap-1.5 text-[10px] text-white/65"><Clock3 size={11}/> {timeRemaining(active.expiresAt)} · {active.createdAt ? formatSocialDate(active.createdAt) : ""}</p>
@@ -689,7 +690,7 @@ export function StoryCenter({
                     aria-label={active.caption ?? "Story video"}
                   />
                 ) : (
-                  <NextImage unoptimized src={active.mediaUrl} alt={active.caption ?? "Story image"} className="size-full object-contain"  width={600} height={600}/>
+                  <NextImage unoptimized={!canOptimizeSocialImage(active.mediaUrl)} src={active.mediaUrl} alt={active.caption ?? "Story image"} className="size-full object-contain"  width={600} height={600} sizes="100vw"/>
                 )}
 
                 <button
@@ -871,7 +872,7 @@ export function StoryCenter({
                     <div className="mt-2 space-y-1">
                       {storyViewers.length ? storyViewers.map((view) => (
                         <div key={view.id} className="flex items-center gap-3 rounded-2xl px-2.5 py-2 hover:bg-white/5">
-                          {view.viewer.image ? <NextImage unoptimized src={view.viewer.image} alt="" className="size-9 rounded-full object-cover" width={600} height={600}/> : <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-[10px] font-black">{initials(view.viewer.name)}</span>}
+                          {view.viewer.image ? <NextImage unoptimized={!canOptimizeSocialImage(view.viewer.image)} src={view.viewer.image} alt="" className="size-9 rounded-full object-cover" width={600} height={600} sizes="36px"/> : <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-sky-400 text-[10px] font-black">{initials(view.viewer.name)}</span>}
                           <div className="min-w-0 flex-1">
                             <p className="flex items-center gap-1 text-xs font-black">{view.viewer.name}<AccountBadge verified={view.viewer.isVerified} owner={view.viewer.isOwner}/></p>
                             <p className="mt-0.5 truncate text-[9px] text-white/45">@{view.viewer.username ?? "member"} · {formatSocialDateTime(view.viewedAt)}</p>
