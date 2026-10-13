@@ -2,6 +2,7 @@
 
 
 import NextImage from "next/image";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
@@ -9,7 +10,7 @@ import { Component, useCallback, useEffect, useMemo, useRef, useState, type Erro
 import { authClient } from "@/lib/auth-client";
 import { uploadMediaFile } from "@/lib/direct-media-upload";
 import { createPortal } from "react-dom";
-import { AdminWorkspace } from "@/components/admin-workspace";
+
 import { AccountBadge } from "@/components/account-badge";
 import { emitPostSyncEvent } from "@/lib/post-sync";
 import { compactCount, fullCount } from "@/lib/compact-count";
@@ -20,13 +21,26 @@ import { emitUnreadSummarySync } from "@/hooks/use-unread-summary";
 import { useLivePoll } from "@/hooks/use-live-poll";
 import { AppShell } from "@/components/app-shell";
 import { ThemeToggle } from "@/components/social-ui";
-import CallPanel, { type WebCall } from "@/components/call-panel";
+import type { WebCall } from "@/components/call-panel";
 import {
   ArrowLeft, ArrowRight, AtSign, BarChart3, Bell, Bookmark, Camera, Check,
   ChevronRight, CircleHelp, Compass, Globe2, Heart, Image as ImageIcon,
   KeyRound, Lock, LogIn, Mail, MessageCircle, MoreHorizontal, Pencil, Plus,
   Paperclip, Phone, Search, Send, Settings, Shield, ShieldOff, Share2, Sparkles, Trash2, UserPlus, Users, Video, VolumeX, X
 } from "lucide-react";
+
+const AdminWorkspace = dynamic(
+  () => import("@/components/admin-workspace").then((module) => module.AdminWorkspace),
+  {
+    ssr: false,
+    loading: () => <div className="p-6 text-center text-sm text-gray-500">Loading admin controls…</div>,
+  },
+);
+
+const CallPanel = dynamic(() => import("@/components/call-panel"), {
+  ssr: false,
+  loading: () => null,
+});
 
 type Screen = { kind: string; username?: string; section?: string; search?: string; next?: string };
 
