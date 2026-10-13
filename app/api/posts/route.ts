@@ -143,27 +143,41 @@ export async function GET(request: Request) {
   });
 
   const postIds = posts.map((post) => post.id);
-  const displayCounts = await getPostDisplayCountsMap(postIds);
-  const [likedRows, savedRows] =
-    session?.user && postIds.length
-      ? await Promise.all([
-          prisma.like.findMany({
+
+  // All per-post display-state lookups are independent. Run them together so
+  // the feed waits for one database round-trip window instead of three.
+  const [displayCounts, likedRows, savedRows, reactionRows, myReactionRows] =
+    await Promise.all([
+      getPostDisplayCountsMap(postIds),
+      session?.user && postIds.length
+        ? prisma.like.findMany({
             where: { userId: session.user.id, postId: { in: postIds } },
             select: { postId: true },
-          }),
-          prisma.savedPost.findMany({
+          })
+        : Promise.resolve([]),
+      session?.user && postIds.length
+        ? prisma.savedPost.findMany({
             where: { userId: session.user.id, postId: { in: postIds } },
             select: { postId: true },
-          }),
-        ])
-      : [[], []];
+          })
+        : Promise.resolve([]),
+      session?.user && postIds.length
+        ? prisma.postReaction.groupBy({
+            by: ["postId", "emoji"],
+            where: { postId: { in: postIds } },
+            _count: { _all: true },
+          })
+        : Promise.resolve([]),
+      session?.user && postIds.length
+        ? prisma.postReaction.findMany({
+            where: { userId: session.user.id, postId: { in: postIds } },
+            select: { postId: true, emoji: true },
+          })
+        : Promise.resolve([]),
+    ]);
 
   const likedSet = new Set(likedRows.map((row) => row.postId));
   const savedSet = new Set(savedRows.map((row) => row.postId));
-  const [reactionRows, myReactionRows] = postIds.length && session?.user ? await Promise.all([
-    prisma.postReaction.groupBy({ by: ["postId", "emoji"], where: { postId: { in: postIds } }, _count: { _all: true } }),
-    prisma.postReaction.findMany({ where: { userId: session.user.id, postId: { in: postIds } }, select: { postId: true, emoji: true } }),
-  ]) : [[], []];
   const reactionSummary = new Map<string, Array<{ emoji: string; count: number }>>();
   for (const row of reactionRows) {
     const list = reactionSummary.get(row.postId) ?? [];
