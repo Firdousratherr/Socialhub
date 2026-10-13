@@ -864,10 +864,12 @@ export default function HomeFeed() {
           fetch("/api/users?suggestions=true&take=3", { cache: "no-store" }),
           fetch("/api/discover/trends", { cache: "no-store" }),
         ]);
-        const feedJson = await feedResponse.json();
-        const storyJson = await storyResponse.json();
-        const usersJson = await usersResponse.json();
-         const trendsJson = await trendsResponse.json();
+        const [feedJson, storyJson, usersJson, trendsJson] = await Promise.all([
+          feedResponse.json(),
+          storyResponse.json(),
+          usersResponse.json(),
+          trendsResponse.json(),
+        ]);
         if (cancelled) return;
 
         if (feedResponse.ok) {
