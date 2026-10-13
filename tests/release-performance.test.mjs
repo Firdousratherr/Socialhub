@@ -71,6 +71,6 @@ test("sign-in and sign-up routes load the isolated auth form instead of the full
   assert.match(login, /<AuthForm nextPath=/);
   assert.match(signup, /<AuthForm signup nextPath=/);
   assert.doesNotMatch(login + signup, /components\/social-pages/);
-  assert.doesNotMatch(pages, /\bAuthForm?\b/);
+  assert.doesNotMatch(pages, /\bAuth\b|\bAuthForm\b/);
   assert.match(auth, /export function AuthForm/);
 });
