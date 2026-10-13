@@ -20,9 +20,9 @@ export async function GET() {
   let blockedIds: string[] = [];
 
   if (session?.user) {
-    blockedIds = await getBlockedUserIds(session.user.id);
-    friendIds = (
-      await prisma.friendRequest.findMany({
+    const [nextBlockedIds, friendRows] = await Promise.all([
+      getBlockedUserIds(session.user.id),
+      prisma.friendRequest.findMany({
         where: {
           status: "ACCEPTED",
           OR: [
@@ -31,8 +31,12 @@ export async function GET() {
           ],
         },
         select: { senderId: true, receiverId: true },
-      })
-    ).map((row) => (row.senderId === session.user.id ? row.receiverId : row.senderId));
+      }),
+    ]);
+    blockedIds = nextBlockedIds;
+    friendIds = friendRows.map((row) =>
+      row.senderId === session.user.id ? row.receiverId : row.senderId,
+    );
   }
 
   const stories = await prisma.story.findMany({
