@@ -41,3 +41,20 @@ test("website realtime inbox polling is less aggressive while hidden tabs remain
   const shell = read("components/app-shell.tsx");
   assert.match(shell, /}, 2500, Boolean\(session\?\.user\?\.id\)\)/);
 });
+
+test("hosted social images use the image optimizer at display-sized resolutions", () => {
+  const config = read("next.config.ts");
+  const helper = read("lib/social-image.ts");
+  const feed = read("components/home-feed.tsx");
+  const pages = read("components/social-pages.tsx");
+  const stories = read("components/story-center.tsx");
+
+  assert.match(config, /remotePatterns/);
+  assert.match(config, /public\.blob\.vercel-storage\.com/);
+  assert.match(config, /googleusercontent\.com/);
+  assert.match(helper, /canOptimizeSocialImage/);
+  assert.match(feed, /unoptimized=\{!canOptimizeSocialImage\(post\.mediaUrl\)\}/);
+  assert.match(feed, /sizes="\(max-width: 640px\) calc\(100vw - 2rem\), 520px"/);
+  assert.match(pages, /sizes=\{imageSizes\[size\]\}/);
+  assert.match(stories, /unoptimized=\{!canOptimizeSocialImage\(active\.mediaUrl\)\}/);
+});
