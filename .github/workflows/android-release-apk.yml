@@ -107,6 +107,7 @@ jobs:
           if "release {" not in signing_block:
               release_config = '''
               release {
+                  storeType "JKS"
                   storeFile file("socialhub-release.keystore")
                   storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
                   keyAlias System.getenv("ANDROID_KEY_ALIAS")
