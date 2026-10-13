@@ -44,3 +44,10 @@ test("incoming-call polling is slower and avoids overlapping background requests
   assert.match(poll, /document\.visibilityState !== "visible"/);
   assert.match(poll, /navigator\.onLine === false/);
 });
+
+test("PostgreSQL SSL mode is explicit to avoid repeated driver warnings", () => {
+  const prisma = read("lib/prisma.ts");
+  assert.match(prisma, /function normalizeDatabaseSslMode/);
+  assert.match(prisma, /\["prefer", "require", "verify-ca"\]/);
+  assert.match(prisma, /url\.searchParams\.set\("sslmode", "verify-full"\)/);
+});
