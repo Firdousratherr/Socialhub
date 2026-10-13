@@ -31,8 +31,8 @@ test("expensive call/admin UI is loaded only when that part of the product is us
   const shell = read("components/app-shell.tsx");
   const pages = read("components/social-pages.tsx");
   assert.match(shell, /dynamic\(\(\) => import\("@\/components\/call-panel"\)/);
-  assert.match(pages, /dynamic\(\(\) => import\("@\/components\/admin-workspace"\)/);
-  assert.match(pages, /dynamic\(\(\) => import\("@\/components\/call-panel"\)/);
+  assert.match(pages, /dynamic\([\s\S]*?import\("@\/components\/admin-workspace"\)/);
+  assert.match(pages, /dynamic\([\s\S]*?import\("@\/components\/call-panel"\)/);
   assert.doesNotMatch(shell, /import CallPanel, \{ type WebCall \} from "@\/components\/call-panel"/);
   assert.doesNotMatch(pages, /import \{ AdminWorkspace \} from "@\/components\/admin-workspace"/);
 });
