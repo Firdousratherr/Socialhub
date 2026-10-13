@@ -76,7 +76,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [session?.user?.id]);
 
   useEffect(() => {
-    if (!session?.user) return;
+    const userId = session?.user?.id;
+    if (!userId) {
+      setUsername(null);
+      return;
+    }
     let cancelled = false;
     void fetch("/api/profile", { cache: "no-store" })
       .then((response) => response.json())
@@ -85,7 +89,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [session?.user?.id, session?.user]);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
