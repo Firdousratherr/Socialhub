@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import Script from "next/script";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppDownloadFooter } from "@/components/app-download-footer";
@@ -30,10 +31,10 @@ export default async function RootLayout({
           name="google-adsense-account"
           content="ca-pub-7750685317490181"
         />
-        <script
+        <Script
           nonce={nonce}
-          async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7750685317490181"
+          strategy="lazyOnload"
           crossOrigin="anonymous"
         />
       </head>
