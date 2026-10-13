@@ -48,26 +48,29 @@ export async function GET(request: Request) {
   let mutedIds: string[] = [];
 
   if (session?.user) {
-    [blockedIds, mutedIds] = await Promise.all([
+    // These four lookups are independent; fetch them concurrently to reduce
+    // serial database round-trip time on the initial feed request.
+    const [blocked, muted, friendRows, followingRows] = await Promise.all([
       getBlockedUserIds(session.user.id),
       getMutedUserIds(session.user.id),
-    ]);
-    friendIds = (
-      await prisma.friendRequest.findMany({
+      prisma.friendRequest.findMany({
         where: {
           status: "ACCEPTED",
           OR: [{ senderId: session.user.id }, { receiverId: session.user.id }],
         },
         select: { senderId: true, receiverId: true },
-      })
-    ).map((row) => (row.senderId === session.user.id ? row.receiverId : row.senderId));
-
-    followingIds = (
-      await prisma.follow.findMany({
+      }),
+      prisma.follow.findMany({
         where: { followerId: session.user.id },
         select: { followingId: true },
-      })
-    ).map((row) => row.followingId);
+      }),
+    ]);
+    blockedIds = blocked;
+    mutedIds = muted;
+    friendIds = friendRows.map((row) =>
+      row.senderId === session.user.id ? row.receiverId : row.senderId,
+    );
+    followingIds = followingRows.map((row) => row.followingId);
   }
 
   const visibility = [
