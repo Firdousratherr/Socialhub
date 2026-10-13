@@ -58,3 +58,19 @@ test("hosted social images use the image optimizer at display-sized resolutions"
   assert.match(pages, /sizes=\{imageSizes\[size\]\}/);
   assert.match(stories, /unoptimized=\{!canOptimizeSocialImage\(active\.mediaUrl\)\}/);
 });
+
+test("sign-in and sign-up routes load the isolated auth form instead of the full social screens bundle", () => {
+  const root = read("app/page.tsx");
+  const login = read("app/login/page.tsx");
+  const signup = read("app/signup/page.tsx");
+  const pages = read("components/social-pages.tsx");
+  const auth = read("components/auth-form.tsx");
+
+  assert.match(root, /import \{ AuthForm \} from "@\/components\/auth-form"/);
+  assert.doesNotMatch(root, /import \{ SocialPages \} from "@\/components\/social-pages"/);
+  assert.match(login, /<AuthForm nextPath=/);
+  assert.match(signup, /<AuthForm signup nextPath=/);
+  assert.doesNotMatch(login + signup, /components\/social-pages/);
+  assert.doesNotMatch(pages, /\bAuthForm?\b/);
+  assert.match(auth, /export function AuthForm/);
+});
