@@ -57,3 +57,11 @@ test("non-recommended feed requests parallelize independent database lookups", (
   assert.match(posts, /const \[nextBlockedIds, nextMutedIds, friendRows, followingRows\] = await Promise\.all/);
   assert.match(posts, /const \[displayCounts, likedRows, savedRows\] = await Promise\.all/);
 });
+
+test("public trend candidates are cached briefly without leaking blocked-user content", () => {
+  const trends = read("app/api/discover/trends/route.ts");
+  assert.match(trends, /unstable_cache/);
+  assert.match(trends, /revalidate: 60/);
+  assert.match(trends, /select: \{ authorId: true, content: true \}/);
+  assert.match(trends, /blockedSet\.has\(post\.authorId\)/);
+});
