@@ -51,3 +51,9 @@ test("PostgreSQL SSL mode is explicit to avoid repeated driver warnings", () => 
   assert.match(prisma, /\["prefer", "require", "verify-ca"\]/);
   assert.match(prisma, /url\.searchParams\.set\("sslmode", "verify-full"\)/);
 });
+
+test("non-recommended feed requests parallelize independent database lookups", () => {
+  const posts = read("app/api/posts/route.ts");
+  assert.match(posts, /const \[nextBlockedIds, nextMutedIds, friendRows, followingRows\] = await Promise\.all/);
+  assert.match(posts, /const \[displayCounts, likedRows, savedRows\] = await Promise\.all/);
+});
