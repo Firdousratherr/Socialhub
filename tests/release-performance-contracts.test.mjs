@@ -65,3 +65,13 @@ test("public trend candidates are cached briefly without leaking blocked-user co
   assert.match(trends, /select: \{ authorId: true, content: true \}/);
   assert.match(trends, /blockedSet\.has\(post\.authorId\)/);
 });
+
+test("home feed parses independent API responses concurrently", () => {
+  const home = read("components/home-feed.tsx");
+  assert.match(home, /const \[feedJson, storyJson, usersJson, trendsJson\] = await Promise\.all/);
+});
+
+test("story access lookups run concurrently", () => {
+  const stories = read("app/api/stories/route.ts");
+  assert.match(stories, /const \[nextBlockedIds, friendRows\] = await Promise\.all/);
+});
