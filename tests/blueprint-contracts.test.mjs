@@ -871,6 +871,8 @@ test("private page routing has a centralized authentication policy and login ret
   const policy = read("lib/route-policy.ts");
   const proxy = read("proxy.ts");
   const route = read("app/[...segments]/page.tsx");
+  const login = read("app/login/page.tsx");
+  const signup = read("app/signup/page.tsx");
   assert.match(policy, /PUBLIC_PAGE_PATHS/);
   assert.match(policy, /sanitizeNextPath/);
   assert.match(policy, /loginRedirectPath/);
@@ -879,7 +881,8 @@ test("private page routing has a centralized authentication policy and login ret
   assert.match(proxy, /NextResponse\.redirect/);
   assert.match(proxy, /next.*pathname/);
   assert.match(route, /requireUser/);
-  assert.match(route, /nextParam/);
+  assert.match(login, /sanitizeNextPath\(requestedNext/);
+  assert.match(signup, /sanitizeNextPath\(requestedNext/);
 });
 
 test("direct private pages enforce server-side authentication", () => {
@@ -892,12 +895,14 @@ test("direct private pages enforce server-side authentication", () => {
 });
 
 test("authentication forms preserve the originally requested internal route", () => {
-  const page = read("components/social-pages.tsx");
-  const route = read("app/[...segments]/page.tsx");
-  assert.match(page, /nextPath = "\/home"/);
-  assert.match(page, /callbackURL: nextPath/);
-  assert.match(page, /router\.replace\(nextPath\)/);
-  assert.match(route, /sanitizeNextPath\(nextParam/);
+  const auth = read("components/auth-form.tsx");
+  const login = read("app/login/page.tsx");
+  const signup = read("app/signup/page.tsx");
+  assert.match(auth, /nextPath = "\/home"/);
+  assert.match(auth, /callbackURL: nextPath/);
+  assert.match(auth, /router\.replace\(nextPath\)/);
+  assert.match(login, /sanitizeNextPath\(requestedNext/);
+  assert.match(signup, /sanitizeNextPath\(requestedNext/);
 });
 
 test("public and private page policy distinguishes auth entry points from social routes", () => {
