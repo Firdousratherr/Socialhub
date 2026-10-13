@@ -2,6 +2,7 @@
 
 
 import NextImage from "next/image";
+import { canOptimizeSocialImage } from "@/lib/social-image";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -108,11 +109,11 @@ function Avatar({
     .toUpperCase();
 
   return image ? (
-    <NextImage unoptimized
+    <NextImage unoptimized={!canOptimizeSocialImage(image)}
       src={image}
       alt={name}
       className={large ? "size-12 rounded-full object-cover shadow-sm" : "size-9 rounded-full object-cover shadow-sm"}
-     width={600} height={600}/>
+     width={600} height={600} sizes={large ? "48px" : "36px"}/>
   ) : (
     <div
       className={[
@@ -714,7 +715,7 @@ function PostCard({
         )}
 
         {post.mediaUrl ? (
-          <NextImage unoptimized src={post.mediaUrl} alt={"Photo shared by " + post.name} className="mt-4 aspect-[4/3] max-h-[520px] w-full rounded-2xl object-cover"  width={600} height={600}/>
+          <NextImage unoptimized={!canOptimizeSocialImage(post.mediaUrl)} src={post.mediaUrl} alt={"Photo shared by " + post.name} className="mt-4 aspect-[4/3] max-h-[520px] w-full rounded-2xl object-cover"  width={600} height={600} sizes="(max-width: 640px) calc(100vw - 2rem), 520px"/>
         ) : null}
 
         {error ? (
