@@ -24,10 +24,10 @@ import { AppShell } from "@/components/app-shell";
 import { ThemeToggle } from "@/components/social-ui";
 import type { WebCall } from "@/components/call-panel";
 import {
-  ArrowLeft, AtSign, Bell, Bookmark, Camera, Check,
-  ChevronRight, Compass, Globe2, Heart, Image as ,
-  KeyRound, Lock, LogIn, Mail, MessageCircle, MoreHorizontal, Pencil, Plus,
-  Paperclip, Phone, Search, Send, Settings, Shield, ShieldOff, Share2, Sparkles, Trash2, UserPlus, Users, Video, VolumeX, X
+  ArrowLeft, AtSign, Bell, Bookmark, Camera, Check, ChevronRight, Compass,
+  Globe2, Heart, KeyRound, Lock, Mail, MessageCircle, MoreHorizontal, Pencil,
+  Plus, Paperclip, Phone, Search, Send, Settings, Shield, ShieldOff, Share2,
+  Sparkles, Trash2, UserPlus, Users, Video, VolumeX, X
 } from "lucide-react";
 
 const AdminWorkspace = dynamic(
@@ -3281,8 +3281,6 @@ function Admin({ section="overview" }: { section?: string }) {
   return <AdminWorkspace section={section}/>;
 }
 export function SocialPages({ screen }: { screen: Screen }) {
-  if (screen.kind==="login") return <Auth nextPath={screen.next} />;
-  if (screen.kind==="signup") return <Auth signup nextPath={screen.next} />;
   if (screen.kind==="admin") return <Admin section={screen.section}/>;
 
   const content =
