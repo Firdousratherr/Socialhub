@@ -69,7 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         break;
       }
     }
-  }, 1200, Boolean(session?.user?.id));
+  }, 2500, Boolean(session?.user?.id));
 
   useEffect(() => {
     if (!session?.user?.id) setIncomingCall(null);
