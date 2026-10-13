@@ -62,9 +62,9 @@ jobs:
           : "${ANDROID_KEY_PASSWORD:?Configure the ANDROID_KEY_PASSWORD Actions secret first}"
           : "${ANDROID_KEY_ALIAS:?Configure the ANDROID_KEY_ALIAS Actions secret first}"
 
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > mobile/android/app/socialhub-release.keystore
-          test -s mobile/android/app/socialhub-release.keystore
-          keytool -list -keystore mobile/android/app/socialhub-release.keystore \
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/socialhub-release.keystore
+          test -s android/app/socialhub-release.keystore
+          keytool -list -keystore android/app/socialhub-release.keystore \
             -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
 
           echo "::add-mask::$ANDROID_KEYSTORE_PASSWORD"
