@@ -2,6 +2,7 @@
 
 
 import NextImage from "next/image";
+import dynamic from "next/dynamic";
 import type { FormEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -14,8 +15,13 @@ import { PlatformAnnouncements } from "@/components/platform-announcements";
 import { BottomNav } from "@/components/bottom-nav";
 import { Avatar } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/social-ui";
-import CallPanel, { type WebCall } from "@/components/call-panel";
+import type { WebCall } from "@/components/call-panel";
 import { useLivePoll } from "@/hooks/use-live-poll";
+
+const CallPanel = dynamic(() => import("@/components/call-panel"), {
+  ssr: false,
+  loading: () => null,
+});
 
 const navItems = [
   { label: "Home", href: "/home", icon: Home },
@@ -69,7 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         break;
       }
     }
-  }, 1200, Boolean(session?.user?.id));
+  }, 2500, Boolean(session?.user?.id));
 
   useEffect(() => {
     if (!session?.user?.id) setIncomingCall(null);
