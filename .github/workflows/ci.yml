@@ -39,8 +39,8 @@ jobs:
       - name: Repository integrity smoke test
         run: node scripts/repository-smoke.mjs
 
-      - name: Blueprint contract tests
-        run: node --test tests/blueprint-contracts.test.mjs
+      - name: Full automated test suite
+        run: npm test
 
       - name: Lint
         run: npm run lint
