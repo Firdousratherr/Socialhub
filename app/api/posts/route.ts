@@ -48,26 +48,29 @@ export async function GET(request: Request) {
   let mutedIds: string[] = [];
 
   if (session?.user) {
-    [blockedIds, mutedIds] = await Promise.all([
+    // These relationship lookups are independent; run them concurrently so feed
+    // latency is governed by the slowest query rather than their combined time.
+    const [nextBlockedIds, nextMutedIds, friendRows, followingRows] = await Promise.all([
       getBlockedUserIds(session.user.id),
       getMutedUserIds(session.user.id),
-    ]);
-    friendIds = (
-      await prisma.friendRequest.findMany({
+      prisma.friendRequest.findMany({
         where: {
           status: "ACCEPTED",
           OR: [{ senderId: session.user.id }, { receiverId: session.user.id }],
         },
         select: { senderId: true, receiverId: true },
-      })
-    ).map((row) => (row.senderId === session.user.id ? row.receiverId : row.senderId));
-
-    followingIds = (
-      await prisma.follow.findMany({
+      }),
+      prisma.follow.findMany({
         where: { followerId: session.user.id },
         select: { followingId: true },
-      })
-    ).map((row) => row.followingId);
+      }),
+    ]);
+    blockedIds = nextBlockedIds;
+    mutedIds = nextMutedIds;
+    friendIds = friendRows.map((row) =>
+      row.senderId === session.user.id ? row.receiverId : row.senderId,
+    );
+    followingIds = followingRows.map((row) => row.followingId);
   }
 
   const visibility = [
@@ -140,20 +143,23 @@ export async function GET(request: Request) {
   });
 
   const postIds = posts.map((post) => post.id);
-  const displayCounts = await getPostDisplayCountsMap(postIds);
-  const [likedRows, savedRows] =
+  // Count metrics and per-user like/save state do not depend on one another.
+  // Fetch them concurrently to remove an avoidable database round trip.
+  const [displayCounts, likedRows, savedRows] = await Promise.all([
+    getPostDisplayCountsMap(postIds),
     session?.user && postIds.length
-      ? await Promise.all([
-          prisma.like.findMany({
-            where: { userId: session.user.id, postId: { in: postIds } },
-            select: { postId: true },
-          }),
-          prisma.savedPost.findMany({
-            where: { userId: session.user.id, postId: { in: postIds } },
-            select: { postId: true },
-          }),
-        ])
-      : [[], []];
+      ? prisma.like.findMany({
+          where: { userId: session.user.id, postId: { in: postIds } },
+          select: { postId: true },
+        })
+      : Promise.resolve([]),
+    session?.user && postIds.length
+      ? prisma.savedPost.findMany({
+          where: { userId: session.user.id, postId: { in: postIds } },
+          select: { postId: true },
+        })
+      : Promise.resolve([]),
+  ]);
 
   const likedSet = new Set(likedRows.map((row) => row.postId));
   const savedSet = new Set(savedRows.map((row) => row.postId));
