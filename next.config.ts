@@ -3,6 +3,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "**.public.blob.vercel-storage.com", pathname: "/**" },
+      { protocol: "https", hostname: "**.googleusercontent.com", pathname: "/**" },
+    ],
+  },
   async headers() {
     return [
       {
