@@ -6,7 +6,7 @@ const read = (path) => fs.readFileSync(new URL("../" + path, import.meta.url), "
 
 test("public Android download defaults to the latest published Socialhub APK", () => {
   const helper = read("lib/app-download.ts");
-  assert.match(helper, /releases\/download\/v1\.1\.1\/app-release\.apk/);
+  assert.match(helper, /releases\/latest\/download\/app-release\.apk/);
   assert.doesNotMatch(helper, /releases\/download\/v1\.1\.0\/app-release\.apk/);
 });
 
