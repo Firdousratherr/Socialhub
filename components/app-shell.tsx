@@ -2,6 +2,7 @@
 
 
 import NextImage from "next/image";
+import { isVercelBlobUrl } from "@/lib/media-image";
 import type { FormEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -233,7 +234,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <p className="px-2 py-1 text-[10px] font-black uppercase tracking-[.14em] text-gray-400">People</p>
                     {searchResults.users.slice(0, 4).map((user) => (
                       <button key={user.id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => openSearchResult("/profile/" + encodeURIComponent(user.username ?? user.id))} className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-gray-50">
-                        {user.image ? <NextImage unoptimized src={user.image} alt="" className="size-8 rounded-full object-cover" width={600} height={600}/> : <span className="grid size-8 place-items-center rounded-full bg-[#eeebff] text-[10px] font-black text-[#5a4be8]">{user.name.slice(0,1).toUpperCase()}</span>}
+                        {user.image ? <NextImage unoptimized={!isVercelBlobUrl(user.image)} src={user.image} alt="" className="size-8 rounded-full object-cover" width={600} height={600}/> : <span className="grid size-8 place-items-center rounded-full bg-[#eeebff] text-[10px] font-black text-[#5a4be8]">{user.name.slice(0,1).toUpperCase()}</span>}
                         <span className="min-w-0"><span className="block truncate text-xs font-black text-gray-900">{user.name}</span><span className="block truncate text-[11px] text-gray-500">@{user.username ?? "member"}</span></span>
                       </button>
                     ))}
