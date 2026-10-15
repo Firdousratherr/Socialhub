@@ -492,8 +492,8 @@ html[data-theme="dark"] .bg-gray-200,
 html[data-theme="dark"] .bg-gray-300 { background-color: var(--surface-muted) !important; }
 html[data-theme="dark"] .text-gray-300 { color: var(--muted) !important; }
 html[data-theme="dark"] .border-gray-400 { border-color: var(--border) !important; }
-html[data-theme="dark"] .hover\\:bg-gray-100:hover,
-html[data-theme="dark"] .hover\\:bg-gray-200:hover { background-color: var(--surface-muted) !important; }
+html[data-theme="dark"] .hover\:bg-gray-100:hover,
+html[data-theme="dark"] .hover\:bg-gray-200:hover { background-color: var(--surface-muted) !important; }
 html[data-theme="dark"] .placeholder-gray-400::placeholder,
 html[data-theme="dark"] .placeholder-gray-500::placeholder { color: var(--muted) !important; }
 
