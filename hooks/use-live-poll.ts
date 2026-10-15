@@ -32,6 +32,9 @@ export function useLivePoll(
       runningRef.current = true;
       try {
         await taskRef.current();
+      } catch {
+        // Polling is best-effort: a failed request must not create an unhandled rejection
+        // or stop future refresh attempts.
       } finally {
         runningRef.current = false;
       }
