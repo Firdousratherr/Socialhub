@@ -1,4 +1,5 @@
 import NextImage from "next/image";
+import { isVercelBlobUrl } from "@/lib/media-image";
 import type { ImgHTMLAttributes } from "react";
 
 const gradients = [
@@ -22,6 +23,14 @@ const sizes = {
   xl: "size-24 text-xl",
 };
 
+const imageSizes = {
+  xs: "28px",
+  sm: "36px",
+  md: "40px",
+  lg: "48px",
+  xl: "96px",
+} as const;
+
 export function Avatar({
   id,
   name,
@@ -43,7 +52,7 @@ export function Avatar({
     .toUpperCase();
 
   if (image) {
-    return <NextImage unoptimized {...props} src={image} alt={props.alt ?? name} className={["rounded-full object-cover", sizes[size], className].join(" ")}  width={600} height={600}/>;
+    return <NextImage unoptimized={!isVercelBlobUrl(image)} {...props} src={image} alt={props.alt ?? name} sizes={imageSizes[size]} className={["rounded-full object-cover", sizes[size], className].join(" ")} width={600} height={600}/>;
   }
 
   return (
