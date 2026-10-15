@@ -715,7 +715,7 @@ function PostCard({
         )}
 
         {post.mediaUrl ? (
-          <NextImage unoptimized={!isVercelBlobUrl(post.mediaUrl)} src={post.mediaUrl} alt={"Photo shared by " + post.name} className="mt-4 aspect-[4/3] max-h-[520px] w-full rounded-2xl object-cover"  width={600} height={600}/>
+          <NextImage unoptimized={!isVercelBlobUrl(post.mediaUrl)} src={post.mediaUrl} alt={"Photo shared by " + post.name} className="mt-4 aspect-[4/3] max-h-[520px] w-full rounded-2xl object-cover" sizes="(max-width: 768px) 100vw, 600px" width={600} height={600}/>
         ) : null}
 
         {error ? (
