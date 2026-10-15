@@ -69,7 +69,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         break;
       }
     }
-  }, 1200, Boolean(session?.user?.id));
+  // Incoming calls remain responsive while avoiding a request every 1.2 seconds.
+  // useLivePoll pauses while the tab is hidden or the device is offline.
+  }, 2500, Boolean(session?.user?.id));
 
   useEffect(() => {
     if (!session?.user?.id) setIncomingCall(null);
